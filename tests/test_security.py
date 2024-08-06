@@ -2,17 +2,19 @@ from http import HTTPStatus
 
 from jwt import decode
 
-from fcontrol_api.security import SECRET_KEY, create_access_token
+from fcontrol_api.security import create_access_token, settings
 
 
 def test_jwt():
     data = {'test': 'test'}
     token = create_access_token(data)
 
-    decoded = decode(token, SECRET_KEY, algorithms=['HS256'])
+    decoded = decode(
+        token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+    )
 
     assert decoded['test'] == data['test']
-    assert decoded['exp']  # Testa se o valor de exp foi adicionado ao token
+    assert decoded['exp']
 
 
 def test_jwt_invalid_token(client):
