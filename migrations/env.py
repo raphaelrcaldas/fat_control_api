@@ -16,6 +16,7 @@ if config.config_file_name is not None:
 
 target_metadata = table_registry.metadata
 
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 

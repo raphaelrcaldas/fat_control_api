@@ -44,13 +44,14 @@ pythonpath = "."
 addopts = '-p no:warnings'
 
 [tool.taskipy.tasks]
-lint = 'ruff check . && ruff check . --diff'
-format = 'ruff check . --fix && ruff format .'
 run = 'fastapi dev fcontrol_api/app.py'
+
 pre_test = 'task lint'
 test = 'pytest -s -x --cov=fcontrol_api -vv'
 post_test = 'coverage html'
 
+lint = 'ruff check . && ruff check . --diff'
+format = 'ruff check . --fix && ruff format .'
 
 
 [build-system]

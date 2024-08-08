@@ -1,4 +1,3 @@
-import factory
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,8 +6,9 @@ from sqlalchemy.pool import StaticPool
 
 from fcontrol_api.app import app
 from fcontrol_api.database import get_session
-from fcontrol_api.models import User, table_registry
+from fcontrol_api.models import table_registry
 from fcontrol_api.security import get_password_hash
+from tests.factories import TripFactory, UserFactory
 
 
 @pytest.fixture
@@ -67,18 +67,11 @@ def other_user(session):
 
 
 @pytest.fixture
-def token(client, user):
-    response = client.post(
-        'auth/token',
-        data={'username': user.email, 'password': user.clean_password},
-    )
-    return response.json()['access_token']
+def trip(session):
+    trip = TripFactory()
 
+    session.add(trip)
+    session.commit()
+    session.refresh(trip)
 
-class UserFactory(factory.Factory):
-    class Meta:
-        model = User
-
-    username = factory.Sequence(lambda n: f'test{n}')
-    email = factory.LazyAttribute(lambda obj: f'{obj.username}@test.com')
-    password = factory.LazyAttribute(lambda obj: f'{obj.username}@example.com')
+    return trip
