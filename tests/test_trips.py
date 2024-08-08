@@ -5,7 +5,7 @@ from tests.factories import TripFactory, UserFactory
 
 def test_create_trip(client, session):
     user = UserFactory()
-    trip = TripFactory(user_id=1)
+    trip = TripFactory(id=1)
 
     session.add(user)
     session.commit()
@@ -16,14 +16,14 @@ def test_create_trip(client, session):
         json={
             'trig': trip.trig,
             'func': trip.func,
-            'user_id': trip.user_id,
+            'id': trip.id,
             'oper': trip.oper,
         },
     )
 
     assert r_trip.status_code == HTTPStatus.CREATED
     assert r_trip.json() == {
-        'user_id': trip.user_id,
+        'id': trip.id,
         'func': trip.func,
         'oper': trip.oper,
         'trig': trip.trig,

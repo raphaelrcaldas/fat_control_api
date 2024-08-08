@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Tripulante
 from fcontrol_api.schemas import (
+    Message,
     TripList,
     TripPublic,
     TripSchema,
     TripSchemaUpdate,
-    Message
 )
 
 router = APIRouter()
@@ -35,7 +35,7 @@ def create_trip(trip: TripSchema, session: Session):
         )
 
     db_trip = Tripulante(
-        user_id=trip.user_id,
+        id=trip.id,
         trig=trip.trig,
         func=trip.func,
         oper=trip.oper,
@@ -47,6 +47,20 @@ def create_trip(trip: TripSchema, session: Session):
     session.refresh(db_trip)
 
     return db_trip
+
+
+@router.get('/{user_id}', response_model=TripPublic)
+def get_trip(user_id, session: Session):
+    query = select(Tripulante).where(Tripulante.id == user_id)
+
+    trip_search = session.scalar(query)
+
+    if not trip_search:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
+        )
+
+    return trip_search
 
 
 @router.get('/', response_model=TripList)
@@ -66,7 +80,7 @@ def list_trips(
         query = query.filter(Tripulante.oper == funcao)
 
     if id:
-        query = query.filter(Tripulante.user_id == id)
+        query = query.filter(Tripulante.id == id)
 
     trips = session.scalars(query).all()
 
@@ -75,7 +89,7 @@ def list_trips(
 
 @router.put('/{user_id}', response_model=TripPublic)
 def update_trip(user_id, trip: TripSchemaUpdate, session: Session):
-    query = select(Tripulante).where(Tripulante.user_id == user_id)
+    query = select(Tripulante).where(Tripulante.id == user_id)
 
     trip_search: Tripulante = session.scalar(query)
 
@@ -84,9 +98,8 @@ def update_trip(user_id, trip: TripSchemaUpdate, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
         )
 
-    trip_search.trig = trip.trig
-    trip_search.func = trip.func
-    trip_search.oper = trip.oper
+    for key, value in trip.model_dump(exclude_unset=True).items():
+        setattr(trip_search, key, value)
 
     session.commit()
     session.refresh(trip_search)
@@ -96,7 +109,7 @@ def update_trip(user_id, trip: TripSchemaUpdate, session: Session):
 
 @router.delete('/{user_id}', response_model=Message)
 def delete_trip(user_id: int, session: Session):
-    query = select(Tripulante).where(Tripulante.user_id == user_id)
+    query = select(Tripulante).where(Tripulante.id == user_id)
 
     user_search: Tripulante = session.scalar(query)
 
@@ -109,6 +122,3 @@ def delete_trip(user_id: int, session: Session):
     session.commit()
 
     return {'message': 'Crew deleted'}
-
-
-# DELETE

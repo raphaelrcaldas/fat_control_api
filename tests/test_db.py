@@ -14,19 +14,19 @@ def test_create_user(session):
 
 
 def test_create_quad(session):
-    quad = Quad(value=1, type='local', user_id=1)
+    quad = Quad(value=1, type='local', trip_id=1, description='teste')
 
     session.add(quad)
     session.commit()
     session.refresh(quad)
 
-    quads = session.scalar(select(Quad).where(Quad.user_id == 1))
+    quads = session.scalar(select(Quad).where(Quad.trip_id == 1))
 
     assert quads
 
 
 def test_create_trip(session):
-    trip = Tripulante(user_id=1, trig='RPH', func='oe', oper='AL', active=True)
+    trip = Tripulante(id=1, trig='RPH', func='oe', oper='AL', active=True)
 
     session.add(trip)
     session.commit()

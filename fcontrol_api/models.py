@@ -42,14 +42,16 @@ class User:
         init=False, server_default=func.now()
     )
 
+    updated_at: Mapped[datetime] = mapped_column(
+        nullable=True, init=False, onupdate=func.now()
+    )
+
 
 @table_registry.mapped_as_dataclass
 class Tripulante:
     __tablename__ = 'tripulantes'
 
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey('users.id'), primary_key=True
-    )
+    id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
     trig: Mapped[str] = mapped_column(unique=True)
     func: Mapped[FuncList]
     oper: Mapped[OperList]
@@ -62,9 +64,17 @@ class Quad:
     __tablename__ = 'quad'
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    # description: Mapped[str]
+    description: Mapped[str]
     type: Mapped[QuadType]
     value: Mapped[int]
 
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
-    # user_name = relationship('User', foreign_keys = user_id)
+    trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
+    trip = relationship('Tripulante', backref='quad', uselist=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now()
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        nullable=True, init=False, onupdate=func.now()
+    )

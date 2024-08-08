@@ -17,7 +17,7 @@ class TripFactory(factory.Factory):
     class Meta:
         model = Tripulante
 
-    user_id: int
+    id: int
     trig = factory.fuzzy.FuzzyText(length=3)
     func = factory.fuzzy.FuzzyChoice([e.value for e in FuncList])
     oper = factory.fuzzy.FuzzyChoice([e.value for e in OperList])

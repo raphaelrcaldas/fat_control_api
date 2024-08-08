@@ -25,7 +25,7 @@ class UserList(BaseModel):
 
 
 class TripSchema(BaseModel):
-    user_id: int
+    id: int
     trig: str
     func: FuncList
     oper: OperList
@@ -53,13 +53,16 @@ class Message(BaseModel):
 
 
 class QuadSchema(BaseModel):
-    user_id: int
+    trip_id: int
+    description: str
     type: QuadType
     value: int
 
 
 class QuadPublic(QuadSchema):
     id: int
+    trip: TripPublic
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuadList(BaseModel):
@@ -67,15 +70,6 @@ class QuadList(BaseModel):
 
 
 class QuadUpdate(BaseModel):
-    user_id: int
     value: int
-    type: str
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    username: str | None = None
+    type: QuadType
+    description: str
