@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
-from fcontrol_api.schemas import Message, UserList, UserPublic, UserSchema
+from fcontrol_api.schemas.message import (
+    Message,
+    UserList,
+    UserPublic,
+    UserSchema,
+)
 from fcontrol_api.security import get_password_hash
 
 Session = Annotated[Session, Depends(get_session)]
@@ -17,11 +22,12 @@ router = APIRouter(prefix='/users', tags=['users'])
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=UserPublic)
 def create_user(user: UserSchema, session: Session):
-    db_user = session.scalar(select(User).where(User.email == user.email))
+    db_user = session.scalar(select(User).where(User.saram == user.saram))
+
     if db_user:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Email already registered',
+            detail='SARAM já registrado',
         )
 
     hashed_password = get_password_hash(user.password)

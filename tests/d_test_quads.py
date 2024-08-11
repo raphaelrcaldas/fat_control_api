@@ -1,8 +1,3 @@
-import factory.fuzzy
-
-from fcontrol_api.models import Quad, QuadType
-
-
 def test_create_quad(client, token):
     response = client.post(
         '/quads/',
@@ -16,13 +11,6 @@ def test_create_quad(client, token):
         'user_id': 5,
         'value': 1,
     }
-
-
-class QuadFactory(factory.Factory):
-    class Meta:
-        model = Quad
-
-    type = factory.fuzzy.FuzzyChoice(QuadType)
 
 
 # def test_list_quads_should_return_5_quads(session, client, user, token):

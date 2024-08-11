@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Tripulante
-from fcontrol_api.schemas import (
-    Message,
+from fcontrol_api.schemas.message import Message
+from fcontrol_api.schemas.tripulantes import (
     TripList,
     TripPublic,
     TripSchema,

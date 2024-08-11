@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import FuncList, Quad, QuadType, Tripulante
-from fcontrol_api.schemas import (
-    Message,
+from fcontrol_api.schemas.message import Message
+from fcontrol_api.schemas.quads import (
     QuadList,
     QuadPublic,
     QuadSchema,
@@ -78,7 +78,10 @@ def list_quads(session: Session, type: QuadType, funcao: FuncList):
         .where(Quad.type == type)
     )
 
-    quads = session.execute(query.filter(Tripulante.func == funcao)).all()
+    query = query.filter(Tripulante.func == funcao)
+    query = query.filter(Tripulante.oper != 'alno')
+
+    quads = session.execute(query).all()
     quads = [q[0] for q in quads]
 
     return {'quads': quads}

@@ -1,43 +1,32 @@
 from datetime import datetime
-from enum import Enum
 
-from sqlalchemy import ForeignKey, func
+from sqlalchemy import ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
+
+from fcontrol_api.schemas.quads import QuadType
+from fcontrol_api.schemas.tripulantes import FuncList, OperList
 
 table_registry = registry()
 
 
-class QuadType(str, Enum):
-    nacional = 'nacional'
-    local = 'local'
-    desloc = 'desloc'
-    sobr = 'sobr'
-    sar = 'sar'
-
-
-class FuncList(str, Enum):
-    mc = 'mc'
-    lm = 'lm'
-    tf = 'tf'
-    os = 'os'
-    oe = 'oe'
-
-
-class OperList(str, Enum):
-    AL = 'AL'  # ALUNO
-    BA = 'BA'  # BASICO
-    OP = 'OP'  # OPERACIONAL
-    IN = 'IN'  # INSTRUTOR
-
-
 @table_registry.mapped_as_dataclass
-class User:
-    __tablename__ = 'users'
+class Pessoa:
+    __tablename__ = 'pessoas'
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    username: Mapped[str] = mapped_column(unique=True)
-    password: Mapped[str]
-    email: Mapped[str] = mapped_column(unique=True)
+    pg: Mapped[str]
+    nome_guerra: Mapped[str]
+    nome_completo: Mapped[str] = mapped_column(nullable=True)
+    ult_promo: Mapped[datetime] = mapped_column(nullable=True)
+    id_fab: Mapped[int] = mapped_column(nullable=True, unique=True)
+    saram: Mapped[str] = mapped_column(nullable=True, unique=True)
+    unidade: Mapped[str] = mapped_column(nullable=False)
+    cpf: Mapped[str] = mapped_column(nullable=True)
+    nasc: Mapped[datetime] = mapped_column(nullable=True)
+    celular: Mapped[str] = mapped_column(nullable=True)
+    email_pess: Mapped[str] = mapped_column(nullable=True, unique=True)
+    email_fab: Mapped[str] = mapped_column(nullable=True, unique=True)
+
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )
@@ -48,15 +37,26 @@ class User:
 
 
 @table_registry.mapped_as_dataclass
+class Users:
+    __tablename__ = 'users'
+
+    id: Mapped[int] = mapped_column(ForeignKey('pessoas.id'), primary_key=True)
+    username: Mapped[str] = mapped_column(nullable=True, unique=True)
+    password: Mapped[str]
+    unidade: Mapped[str]
+    perfil: Mapped[str]
+
+
+@table_registry.mapped_as_dataclass
 class Tripulante:
     __tablename__ = 'tripulantes'
 
-    id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
-    trig: Mapped[str] = mapped_column(unique=True)
+    id: Mapped[int] = mapped_column(ForeignKey('pessoas.id'), primary_key=True)
+    trig: Mapped[str] = mapped_column(String(3), unique=True)
     func: Mapped[FuncList]
     oper: Mapped[OperList]
     active: Mapped[bool]
-    user = relationship('User', backref='tripulante', uselist=False)
+    pessoa = relationship('Pessoa', backref='tripulante', uselist=False)
 
 
 @table_registry.mapped_as_dataclass

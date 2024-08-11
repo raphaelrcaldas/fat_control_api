@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from fcontrol_api.schemas import UserPublic
+from fcontrol_api.schemas.users import UserPublic
 
 
 def test_create_user(client):
