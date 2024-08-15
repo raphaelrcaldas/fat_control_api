@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
-from fcontrol_api.schemas.pessoas import PessoaPublic
+from fcontrol_api.schemas.users import UserPublic
 
 
 class FuncList(str, Enum):
@@ -36,7 +36,7 @@ class TripSchemaUpdate(BaseModel):
 
 
 class TripPublic(TripSchema):
-    pessoa: PessoaPublic
+    user: UserPublic
     model_config = ConfigDict(from_attributes=True)
 
 

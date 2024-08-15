@@ -7,84 +7,129 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
-from fcontrol_api.schemas.message import (
-    Message,
-    UserList,
-    UserPublic,
-    UserSchema,
-)
-from fcontrol_api.security import get_password_hash
+from fcontrol_api.schemas.users import ListUsers, MessageCreateUser, UserSchema
 
 Session = Annotated[Session, Depends(get_session)]
 
 router = APIRouter(prefix='/users', tags=['users'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=UserPublic)
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=MessageCreateUser
+)
 def create_user(user: UserSchema, session: Session):
-    db_user = session.scalar(select(User).where(User.saram == user.saram))
-
-    if db_user:
+    db_user_saram = session.scalar(
+        select(User).where(User.saram == user.saram)
+    )
+    if db_user_saram:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='SARAM já registrado',
         )
 
-    hashed_password = get_password_hash(user.password)
+    if user.id_fab:
+        db_user_id = session.scalar(
+            select(User).where(User.id_fab == user.id_fab)
+        )
+        if db_user_id:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='ID FAB já registrado',
+            )
+
+    if user.email_fab:
+        db_email_fab = session.scalar(
+            select(User).where(User.email_fab == user.email_fab)
+        )
+        if db_email_fab:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Email FAB já registrado',
+            )
+
+    if user.email_pess:
+        db_email_pess = session.scalar(
+            select(User).where(User.email_pess == user.email_pess)
+        )
+        if db_email_pess:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Email pessoal já registrado',
+            )
 
     db_user = User(
-        email=user.email,
-        username=user.username,
-        password=hashed_password,
+        pg=user.pg,
+        nome_guerra=user.nome_guerra,
+        nome_completo=user.nome_completo,
+        ult_promo=user.ult_promo,
+        id_fab=user.id_fab,
+        saram=user.saram,
+        cpf=user.cpf,
+        nasc=user.nasc,
+        celular=user.celular,
+        email_pess=user.email_pess,
+        email_fab=user.email_fab,
+        unidade=user.unidade,
     )
+
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
 
+    return {'detail': 'Adicionado com sucesso', 'data': db_user}
+
+
+@router.get('/', response_model=ListUsers)
+def read_users(session: Session):
+    users = session.scalars(select(User)).all()
+    return {'data': users}
+
+
+@router.get('/{user_id}', response_model=UserSchema)
+def get_user(user_id, session: Session):
+    query = select(User).where(User.id == user_id)
+    db_user: User = session.scalar(query)
+
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+        )
+
     return db_user
 
 
-@router.get('/', response_model=UserList)
-def read_users(session: Session):
-    users = session.scalars(select(User)).all()
-    return {'users': users}
-
-
-@router.put('/{user_id}', response_model=UserPublic)
+@router.put('/{user_id}', response_model=MessageCreateUser)
 def update_user(user_id: int, user: UserSchema, session: Session):
     query = select(User).where(User.id == user_id)
 
-    user_search: User = session.scalar(query)
+    db_user: User = session.scalar(query)
 
-    if not user_search:
+    if not db_user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
         )
 
-    hashed_password = get_password_hash(user.password)
-
-    user_search.username = user.username
-    user_search.password = hashed_password
-    user_search.email = user.email
+    for key, value in user.model_dump(exclude_unset=True).items():
+        setattr(db_user, key, value)
 
     session.commit()
-    session.refresh(user_search)
+    session.refresh(db_user)
 
-    return user_search
+    return {'detail': 'Atualizado com sucesso', 'data': db_user}
 
 
-@router.delete('/{user_id}', response_model=Message)
+@router.delete('/{user_id}')
 def delete_user(user_id: int, session: Session):
     query = select(User).where(User.id == user_id)
 
-    user_search: User = session.scalar(query)
+    db_user: User = session.scalar(query)
 
-    if not user_search:
+    if not db_user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
         )
 
-    session.delete(user_search)
+    session.delete(db_user)
     session.commit()
 
-    return {'message': 'User deleted'}
+    return {'detail': 'Deletado com Sucesso'}

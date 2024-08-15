@@ -2,12 +2,12 @@ from http import HTTPStatus
 
 from fastapi import FastAPI
 
-from fcontrol_api.routers import pessoas, quads, tripulantes
+from fcontrol_api.routers import quads, tripulantes, users
 from fcontrol_api.schemas.message import Message
 
 app = FastAPI()
 
-app.include_router(pessoas.router)
+app.include_router(users.router)
 app.include_router(quads.router)
 app.include_router(tripulantes.router)
 
