@@ -4,31 +4,32 @@ from pydantic import BaseModel, EmailStr
 
 
 class UserSchema(BaseModel):
-    pg: str
+    p_g: str
     nome_guerra: str
-    nome_completo: str | None
-    ult_promo: datetime | None
+    nome_completo: str
+    esp: str
     id_fab: int | None
-    saram: int | None
-    cpf: str | None
-    nasc: datetime | None
-    celular: str | None
-    email_pess: EmailStr | None
-    email_fab: EmailStr | None
+    saram: int
+    cpf: str
+    ult_promo: str | None
+    nasc: str | None
+    email_pess: EmailStr | str
+    email_fab: EmailStr | str
     unidade: str
 
 
 class UserPublic(BaseModel):
-    pg: str
+    id: int
+    p_g: str
+    esp: str
     nome_guerra: str
+    nome_completo: str
     unidade: str
-    saram: int
-
+    
+    
+class UserDetail(UserSchema):
+    ...
 
 class ListUsers(BaseModel):
     data: list[UserPublic]
 
-
-class MessageCreateUser(BaseModel):
-    detail: str
-    data: UserPublic

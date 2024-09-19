@@ -12,7 +12,6 @@ from fcontrol_api.schemas.tripulantes import (
     TripList,
     TripPublic,
     TripSchema,
-    TripSchemaUpdate,
 )
 
 router = APIRouter()
@@ -31,7 +30,7 @@ def create_trip(trip: TripSchema, session: Session):
     if db_trig:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='trigram already registered',
+            detail='trigrama already registered',
         )
 
     db_trip = Tripulante(
@@ -39,7 +38,7 @@ def create_trip(trip: TripSchema, session: Session):
         trig=trip.trig,
         func=trip.func,
         oper=trip.oper,
-        active=True,
+        active=trip.active,
     )
 
     session.add(db_trip)
@@ -88,7 +87,7 @@ def list_trips(
 
 
 @router.put('/{user_id}', response_model=TripPublic)
-def update_trip(user_id, trip: TripSchemaUpdate, session: Session):
+def update_trip(user_id, trip: TripSchema, session: Session):
     query = select(Tripulante).where(Tripulante.id == user_id)
 
     trip_search: Tripulante = session.scalar(query)

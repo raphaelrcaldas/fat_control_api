@@ -25,14 +25,7 @@ class TripSchema(BaseModel):
     trig: str
     func: FuncList
     oper: OperList
-
-
-class TripSchemaUpdate(BaseModel):
-    "Somente para não duplicar o id na req update trip"
-
-    trig: str
-    func: FuncList
-    oper: OperList
+    active: bool = True
 
 
 class TripPublic(TripSchema):
