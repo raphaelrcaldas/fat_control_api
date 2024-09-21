@@ -1,5 +1,7 @@
 from datetime import datetime
+from typing import Annotated
 
+from fastapi import Body
 from pydantic import BaseModel, EmailStr
 
 
@@ -11,8 +13,8 @@ class UserSchema(BaseModel):
     id_fab: int | None
     saram: int
     cpf: str
-    ult_promo: str | None
-    nasc: str | None
+    ult_promo: Annotated[datetime | None, Body()]
+    nasc: Annotated[datetime | None, Body()]
     email_pess: EmailStr | str
     email_fab: EmailStr | str
     unidade: str
@@ -25,11 +27,7 @@ class UserPublic(BaseModel):
     nome_guerra: str
     nome_completo: str
     unidade: str
-    
-    
-class UserDetail(UserSchema):
-    ...
+
 
 class ListUsers(BaseModel):
     data: list[UserPublic]
-

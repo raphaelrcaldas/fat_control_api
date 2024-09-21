@@ -44,7 +44,7 @@ class Tripulante:
     func: Mapped[FuncList]
     oper: Mapped[OperList]
     active: Mapped[bool]
-    user = relationship('User', backref="tripulantes", uselist=False)
+    user = relationship('User', backref='tripulantes', uselist=False)
 
 
 @table_registry.mapped_as_dataclass

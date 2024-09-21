@@ -7,19 +7,16 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
+from fcontrol_api.schemas.users import ListUsers, UserPublic, UserSchema
 from fcontrol_api.security import get_password_hash
 from fcontrol_api.settings import Settings
-from fcontrol_api.schemas.users import (
-    UserSchema, ListUsers, UserDetail, UserPublic )
-from fcontrol_api.utils.date_converter import datetime_to_string, form_to_datetime
 
 Session = Annotated[Session, Depends(get_session)]
 
 router = APIRouter(prefix='/users', tags=['users'])
 
 
-@router.post(
-    '/', status_code=HTTPStatus.CREATED, response_model=UserPublic)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=UserPublic)
 def create_user(user: UserSchema, session: Session):
     db_user_saram = session.scalar(
         select(User).where(User.saram == user.saram)
@@ -39,11 +36,9 @@ def create_user(user: UserSchema, session: Session):
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail='ID FAB já registrado',
             )
-            
+
     if user.cpf:
-        db_user_id = session.scalar(
-            select(User).where(User.cpf == user.cpf)
-        )
+        db_user_id = session.scalar(select(User).where(User.cpf == user.cpf))
         if db_user_id:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
@@ -71,27 +66,21 @@ def create_user(user: UserSchema, session: Session):
             )
 
     hashed_password = get_password_hash(Settings().DEFAULT_PASSWORD)
-    
-    if nasc := user.nasc:
-        nasc = form_to_datetime(nasc)
-
-    if promo := user.ult_promo:
-        promo = form_to_datetime(promo)
 
     db_user = User(
         p_g=user.p_g,
         esp=user.esp,
         nome_guerra=user.nome_guerra,
         nome_completo=user.nome_completo,
-        ult_promo=promo,
+        ult_promo=user.ult_promo,
         id_fab=user.id_fab,
         saram=user.saram,
         cpf=user.cpf,
-        nasc=nasc,
+        nasc=user.nasc,
         email_pess=user.email_pess,
         email_fab=user.email_fab,
         unidade=user.unidade,
-        password=hashed_password
+        password=hashed_password,
     )
 
     session.add(db_user)
@@ -107,7 +96,7 @@ def read_users(session: Session):
     return {'data': users}
 
 
-@router.get('/{user_id}', response_model=UserDetail)
+@router.get('/{user_id}', response_model=UserSchema)
 def get_user(user_id, session: Session):
     query = select(User).where(User.id == user_id)
     db_user: User = session.scalar(query)
@@ -116,19 +105,11 @@ def get_user(user_id, session: Session):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
         )
-        
-        
-    # CONVERTENDO DATETIME PARA STR, PARA ATENDER AO SCHEMA
-    if db_user.nasc:
-        db_user.nasc = datetime_to_string(db_user.nasc)
-    
-    if db_user.ult_promo:
-        db_user.ult_promo = datetime_to_string(db_user.ult_promo)
 
     return db_user
 
 
-@router.put('/{user_id}')
+@router.put('/{user_id}', response_model=UserSchema)
 def update_user(user_id: int, user: UserSchema, session: Session):
     query = select(User).where(User.id == user_id)
 
@@ -145,7 +126,7 @@ def update_user(user_id: int, user: UserSchema, session: Session):
     session.commit()
     session.refresh(db_user)
 
-    return {'detail': 'Atualizado com sucesso', 'data': db_user}
+    return db_user
 
 
 @router.delete('/{user_id}')

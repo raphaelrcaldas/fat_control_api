@@ -2,13 +2,12 @@ from http import HTTPStatus
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 from fcontrol_api.routers import quads, tripulantes, users
 from fcontrol_api.schemas.message import Message
 
 origins = [
-    "http://localhost:3000",
+    'http://localhost:3000',
 ]
 
 app = FastAPI()
@@ -17,8 +16,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 app.include_router(users.router)
