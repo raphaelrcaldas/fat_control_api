@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserSchema(BaseModel):
@@ -10,11 +10,11 @@ class UserSchema(BaseModel):
     nome_guerra: str
     nome_completo: str
     esp: str
-    id_fab: int | None
-    saram: int
+    id_fab: int | None = Field(gt=100000)
+    saram: int = Field(gt=1000000, lt=9999999)
     cpf: str
-    ult_promo: Annotated[datetime | None, Body()]
-    nasc: Annotated[datetime | None, Body()]
+    ult_promo: Annotated[date | None, Body()]
+    nasc: Annotated[date | None, Body()]
     email_pess: EmailStr | str
     email_fab: EmailStr | str
     unidade: str
