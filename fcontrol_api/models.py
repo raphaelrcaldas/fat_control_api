@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from typing import List
 
 from sqlalchemy import ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
@@ -18,20 +19,17 @@ class User:
     esp: Mapped[str] = mapped_column(nullable=True)
     nome_guerra: Mapped[str]
     nome_completo: Mapped[str] = mapped_column(nullable=True)
-    ult_promo: Mapped[datetime] = mapped_column(nullable=True)
     id_fab: Mapped[int] = mapped_column(nullable=True, unique=True)
     saram: Mapped[int] = mapped_column(nullable=False, unique=True)
     unidade: Mapped[str] = mapped_column(nullable=False)
     cpf: Mapped[str] = mapped_column(nullable=True)
-    nasc: Mapped[datetime] = mapped_column(nullable=True)
-    email_pess: Mapped[str] = mapped_column(nullable=True)
     email_fab: Mapped[str] = mapped_column(nullable=True)
+    email_pess: Mapped[str] = mapped_column(nullable=True)
+    nasc: Mapped[date] = mapped_column(nullable=True)
+    ult_promo: Mapped[date] = mapped_column(nullable=True)
     password: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=True, init=False, onupdate=func.now()
     )
 
 
@@ -39,12 +37,25 @@ class User:
 class Tripulante:
     __tablename__ = 'tripulantes'
 
-    id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
-    trig: Mapped[str] = mapped_column(String(3), unique=True)
-    func: Mapped[FuncList]
-    oper: Mapped[OperList]
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
-    user = relationship('User', backref='tripulantes', uselist=False)
+    uae: Mapped[str]
+    # user = relationship('User', backref='tripulantes', uselist=False)
+    user: Mapped['User'] = relationship()
+    funcs: Mapped[List['Funcao']] = relationship()
+
+
+@table_registry.mapped_as_dataclass
+class Funcao:
+    __tablename__ = 'trip_funcs'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
+    func: Mapped[str]
+    oper: Mapped[str]
+    proj: Mapped[str]
 
 
 @table_registry.mapped_as_dataclass

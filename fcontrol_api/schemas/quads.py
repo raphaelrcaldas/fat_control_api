@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
-from fcontrol_api.schemas.tripulantes import TripPublic
+from fcontrol_api.schemas.tripulantes import TripWithFuncs
 
 
 class QuadType(str, Enum):
@@ -22,7 +22,7 @@ class QuadSchema(BaseModel):
 
 class QuadPublic(QuadSchema):
     id: int
-    trip: TripPublic
+    # trip: TripPublic
     model_config = ConfigDict(from_attributes=True)
 
 

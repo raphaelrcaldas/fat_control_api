@@ -2,7 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
-from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.schemas.funcs import FuncPublic
+from fcontrol_api.schemas.users import UserTrip
 
 
 class FuncList(str, Enum):
@@ -23,15 +24,20 @@ class OperList(str, Enum):
 class TripSchema(BaseModel):
     id: int
     trig: str
-    func: FuncList
-    oper: OperList
+    active: bool = True
+    uae: str
+
+
+class TripUpdate(BaseModel):
+    trig: str
     active: bool = True
 
 
-class TripPublic(TripSchema):
-    user: UserPublic
-    model_config = ConfigDict(from_attributes=True)
+class TripWithFuncs(TripSchema):
+    user: UserTrip
+    funcs: list[FuncPublic]
+    # model_config = ConfigDict(from_attributes=True)
 
 
-class TripList(BaseModel):
-    trips: list[TripPublic]
+class TripsListWithFuncs(BaseModel):
+    data: list[TripWithFuncs]

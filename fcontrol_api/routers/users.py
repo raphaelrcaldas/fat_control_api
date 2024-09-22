@@ -97,7 +97,7 @@ def read_users(session: Session):
 
 
 @router.get('/{user_id}', response_model=UserSchema)
-def get_user(user_id, session: Session):
+def get_user(user_id: int, session: Session):
     query = select(User).where(User.id == user_id)
     db_user: User = session.scalar(query)
 

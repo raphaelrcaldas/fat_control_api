@@ -31,3 +31,9 @@ class UserPublic(BaseModel):
 
 class ListUsers(BaseModel):
     data: list[UserPublic]
+
+
+class UserTrip(BaseModel):
+    p_g: str
+    esp: str
+    nome_guerra: str

@@ -9,9 +9,10 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import Tripulante
 from fcontrol_api.schemas.message import Message
 from fcontrol_api.schemas.tripulantes import (
-    TripList,
-    TripPublic,
     TripSchema,
+    TripsListWithFuncs,
+    TripUpdate,
+    TripWithFuncs,
 )
 
 router = APIRouter()
@@ -21,80 +22,86 @@ Session = Annotated[Session, Depends(get_session)]
 router = APIRouter(prefix='/trips', tags=['trips'])
 
 
-@router.post('/', response_model=TripPublic, status_code=HTTPStatus.CREATED)
+@router.post('/', response_model=TripSchema, status_code=HTTPStatus.CREATED)
 def create_trip(trip: TripSchema, session: Session):
     db_trig = session.scalar(
-        select(Tripulante).where(Tripulante.trig == trip.trig)
+        select(Tripulante).where(
+            (Tripulante.trig == trip.trig) & (Tripulante.uae == trip.uae)
+        )
     )
 
     if db_trig:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='trigrama already registered',
+            detail='Trigrama já registrado',
         )
 
-    db_trip = Tripulante(
-        id=trip.id,
-        trig=trip.trig,
-        func=trip.func,
-        oper=trip.oper,
-        active=trip.active,
+    db_trip = session.scalar(
+        select(Tripulante).where(
+            (Tripulante.user_id == trip.user_id) & (Tripulante.uae == trip.uae)
+        )
     )
 
-    session.add(db_trip)
+    if db_trip:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Tripulante já registrado',
+        )
+
+    tripulante = Tripulante(
+        user_id=trip.user_id, trig=trip.trig, active=trip.active, uae=trip.uae
+    )
+
+    session.add(tripulante)
     session.commit()
-    session.refresh(db_trip)
+    session.refresh(tripulante)
 
-    return db_trip
+    return tripulante
 
 
-@router.get('/{user_id}', response_model=TripPublic)
-def get_trip(user_id, session: Session):
-    query = select(Tripulante).where(Tripulante.id == user_id)
+@router.get('/{id}', response_model=TripWithFuncs)
+def get_trip(id, session: Session):
+    query = select(Tripulante).where(Tripulante.id == id)
 
-    trip_search = session.scalar(query)
+    trip = session.scalar(query)
 
-    if not trip_search:
+    if not trip:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
         )
 
-    return trip_search
+    return trip
 
 
-@router.get('/', response_model=TripList)
-def list_trips(
-    session: Session,
-    oper: str = Query(None),
-    funcao: str = Query(None),
-    id: str = Query(None),
-    active: bool = True,
-):
-    query = select(Tripulante).where(Tripulante.active == active)
+@router.get('/', response_model=TripsListWithFuncs)
+def list_trips(uae: str, active: bool, session: Session):
+    query = select(Tripulante).where(
+        (Tripulante.active == active) & (Tripulante.uae == uae)
+    )
 
-    if oper:
-        query = query.filter(Tripulante.oper == oper)
+    # if oper:
+    #     query = query.filter(Tripulante.oper == oper)
 
-    if funcao:
-        query = query.filter(Tripulante.oper == funcao)
+    # if funcao:
+    #     query = query.filter(Tripulante.oper == funcao)
 
-    if id:
-        query = query.filter(Tripulante.id == id)
+    # if id:
+    #     query = query.filter(Tripulante.id == id)
 
     trips = session.scalars(query).all()
 
-    return {'trips': trips}
+    return {'data': trips}
 
 
-@router.put('/{user_id}', response_model=TripPublic)
-def update_trip(user_id, trip: TripSchema, session: Session):
-    query = select(Tripulante).where(Tripulante.id == user_id)
+@router.put('/{id}', response_model=TripWithFuncs)
+def update_trip(id, trip: TripUpdate, session: Session):
+    query = select(Tripulante).where(Tripulante.id == id)
 
     trip_search: Tripulante = session.scalar(query)
 
     if not trip_search:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
+            status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
     for key, value in trip.model_dump(exclude_unset=True).items():
@@ -106,18 +113,18 @@ def update_trip(user_id, trip: TripSchema, session: Session):
     return trip_search
 
 
-@router.delete('/{user_id}', response_model=Message)
-def delete_trip(user_id: int, session: Session):
-    query = select(Tripulante).where(Tripulante.id == user_id)
+@router.delete('/{id}')
+def delete_trip(id: int, session: Session):
+    query = select(Tripulante).where(Tripulante.id == id)
 
-    user_search: Tripulante = session.scalar(query)
+    trip: Tripulante = session.scalar(query)
 
-    if not user_search:
+    if not trip:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='crew not found'
+            status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
-    session.delete(user_search)
+    session.delete(trip)
     session.commit()
 
-    return {'message': 'Crew deleted'}
+    return {'detail': 'Crew member deleted'}
