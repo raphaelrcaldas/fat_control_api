@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fcontrol_api.routers import quads, tripulantes, users
-from fcontrol_api.schemas.message import Message
 
 origins = [
     'http://localhost:3000',
@@ -25,6 +24,6 @@ app.include_router(quads.router)
 app.include_router(tripulantes.router)
 
 
-@app.get('/', status_code=HTTPStatus.OK, response_model=Message)
+@app.get('/', status_code=HTTPStatus.OK)
 def read_root():
     return {'message': 'Olá Mundo'}

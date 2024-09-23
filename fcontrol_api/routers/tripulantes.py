@@ -1,13 +1,12 @@
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Tripulante
-from fcontrol_api.schemas.message import Message
+from fcontrol_api.models import Funcao, Tripulante, User
 from fcontrol_api.schemas.tripulantes import (
     TripSchema,
     TripsListWithFuncs,
@@ -63,12 +62,20 @@ def create_trip(trip: TripSchema, session: Session):
 def get_trip(id, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
-    trip = session.scalar(query)
+    trip: Tripulante = session.scalar(query)
 
     if not trip:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
         )
+
+    query_user = select(User).where(trip.user_id == User.id)
+    user = session.scalar(query_user)
+    setattr(trip, 'user', user)
+
+    query_funcao = select(Funcao).where(id == Funcao.trip_id)
+    funcs = session.scalars(query_funcao).all()
+    setattr(trip, 'funcs', funcs)
 
     return trip
 
@@ -79,21 +86,21 @@ def list_trips(uae: str, active: bool, session: Session):
         (Tripulante.active == active) & (Tripulante.uae == uae)
     )
 
-    # if oper:
-    #     query = query.filter(Tripulante.oper == oper)
+    trips: list[Tripulante] = session.scalars(query).all()
 
-    # if funcao:
-    #     query = query.filter(Tripulante.oper == funcao)
+    for trip in trips:
+        query_user = select(User).where(trip.user_id == User.id)
+        user = session.scalar(query_user)
+        setattr(trip, 'user', user)
 
-    # if id:
-    #     query = query.filter(Tripulante.id == id)
-
-    trips = session.scalars(query).all()
+        query_funcao = select(Funcao).where(trip.id == Funcao.trip_id)
+        funcs = session.scalars(query_funcao).all()
+        setattr(trip, 'funcs', funcs)
 
     return {'data': trips}
 
 
-@router.put('/{id}', response_model=TripWithFuncs)
+@router.put('/{id}')
 def update_trip(id, trip: TripUpdate, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 

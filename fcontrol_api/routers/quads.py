@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import FuncList, Quad, QuadType, Tripulante
+from fcontrol_api.models import Quad, QuadType, Tripulante
 from fcontrol_api.schemas.message import Message
 from fcontrol_api.schemas.quads import (
     QuadList,
@@ -71,7 +71,7 @@ def get_quad(session: Session, id):
 
 
 @router.get('/', status_code=HTTPStatus.OK, response_model=QuadList)
-def list_quads(session: Session, type: QuadType, funcao: FuncList):
+def list_quads(session: Session, type: QuadType, funcao):
     query = (
         select(Quad, Tripulante)
         .join(Tripulante, Quad.trip_id == Tripulante.id)

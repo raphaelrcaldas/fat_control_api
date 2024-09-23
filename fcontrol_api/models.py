@@ -1,11 +1,9 @@
 from datetime import date, datetime
-from typing import List
 
 from sqlalchemy import ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 from fcontrol_api.schemas.quads import QuadType
-from fcontrol_api.schemas.tripulantes import FuncList, OperList
 
 table_registry = registry()
 
@@ -32,6 +30,10 @@ class User:
         init=False, server_default=func.now()
     )
 
+    tripulante = relationship(
+        'Tripulante', cascade='all, delete'
+    )
+
 
 @table_registry.mapped_as_dataclass
 class Tripulante:
@@ -43,19 +45,20 @@ class Tripulante:
     active: Mapped[bool]
     uae: Mapped[str]
     # user = relationship('User', backref='tripulantes', uselist=False)
-    user: Mapped['User'] = relationship()
-    funcs: Mapped[List['Funcao']] = relationship()
+
+    funcao = relationship('Funcao', cascade='all ,delete')
 
 
 @table_registry.mapped_as_dataclass
 class Funcao:
     __tablename__ = 'trip_funcs'
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
     func: Mapped[str]
     oper: Mapped[str]
     proj: Mapped[str]
+    # trip: Mapped['Tripulante'] = relationship(viewonly=True)
 
 
 @table_registry.mapped_as_dataclass

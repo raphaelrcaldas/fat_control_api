@@ -22,7 +22,7 @@ class OperList(str, Enum):
 
 
 class TripSchema(BaseModel):
-    id: int
+    user_id: int
     trig: str
     active: bool = True
     uae: str
