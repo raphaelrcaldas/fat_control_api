@@ -66,7 +66,7 @@ def get_trip(id, session: Session):
 
     if not trip:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
+            status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
     query_user = select(User).where(trip.user_id == User.id)
