@@ -30,9 +30,7 @@ class User:
         init=False, server_default=func.now()
     )
 
-    tripulante = relationship(
-        'Tripulante', cascade='all, delete'
-    )
+    # tripulante = relationship('Tripulante', cascade='all, delete')
 
 
 @table_registry.mapped_as_dataclass
@@ -44,9 +42,8 @@ class Tripulante:
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
     uae: Mapped[str]
-    # user = relationship('User', backref='tripulantes', uselist=False)
-
-    funcao = relationship('Funcao', cascade='all ,delete')
+    user = relationship('User', backref='tripulantes', uselist=False)
+    funcs = relationship('Funcao', backref='tripulantes', uselist=True)
 
 
 @table_registry.mapped_as_dataclass
@@ -58,7 +55,7 @@ class Funcao:
     func: Mapped[str]
     oper: Mapped[str]
     proj: Mapped[str]
-    # trip: Mapped['Tripulante'] = relationship(viewonly=True)
+    # trip = relationship('Tripulante', backref='trip_funcs', uselist=False)
 
 
 @table_registry.mapped_as_dataclass

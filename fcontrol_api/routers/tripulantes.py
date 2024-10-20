@@ -21,7 +21,7 @@ Session = Annotated[Session, Depends(get_session)]
 router = APIRouter(prefix='/trips', tags=['trips'])
 
 
-@router.post('/', response_model=TripSchema, status_code=HTTPStatus.CREATED)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=TripSchema)
 def create_trip(trip: TripSchema, session: Session):
     db_trig = session.scalar(
         select(Tripulante).where(
@@ -48,11 +48,20 @@ def create_trip(trip: TripSchema, session: Session):
         )
 
     tripulante = Tripulante(
-        user_id=trip.user_id, trig=trip.trig, active=trip.active, uae=trip.uae
+        user_id=trip.user_id, trig=trip.trig, active=True, uae=trip.uae
     )
 
     session.add(tripulante)
     session.commit()
+
+    funcoes = [
+        Funcao(trip_id=tripulante.id, func=f.func, oper=f.oper, proj=f.proj)
+        for f in trip.funcs
+    ]
+
+    session.add_all(funcoes)
+    session.commit()
+
     session.refresh(tripulante)
 
     return tripulante
@@ -69,14 +78,6 @@ def get_trip(id, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Crew not found'
         )
 
-    query_user = select(User).where(trip.user_id == User.id)
-    user = session.scalar(query_user)
-    setattr(trip, 'user', user)
-
-    query_funcao = select(Funcao).where(id == Funcao.trip_id)
-    funcs = session.scalars(query_funcao).all()
-    setattr(trip, 'funcs', funcs)
-
     return trip
 
 
@@ -88,19 +89,10 @@ def list_trips(uae: str, active: bool, session: Session):
 
     trips: list[Tripulante] = session.scalars(query).all()
 
-    for trip in trips:
-        query_user = select(User).where(trip.user_id == User.id)
-        user = session.scalar(query_user)
-        setattr(trip, 'user', user)
-
-        query_funcao = select(Funcao).where(trip.id == Funcao.trip_id)
-        funcs = session.scalars(query_funcao).all()
-        setattr(trip, 'funcs', funcs)
-
     return {'data': trips}
 
 
-@router.put('/{id}')
+@router.put('/{id}', response_model=TripWithFuncs)
 def update_trip(id, trip: TripUpdate, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
@@ -111,8 +103,29 @@ def update_trip(id, trip: TripUpdate, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
-    for key, value in trip.model_dump(exclude_unset=True).items():
-        setattr(trip_search, key, value)
+    trip_search.active = trip.active
+    trip_search.trig = trip.trig
+
+    for funcao in trip.funcs:
+        query_func = select(Funcao).where(
+            (Funcao.func == funcao.func)
+            & (Funcao.proj == funcao.proj)
+            & (Funcao.trip_id == trip_search.id)
+        )
+        func_search = session.scalar(query_func)
+
+        if func_search:
+            for key, value in funcao.model_dump(exclude_unset=True).items():
+                setattr(func_search, key, value)
+        else:
+            new_func = Funcao(
+                trip_id=trip_search.id,
+                func=funcao.func,
+                oper=funcao.oper,
+                proj=funcao.proj,
+            )
+
+            session.add(new_func)
 
     session.commit()
     session.refresh(trip_search)

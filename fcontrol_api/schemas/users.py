@@ -1,12 +1,14 @@
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Body
 from pydantic import BaseModel, EmailStr, Field
 
+p_gs = Literal['1s', '2s', '3s']
+
 
 class UserSchema(BaseModel):
-    p_g: str
+    p_g: p_gs
     nome_guerra: str
     nome_completo: str
     esp: str
@@ -22,7 +24,7 @@ class UserSchema(BaseModel):
 
 class UserPublic(BaseModel):
     id: int
-    p_g: str
+    p_g: p_gs
     esp: str
     nome_guerra: str
     nome_completo: str
@@ -34,6 +36,7 @@ class ListUsers(BaseModel):
 
 
 class UserTrip(BaseModel):
-    p_g: str
+    id: int
+    p_g: p_gs
     esp: str
     nome_guerra: str
