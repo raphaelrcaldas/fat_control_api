@@ -11,3 +11,7 @@ class FuncSchema(BaseModel):
     func: funcs
     oper: opers
     proj: proj
+
+
+class FuncPublic(FuncSchema):
+    id: int

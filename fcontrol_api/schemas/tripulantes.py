@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from fcontrol_api.schemas.funcs import FuncSchema
+from fcontrol_api.schemas.funcs import FuncPublic, FuncSchema
 from fcontrol_api.schemas.users import UserTrip
 
 uaes = Literal['11gt']
@@ -22,10 +22,11 @@ class TripUpdate(BaseModel):
 
 
 class TripWithFuncs(BaseModel):
+    id: int
     user: UserTrip
     trig: str = Field(min_length=3, max_length=3)
     uae: uaes
-    funcs: list[FuncSchema]
+    funcs: list[FuncPublic]
     # model_config = ConfigDict(from_attributes=True)
 
 

@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from fastapi import Body
 from pydantic import BaseModel, EmailStr, Field
 
-p_gs = Literal['1s', '2s', '3s']
+p_gs = Literal['so', '1s', '2s', '3s']
 
 
 class UserSchema(BaseModel):
