@@ -1,3 +1,4 @@
+from functools import reduce
 from http import HTTPStatus
 from typing import Annotated
 
@@ -6,12 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Quad, QuadType, Tripulante
-from fcontrol_api.schemas.message import Message
+from fcontrol_api.models import Funcao, Quad, Tripulante
+from fcontrol_api.schemas.funcs import funcs, proj, uae
 from fcontrol_api.schemas.quads import (
     QuadList,
     QuadPublic,
     QuadSchema,
+    QuadType,
     QuadUpdate,
 )
 
@@ -24,19 +26,31 @@ router = APIRouter(prefix='/quads', tags=['quads'])
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=QuadPublic)
 def create_quad(quad: QuadSchema, session: Session):
-    db_quad = session.scalar(
-        select(Quad).where(
-            (Quad.value == quad.value)
-            & (Quad.type == quad.type)
-            & (Quad.trip_id == quad.trip_id)
-        )
+    db_trip = session.scalar(
+        select(Tripulante).where((Tripulante.id == quad.trip_id))
     )
 
-    if db_quad:
+    if not db_trip:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='quad already registered',
+            detail='Crew Member doesnt exists',
         )
+
+    # VALUE 0 PARA LASTRO
+    if quad.value != 0:
+        db_quad = session.scalar(
+            select(Quad).where(
+                (Quad.value == quad.value)
+                & (Quad.type == quad.type)
+                & (Quad.trip_id == quad.trip_id)
+            )
+        )
+
+        if db_quad:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Quadrinho já registrado',
+            )
 
     db_quad = Quad(
         value=quad.value,
@@ -54,13 +68,7 @@ def create_quad(quad: QuadSchema, session: Session):
 
 @router.get('/{quad_id}', status_code=HTTPStatus.OK, response_model=QuadPublic)
 def get_quad(session: Session, id):
-    query = (
-        select(Quad, Tripulante)
-        .join(Tripulante, Quad.trip_id == Tripulante.id)
-        .where(Quad.id == id)
-    )
-
-    quad = session.scalar(query)
+    quad = session.scalar(select(Quad).where(Quad.id == id))
 
     if not quad:
         raise HTTPException(
@@ -70,28 +78,44 @@ def get_quad(session: Session, id):
     return quad
 
 
-@router.get('/', status_code=HTTPStatus.OK, response_model=QuadList)
-def list_quads(session: Session, type: QuadType, funcao):
-    query = (
-        select(Quad, Tripulante)
-        .join(Tripulante, Quad.trip_id == Tripulante.id)
-        .where(Quad.type == type)
+@router.get('/', status_code=HTTPStatus.OK)  # , response_model=QuadList)
+def list_quads(
+    session: Session, funcao: funcs, uae: uae, proj: proj, tipo_quad: QuadType
+):
+    query_funcs = select(Funcao).where(
+        (Funcao.func == funcao) & (Funcao.oper != 'al') & (Funcao.proj == proj)
+    )
+    funcs = session.scalars(query_funcs).all()
+
+    # ADICIONANDO INFORMAÇÕES DO TRIPULANTE
+    for func in funcs:
+        query_trip = select(Tripulante).where(Tripulante.id == func.trip_id)
+        trip = session.scalar(query_trip)
+        setattr(func, 'trip', trip)
+
+    # FILTRAR TRIPULANTES ATIVOS E DA UAE
+    trips = list(
+        filter(lambda x: (x.trip.active) and (x.trip.uae == uae), funcs)
     )
 
-    query = query.filter(Tripulante.func == funcao)
-    query = query.filter(Tripulante.oper != 'alno')
+    # OBTENDO QUADRINHOS DE CADA TRIP
+    def create_quads(initial: dict, func: Funcao):
+        query_quads = select(Quad).where(
+            (Quad.trip_id == func.trip_id) & (Quad.type == tipo_quad)
+        )
 
-    quads = session.execute(query).all()
-    quads = [q[0] for q in quads]
+        quads = session.scalars(query_quads).all()
 
-    return {'quads': quads}
+        initial[func.trip.trig] = quads
+
+        return initial
+
+    return reduce(create_quads, trips, {})
 
 
-@router.delete('/{id}', response_model=Message)
-def delete_quad(quad_id: int, session: Session):
-    query = select(Quad).where(Quad.id == quad_id)
-
-    quad = session.scalar(query)
+@router.delete('/{id}')
+def delete_quad(id: int, session: Session):
+    quad = session.scalar(select(Quad).where(Quad.id == id))
 
     if not quad:
         raise HTTPException(
@@ -101,12 +125,12 @@ def delete_quad(quad_id: int, session: Session):
     session.delete(quad)
     session.commit()
 
-    return {'message': 'Quad deleted'}
+    return {'detail': 'Quad deleted'}
 
 
-@router.patch('/{quad_id}', response_model=QuadPublic)
-def patch_quad(quad_id: int, session: Session, quad: QuadUpdate):
-    db_quad = session.scalar(select(Quad).where(Quad.id == quad_id))
+@router.patch('/{id}', response_model=QuadPublic)
+def patch_quad(id: int, session: Session, quad: QuadUpdate):
+    db_quad = session.scalar(select(Quad).where(Quad.id == id))
 
     if not db_quad:
         raise HTTPException(

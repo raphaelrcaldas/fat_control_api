@@ -3,8 +3,6 @@ from datetime import date, datetime
 from sqlalchemy import ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
-from fcontrol_api.schemas.quads import QuadType
-
 table_registry = registry()
 
 
@@ -30,8 +28,6 @@ class User:
         init=False, server_default=func.now()
     )
 
-    # tripulante = relationship('Tripulante', cascade='all, delete')
-
 
 @table_registry.mapped_as_dataclass
 class Tripulante:
@@ -55,7 +51,6 @@ class Funcao:
     func: Mapped[str]
     oper: Mapped[str]
     proj: Mapped[str]
-    # trip = relationship('Tripulante', backref='trip_funcs', uselist=False)
 
 
 @table_registry.mapped_as_dataclass
@@ -64,10 +59,9 @@ class Quad:
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
     description: Mapped[str]
-    type: Mapped[QuadType]
+    type: Mapped[str]
     value: Mapped[int]
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
-    trip = relationship('Tripulante', backref='quad', uselist=False)
 
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()

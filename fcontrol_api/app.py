@@ -1,5 +1,3 @@
-from http import HTTPStatus
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,8 +20,3 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(quads.router)
 app.include_router(tripulantes.router)
-
-
-@app.get('/', status_code=HTTPStatus.OK)
-def read_root():
-    return {'message': 'Olá Mundo'}
