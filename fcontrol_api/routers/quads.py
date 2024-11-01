@@ -10,7 +10,6 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Quad, Tripulante
 from fcontrol_api.schemas.funcs import funcs, proj, uae
 from fcontrol_api.schemas.quads import (
-    QuadList,
     QuadPublic,
     QuadSchema,
     QuadType,
@@ -61,7 +60,6 @@ def create_quad(quad: QuadSchema, session: Session):
 
     session.add(db_quad)
     session.commit()
-    session.refresh(db_quad)
 
     return db_quad
 

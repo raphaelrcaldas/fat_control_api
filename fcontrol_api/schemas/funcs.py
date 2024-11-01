@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 opers = Literal['op', 'in', 'al']
-funcs = Literal['pil', 'mc', 'lm', 'oe', 'os', 'tf', 'ml']
+funcs = Literal['mc', 'lm', 'oe', 'os', 'tf', 'ml']
 proj = Literal['kc-390']
 uae = Literal['11gt']
 

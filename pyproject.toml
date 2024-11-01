@@ -13,7 +13,7 @@ sqlalchemy = "2.*"
 pydantic-settings = "2.*"
 alembic = "1.*"
 pyjwt = "2.*"
-pwdlib = {extras = ["argon2"], version = "^0.*"}
+pwdlib = {extras = ["argon2"], version = "0.*"}
 tzdata = "^2024.1"
 python-multipart = "0.*"
 taskipy = "1.*"

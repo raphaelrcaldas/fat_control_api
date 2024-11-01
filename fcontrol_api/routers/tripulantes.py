@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Funcao, Tripulante, User
+from fcontrol_api.models import Funcao, Tripulante
 from fcontrol_api.schemas.tripulantes import (
     TripSchema,
     TripsListWithFuncs,
