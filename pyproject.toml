@@ -7,27 +7,27 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "3.12.*"
-fastapi = {extras = ["standard"], version = "^0.112.0"}
-pydantic = {extras = ["email"], version = "^2.8.2"}
-sqlalchemy = "^2.0.32"
-pydantic-settings = "^2.4.0"
-alembic = "^1.13.2"
-pyjwt = "^2.9.0"
-pwdlib = {extras = ["argon2"], version = "^0.2.0"}
+fastapi = {extras = ["standard"], version = "0.*"}
+pydantic = {extras = ["email"], version = "2.*"}
+sqlalchemy = "2.*"
+pydantic-settings = "2.*"
+alembic = "1.*"
+pyjwt = "2.*"
+pwdlib = {extras = ["argon2"], version = "0.*"}
 tzdata = "^2024.1"
-python-multipart = "^0.0.9"
-taskipy = "^1.13.0"
-psycopg = {extras = ["binary"], version = "^3.2.1"}
+python-multipart = "0.*"
+taskipy = "1.*"
+psycopg = {extras = ["binary"], version = "3.*"}
 
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.5.6"
-pytest = "^8.3.2"
-pytest-cov = "^5.0.0"
-taskipy = "^1.13.0"
-httpx = "^0.27.0"
-factory-boy = "^3.3.0"
-freezegun = "^1.5.1"
+ruff = "0.*"
+pytest = "8.*"
+pytest-cov = "5.*"
+taskipy = "1.*"
+httpx = "0.*"
+factory-boy = "3.*"
+freezegun = "1.*"
 
 [tool.ruff]
 line-length = 79
