@@ -6,22 +6,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Funcao, Tripulante, User
+from fcontrol_api.models import Funcao, Tripulante
+from fcontrol_api.schemas.message import TripMessage
 from fcontrol_api.schemas.tripulantes import (
     TripSchema,
-    TripsListWithFuncs,
     TripUpdate,
     TripWithFuncs,
 )
-
-router = APIRouter()
 
 Session = Annotated[Session, Depends(get_session)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=TripSchema)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=TripMessage)
 def create_trip(trip: TripSchema, session: Session):
     db_trig = session.scalar(
         select(Tripulante).where(
@@ -48,23 +46,23 @@ def create_trip(trip: TripSchema, session: Session):
         )
 
     tripulante = Tripulante(
-        user_id=trip.user_id, trig=trip.trig, active=True, uae=trip.uae
+        user_id=trip.user_id, trig=trip.trig, active=trip.active, uae=trip.uae
     )
 
     session.add(tripulante)
     session.commit()
 
-    funcoes = [
-        Funcao(trip_id=tripulante.id, func=f.func, oper=f.oper, proj=f.proj)
-        for f in trip.funcs
-    ]
+    # funcoes = [
+    #     Funcao(trip_id=tripulante.id, func=f.func, oper=f.oper, proj=f.proj)
+    #     for f in trip.funcs
+    # ]
 
-    session.add_all(funcoes)
-    session.commit()
+    # session.add_all(funcoes)
+    # session.commit()
 
-    session.refresh(tripulante)
+    # session.refresh(tripulante)
 
-    return tripulante
+    return {'detail': 'Tripulante adicionado com sucesso', 'data': tripulante}
 
 
 @router.get('/{id}', response_model=TripWithFuncs)
@@ -81,7 +79,7 @@ def get_trip(id, session: Session):
     return trip
 
 
-@router.get('/', response_model=TripsListWithFuncs)
+@router.get('/', response_model=list[TripWithFuncs])
 def list_trips(uae: str, active: bool, session: Session):
     query = select(Tripulante).where(
         (Tripulante.active == active) & (Tripulante.uae == uae)
@@ -89,10 +87,10 @@ def list_trips(uae: str, active: bool, session: Session):
 
     trips: list[Tripulante] = session.scalars(query).all()
 
-    return {'data': trips}
+    return trips
 
 
-@router.put('/{id}', response_model=TripWithFuncs)
+@router.put('/{id}', response_model=TripMessage)
 def update_trip(id, trip: TripUpdate, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
@@ -103,48 +101,62 @@ def update_trip(id, trip: TripUpdate, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
+    db_trig: Tripulante = session.scalar(
+        select(Tripulante).where(
+            (Tripulante.trig == trip.trig)
+            & (Tripulante.uae == trip_search.uae)
+            & (Tripulante.id != id)
+        )
+    )
+
+    if db_trig:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Trigrama já registrado',
+        )
+
     trip_search.active = trip.active
     trip_search.trig = trip.trig
 
-    for funcao in trip.funcs:
-        query_func = select(Funcao).where(
-            (Funcao.func == funcao.func)
-            & (Funcao.proj == funcao.proj)
-            & (Funcao.trip_id == trip_search.id)
-        )
-        func_search = session.scalar(query_func)
+    # for funcao in trip.funcs:
+    #     query_func = select(Funcao).where(
+    #         (Funcao.func == funcao.func)
+    #         & (Funcao.proj == funcao.proj)
+    #         & (Funcao.trip_id == trip_search.id)
+    #     )
+    #     func_search = session.scalar(query_func)
 
-        if func_search:
-            for key, value in funcao.model_dump(exclude_unset=True).items():
-                setattr(func_search, key, value)
-        else:
-            new_func = Funcao(
-                trip_id=trip_search.id,
-                func=funcao.func,
-                oper=funcao.oper,
-                proj=funcao.proj,
-            )
+    #     if func_search:
+    #         for key, value in funcao.model_dump(exclude_unset=True).items():
+    #             setattr(func_search, key, value)
+    #     else:
+    #         new_func = Funcao(
+    #             trip_id=trip_search.id,
+    #             func=funcao.func,
+    #             oper=funcao.oper,
+    #             proj=funcao.proj,
+    #         )
 
-            session.add(new_func)
+    #         session.add(new_func)
 
     session.commit()
     session.refresh(trip_search)
 
-    return trip_search
+    return {'detail': 'Tripulante atualizado com sucesso', 'data': trip_search}
 
 
-@router.delete('/{id}')
-def delete_trip(id: int, session: Session):
-    query = select(Tripulante).where(Tripulante.id == id)
+# @router.delete('/{id}')
+# def delete_trip(id: int, session: Session):
+#     query = select(Tripulante).where(Tripulante.id == id)
 
-    trip: Tripulante = session.scalar(query)
+#     trip: Tripulante = session.scalar(query)
 
-    if not trip:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
-        )
+#     if not trip:
+#         raise HTTPException(
+#             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
+#         )
 
-    session.delete(trip)
-    session.commit()
+#     session.delete(trip)
+#     session.commit()
 
-    return {'detail': 'Crew member deleted'}
+#     return {'detail': 'Crew member deleted'}

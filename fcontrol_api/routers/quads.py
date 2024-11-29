@@ -10,11 +10,11 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Quad, Tripulante
 from fcontrol_api.schemas.funcs import funcs, proj, uae
 from fcontrol_api.schemas.quads import (
-    QuadList,
     QuadPublic,
     QuadSchema,
     QuadType,
     QuadUpdate,
+    ResQuad,
 )
 
 router = APIRouter()
@@ -24,46 +24,51 @@ Session = Annotated[Session, Depends(get_session)]
 router = APIRouter(prefix='/quads', tags=['quads'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=QuadPublic)
-def create_quad(quad: QuadSchema, session: Session):
-    db_trip = session.scalar(
-        select(Tripulante).where((Tripulante.id == quad.trip_id))
-    )
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=list[QuadPublic]
+)
+def create_quad(quads: list[QuadSchema], session: Session):
+    # db_trip = session.scalar(
+    #     select(Tripulante).where((Tripulante.id == quad.trip_id))
+    # )
 
-    if not db_trip:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Crew Member doesnt exists',
-        )
+    # if not db_trip:
+    #     raise HTTPException(
+    #         status_code=HTTPStatus.BAD_REQUEST,
+    #         detail='Crew Member doesnt exists',
+    #     )
 
-    # VALUE 0 PARA LASTRO
-    if quad.value != 0:
-        db_quad = session.scalar(
-            select(Quad).where(
-                (Quad.value == quad.value)
-                & (Quad.type == quad.type)
-                & (Quad.trip_id == quad.trip_id)
-            )
-        )
-
-        if db_quad:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail='Quadrinho já registrado',
+    insert_quads = []
+    for quad in quads:
+        # VALUE 0 PARA LASTRO
+        if quad.value != 0:
+            db_quad = session.scalar(
+                select(Quad).where(
+                    (Quad.value == quad.value)
+                    & (Quad.type == quad.type)
+                    & (Quad.trip_id == quad.trip_id)
+                )
             )
 
-    db_quad = Quad(
-        value=quad.value,
-        description=quad.description,
-        type=quad.type,
-        trip_id=quad.trip_id,
-    )
+            if db_quad:
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail='Quadrinho já registrado',
+                )
 
-    session.add(db_quad)
+        quad_db = Quad(
+            value=quad.value,
+            description=quad.description,
+            type=quad.type,
+            trip_id=quad.trip_id,
+        )
+
+        insert_quads.append(quad_db)
+
+    session.add_all(insert_quads)
     session.commit()
-    session.refresh(db_quad)
 
-    return db_quad
+    return insert_quads
 
 
 @router.get('/{quad_id}', status_code=HTTPStatus.OK, response_model=QuadPublic)
@@ -78,9 +83,9 @@ def get_quad(session: Session, id):
     return quad
 
 
-@router.get('/', status_code=HTTPStatus.OK)  # , response_model=QuadList)
+@router.get('/', status_code=HTTPStatus.OK, response_model=list[ResQuad])
 def list_quads(
-    session: Session, funcao: funcs, uae: uae, proj: proj, tipo_quad: QuadType
+    session: Session, funcao: funcs, uae: uae, proj: proj, tipo_quad: str
 ):
     query_funcs = select(Funcao).where(
         (Funcao.func == funcao) & (Funcao.oper != 'al') & (Funcao.proj == proj)
@@ -99,18 +104,18 @@ def list_quads(
     )
 
     # OBTENDO QUADRINHOS DE CADA TRIP
-    def create_quads(initial: dict, func: Funcao):
+    def create_quads(initial: list, func: Funcao):
         query_quads = select(Quad).where(
             (Quad.trip_id == func.trip_id) & (Quad.type == tipo_quad)
         )
 
         quads = session.scalars(query_quads).all()
 
-        initial[func.trip.trig] = quads
+        setattr(func, 'quads', quads)
 
-        return initial
+        return [*initial, func]
 
-    return reduce(create_quads, trips, {})
+    return reduce(create_quads, trips, [])
 
 
 @router.delete('/{id}')

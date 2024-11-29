@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
-from fcontrol_api.schemas.users import ListUsers, UserPublic, UserSchema
+from fcontrol_api.schemas.message import UserMessage
+from fcontrol_api.schemas.users import UserPublic, UserSchema
 from fcontrol_api.security import get_password_hash
 from fcontrol_api.settings import Settings
 
@@ -16,7 +17,7 @@ Session = Annotated[Session, Depends(get_session)]
 router = APIRouter(prefix='/users', tags=['users'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=UserPublic)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=UserMessage)
 def create_user(user: UserSchema, session: Session):
     db_user_saram = session.scalar(
         select(User).where(User.saram == user.saram)
@@ -65,7 +66,7 @@ def create_user(user: UserSchema, session: Session):
                 detail='Email pessoal já registrado',
             )
 
-    hashed_password = get_password_hash(Settings().DEFAULT_PASSWORD)
+    hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)
 
     db_user = User(
         p_g=user.p_g,
@@ -87,13 +88,13 @@ def create_user(user: UserSchema, session: Session):
     session.commit()
     session.refresh(db_user)
 
-    return db_user
+    return {'detail': 'Usuário Adicionado com sucesso', 'data': db_user}
 
 
-@router.get('/', response_model=ListUsers)
+@router.get('/', response_model=list[UserPublic])
 def read_users(session: Session):
     users = session.scalars(select(User)).all()
-    return {'data': users}
+    return users
 
 
 @router.get('/{user_id}', response_model=UserSchema)
@@ -109,7 +110,7 @@ def get_user(user_id: int, session: Session):
     return db_user
 
 
-@router.put('/{user_id}', response_model=UserSchema)
+@router.put('/{user_id}', response_model=UserMessage)
 def update_user(user_id: int, user: UserSchema, session: Session):
     query = select(User).where(User.id == user_id)
 
@@ -126,21 +127,21 @@ def update_user(user_id: int, user: UserSchema, session: Session):
     session.commit()
     session.refresh(db_user)
 
-    return db_user
+    return {'detail': 'Usuário atualizado com sucesso', 'data': db_user}
 
 
-@router.delete('/{user_id}')
-def delete_user(user_id: int, session: Session):
-    query = select(User).where(User.id == user_id)
+# @router.delete('/{user_id}')
+# def delete_user(user_id: int, session: Session):
+#     query = select(User).where(User.id == user_id)
 
-    db_user: User = session.scalar(query)
+#     db_user: User = session.scalar(query)
 
-    if not db_user:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
-        )
+#     if not db_user:
+#         raise HTTPException(
+#             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+#         )
 
-    session.delete(db_user)
-    session.commit()
+#     session.delete(db_user)
+#     session.commit()
 
-    return {'detail': 'Deletado com Sucesso'}
+#     return {'detail': 'Deletado com Sucesso'}

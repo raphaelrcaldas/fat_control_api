@@ -31,12 +31,10 @@ class UserPublic(BaseModel):
     unidade: str
 
 
-class ListUsers(BaseModel):
-    data: list[UserPublic]
-
-
 class UserTrip(BaseModel):
     id: int
     p_g: p_gs
     esp: str
     nome_guerra: str
+    nome_completo: str
+    unidade: str

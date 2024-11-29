@@ -2,6 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from fcontrol_api.schemas.funcs import FuncPublic
 from fcontrol_api.schemas.tripulantes import TripWithFuncs
 
 
@@ -25,7 +26,7 @@ class QuadType(str, Enum):
 class QuadSchema(BaseModel):
     trip_id: int
     description: str
-    type: QuadType
+    type: str
     value: int = Field(ge=0)
 
 
@@ -41,5 +42,10 @@ class QuadList(BaseModel):
 
 class QuadUpdate(BaseModel):
     value: int
-    type: QuadType
+    type: str
     description: str
+
+
+class ResQuad(FuncPublic):
+    quads: list
+    trip: TripWithFuncs
