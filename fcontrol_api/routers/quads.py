@@ -27,16 +27,6 @@ router = APIRouter(prefix='/quads', tags=['quads'])
     '/', status_code=HTTPStatus.CREATED, response_model=list[QuadPublic]
 )
 def create_quad(quads: list[QuadSchema], session: Session):
-    # db_trip = session.scalar(
-    #     select(Tripulante).where((Tripulante.id == quad.trip_id))
-    # )
-
-    # if not db_trip:
-    #     raise HTTPException(
-    #         status_code=HTTPStatus.BAD_REQUEST,
-    #         detail='Crew Member doesnt exists',
-    #     )
-
     insert_quads = []
     for quad in quads:
         # VALUE 0 PARA LASTRO
@@ -70,16 +60,15 @@ def create_quad(quads: list[QuadSchema], session: Session):
     return insert_quads
 
 
-@router.get('/{quad_id}', status_code=HTTPStatus.OK, response_model=QuadPublic)
-def get_quad(session: Session, id):
-    quad = session.scalar(select(Quad).where(Quad.id == id))
+@router.get(
+    '/trip', status_code=HTTPStatus.OK, response_model=list[QuadPublic]
+)
+def quads_by_trip(session: Session, trip_id: int, type: str):
+    query = select(Quad).where((Quad.trip_id == trip_id) & (Quad.type == type))
 
-    if not quad:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Quad not found.'
-        )
+    quads = session.scalars(query)
 
-    return quad
+    return quads
 
 
 @router.get('/', status_code=HTTPStatus.OK, response_model=list[ResQuad])
@@ -118,9 +107,15 @@ def list_quads(
 
         return [*initial, func]
 
-    quadrinhos = reduce(create_quads, trips, [])
+    trip_with_quads = reduce(create_quads, trips, [])
 
-    return quadrinhos
+    # FILTRAR ULTIMOS QUAD A PARTIR DO TRIP COM MENOR NUMERO DE QUAD
+    min_length = min([len(crew.quads) for crew in trip_with_quads])
+
+    for crew in trip_with_quads:
+        crew.quads = crew.quads[min_length - 1 :]
+
+    return trip_with_quads
 
 
 @router.delete('/{id}')
@@ -135,10 +130,10 @@ def delete_quad(id: int, session: Session):
     session.delete(quad)
     session.commit()
 
-    return {'detail': 'Quad deleted'}
+    return {'detail': 'Quadrinho deletado'}
 
 
-@router.patch('/{id}', response_model=QuadPublic)
+@router.patch('/{id}', status_code=HTTPStatus.OK, response_model=QuadPublic)
 def patch_quad(id: int, session: Session, quad: QuadUpdate):
     db_quad = session.scalar(select(Quad).where(Quad.id == id))
 
@@ -150,7 +145,6 @@ def patch_quad(id: int, session: Session, quad: QuadUpdate):
     for key, value in quad.model_dump(exclude_unset=True).items():
         setattr(db_quad, key, value)
 
-    session.add(db_quad)
     session.commit()
     session.refresh(db_quad)
 
