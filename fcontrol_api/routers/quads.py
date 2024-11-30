@@ -64,7 +64,11 @@ def create_quad(quads: list[QuadSchema], session: Session):
     '/trip', status_code=HTTPStatus.OK, response_model=list[QuadPublic]
 )
 def quads_by_trip(session: Session, trip_id: int, type: str):
-    query = select(Quad).where((Quad.trip_id == trip_id) & (Quad.type == type))
+    query = (
+        select(Quad)
+        .where((Quad.trip_id == trip_id) & (Quad.type == type))
+        .order_by(Quad.value)
+    )
 
     quads = session.scalars(query)
 
@@ -97,8 +101,10 @@ def list_quads(
 
     # OBTENDO QUADRINHOS DE CADA TRIP
     def create_quads(initial: list, func: Funcao):
-        query_quads = select(Quad).where(
-            (Quad.trip_id == func.trip_id) & (Quad.type == tipo_quad)
+        query_quads = (
+            select(Quad)
+            .where((Quad.trip_id == func.trip_id) & (Quad.type == tipo_quad))
+            .order_by(Quad.value)
         )
 
         quads = session.scalars(query_quads).all()
