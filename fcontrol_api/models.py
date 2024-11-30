@@ -51,6 +51,7 @@ class Funcao:
     func: Mapped[str]
     oper: Mapped[str]
     proj: Mapped[str]
+    data_op: Mapped[date] = mapped_column(nullable=True)
 
 
 @table_registry.mapped_as_dataclass

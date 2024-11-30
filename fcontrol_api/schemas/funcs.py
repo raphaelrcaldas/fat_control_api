@@ -1,5 +1,7 @@
-from typing import Literal
+from datetime import date
+from typing import Annotated, Literal
 
+from fastapi import Body
 from pydantic import BaseModel
 
 opers = Literal['op', 'in', 'al']
@@ -12,6 +14,7 @@ class FuncSchema(BaseModel):
     func: funcs
     oper: opers
     proj: proj
+    data_op: Annotated[date | None, Body()]
 
 
 class FuncPublic(FuncSchema):

@@ -12,7 +12,6 @@ from fcontrol_api.schemas.funcs import funcs, proj, uae
 from fcontrol_api.schemas.quads import (
     QuadPublic,
     QuadSchema,
-    QuadType,
     QuadUpdate,
     ResQuad,
 )
@@ -88,12 +87,16 @@ def list_quads(
     session: Session, funcao: funcs, uae: uae, proj: proj, tipo_quad: str
 ):
     query_funcs = select(Funcao).where(
-        (Funcao.func == funcao) & (Funcao.oper != 'al') & (Funcao.proj == proj)
+        (Funcao.func == funcao)
+        & (Funcao.oper != 'al')
+        & (Funcao.proj == proj)
+        & (Funcao.data_op != None)  # noqa: E711
     )
     funcs = session.scalars(query_funcs).all()
 
     # ADICIONANDO INFORMAÇÕES DO TRIPULANTE
     for func in funcs:
+        func: Funcao
         query_trip = select(Tripulante).where(Tripulante.id == func.trip_id)
         trip = session.scalar(query_trip)
         setattr(func, 'trip', trip)
@@ -115,7 +118,9 @@ def list_quads(
 
         return [*initial, func]
 
-    return reduce(create_quads, trips, [])
+    quadrinhos = reduce(create_quads, trips, [])
+
+    return quadrinhos
 
 
 @router.delete('/{id}')

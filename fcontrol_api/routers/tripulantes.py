@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Funcao, Tripulante
+from fcontrol_api.models import Tripulante
 from fcontrol_api.schemas.message import TripMessage
 from fcontrol_api.schemas.tripulantes import (
     TripSchema,
@@ -51,16 +51,6 @@ def create_trip(trip: TripSchema, session: Session):
 
     session.add(tripulante)
     session.commit()
-
-    # funcoes = [
-    #     Funcao(trip_id=tripulante.id, func=f.func, oper=f.oper, proj=f.proj)
-    #     for f in trip.funcs
-    # ]
-
-    # session.add_all(funcoes)
-    # session.commit()
-
-    # session.refresh(tripulante)
 
     return {'detail': 'Tripulante adicionado com sucesso', 'data': tripulante}
 
@@ -117,27 +107,6 @@ def update_trip(id, trip: TripUpdate, session: Session):
 
     trip_search.active = trip.active
     trip_search.trig = trip.trig
-
-    # for funcao in trip.funcs:
-    #     query_func = select(Funcao).where(
-    #         (Funcao.func == funcao.func)
-    #         & (Funcao.proj == funcao.proj)
-    #         & (Funcao.trip_id == trip_search.id)
-    #     )
-    #     func_search = session.scalar(query_func)
-
-    #     if func_search:
-    #         for key, value in funcao.model_dump(exclude_unset=True).items():
-    #             setattr(func_search, key, value)
-    #     else:
-    #         new_func = Funcao(
-    #             trip_id=trip_search.id,
-    #             func=funcao.func,
-    #             oper=funcao.oper,
-    #             proj=funcao.proj,
-    #         )
-
-    #         session.add(new_func)
 
     session.commit()
     session.refresh(trip_search)
