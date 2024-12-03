@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Quad, Tripulante
-from fcontrol_api.schemas.funcs import funcs, proj, uae
+from fcontrol_api.schemas.funcoes import funcs, proj, uae
 from fcontrol_api.schemas.quads import (
     QuadPublic,
     QuadSchema,

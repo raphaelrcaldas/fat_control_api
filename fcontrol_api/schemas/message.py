@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from .funcoes import FuncPublic
 from .tripulantes import TripSchema
 from .users import UserPublic
 
@@ -14,3 +15,7 @@ class UserMessage(Message):
 
 class TripMessage(Message):
     data: TripSchema
+
+
+class FuncMessage(Message):
+    data: FuncPublic

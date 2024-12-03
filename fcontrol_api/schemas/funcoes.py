@@ -10,11 +10,15 @@ proj = Literal['kc-390']
 uae = Literal['11gt']
 
 
-class FuncSchema(BaseModel):
+class BaseFunc(BaseModel):
     func: funcs
     oper: opers
     proj: proj
     data_op: Annotated[date | None, Body()]
+
+
+class FuncSchema(BaseFunc):
+    trip_id: int
 
 
 class FuncPublic(FuncSchema):

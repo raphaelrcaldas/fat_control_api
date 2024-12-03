@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fcontrol_api.routers import quads, tripulantes, users
+from fcontrol_api.routers import funcoes, quads, tripulantes, users
 
 origins = [
     'http://localhost:3000',
@@ -20,3 +20,4 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(quads.router)
 app.include_router(tripulantes.router)
+app.include_router(funcoes.router)
