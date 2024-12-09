@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from fcontrol_api.schemas.funcoes import FuncPublic, FuncSchema
+from fcontrol_api.schemas.funcoes import FuncPublic
 from fcontrol_api.schemas.users import UserTrip
 
 uaes = Literal['11gt']

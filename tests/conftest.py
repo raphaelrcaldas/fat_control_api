@@ -8,7 +8,7 @@ from fcontrol_api.app import app
 from fcontrol_api.database import get_session
 from fcontrol_api.models import table_registry
 from fcontrol_api.security import get_password_hash
-from tests.factories import TripFactory, UserFactory
+from tests.factories import UserFactory
 
 
 @pytest.fixture
@@ -52,26 +52,26 @@ def user(session):
     return user
 
 
-@pytest.fixture
-def other_user(session):
-    password = 'testtest'
-    user = UserFactory(password=get_password_hash(password))
+# @pytest.fixture
+# def other_user(session):
+#     password = 'testtest'
+#     user = UserFactory(password=get_password_hash(password))
 
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+#     session.add(user)
+#     session.commit()
+#     session.refresh(user)
 
-    user.clean_password = 'testtest'
+#     user.clean_password = 'testtest'
 
-    return user
+#     return user
 
 
-@pytest.fixture
-def trip(session):
-    trip = TripFactory()
+# @pytest.fixture
+# def trip(session):
+#     trip = TripFactory()
 
-    session.add(trip)
-    session.commit()
-    session.refresh(trip)
+#     session.add(trip)
+#     session.commit()
+#     session.refresh(trip)
 
-    return trip
+#     return trip

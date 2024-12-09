@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from fcontrol_api.schemas.funcoes import FuncPublic
 from fcontrol_api.schemas.tripulantes import TripWithFuncs

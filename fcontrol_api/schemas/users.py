@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import Body
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 p_gs = Literal['so', '1s', '2s', '3s']
 
@@ -29,6 +29,7 @@ class UserPublic(BaseModel):
     nome_guerra: str
     nome_completo: str
     unidade: str
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserTrip(BaseModel):
