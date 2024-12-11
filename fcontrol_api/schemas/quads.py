@@ -14,7 +14,6 @@ class QuadSchema(BaseModel):
 class QuadPublic(QuadSchema):
     id: int
     # trip: TripPublic
-    # model_config = ConfigDict(from_attributes=True)
 
 
 class QuadList(BaseModel):

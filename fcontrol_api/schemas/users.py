@@ -30,12 +30,3 @@ class UserPublic(BaseModel):
     nome_completo: str
     unidade: str
     model_config = ConfigDict(from_attributes=True)
-
-
-class UserTrip(BaseModel):
-    id: int
-    p_g: p_gs
-    esp: str
-    nome_guerra: str
-    nome_completo: str
-    unidade: str
