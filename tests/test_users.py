@@ -24,8 +24,11 @@ def test_create_user(client):
 
 
 def test_create_user_error_saram(client, user):
-    new_user = UserFactory(saram=user.saram, ult_promo=None, nasc=None)
+    new_user = UserFactory(saram=user.saram)
+
     user_schema = UserSchema.model_validate(new_user).model_dump()
+    user_schema['nasc'] = user_schema['nasc'].isoformat()
+    user_schema['ult_promo'] = user_schema['ult_promo'].isoformat()
 
     response = client.post(
         '/users/',
@@ -33,9 +36,7 @@ def test_create_user_error_saram(client, user):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-
-    data = response.json()
-    assert data == {
+    assert response.json() == {
         'detail': 'SARAM já registrado',
     }
 

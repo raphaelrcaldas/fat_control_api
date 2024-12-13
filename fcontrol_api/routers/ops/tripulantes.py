@@ -9,8 +9,8 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import Tripulante
 from fcontrol_api.schemas.message import TripMessage
 from fcontrol_api.schemas.tripulantes import (
+    BaseTrip,
     TripSchema,
-    TripUpdate,
     TripWithFuncs,
 )
 
@@ -69,7 +69,7 @@ def get_trip(id, session: Session):
     return trip
 
 
-@router.get('/', response_model=list[TripWithFuncs])
+@router.get('/', status_code=HTTPStatus.OK, response_model=list[TripWithFuncs])
 def list_trips(uae: str, active: bool, session: Session):
     query = select(Tripulante).where(
         (Tripulante.active == active) & (Tripulante.uae == uae)
@@ -80,8 +80,8 @@ def list_trips(uae: str, active: bool, session: Session):
     return trips
 
 
-@router.put('/{id}', response_model=TripMessage)
-def update_trip(id, trip: TripUpdate, session: Session):
+@router.put('/{id}', status_code=HTTPStatus.OK, response_model=TripMessage)
+def update_trip(id, trip: BaseTrip, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
     trip_search: Tripulante = session.scalar(query)

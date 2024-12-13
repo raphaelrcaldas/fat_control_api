@@ -4,7 +4,8 @@ import typing
 import factory
 import factory.fuzzy
 
-from fcontrol_api.models import User
+from fcontrol_api.models import Tripulante, User
+from fcontrol_api.schemas.tripulantes import uaes
 from fcontrol_api.schemas.users import p_gs
 
 
@@ -31,15 +32,14 @@ class UserFactory(factory.Factory):
     password = factory.LazyAttribute(lambda obj: f'{obj.nome_guerra}-secret')
 
 
-# class TripFactory(factory.Factory):
-#     class Meta:
-#         model = Tripulante
+class TripFactory(factory.Factory):
+    class Meta:
+        model = Tripulante
 
-#     id: int
-#     trig = factory.fuzzy.FuzzyText(length=3)
-#     func = factory.fuzzy.FuzzyChoice([e.value for e in FuncList])
-#     oper = factory.fuzzy.FuzzyChoice([e.value for e in OperList])
-#     active = True
+    user_id: int
+    trig = factory.Sequence(lambda n: f'ab{chr(96 + n)}')
+    active = factory.fuzzy.FuzzyChoice([True, False])
+    uae = factory.fuzzy.FuzzyChoice(typing.get_args(uaes))
 
 
 # class QuadFactory(factory.Factory):
