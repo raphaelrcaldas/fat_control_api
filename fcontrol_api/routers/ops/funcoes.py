@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Tripulante
-from fcontrol_api.schemas.funcoes import BaseFunc, FuncSchema
+from fcontrol_api.schemas.funcoes import FuncSchema, FuncUpdate
 from fcontrol_api.schemas.message import FuncMessage
 
 Session = Annotated[Session, Depends(get_session)]
@@ -54,7 +54,7 @@ def create_funcao(funcao: FuncSchema, session: Session):
 
 
 @router.put('/{id}', response_model=FuncMessage)
-def update_funcao(id, funcao: BaseFunc, session: Session):
+def update_funcao(id, funcao: FuncUpdate, session: Session):
     db_func = session.scalar(select(Funcao).where(Funcao.id == id))
 
     if not db_func:

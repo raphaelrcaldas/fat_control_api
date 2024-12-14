@@ -7,7 +7,6 @@ from pydantic import BaseModel
 opers = Literal['op', 'in', 'al']
 funcs = Literal['mc', 'lm', 'oe', 'os', 'tf', 'ml']
 proj = Literal['kc-390']
-uae = Literal['11gt']
 
 
 class BaseFunc(BaseModel):
@@ -23,3 +22,8 @@ class FuncSchema(BaseFunc):
 
 class FuncPublic(FuncSchema):
     id: int
+
+
+class FuncUpdate(BaseModel):
+    oper: opers
+    data_op: Annotated[date | None, Body()]

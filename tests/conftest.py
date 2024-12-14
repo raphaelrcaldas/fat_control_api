@@ -8,7 +8,7 @@ from fcontrol_api.app import app
 from fcontrol_api.database import get_session
 from fcontrol_api.models import table_registry
 from fcontrol_api.security import get_password_hash
-from tests.factories import TripFactory, UserFactory
+from tests.factories import FuncFactory, TripFactory, UserFactory
 
 
 @pytest.fixture
@@ -86,3 +86,14 @@ def other_trip(session, other_user):
     session.refresh(trip)
 
     return trip
+
+
+@pytest.fixture
+def funcao(session, trip):
+    func = FuncFactory(trip_id=trip.id)
+
+    session.add(func)
+    session.commit()
+    session.refresh(func)
+
+    return func

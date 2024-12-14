@@ -4,7 +4,8 @@ import typing
 import factory
 import factory.fuzzy
 
-from fcontrol_api.models import Tripulante, User
+from fcontrol_api.models import Funcao, Tripulante, User
+from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
 from fcontrol_api.schemas.users import p_gs
 
@@ -40,6 +41,17 @@ class TripFactory(factory.Factory):
     trig = factory.Sequence(lambda n: f'ab{chr(96 + n)}')
     active = factory.fuzzy.FuzzyChoice([True, False])
     uae = factory.fuzzy.FuzzyChoice(typing.get_args(uaes))
+
+
+class FuncFactory(factory.Factory):
+    class Meta:
+        model = Funcao
+
+    trip_id: int
+    func = factory.fuzzy.FuzzyChoice(typing.get_args(funcs))
+    oper = factory.fuzzy.FuzzyChoice(typing.get_args(opers))
+    proj = factory.fuzzy.FuzzyChoice(typing.get_args(proj))
+    data_op = None
 
 
 # class QuadFactory(factory.Factory):

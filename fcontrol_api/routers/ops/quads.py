@@ -8,13 +8,14 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Quad, Tripulante
-from fcontrol_api.schemas.funcoes import funcs, proj, uae
+from fcontrol_api.schemas.funcoes import funcs, proj
 from fcontrol_api.schemas.quads import (
     QuadPublic,
     QuadSchema,
     QuadUpdate,
     ResQuad,
 )
+from fcontrol_api.schemas.tripulantes import uaes
 
 router = APIRouter()
 
@@ -77,7 +78,7 @@ def quads_by_trip(session: Session, trip_id: int, type: str):
 
 @router.get('/', status_code=HTTPStatus.OK, response_model=list[ResQuad])
 def list_quads(
-    session: Session, funcao: funcs, uae: uae, proj: proj, tipo_quad: str
+    session: Session, funcao: funcs, uae: uaes, proj: proj, tipo_quad: str
 ):
     query_funcs = select(Funcao).where(
         (Funcao.func == funcao)

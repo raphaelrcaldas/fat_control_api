@@ -69,8 +69,8 @@ def test_create_func(session):
     session.commit()
     session.refresh(funcao)
 
-    funcao = session.scalar(select(Funcao).where(
-        (Funcao.trip_id == 1) & (Funcao.func == 'oe')
-        ))
+    funcao = session.scalar(
+        select(Funcao).where((Funcao.trip_id == 1) & (Funcao.func == 'oe'))
+    )
 
     assert funcao
