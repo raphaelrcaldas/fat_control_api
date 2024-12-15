@@ -4,7 +4,7 @@ import typing
 import factory
 import factory.fuzzy
 
-from fcontrol_api.models import Funcao, Tripulante, User
+from fcontrol_api.models import Funcao, Quad, Tripulante, User
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
 from fcontrol_api.schemas.users import p_gs
@@ -54,8 +54,11 @@ class FuncFactory(factory.Factory):
     data_op = None
 
 
-# class QuadFactory(factory.Factory):
-#     class Meta:
-#         model = Quad
+class QuadFactory(factory.Factory):
+    class Meta:
+        model = Quad
 
-#     type = factory.fuzzy.FuzzyChoice(QuadType)
+    description = factory.fuzzy.FuzzyText(length=6)
+    type = factory.fuzzy.FuzzyText(length=6)
+    value = factory.fuzzy.FuzzyInteger(low=1, high=1000000)
+    trip_id: int

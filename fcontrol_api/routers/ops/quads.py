@@ -62,9 +62,11 @@ def create_quad(quads: list[QuadSchema], session: Session):
 
 
 @router.get(
-    '/trip', status_code=HTTPStatus.OK, response_model=list[QuadPublic]
+    '/trip/{trip_id}',
+    status_code=HTTPStatus.OK,
+    response_model=list[QuadPublic],
 )
-def quads_by_trip(session: Session, trip_id: int, type: str):
+def quads_by_trip(trip_id: int, type: str, session: Session):
     query = (
         select(Quad)
         .where((Quad.trip_id == trip_id) & (Quad.type == type))
@@ -146,7 +148,7 @@ def patch_quad(id: int, session: Session, quad: QuadUpdate):
 
     if not db_quad:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Quad not found.'
+            status_code=HTTPStatus.NOT_FOUND, detail='Quad not found'
         )
 
     for key, value in quad.model_dump(exclude_unset=True).items():

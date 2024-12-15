@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fcontrol_api.schemas.funcoes import FuncPublic
 from fcontrol_api.schemas.tripulantes import TripWithFuncs
@@ -13,7 +13,7 @@ class QuadSchema(BaseModel):
 
 class QuadPublic(QuadSchema):
     id: int
-    # trip: TripPublic
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuadList(BaseModel):
