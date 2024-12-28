@@ -59,15 +59,11 @@ class Quad:
     __tablename__ = 'quad'
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    description: Mapped[str]
+    description: Mapped[str] = mapped_column(nullable=True)
     type: Mapped[str]
-    value: Mapped[int]
+    value: Mapped[date] = mapped_column(nullable=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
 
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
-    )
-
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=True, init=False, onupdate=func.now()
     )

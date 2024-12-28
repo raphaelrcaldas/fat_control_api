@@ -18,6 +18,7 @@ tzdata = "^2024.1"
 python-multipart = "0.*"
 taskipy = "^1.13"
 psycopg = {extras = ["binary"], version = "^3.2.1"}
+psycopg2-binary = "^2.9.10"
 
 
 [tool.poetry.group.dev.dependencies]

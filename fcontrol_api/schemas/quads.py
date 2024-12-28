@@ -1,14 +1,21 @@
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import date
+from typing import Annotated
+
+from fastapi import Body
+from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.schemas.funcoes import FuncPublic
 from fcontrol_api.schemas.tripulantes import TripWithFuncs
 
 
-class QuadSchema(BaseModel):
-    trip_id: int
-    description: str
+class BaseQuad(BaseModel):
+    value: Annotated[date | None, Body()]
     type: str
-    value: int = Field(ge=0)
+    description: Annotated[str | None, Body()]
+
+
+class QuadSchema(BaseQuad):
+    trip_id: int
 
 
 class QuadPublic(QuadSchema):
@@ -16,14 +23,11 @@ class QuadPublic(QuadSchema):
     model_config = ConfigDict(from_attributes=True)
 
 
+class QuadUpdate(BaseQuad): ...
+
+
 class QuadList(BaseModel):
     quads: list[QuadPublic]
-
-
-class QuadUpdate(BaseModel):
-    value: int
-    type: str
-    description: str
 
 
 class ResQuad(FuncPublic):
