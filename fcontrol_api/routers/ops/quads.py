@@ -16,6 +16,7 @@ from fcontrol_api.schemas.quads import (
     QuadUpdate,
 )
 from fcontrol_api.schemas.tripulantes import uaes
+from fcontrol_api.schemas.users import UserTrip
 
 router = APIRouter()
 
@@ -117,14 +118,13 @@ def list_quads(
     groupInfo = {}
     for quad, trip, func in quads:
         trip_schema = {'trig': trip.trig, 'id': trip.id}
-        func_schema = BaseFunc.model_validate(func).model_dump(
-            exclude={'proj'}
-        )
+        func_schema = BaseFunc.model_validate(func).model_dump()
         trip_schema['func'] = func_schema
+        trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
         groupInfo[trip.trig] = trip_schema
 
         if quad:
-            quad = QuadPublic.model_validate(quad).model_dump(exclude={'type'})
+            quad = QuadPublic.model_validate(quad).model_dump()
             groupQuads[trip.trig].append(quad)
         else:
             groupQuads[trip.trig] = []
