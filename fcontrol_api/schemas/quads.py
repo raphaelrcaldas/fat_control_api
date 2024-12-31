@@ -18,7 +18,7 @@ class QuadSchema(BaseQuad):
     trip_id: int
 
 
-class QuadPublic(QuadSchema):
+class QuadPublic(BaseQuad):
     id: int
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,4 +1,5 @@
-from functools import reduce
+from collections import defaultdict
+from datetime import date
 from http import HTTPStatus
 from typing import Annotated
 
@@ -8,14 +9,13 @@ from sqlalchemy.orm import Session
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Quad, Tripulante
-from fcontrol_api.schemas.funcoes import funcs, proj
+from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.quads import (
     QuadPublic,
     QuadSchema,
     QuadUpdate,
-    ResQuad,
 )
-from fcontrol_api.schemas.tripulantes import uaes
+from fcontrol_api.schemas.tripulantes import TripSchema, uaes
 
 router = APIRouter()
 
@@ -78,53 +78,77 @@ def quads_by_trip(trip_id: int, type: str, session: Session):
     return quads
 
 
-@router.get('/', status_code=HTTPStatus.OK, response_model=list[ResQuad])
+@router.get(
+    '/',
+    status_code=HTTPStatus.OK,
+)
 def list_quads(
-    session: Session, funcao: funcs, uae: uaes, proj: proj, tipo_quad: str
+    session: Session,
+    tipo_quad: str = 'sobr-preto',
+    funcao: funcs = 'mc',
+    uae: uaes = '11gt',
+    proj: proj = 'kc-390',
 ):
-    query_funcs = select(Funcao).where(
-        (Funcao.func == funcao)
-        & (Funcao.oper != 'al')
-        & (Funcao.proj == proj)
-        & (Funcao.data_op != None)  # noqa: E711
-    )
-    funcs = session.scalars(query_funcs).all()
-
-    # ADICIONANDO INFORMAÇÕES DO TRIPULANTE
-    for func in funcs:
-        func: Funcao
-        query_trip = select(Tripulante).where(Tripulante.id == func.trip_id)
-        trip = session.scalar(query_trip)
-        setattr(func, 'trip', trip)
-
-    # FILTRAR TRIPULANTES ATIVOS E DA UAE
-    trips = list(
-        filter(lambda x: (x.trip.active) and (x.trip.uae == uae), funcs)
-    )
-
-    # OBTENDO QUADRINHOS DE CADA TRIP
-    def create_quads(initial: list, func: Funcao):
-        query_quads = (
-            select(Quad)
-            .where((Quad.trip_id == func.trip_id) & (Quad.type == tipo_quad))
-            .order_by(Quad.value)
+    query_quads = (
+        select(Quad, Tripulante, Funcao)
+        .select_from(Tripulante)
+        .where((Tripulante.uae == uae) & (Tripulante.active == True))
+        .join(
+            Quad,
+            ((Quad.trip_id == Tripulante.id) & (Quad.type == tipo_quad)),
+            isouter=True,
         )
+        .join(
+            Funcao,
+            (
+                (Funcao.trip_id == Tripulante.id)
+                & (Funcao.func == funcao)
+                & (Funcao.oper != 'al')
+                & (Funcao.proj == proj)
+                & (Funcao.data_op != None)
+            ),
+        )
+        .order_by(Quad.value)
+    )
 
-        quads = session.scalars(query_quads).all()
+    quads = session.execute(query_quads).all()
 
-        setattr(func, 'quads', quads)
+    groupQuads = defaultdict(list)
+    groupInfo = {}
+    for quad, trip, func in quads:
+        trip_schema = {'trig': trip.trig, 'id': trip.id}
+        func_schema = BaseFunc.model_validate(func).model_dump(
+            exclude={'proj'}
+        )
+        trip_schema['func'] = func_schema
+        groupInfo[trip.trig] = trip_schema
 
-        return [*initial, func]
+        if quad:
+            quad = QuadPublic.model_validate(quad).model_dump(exclude={'type'})
+            groupQuads[trip.trig].append(quad)
+        else:
+            groupQuads[trip.trig] = []
 
-    trip_with_quads = reduce(create_quads, trips, [])
+    response = []
+    for trig, info in groupInfo.items():
+        response.append({'trip': info, 'quads': groupQuads[trig]})
+
+    # ORDENAR QUADRINHOS
+    def order_quads(quad):
+        if not quad['value']:
+            return date.fromtimestamp(0)
+
+        return quad['value']
 
     # FILTRAR ULTIMOS QUAD A PARTIR DO TRIP COM MENOR NUMERO DE QUAD
-    min_length = min([len(crew.quads) for crew in trip_with_quads])
+    min_length = min([len(crew['quads']) for crew in response])
+    n_slice = 0 if min_length == 0 else min_length - 1
+    for crew in response:
+        crew['quads'] = sorted(crew['quads'], key=order_quads)  # order
+        crew['quads'] = crew['quads'][n_slice:]
+        print(crew['trip']['trig'], len(crew['quads']))
 
-    for crew in trip_with_quads:
-        crew.quads = crew.quads[min_length - 1 :]
-
-    return trip_with_quads
+    return response
 
 
 @router.delete('/{id}')

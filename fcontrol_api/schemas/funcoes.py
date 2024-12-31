@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import Body
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 opers = Literal['op', 'in', 'al']
 funcs = Literal['mc', 'lm', 'oe', 'os', 'tf', 'ml']
@@ -14,6 +14,7 @@ class BaseFunc(BaseModel):
     oper: opers
     proj: proj
     data_op: Annotated[date | None, Body()]
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FuncSchema(BaseFunc):

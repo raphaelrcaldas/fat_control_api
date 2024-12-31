@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -59,7 +59,7 @@ def create_trip(trip: TripSchema, session: Session):
 def get_trip(id, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
-    trip: Tripulante = session.scalar(query)
+    trip: Tripulante | None = session.scalar(query)
 
     if not trip:
         raise HTTPException(
@@ -70,12 +70,12 @@ def get_trip(id, session: Session):
 
 
 @router.get('/', status_code=HTTPStatus.OK, response_model=list[TripWithFuncs])
-def list_trips(uae: str, active: bool, session: Session):
+def list_trips(session: Session, uae='11gt', active=True):
     query = select(Tripulante).where(
         (Tripulante.active == active) & (Tripulante.uae == uae)
     )
 
-    trips: list[Tripulante] = session.scalars(query).all()
+    trips: Sequence[Tripulante] | None = session.scalars(query).all()
 
     return trips
 
@@ -84,14 +84,14 @@ def list_trips(uae: str, active: bool, session: Session):
 def update_trip(id, trip: BaseTrip, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
-    trip_search: Tripulante = session.scalar(query)
+    trip_search: Tripulante | None = session.scalar(query)
 
     if not trip_search:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
-    db_trig: Tripulante = session.scalar(
+    db_trig: Tripulante | None = session.scalar(
         select(Tripulante).where(
             (Tripulante.trig == trip.trig)
             & (Tripulante.uae == trip_search.uae)
