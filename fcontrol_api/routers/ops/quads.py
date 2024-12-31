@@ -15,7 +15,7 @@ from fcontrol_api.schemas.quads import (
     QuadSchema,
     QuadUpdate,
 )
-from fcontrol_api.schemas.tripulantes import TripSchema, uaes
+from fcontrol_api.schemas.tripulantes import uaes
 
 router = APIRouter()
 
@@ -146,7 +146,6 @@ def list_quads(
     for crew in response:
         crew['quads'] = sorted(crew['quads'], key=order_quads)  # order
         crew['quads'] = crew['quads'][n_slice:]
-        print(crew['trip']['trig'], len(crew['quads']))
 
     return response
 
