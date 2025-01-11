@@ -19,7 +19,6 @@ python-multipart = "0.*"
 taskipy = "^1.13"
 psycopg = {extras = ["binary"], version = "^3.2.1"}
 psycopg2-binary = "^2.9.10"
-uvloop = "^0.21.0"
 httptools = "^0.6.4"
 
 

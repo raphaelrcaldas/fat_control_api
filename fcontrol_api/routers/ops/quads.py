@@ -32,7 +32,7 @@ def create_quad(quads: list[QuadSchema], session: Session):
     insert_quads = []
     for quad in quads:
         # VALUE 0 PARA LASTRO
-        if quad.value != 0:
+        if quad.value is not None:
             db_quad = session.scalar(
                 select(Quad).where(
                     (Quad.value == quad.value)
