@@ -56,7 +56,7 @@ def create_quad(quads: list[QuadSchema], session: Session):
 
         insert_quads.append(quad_db)
 
-    session.bulk_save_objects(insert_quads)
+    session.add_all(insert_quads)
     session.commit()
 
     return insert_quads
@@ -71,7 +71,6 @@ def quads_by_trip(trip_id: int, type: str, session: Session):
     query = (
         select(Quad)
         .where((Quad.trip_id == trip_id) & (Quad.type == type))
-        .order_by(Quad.value)
     )
 
     quads = session.scalars(query).all()
@@ -118,7 +117,7 @@ def list_quads(
                 & (Funcao.data_op != None)
             ),
         )
-        .order_by(Quad.value)
+        .order_by(Funcao.data_op)
     )
 
     quads = session.execute(query_quads).all()
