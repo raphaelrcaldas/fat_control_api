@@ -56,7 +56,7 @@ def create_quad(quads: list[QuadSchema], session: Session):
 
         insert_quads.append(quad_db)
 
-    session.add_all(insert_quads)
+    session.bulk_save_objects(insert_quads)
     session.commit()
 
     return insert_quads
@@ -123,7 +123,7 @@ def list_quads(
 
     quads = session.execute(query_quads).all()
 
-    groupQuads = defaultdict(list)
+    group_quads = defaultdict(list)
     groupInfo = {}
     for quad, trip, func in quads:
         trip_schema = {'trig': trip.trig, 'id': trip.id}
@@ -134,13 +134,17 @@ def list_quads(
 
         if quad:
             quad = QuadPublic.model_validate(quad).model_dump()
-            groupQuads[trip.trig].append(quad)
+            group_quads[trip.trig].append(quad)
         else:
-            groupQuads[trip.trig] = []
+            group_quads[trip.trig] = []
 
     response = []
     for trig, info in groupInfo.items():
-        response.append({'trip': info, 'quads': groupQuads[trig]})
+        response.append({
+            'trip': info,
+            'quads': group_quads[trig],
+            'quads_len': len(group_quads[trig]),
+        })
 
     # ORDENAR QUADRINHOS
     def order_quads(quad):

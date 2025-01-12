@@ -3,10 +3,6 @@ from pwdlib import PasswordHash
 from fcontrol_api.settings import Settings
 
 settings = Settings()
-
-SECRET_KEY = 'your-secret-key'  # Isso é provisório, vamos ajustar!
-ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = PasswordHash.recommended()
 
 
