@@ -74,7 +74,16 @@ def quads_by_trip(trip_id: int, type: str, session: Session):
         .order_by(Quad.value)
     )
 
-    quads = session.scalars(query)
+    quads = session.scalars(query).all()
+
+    # ORDENAR QUADRINHOS
+    def order_quads(quad: Quad):
+        if not quad.value:
+            return date.fromtimestamp(0)
+
+        return quad.value
+
+    quads = sorted(quads, key=order_quads, reverse=True)
 
     return quads
 
