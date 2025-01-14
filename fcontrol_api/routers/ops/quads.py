@@ -68,10 +68,7 @@ def create_quad(quads: list[QuadSchema], session: Session):
     response_model=list[QuadPublic],
 )
 def quads_by_trip(trip_id: int, type: str, session: Session):
-    query = (
-        select(Quad)
-        .where((Quad.trip_id == trip_id) & (Quad.type == type))
-    )
+    query = select(Quad).where((Quad.trip_id == trip_id) & (Quad.type == type))
 
     quads = session.scalars(query).all()
 
@@ -177,8 +174,8 @@ def delete_quad(id: int, session: Session):
     return {'detail': 'Quadrinho deletado'}
 
 
-@router.patch('/{id}', status_code=HTTPStatus.OK, response_model=QuadPublic)
-def patch_quad(id: int, session: Session, quad: QuadUpdate):
+@router.put('/{id}')
+def update_quad(id, quad: QuadUpdate, session: Session):
     db_quad = session.scalar(select(Quad).where(Quad.id == id))
 
     if not db_quad:
@@ -186,10 +183,25 @@ def patch_quad(id: int, session: Session, quad: QuadUpdate):
             status_code=HTTPStatus.NOT_FOUND, detail='Quad not found'
         )
 
+    ss_quad = session.scalar(
+        select(Quad).where(
+            (Quad.value == quad.value)
+            & (Quad.type == db_quad.type)
+            & (Quad.trip_id == quad.trip_id)
+            & (Quad.id != id)
+        )
+    )
+
+    if ss_quad:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Quadrinho já registrado',
+        )
+
     for key, value in quad.model_dump(exclude_unset=True).items():
-        setattr(db_quad, key, value)
+        if getattr(db_quad, key) != value:
+            setattr(db_quad, key, value)
 
     session.commit()
-    session.refresh(db_quad)
 
-    return db_quad
+    return {'detail': 'Quadrinho atualizado'}

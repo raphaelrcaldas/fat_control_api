@@ -23,7 +23,11 @@ class QuadPublic(BaseQuad):
     model_config = ConfigDict(from_attributes=True)
 
 
-class QuadUpdate(BaseQuad): ...
+class QuadUpdate(BaseModel):
+    id: int
+    trip_id: int
+    value: Annotated[date | None, Body()]
+    description: Annotated[str | None, Body()]
 
 
 class QuadList(BaseModel):
