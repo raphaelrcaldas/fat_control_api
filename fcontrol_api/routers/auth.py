@@ -3,8 +3,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
@@ -18,7 +18,7 @@ from fcontrol_api.security import (
 router = APIRouter(prefix='/auth', tags=['auth'])
 
 OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
-Session = Annotated[Session, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session)]  # type: ignore
 
 
 @router.post('/token', response_model=Token)

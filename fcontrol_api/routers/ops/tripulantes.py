@@ -1,9 +1,9 @@
 from http import HTTPStatus
-from typing import Annotated, Sequence
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Tripulante
@@ -14,14 +14,14 @@ from fcontrol_api.schemas.tripulantes import (
     TripWithFuncs,
 )
 
-Session = Annotated[Session, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
 
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=TripMessage)
-def create_trip(trip: TripSchema, session: Session):
-    db_trig = session.scalar(
+async def create_trip(trip: TripSchema, session: Session):
+    db_trig = await session.scalar(
         select(Tripulante).where(
             (Tripulante.trig == trip.trig) & (Tripulante.uae == trip.uae)
         )
@@ -33,7 +33,7 @@ def create_trip(trip: TripSchema, session: Session):
             detail='Trigrama já registrado',
         )
 
-    db_trip = session.scalar(
+    db_trip = await session.scalar(
         select(Tripulante).where(
             (Tripulante.user_id == trip.user_id) & (Tripulante.uae == trip.uae)
         )
@@ -47,19 +47,17 @@ def create_trip(trip: TripSchema, session: Session):
 
     tripulante = Tripulante(
         user_id=trip.user_id, trig=trip.trig, active=trip.active, uae=trip.uae
-    )
+    )  # type: ignore
 
-    session.add(tripulante)
-    session.commit()
+    await session.add(tripulante)
+    await session.commit()
 
     return {'detail': 'Tripulante adicionado com sucesso', 'data': tripulante}
 
 
-@router.get('/{id}', response_model=TripWithFuncs)
-def get_trip(id, session: Session):
-    query = select(Tripulante).where(Tripulante.id == id)
-
-    trip: Tripulante | None = session.scalar(query)
+@router.get('/{id}')
+async def get_trip(id: int, session: Session):
+    trip = await session.scalar(select(Tripulante).where(Tripulante.id == id))
 
     if not trip:
         raise HTTPException(
@@ -70,28 +68,28 @@ def get_trip(id, session: Session):
 
 
 @router.get('/', status_code=HTTPStatus.OK, response_model=list[TripWithFuncs])
-def list_trips(session: Session, uae='11gt', active=True):
+async def list_trips(session: Session, uae: str = '11gt', active: bool = True):
     query = select(Tripulante).where(
         (Tripulante.active == active) & (Tripulante.uae == uae)
     )
 
-    trips: Sequence[Tripulante] | None = session.scalars(query).all()
+    trips = await session.scalars(query)
 
-    return trips
+    return trips.all()
 
 
 @router.put('/{id}', status_code=HTTPStatus.OK, response_model=TripMessage)
-def update_trip(id, trip: BaseTrip, session: Session):
+async def update_trip(id, trip: BaseTrip, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
-    trip_search: Tripulante | None = session.scalar(query)
+    trip_search = await session.scalar(query)
 
     if not trip_search:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
-    db_trig: Tripulante | None = session.scalar(
+    db_trig = await session.scalar(
         select(Tripulante).where(
             (Tripulante.trig == trip.trig)
             & (Tripulante.uae == trip_search.uae)
@@ -108,8 +106,8 @@ def update_trip(id, trip: BaseTrip, session: Session):
     trip_search.active = trip.active
     trip_search.trig = trip.trig
 
-    session.commit()
-    session.refresh(trip_search)
+    await session.commit()
+    await session.refresh(trip_search)
 
     return {'detail': 'Tripulante atualizado com sucesso', 'data': trip_search}
 

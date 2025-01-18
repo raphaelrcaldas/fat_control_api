@@ -4,8 +4,8 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Quad, Tripulante
@@ -20,7 +20,7 @@ from fcontrol_api.schemas.users import UserTrip
 
 router = APIRouter()
 
-Session = Annotated[Session, Depends(get_session)]
+Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/quads', tags=['quads'])
 
@@ -28,12 +28,12 @@ router = APIRouter(prefix='/quads', tags=['quads'])
 @router.post(
     '/', status_code=HTTPStatus.CREATED, response_model=list[QuadPublic]
 )
-def create_quad(quads: list[QuadSchema], session: Session):
+async def create_quad(quads: list[QuadSchema], session: Session):
     insert_quads = []
     for quad in quads:
         # VALUE 0 PARA LASTRO
         if quad.value is not None:
-            db_quad = session.scalar(
+            db_quad = await session.scalar(
                 select(Quad).where(
                     (Quad.value == quad.value)
                     & (Quad.type == quad.type)
@@ -52,12 +52,12 @@ def create_quad(quads: list[QuadSchema], session: Session):
             description=quad.description,
             type=quad.type,
             trip_id=quad.trip_id,
-        )
+        )  # type: ignore
 
         insert_quads.append(quad_db)
 
-    session.add_all(insert_quads)
-    session.commit()
+    await session.add_all(insert_quads)  # type: ignore
+    await session.commit()
 
     return insert_quads
 
@@ -67,10 +67,11 @@ def create_quad(quads: list[QuadSchema], session: Session):
     status_code=HTTPStatus.OK,
     response_model=list[QuadPublic],
 )
-def quads_by_trip(trip_id: int, type: str, session: Session):
+async def quads_by_trip(trip_id: int, type: str, session: Session):
     query = select(Quad).where((Quad.trip_id == trip_id) & (Quad.type == type))
 
-    quads = session.scalars(query).all()
+    result = await session.scalars(query)
+    quads = result.all()
 
     # ORDENAR QUADRINHOS
     def order_quads(quad: Quad):
@@ -88,7 +89,7 @@ def quads_by_trip(trip_id: int, type: str, session: Session):
     '/',
     status_code=HTTPStatus.OK,
 )
-def list_quads(
+async def list_quads(
     session: Session,
     tipo_quad: str = 'sobr-preto',
     funcao: funcs = 'mc',
@@ -98,7 +99,7 @@ def list_quads(
     query_quads = (
         select(Quad, Tripulante, Funcao)
         .select_from(Tripulante)
-        .where((Tripulante.uae == uae) & (Tripulante.active == True))
+        .where((Tripulante.uae == uae) & (Tripulante.active == True))  # noqa: E712
         .join(
             Quad,
             ((Quad.trip_id == Tripulante.id) & (Quad.type == tipo_quad)),
@@ -111,13 +112,14 @@ def list_quads(
                 & (Funcao.func == funcao)
                 & (Funcao.oper != 'al')
                 & (Funcao.proj == proj)
-                & (Funcao.data_op != None)
+                & (Funcao.data_op != None)  # noqa: E711
             ),
         )
         .order_by(Funcao.data_op)
     )
 
-    quads = session.execute(query_quads).all()
+    result = await session.execute(query_quads)
+    quads = result.all()
 
     group_quads = defaultdict(list)
     groupInfo = {}
@@ -129,8 +131,9 @@ def list_quads(
         groupInfo[trip.trig] = trip_schema
 
         if quad:
-            quad = QuadPublic.model_validate(quad).model_dump()
-            group_quads[trip.trig].append(quad)
+            group_quads[trip.trig].append(
+                QuadPublic.model_validate(quad).model_dump()
+            )
         else:
             group_quads[trip.trig] = []
 
@@ -150,40 +153,40 @@ def list_quads(
         return quad['value']
 
     # FILTRAR ULTIMOS QUAD A PARTIR DO TRIP COM MENOR NUMERO DE QUAD
-    min_length = min([len(crew['quads']) for crew in response])
+    min_length = min([len(crew['quads']) for crew in response])  # type: ignore
     n_slice = 0 if min_length == 0 else min_length - 1
     for crew in response:
-        crew['quads'] = sorted(crew['quads'], key=order_quads)  # order
-        crew['quads'] = crew['quads'][n_slice:]
+        crew['quads'] = sorted(crew['quads'], key=order_quads)  # type: ignore
+        crew['quads'] = crew['quads'][n_slice:]  # type: ignore
 
     return response
 
 
 @router.delete('/{id}')
-def delete_quad(id: int, session: Session):
-    quad = session.scalar(select(Quad).where(Quad.id == id))
+async def delete_quad(id: int, session: Session):
+    quad = await session.scalar(select(Quad).where(Quad.id == id))
 
     if not quad:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Quad not found'
         )
 
-    session.delete(quad)
-    session.commit()
+    await session.delete(quad)
+    await session.commit()
 
     return {'detail': 'Quadrinho deletado'}
 
 
 @router.put('/{id}')
-def update_quad(id, quad: QuadUpdate, session: Session):
-    db_quad = session.scalar(select(Quad).where(Quad.id == id))
+async def update_quad(id, quad: QuadUpdate, session: Session):
+    db_quad = await session.scalar(select(Quad).where(Quad.id == id))
 
     if not db_quad:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Quad not found'
         )
 
-    ss_quad = session.scalar(
+    ss_quad = await session.scalar(
         select(Quad).where(
             (Quad.value == quad.value)
             & (Quad.type == db_quad.type)
@@ -202,6 +205,6 @@ def update_quad(id, quad: QuadUpdate, session: Session):
         if getattr(db_quad, key) != value:
             setattr(db_quad, key, value)
 
-    session.commit()
+    await session.commit()
 
     return {'detail': 'Quadrinho atualizado'}

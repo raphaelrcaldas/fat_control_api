@@ -38,8 +38,12 @@ class Tripulante:
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
     uae: Mapped[str]
-    user = relationship('User', backref='tripulantes', uselist=False)
-    funcs = relationship('Funcao', backref='tripulantes', uselist=True)
+    user = relationship(
+        'User', backref='tripulantes', lazy='selectin', uselist=False
+    )
+    funcs = relationship(
+        'Funcao', backref='tripulantes', lazy='selectin', uselist=True
+    )
 
 
 @table_registry.mapped_as_dataclass
