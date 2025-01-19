@@ -9,7 +9,9 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Indisp, Tripulante
+from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
+from fcontrol_api.schemas.users import UserTrip
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -21,7 +23,7 @@ async def get_crew_indisp(session: Session, funcao: str):
     date_ini = datetime.now() - timedelta(days=15)
 
     query = (
-        select(Indisp, Tripulante)
+        select(Indisp, Tripulante, Funcao)
         .select_from(Funcao)
         .where(Funcao.func == funcao)
         .join(Tripulante, Tripulante.id == Funcao.trip_id)
@@ -39,7 +41,15 @@ async def get_crew_indisp(session: Session, funcao: str):
     db_indisp = await session.execute(query)
 
     group_indisp = defaultdict(list)
-    for indisp, trip in db_indisp.all():
+    grou_info = {}
+    for indisp, trip, funcao in db_indisp.all():
+        trip_schema = {'trig': trip.trig, 'id': trip.id}
+        func_schema = BaseFunc.model_validate(funcao).model_dump()
+
+        trip_schema['func'] = func_schema
+        trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
+        grou_info[trip.trig] = trip_schema
+
         if indisp:
             group_indisp[trip.trig].append(
                 IndispOut.model_validate(indisp).model_dump()
@@ -48,8 +58,8 @@ async def get_crew_indisp(session: Session, funcao: str):
             group_indisp[trip.trig] = []
 
     response = [
-        {'trig': trig, 'indisps': indisps}
-        for trig, indisps in group_indisp.items()
+        {'trip': info, 'indisps': group_indisp[trig]}
+        for trig, info in grou_info.items()
     ]
 
     return response

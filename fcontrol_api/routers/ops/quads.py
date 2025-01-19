@@ -126,6 +126,8 @@ async def list_quads(
         trip_schema = {'trig': trip.trig, 'id': trip.id}
         func_schema = BaseFunc.model_validate(func).model_dump()
         trip_schema['func'] = func_schema
+        trip_schema['func'] = func_schema
+
         trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
         grou_info[trip.trig] = trip_schema
 
