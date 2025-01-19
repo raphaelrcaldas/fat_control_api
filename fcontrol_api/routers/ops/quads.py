@@ -56,7 +56,7 @@ async def create_quad(quads: list[QuadSchema], session: Session):
 
         insert_quads.append(quad_db)
 
-    await session.add_all(insert_quads)  # type: ignore
+    session.add_all(insert_quads)
     await session.commit()
 
     return insert_quads
@@ -119,16 +119,15 @@ async def list_quads(
     )
 
     result = await session.execute(query_quads)
-    quads = result.all()
 
     group_quads = defaultdict(list)
-    groupInfo = {}
-    for quad, trip, func in quads:
+    grou_info = {}
+    for quad, trip, func in result.all():
         trip_schema = {'trig': trip.trig, 'id': trip.id}
         func_schema = BaseFunc.model_validate(func).model_dump()
         trip_schema['func'] = func_schema
         trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
-        groupInfo[trip.trig] = trip_schema
+        grou_info[trip.trig] = trip_schema
 
         if quad:
             group_quads[trip.trig].append(
@@ -138,7 +137,7 @@ async def list_quads(
             group_quads[trip.trig] = []
 
     response = []
-    for trig, info in groupInfo.items():
+    for trig, info in grou_info.items():
         response.append({
             'trip': info,
             'quads': group_quads[trig],

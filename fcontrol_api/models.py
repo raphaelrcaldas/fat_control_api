@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, String, func
+from sqlalchemy import ForeignKey, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 table_registry = registry()
@@ -10,7 +10,9 @@ table_registry = registry()
 class User:
     __tablename__ = 'users'
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
     p_g: Mapped[str]
     esp: Mapped[str] = mapped_column(nullable=True)
     nome_guerra: Mapped[str]
@@ -33,7 +35,9 @@ class User:
 class Tripulante:
     __tablename__ = 'tripulantes'
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
@@ -50,7 +54,9 @@ class Tripulante:
 class Funcao:
     __tablename__ = 'trip_funcs'
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
     func: Mapped[str]
     oper: Mapped[str]
@@ -62,12 +68,31 @@ class Funcao:
 class Quad:
     __tablename__ = 'quad'
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
     description: Mapped[str] = mapped_column(nullable=True)
     type: Mapped[str]
     value: Mapped[date] = mapped_column(nullable=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
 
+    created_at: Mapped[datetime] = mapped_column(
+        init=False, server_default=func.now()
+    )
+
+
+@table_registry.mapped_as_dataclass
+class Indisp:
+    __tablename__ = 'indisps'
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    date_start: Mapped[date]
+    date_end: Mapped[date]
+    mtv: Mapped[str] = mapped_column(nullable=False)
+    obs: Mapped[str] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )

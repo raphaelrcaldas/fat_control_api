@@ -86,7 +86,7 @@ async def create_user(user: UserSchema, session: Session):
         password=hashed_password,
     )  # type: ignore
 
-    await session.add(db_user)  # type: ignore
+    session.add(db_user)
     await session.commit()
     await session.refresh(db_user)
 

@@ -47,13 +47,13 @@ async def create_funcao(funcao: FuncSchema, session: Session):
         data_op=funcao.data_op,
     )  # type: ignore
 
-    await session.add(new_func)  # type: ignore
+    session.add(new_func)
     await session.commit()
 
     return {'detail': 'Função cadastrada com sucesso', 'data': new_func}
 
 
-@router.put('/{id}', response_model=FuncMessage)
+@router.put('/{id}')
 async def update_funcao(id, funcao: FuncUpdate, session: Session):
     db_func = await session.scalar(select(Funcao).where(Funcao.id == id))
 
@@ -66,9 +66,8 @@ async def update_funcao(id, funcao: FuncUpdate, session: Session):
         setattr(db_func, key, value)
 
     await session.commit()
-    await session.refresh(db_func)
 
-    return {'detail': 'Função atualizada com sucesso', 'data': db_func}
+    return {'detail': 'Função atualizada com sucesso'}
 
 
 @router.delete('/{id}')
