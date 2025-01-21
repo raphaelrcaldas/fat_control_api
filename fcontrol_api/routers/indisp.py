@@ -1,7 +1,7 @@
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Indisp, Tripulante
 from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
-from fcontrol_api.schemas.users import UserTrip
+from fcontrol_api.schemas.users import UserTrip, p_gs
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -20,7 +20,7 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 @router.get('/')
 async def get_crew_indisp(session: Session, funcao: str):
-    date_ini = datetime.now() - timedelta(days=15)
+    date_ini = date.today() - timedelta(days=15)
 
     query = (
         select(Indisp, Tripulante, Funcao)
@@ -35,7 +35,7 @@ async def get_crew_indisp(session: Session, funcao: str):
             ),
             isouter=True,
         )
-        .order_by(Indisp.date_end)
+        .order_by(Indisp.date_end.desc())
     )
 
     db_indisp = await session.execute(query)
@@ -62,14 +62,22 @@ async def get_crew_indisp(session: Session, funcao: str):
         for trig, info in grou_info.items()
     ]
 
+    def order(trip):
+        user = trip['trip']['user']
+        pg_index = get_args(p_gs).index(user['p_g'])
+        ult_promo = user['ult_promo']
+        ant = user['ant_rel']
+
+        return (pg_index, ult_promo, ant)
+
+    response = sorted(response, key=order)
+
     return response
 
 
 @router.post('/', status_code=HTTPStatus.CREATED)
 async def create_indisp(indisp: IndispSchema, session: Session):
-    check_date = indisp.date_end < indisp.date_start
-
-    if check_date:
+    if indisp.date_end < indisp.date_start:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Data Fim deve ser maior ou igual a data início',
@@ -98,7 +106,7 @@ async def create_indisp(indisp: IndispSchema, session: Session):
         obs=indisp.obs,
     )  # type: ignore
 
-    session.add(new_indisp)  # type: ignore
+    session.add(new_indisp)
     await session.commit()
 
     return {'detail': 'Indisponibilidade adicionada com sucesso'}

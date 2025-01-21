@@ -26,6 +26,7 @@ class User:
     nasc: Mapped[date] = mapped_column(nullable=True)
     ult_promo: Mapped[date] = mapped_column(nullable=True)
     password: Mapped[str]
+    ant_rel: Mapped[int] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )

@@ -20,6 +20,7 @@ class UserSchema(BaseModel):
     email_pess: EmailStr | str
     email_fab: EmailStr | str
     unidade: str
+    ant_rel: int | None = Field(gt=1)
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -39,5 +40,6 @@ class UserTrip(BaseModel):
     esp: str
     nome_guerra: str
     unidade: str
+    ant_rel: int | None
     ult_promo: Annotated[date | None, Body()]
     model_config = ConfigDict(from_attributes=True)
