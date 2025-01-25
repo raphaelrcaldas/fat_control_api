@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
-from fcontrol_api.schemas import Token
+from fcontrol_api.schemas.auth import Token
 from fcontrol_api.security import (
     create_access_token,
     get_current_user,
@@ -18,26 +18,34 @@ from fcontrol_api.security import (
 router = APIRouter(prefix='/auth', tags=['auth'])
 
 OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
-Session = Annotated[AsyncSession, Depends(get_session)]  # type: ignore
+Session = Annotated[AsyncSession, Depends(get_session)]
 
 
-@router.post('/token', response_model=Token)
-def login_for_access_token(form_data: OAuth2Form, session: Session):
-    user = session.scalar(select(User).where(User.email == form_data.username))
+@router.post('/token')
+async def login_for_access_token(form_data: OAuth2Form, session: Session):
+    saram = int(form_data.username)
+
+    user = await session.scalar(select(User).where(User.saram == saram))
 
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Incorrect email or password',
+            detail='Dados inválidos',
         )
 
     if not verify_password(form_data.password, user.password):
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Incorrect email or password',
+            detail='Dados inválidos',
         )
 
-    access_token = create_access_token(data={'sub': user.email})
+    data = {
+        'sub': f'{user.p_g} {user.nome_guerra}',
+        'user_id': user.id,
+        'scopes': [],
+    }
+
+    access_token = create_access_token(data=data)
 
     return {'access_token': access_token, 'token_type': 'bearer'}
 
@@ -46,6 +54,12 @@ def login_for_access_token(form_data: OAuth2Form, session: Session):
 def refresh_access_token(
     user: User = Depends(get_current_user),
 ):
-    new_access_token = create_access_token(data={'sub': user.email})
+    data = {
+        'sub': f'{user.p_g} {user.nome_guerra}',
+        'user_id': user.id,
+        'scopes': [],
+    }
+
+    new_access_token = create_access_token(data=data)
 
     return {'access_token': new_access_token, 'token_type': 'bearer'}

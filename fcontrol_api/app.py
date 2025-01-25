@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fcontrol_api.routers import indisp, users
+from fcontrol_api.routers import auth, indisp, users
 from fcontrol_api.routers.ops import ops
 
 origins = [
@@ -21,3 +21,4 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(ops.router)
 app.include_router(indisp.router)
+app.include_router(auth.router)
