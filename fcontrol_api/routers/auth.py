@@ -40,7 +40,7 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
         )
 
     data = {
-        'sub': f'{user.p_g} {user.nome_guerra}',
+        'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
         'scopes': [],
     }

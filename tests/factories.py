@@ -7,14 +7,13 @@ import factory.fuzzy
 from fcontrol_api.models import Funcao, Quad, Tripulante, User
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
-from fcontrol_api.schemas.users import p_gs
 
 
 class UserFactory(factory.Factory):
     class Meta:
         model = User
 
-    p_g = factory.fuzzy.FuzzyChoice(typing.get_args(p_gs))
+    p_g = factory.fuzzy.FuzzyChoice([i for i in range(1, 3)])
     esp = factory.fuzzy.FuzzyText(length=3)
     nome_guerra = factory.Sequence(lambda n: f'fulano{n}')
     nome_completo = factory.Sequence(lambda n: f'fulano{n} da silva')

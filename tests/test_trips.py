@@ -172,7 +172,7 @@ async def test_update_trip_error_trig_ja_registrado(client, trips):
         json={
             'trig': trip.trig,
             'active': trip.active,
-        }
+        },
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST

@@ -1,14 +1,14 @@
 from datetime import date
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-p_gs = Literal['so', '1s', '2s', '3s']
+from fcontrol_api.schemas.posto_grad import PostoGradSchema
 
 
 class UserSchema(BaseModel):
-    p_g: p_gs
+    p_g: int
     esp: str
     nome_guerra: str
     nome_completo: str
@@ -26,7 +26,7 @@ class UserSchema(BaseModel):
 
 class UserPublic(BaseModel):
     id: int
-    p_g: p_gs
+    posto: PostoGradSchema
     esp: str
     nome_guerra: str
     nome_completo: str
@@ -36,7 +36,7 @@ class UserPublic(BaseModel):
 
 class UserTrip(BaseModel):
     id: int
-    p_g: p_gs
+    posto: PostoGradSchema
     esp: str
     nome_guerra: str
     unidade: str

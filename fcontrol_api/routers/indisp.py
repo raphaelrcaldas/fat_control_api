@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import date, timedelta
 from http import HTTPStatus
-from typing import Annotated, get_args
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Indisp, Tripulante
 from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
-from fcontrol_api.schemas.users import UserTrip, p_gs
+from fcontrol_api.schemas.users import UserTrip
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -64,7 +64,7 @@ async def get_crew_indisp(session: Session, funcao: str):
 
     def order(trip):
         user = trip['trip']['user']
-        pg_index = get_args(p_gs).index(user['p_g'])
+        pg_index = user['posto']['ant']
         ult_promo = user['ult_promo']
         ant = user['ant_rel']
 
