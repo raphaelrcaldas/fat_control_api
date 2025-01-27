@@ -18,8 +18,8 @@ class UserFactory(factory.Factory):
     esp = factory.fuzzy.FuzzyText(length=3)
     nome_guerra = factory.Sequence(lambda n: f'fulano{n}')
     nome_completo = factory.Sequence(lambda n: f'fulano{n} da silva')
-    id_fab = factory.fuzzy.FuzzyInteger(100000, 999999)
-    saram = factory.fuzzy.FuzzyInteger(1000000, 9999999)
+    id_fab = factory.Sequence(lambda n: 100000 + n)
+    saram = factory.Sequence(lambda n: 1000000 + n)
     unidade = factory.fuzzy.FuzzyText(length=5)
     cpf = factory.Sequence(lambda n: f'0000000000{n}')
     email_fab = factory.LazyAttribute(

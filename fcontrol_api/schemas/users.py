@@ -12,8 +12,8 @@ class UserSchema(BaseModel):
     esp: str
     nome_guerra: str
     nome_completo: str
-    id_fab: int | None = Field(gt=100000)
-    saram: int = Field(gt=1000000, lt=9999999)
+    id_fab: int | None = Field(ge=100000)
+    saram: int = Field(ge=1000000, le=9999999)
     cpf: str
     ult_promo: Annotated[date | None, Body()]
     nasc: Annotated[date | None, Body()]

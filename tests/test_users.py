@@ -1,3 +1,4 @@
+import random
 from http import HTTPStatus
 
 import pytest
@@ -26,7 +27,9 @@ async def test_create_user(client):
     }
 
 
-async def test_create_user_error_saram(client, user):
+async def test_create_user_error_saram(client, users):
+    (user, _) = users
+
     new_user = UserFactory(saram=user.saram)
 
     user_schema = UserSchema.model_validate(new_user).model_dump(mode='json')
@@ -42,7 +45,9 @@ async def test_create_user_error_saram(client, user):
     }
 
 
-async def test_create_user_error_id_fab(client, user):
+async def test_create_user_error_id_fab(client, users):
+    (user, _) = users
+
     new_user = UserFactory(id_fab=user.id_fab)
     user_schema = UserSchema.model_validate(new_user).model_dump(mode='json')
 
@@ -57,7 +62,9 @@ async def test_create_user_error_id_fab(client, user):
     }
 
 
-async def test_create_user_error_cpf(client, user):
+async def test_create_user_error_cpf(client, users):
+    (user, _) = users
+
     new_user = UserFactory(cpf=user.cpf)
     user_schema = UserSchema.model_validate(new_user).model_dump(mode='json')
 
@@ -72,7 +79,9 @@ async def test_create_user_error_cpf(client, user):
     }
 
 
-async def test_create_user_error_zimbra(client, user):
+async def test_create_user_error_zimbra(client, users):
+    (user, _) = users
+
     new_user = UserFactory(email_fab=user.email_fab)
     user_schema = UserSchema.model_validate(new_user).model_dump(mode='json')
 
@@ -87,7 +96,9 @@ async def test_create_user_error_zimbra(client, user):
     }
 
 
-async def test_create_user_error_email_pess(client, user):
+async def test_create_user_error_email_pess(client, users):
+    (user, _) = users
+
     new_user = UserFactory(email_pess=user.email_pess)
     user_schema = UserSchema.model_validate(new_user).model_dump(mode='json')
 
@@ -109,14 +120,19 @@ async def test_read_users(client):
     assert response.json() == []
 
 
-async def test_read_users_with_users(client, user):
-    user_schema = UserPublic.model_validate(user).model_dump()
+async def test_read_users_with_users(client, users):
+    users_list = [
+        UserPublic.model_validate(user).model_dump() for user in users
+    ]
+
     response = await client.get('/users/')
 
-    assert response.json() == [user_schema]
+    assert response.json() == users_list
 
 
-async def test_get_user(client, user):
+async def test_get_user(client, users):
+    (user, _) = users
+
     user_schema = UserSchema.model_validate(user).model_dump(mode='json')
 
     response = await client.get(f'/users/{user.id}')
@@ -134,7 +150,9 @@ async def test_get_error_no_user(client):
     }
 
 
-async def test_update_user(client, user):
+async def test_update_user(client, users):
+    (user, _) = users
+
     user.nome_guerra = 'test_update'
 
     user_schema = UserSchema.model_validate(user).model_dump(mode='json')
@@ -153,11 +171,20 @@ async def test_update_user(client, user):
     }
 
 
-async def test_update_user_error_no_user(client, user):
+async def test_update_user_error_no_user(client, users):
+    def random_id(numeros_excluir):
+        numeros_possiveis = list(range(1, 999))
+        for numero in numeros_excluir:
+            if numero in numeros_possiveis:
+                numeros_possiveis.remove(numero)
+        return random.choice(numeros_possiveis)
+
+    (user, _) = users
+
     user_schema = UserSchema.model_validate(user).model_dump(mode='json')
 
     response = await client.put(
-        f'/users/{user.id + 1}',
+        f'/users/{random_id([i.id for i in users])}',
         json=user_schema,
     )
 

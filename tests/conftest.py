@@ -52,57 +52,40 @@ async def session():
 
 
 @pytest.fixture
-async def user(session):
+async def users(session):
     password = 'testtest'
+
     user = UserFactory(password=get_password_hash(password))
+    other_user = UserFactory()
 
-    session.add(user)
+    db_users = [user, other_user]
+
+    session.add_all(db_users)
     await session.commit()
-    await session.refresh(user)
 
-    user.clean_password = 'testtest'
+    for instance in db_users:
+        await session.refresh(instance)
 
-    return user
+    user.clean_password = password
+
+    return (user, other_user)
 
 
 @pytest.fixture
-async def other_user(session):
-    password = 'testtest'
-    user = UserFactory(password=get_password_hash(password))
+async def trips(session, users):
+    (user, other_user) = users
 
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-
-    user.clean_password = 'testtest'
-
-    return user
-
-
-@pytest.fixture
-async def trip(session, user):
     trip = TripFactory(user_id=user.id)
+    other_trip = TripFactory(user_id=other_user.id)
 
-    session.add(trip)
+    db_trips = [trip, other_trip]
+
+    session.add_all(db_trips)
     await session.commit()
-    await session.refresh(trip)
 
-    return trip
+    for instance in db_trips:
+        await session.refresh(instance)
 
-
-@pytest.fixture
-async def other_trip(session, other_user):
-    trip = TripFactory(user_id=other_user.id)
-
-    session.add(trip)
-    await session.commit()
-    await session.refresh(trip)
-
-    return trip
-
-
-@pytest.fixture
-async def two_trips(trip, other_trip):
     return (trip, other_trip)
 
 

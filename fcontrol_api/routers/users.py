@@ -123,9 +123,7 @@ async def get_user(user_id: int, session: Session):
 
 @router.put('/{user_id}', response_model=UserMessage)
 async def update_user(user_id: int, user: UserSchema, session: Session):
-    query = select(User).where(User.id == user_id)
-
-    db_user = await session.scalar(query)
+    db_user = await session.scalar(select(User).where(User.id == user_id))
 
     if not db_user:
         raise HTTPException(

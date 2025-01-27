@@ -1,9 +1,8 @@
+import random
 from http import HTTPStatus
 
 import pytest
 
-# from sqlalchemy.future import select
-# from fcontrol_api.models import Tripulante
 from fcontrol_api.schemas.tripulantes import TripSchema, TripWithFuncs
 
 from .factories import TripFactory
@@ -11,7 +10,9 @@ from .factories import TripFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_trip(client, user):
+async def test_create_trip(client, users):
+    (user, _) = users
+
     response = await client.post(
         '/ops/trips/',
         json={
@@ -34,7 +35,9 @@ async def test_create_trip(client, user):
     }
 
 
-async def test_create_trip_error_trig(client, trip):
+async def test_create_trip_error_trig(client, trips):
+    (trip, _) = trips
+
     new_trip = TripFactory(user_id=trip.user_id)
 
     response = await client.post(
@@ -51,7 +54,9 @@ async def test_create_trip_error_trig(client, trip):
     assert response.json() == {'detail': 'Trigrama já registrado'}
 
 
-async def test_create_trip_error_ja_existe(client, trip):
+async def test_create_trip_error_ja_existe(client, trips):
+    (trip, _) = trips
+
     new_trip = TripFactory(user_id=trip.user_id + 1)
 
     response = await client.post(
@@ -68,7 +73,9 @@ async def test_create_trip_error_ja_existe(client, trip):
     assert response.json() == {'detail': 'Tripulante já registrado'}
 
 
-async def test_get_unique_trip(client, trip):
+async def test_get_unique_trip(client, trips):
+    (trip, _) = trips
+
     trip_schema = TripWithFuncs.model_validate(trip).model_dump()
 
     response = await client.get(f'/ops/trips/{trip.id}')
@@ -84,8 +91,22 @@ async def test_get_unique_trip_error_not_found(client):
     assert response.json() == {'detail': 'Crew member not found'}
 
 
-async def test_read_list_trips(client, trip):
-    trip_schema = TripWithFuncs.model_validate(trip).model_dump()
+async def test_read_list_trips(client, trips):
+    (trip, _) = trips
+
+    trips_list = [
+        TripWithFuncs.model_validate(trip).model_dump() for trip in trips
+    ]
+
+    trips_list = list(
+        filter(
+            (
+                lambda x: (x['uae'] == trip.uae)
+                and (x['active'] == trip.active)
+            ),
+            trips_list,
+        )
+    )
 
     response = await client.get(
         '/ops/trips/',
@@ -96,10 +117,12 @@ async def test_read_list_trips(client, trip):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == [trip_schema]
+    assert response.json() == trips_list
 
 
-async def test_update_trip(client, trip):
+async def test_update_trip(client, trips):
+    (trip, _) = trips
+
     trip_schema = TripSchema.model_validate(trip).model_dump()
     trip_schema['trig'] = 'exe'
     trip_schema['active'] = not trip.active
@@ -119,9 +142,16 @@ async def test_update_trip(client, trip):
     }
 
 
-async def test_update_trip_error_crew_member_not_found(client, trip):
+async def test_update_trip_error_trip_not_found(client, trips):
+    def random_id(numeros_excluir):
+        numeros_possiveis = list(range(1, 999))
+        for numero in numeros_excluir:
+            if numero in numeros_possiveis:
+                numeros_possiveis.remove(numero)
+        return random.choice(numeros_possiveis)
+
     response = await client.put(
-        f'/ops/trips/{trip.id + 1}',
+        f'/ops/trips/{random_id([i.id for i in trips])}',
         json={
             'trig': 'tst',
             'active': False,
@@ -134,21 +164,18 @@ async def test_update_trip_error_crew_member_not_found(client, trip):
     }
 
 
-# async def test_update_trip_error_trig_ja_registrado(client, two_trips):
-#     (trip, other_trip) = two_trips
+async def test_update_trip_error_trig_ja_registrado(client, trips):
+    (trip, other_trip) = trips
 
-#     print(trip)
-#     print(other_trip)
+    response = await client.put(
+        f'/ops/trips/{other_trip.id}',
+        json={
+            'trig': trip.trig,
+            'active': trip.active,
+        }
+    )
 
-#     response = await client.put(
-#         f'/ops/trips/{other_trip.id}',
-#         json={
-#             'trig': trip.trig,
-#             'active': trip.active,
-#         }
-#     )
-
-#     assert response.status_code == HTTPStatus.BAD_REQUEST
-#     assert response.json() == {
-#         'detail': 'Trigrama já registrado',
-#     }
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.json() == {
+        'detail': 'Trigrama já registrado',
+    }

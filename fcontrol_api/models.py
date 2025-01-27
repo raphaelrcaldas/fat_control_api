@@ -7,13 +7,28 @@ table_registry = registry()
 
 
 @table_registry.mapped_as_dataclass
+class PostoGrad:
+    __tablename__ = 'posto_grad'
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
+    ant: Mapped[int] = mapped_column(nullable=False)
+    short: Mapped[str] = mapped_column(nullable=False)
+    mid: Mapped[str] = mapped_column(nullable=False)
+    long: Mapped[str] = mapped_column(nullable=False)
+    soldo: Mapped[float] = mapped_column(nullable=False)
+    circulo: Mapped[str] = mapped_column(nullable=False)
+
+
+@table_registry.mapped_as_dataclass
 class User:
     __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, unique=True, nullable=False
     )
-    p_g: Mapped[str]
+    p_g: Mapped[int] = mapped_column(ForeignKey('posto_grad.id'))
     esp: Mapped[str] = mapped_column(nullable=True)
     nome_guerra: Mapped[str]
     nome_completo: Mapped[str] = mapped_column(nullable=True)
@@ -29,6 +44,9 @@ class User:
     ant_rel: Mapped[int] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
+    )
+    posto = relationship(
+        'PostoGrad', backref='users', lazy='selectin', uselist=False
     )
 
 
