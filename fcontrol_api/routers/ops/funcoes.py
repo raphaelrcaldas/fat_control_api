@@ -8,14 +8,13 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models import Funcao, Tripulante
 from fcontrol_api.schemas.funcoes import FuncSchema, FuncUpdate
-from fcontrol_api.schemas.message import FuncMessage
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/funcoes', tags=['funcoes'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=FuncMessage)
+@router.post('/', status_code=HTTPStatus.CREATED)
 async def create_funcao(funcao: FuncSchema, session: Session):
     db_trip = await session.scalar(
         select(Tripulante).where((Tripulante.id == funcao.trip_id))

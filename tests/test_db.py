@@ -1,9 +1,12 @@
-from sqlalchemy import select
+import pytest
+from sqlalchemy.future import select
 
 from fcontrol_api.models import Funcao, Quad, Tripulante, User
 
+pytestmark = pytest.mark.anyio
 
-def test_create_user(session):
+
+async def test_create_user(session):
     new_user = User(
         p_g='2s',
         esp=None,
@@ -17,29 +20,30 @@ def test_create_user(session):
         email_pess=None,
         nasc=None,
         ult_promo=None,
+        ant_rel=None,
         password='secret',
     )
     session.add(new_user)
-    session.commit()
+    await session.commit()
 
-    user = session.scalar(select(User).where(User.saram == '5555555'))
+    user = await session.scalar(select(User).where(User.saram == '5555555'))
 
     assert user.nome_guerra == 'fulano'
 
 
-def test_create_quad(session):
-    quad = Quad(value=1, type='local', trip_id=1, description='teste')
+async def test_create_quad(session):
+    quad = Quad(value=None, type='local', trip_id=1, description='teste')
 
     session.add(quad)
-    session.commit()
-    session.refresh(quad)
+    await session.commit()
+    await session.refresh(quad)
 
-    quads = session.scalar(select(Quad).where(Quad.trip_id == 1))
+    quads = await session.scalar(select(Quad).where(Quad.trip_id == 1))
 
     assert quads
 
 
-def test_create_trip(session):
+async def test_create_trip(session):
     trip = Tripulante(
         user_id=1,
         trig='RPH',
@@ -48,15 +52,17 @@ def test_create_trip(session):
     )
 
     session.add(trip)
-    session.commit()
-    session.refresh(trip)
+    await session.commit()
+    await session.refresh(trip)
 
-    trip = session.scalar(select(Tripulante).where(Tripulante.trig == 'RPH'))
+    trip = await session.scalar(
+        select(Tripulante).where(Tripulante.trig == 'RPH')
+    )
 
     assert trip
 
 
-def test_create_func(session):
+async def test_create_func(session):
     funcao = Funcao(
         trip_id=1,
         func='oe',
@@ -66,10 +72,10 @@ def test_create_func(session):
     )
 
     session.add(funcao)
-    session.commit()
-    session.refresh(funcao)
+    await session.commit()
+    await session.refresh(funcao)
 
-    funcao = session.scalar(
+    funcao = await session.scalar(
         select(Funcao).where((Funcao.trip_id == 1) & (Funcao.func == 'oe'))
     )
 

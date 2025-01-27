@@ -15,7 +15,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models import User
 from fcontrol_api.settings import Settings
 
-settings = Settings()
+settings = Settings()  # type: ignore
 pwd_context = PasswordHash.recommended()
 
 Session = Annotated[AsyncSession, Depends(get_session)]

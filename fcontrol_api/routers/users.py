@@ -90,6 +90,7 @@ async def create_user(user: UserSchema, session: Session):
         email_pess=user.email_pess,
         email_fab=user.email_fab,
         unidade=user.unidade,
+        ant_rel=None,
         password=hashed_password,
     )  # type: ignore
 

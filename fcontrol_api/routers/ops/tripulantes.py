@@ -46,16 +46,20 @@ async def create_trip(trip: TripSchema, session: Session):
         )
 
     tripulante = Tripulante(
-        user_id=trip.user_id, trig=trip.trig, active=trip.active, uae=trip.uae
+        user_id=trip.user_id,
+        trig=trip.trig,
+        active=trip.active,
+        uae=trip.uae,
     )  # type: ignore
 
     session.add(tripulante)
     await session.commit()
+    await session.refresh(tripulante)
 
     return {'detail': 'Tripulante adicionado com sucesso', 'data': tripulante}
 
 
-@router.get('/{id}')
+@router.get('/{id}', status_code=HTTPStatus.OK, response_model=TripWithFuncs)
 async def get_trip(id: int, session: Session):
     trip = await session.scalar(select(Tripulante).where(Tripulante.id == id))
 
@@ -78,7 +82,7 @@ async def list_trips(session: Session, uae: str = '11gt', active: bool = True):
     return trips.all()
 
 
-@router.put('/{id}', status_code=HTTPStatus.OK)
+@router.put('/{id}', status_code=HTTPStatus.OK, response_model=TripMessage)
 async def update_trip(id, trip: BaseTrip, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
@@ -107,8 +111,9 @@ async def update_trip(id, trip: BaseTrip, session: Session):
     trip_search.trig = trip.trig
 
     await session.commit()
+    await session.refresh(trip_search)
 
-    return {'detail': 'Tripulante atualizado com sucesso'}
+    return {'detail': 'Tripulante atualizado com sucesso', 'data': trip_search}
 
 
 # @router.delete('/{id}')

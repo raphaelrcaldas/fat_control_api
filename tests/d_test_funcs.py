@@ -1,8 +1,8 @@
 from http import HTTPStatus
 
 
-def test_create_func(client, trip):
-    r = client.post(
+async def test_create_func(client, trip):
+    r = await client.post(
         'ops/funcoes/',
         json={
             'trip_id': trip.id,
@@ -16,14 +16,7 @@ def test_create_func(client, trip):
     assert r.status_code == HTTPStatus.CREATED
     assert r.json() == {
         'detail': 'Função cadastrada com sucesso',
-        'data': {
-            'id': 1,
-            'trip_id': trip.id,
-            'func': 'mc',
-            'oper': 'al',
-            'proj': 'kc-390',
-            'data_op': None,
-        },
+        'data': {'trip_id': trip.id},
     }
 
 

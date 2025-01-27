@@ -1,7 +1,8 @@
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+# from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from fcontrol_api.app import app
@@ -12,40 +13,52 @@ from tests.factories import FuncFactory, QuadFactory, TripFactory, UserFactory
 
 
 @pytest.fixture
-def client(session):
+def anyio_backend():
+    return 'asyncio'
+
+
+@pytest.fixture
+async def client(session):
     def get_session_override():
         return session
 
-    with TestClient(app) as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url='http://127.0.0.1:8000/'
+    ) as client:
         app.dependency_overrides[get_session] = get_session_override
+
         yield client
 
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def session():
-    engine = create_engine(
-        'sqlite:///:memory:',
+async def session():
+    engine = create_async_engine(
+        'sqlite+aiosqlite:///:memory:',
         connect_args={'check_same_thread': False},
         poolclass=StaticPool,
     )
-    table_registry.metadata.create_all(engine)
 
-    with Session(engine) as session:
+    async with engine.begin() as conn:
+        await conn.run_sync(table_registry.metadata.create_all)
+
+    session = AsyncSession(engine)
+    try:
         yield session
-
-    table_registry.metadata.drop_all(engine)
+    finally:
+        await session.close()
+        await engine.dispose()
 
 
 @pytest.fixture
-def user(session):
+async def user(session):
     password = 'testtest'
     user = UserFactory(password=get_password_hash(password))
 
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    await session.commit()
+    await session.refresh(user)
 
     user.clean_password = 'testtest'
 
@@ -53,13 +66,13 @@ def user(session):
 
 
 @pytest.fixture
-def other_user(session):
+async def other_user(session):
     password = 'testtest'
     user = UserFactory(password=get_password_hash(password))
 
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    await session.commit()
+    await session.refresh(user)
 
     user.clean_password = 'testtest'
 
@@ -67,44 +80,49 @@ def other_user(session):
 
 
 @pytest.fixture
-def trip(session, user):
+async def trip(session, user):
     trip = TripFactory(user_id=user.id)
 
     session.add(trip)
-    session.commit()
-    session.refresh(trip)
+    await session.commit()
+    await session.refresh(trip)
 
     return trip
 
 
 @pytest.fixture
-def other_trip(session, other_user):
+async def other_trip(session, other_user):
     trip = TripFactory(user_id=other_user.id)
 
     session.add(trip)
-    session.commit()
-    session.refresh(trip)
+    await session.commit()
+    await session.refresh(trip)
 
     return trip
 
 
 @pytest.fixture
-def funcao(session, trip):
+async def two_trips(trip, other_trip):
+    return (trip, other_trip)
+
+
+@pytest.fixture
+async def funcao(session, trip):
     func = FuncFactory(trip_id=trip.id)
 
     session.add(func)
-    session.commit()
-    session.refresh(func)
+    await session.commit()
+    await session.refresh(func)
 
     return func
 
 
 @pytest.fixture
-def quad(session, trip):
+async def quad(session, trip):
     quad = QuadFactory(trip_id=trip.id)
 
     session.add(quad)
-    session.commit()
-    session.refresh(quad)
+    await session.commit()
+    await session.refresh(quad)
 
     return quad

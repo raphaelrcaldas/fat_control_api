@@ -28,6 +28,7 @@ class UserFactory(factory.Factory):
     email_pess = factory.LazyAttribute(
         lambda obj: f'{obj.nome_guerra}@email.mil.br'
     )
+    ant_rel = factory.fuzzy.FuzzyInteger(1, 999)
     nasc = factory.fuzzy.FuzzyDate(datetime.date(1970, 1, 1))
     ult_promo = factory.fuzzy.FuzzyDate(datetime.date(2010, 1, 1))
     password = factory.LazyAttribute(lambda obj: f'{obj.nome_guerra}-secret')

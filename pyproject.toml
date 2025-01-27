@@ -31,6 +31,9 @@ taskipy = "^1.13.0"
 httpx = "0.*"
 factory-boy = "^3.3.0"
 freezegun = "^1.5.1"
+aiosqlite = "^0.20.0"
+trio = "^0.28.0"
+pytest-asyncio = "^0.25.2"
 
 [tool.ruff]
 line-length = 79
@@ -47,6 +50,9 @@ quote-style = 'single'
 [tool.pytest.ini_options]
 pythonpath = "."
 addopts = '-p no:warnings'
+
+[tool.coverage.run]
+concurrency = ["gevent"]
 
 [tool.taskipy.tasks]
 run = 'fastapi dev fcontrol_api/app.py'

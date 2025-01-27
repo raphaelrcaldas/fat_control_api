@@ -42,9 +42,9 @@ async def get_crew_indisp(session: Session, funcao: str):
 
     group_indisp = defaultdict(list)
     grou_info = {}
-    for indisp, trip, funcao in db_indisp.all():
+    for indisp, trip, inner_funcao in db_indisp.all():
         trip_schema = {'trig': trip.trig, 'id': trip.id}
-        func_schema = BaseFunc.model_validate(funcao).model_dump()
+        func_schema = BaseFunc.model_validate(inner_funcao).model_dump()
 
         trip_schema['func'] = func_schema
         trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
