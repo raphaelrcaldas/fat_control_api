@@ -2,9 +2,7 @@ import random
 from http import HTTPStatus
 
 import pytest
-from sqlalchemy.future import select
 
-from fcontrol_api.models import PostoGrad
 from fcontrol_api.schemas.tripulantes import TripSchema, TripWithFuncs
 
 from .factories import TripFactory
@@ -14,9 +12,6 @@ pytestmark = pytest.mark.anyio
 
 async def test_create_trip(session, client, users):
     (user, _) = users
-
-    postos = await session.scalars(select(PostoGrad))
-    print(postos.all())
 
     response = await client.post(
         '/ops/trips/',
