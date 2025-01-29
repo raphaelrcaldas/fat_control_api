@@ -55,7 +55,7 @@ def refresh_access_token(
     user: User = Depends(get_current_user),
 ):
     data = {
-        'sub': f'{user.p_g} {user.nome_guerra}',
+        'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
         'scopes': [],
     }

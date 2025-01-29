@@ -9,7 +9,7 @@ from tests.factories import UserFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_user(client):
+async def test_create_user(client, posto_table):
     user = UserFactory()
     user_schema = UserSchema.model_validate(user).model_dump(mode='json')
 

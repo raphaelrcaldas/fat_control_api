@@ -7,6 +7,6 @@ class PostoGradSchema(BaseModel):
     short: str
     mid: str
     long: str
-    soldo: float
+    # soldo: float
     circulo: str
     model_config = ConfigDict(from_attributes=True)
