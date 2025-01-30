@@ -19,14 +19,17 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 
 @router.get('/')
-async def get_crew_indisp(session: Session, funcao: str):
+async def get_crew_indisp(session: Session, funcao: str, uae: str):
     date_ini = date.today() - timedelta(days=15)
 
     query = (
         select(Indisp, Tripulante, Funcao)
         .select_from(Funcao)
-        .where(Funcao.func == funcao)
-        .join(Tripulante, Tripulante.id == Funcao.trip_id)
+        .where((Funcao.func == funcao))
+        .join(
+            Tripulante,
+            (Tripulante.id == Funcao.trip_id) & (Tripulante.uae == uae),
+        )
         .join(
             Indisp,
             (

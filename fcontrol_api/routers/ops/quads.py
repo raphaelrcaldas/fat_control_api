@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Funcao, Quad, Tripulante
+from fcontrol_api.models import Funcao, Quad, QuadsGroup, Tripulante
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.quads import (
     QuadPublic,
     QuadSchema,
+    QuadsGroupSchema,
     QuadUpdate,
 )
 from fcontrol_api.schemas.tripulantes import uaes
@@ -25,9 +26,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/quads', tags=['quads'])
 
 
-@router.post(
-    '/', status_code=HTTPStatus.CREATED, response_model=list[QuadPublic]
-)
+@router.post('/', status_code=HTTPStatus.CREATED)
 async def create_quad(quads: list[QuadSchema], session: Session):
     insert_quads = []
     for quad in quads:
@@ -36,7 +35,7 @@ async def create_quad(quads: list[QuadSchema], session: Session):
             db_quad = await session.scalar(
                 select(Quad).where(
                     (Quad.value == quad.value)
-                    & (Quad.type == quad.type)
+                    & (Quad.type_id == quad.type_id)
                     & (Quad.trip_id == quad.trip_id)
                 )
             )
@@ -50,7 +49,7 @@ async def create_quad(quads: list[QuadSchema], session: Session):
         quad_db = Quad(
             value=quad.value,
             description=quad.description,
-            type=quad.type,
+            type_id=quad.type_id,
             trip_id=quad.trip_id,
         )  # type: ignore
 
@@ -59,7 +58,7 @@ async def create_quad(quads: list[QuadSchema], session: Session):
     session.add_all(insert_quads)
     await session.commit()
 
-    return insert_quads
+    return {'detail': 'Inserido com sucesso'}
 
 
 @router.get(
@@ -67,8 +66,10 @@ async def create_quad(quads: list[QuadSchema], session: Session):
     status_code=HTTPStatus.OK,
     response_model=list[QuadPublic],
 )
-async def quads_by_trip(trip_id: int, type: str, session: Session):
-    query = select(Quad).where((Quad.trip_id == trip_id) & (Quad.type == type))
+async def quads_by_trip(trip_id: int, type_id: int, session: Session):
+    query = select(Quad).where(
+        (Quad.trip_id == trip_id) & (Quad.type_id == type_id)
+    )
 
     result = await session.scalars(query)
     quads = result.all()
@@ -85,13 +86,10 @@ async def quads_by_trip(trip_id: int, type: str, session: Session):
     return quads
 
 
-@router.get(
-    '/',
-    status_code=HTTPStatus.OK,
-)
+@router.get('/', status_code=HTTPStatus.OK)
 async def list_quads(
     session: Session,
-    tipo_quad: str = 'sobr-preto',
+    tipo_quad: int = 1,  # sobr preto
     funcao: funcs = 'mc',
     uae: uaes = '11gt',
     proj: proj = 'kc-390',
@@ -102,7 +100,7 @@ async def list_quads(
         .where((Tripulante.uae == uae) & (Tripulante.active == True))  # noqa: E712
         .join(
             Quad,
-            ((Quad.trip_id == Tripulante.id) & (Quad.type == tipo_quad)),
+            ((Quad.trip_id == Tripulante.id) & (Quad.type_id == tipo_quad)),
             isouter=True,
         )
         .join(
@@ -179,7 +177,7 @@ async def delete_quad(id: int, session: Session):
 
 
 @router.put('/{id}')
-async def update_quad(id, quad: QuadUpdate, session: Session):
+async def update_quad(id: int, quad: QuadUpdate, session: Session):
     db_quad = await session.scalar(select(Quad).where(Quad.id == id))
 
     if not db_quad:
@@ -190,7 +188,7 @@ async def update_quad(id, quad: QuadUpdate, session: Session):
     ss_quad = await session.scalar(
         select(Quad).where(
             (Quad.value == quad.value)
-            & (Quad.type == db_quad.type)
+            & (Quad.type_id == db_quad.type_id)
             & (Quad.trip_id == quad.trip_id)
             & (Quad.id != id)
         )
@@ -209,3 +207,16 @@ async def update_quad(id, quad: QuadUpdate, session: Session):
     await session.commit()
 
     return {'detail': 'Quadrinho atualizado'}
+
+
+@router.get('/types', response_model=list[QuadsGroupSchema])
+async def get_quads_type(uae: str, session: Session):
+    quads = await session.scalars(
+        select(QuadsGroup).where(QuadsGroup.uae == uae)
+    )
+    quads = quads.all()
+
+    for group in quads:
+        group.types = sorted(group.types, key=lambda x: x.id)
+
+    return quads

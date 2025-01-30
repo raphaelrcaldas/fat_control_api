@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, Identity, String, func
+from sqlalchemy import ARRAY, ForeignKey, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 table_registry = registry()
@@ -91,7 +91,7 @@ class Quad:
         Identity(), init=False, primary_key=True, unique=True, nullable=False
     )
     description: Mapped[str] = mapped_column(nullable=True)
-    type: Mapped[str]
+    type_id: Mapped[int] = mapped_column(ForeignKey('quads_type.id'))
     value: Mapped[date] = mapped_column(nullable=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
 
@@ -115,3 +115,31 @@ class Indisp:
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )
+
+
+@table_registry.mapped_as_dataclass
+class QuadsGroup:
+    __tablename__ = 'quads_group'
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
+    short: Mapped[str] = mapped_column(nullable=False)
+    long: Mapped[str] = mapped_column(nullable=False)
+    uae: Mapped[str]
+    types = relationship(
+        'QuadsType', backref='quads_group', lazy='selectin', uselist=True
+    )
+
+
+@table_registry.mapped_as_dataclass
+class QuadsType:
+    __tablename__ = 'quads_type'
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
+    group_id: Mapped[int] = mapped_column(ForeignKey('quads_group.id'))
+    short: Mapped[str] = mapped_column(nullable=False)
+    long: Mapped[str] = mapped_column(nullable=False)
+    exclude: Mapped[ARRAY] = mapped_column(ARRAY(String), nullable=False)

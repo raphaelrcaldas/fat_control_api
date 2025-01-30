@@ -10,7 +10,7 @@ from fcontrol_api.schemas.tripulantes import TripWithFuncs
 
 class BaseQuad(BaseModel):
     value: Annotated[date | None, Body()]
-    type: str
+    type_id: int
     description: Annotated[str | None, Body()]
 
 
@@ -37,3 +37,17 @@ class QuadList(BaseModel):
 class ResQuad(FuncPublic):
     quads: list
     trip: TripWithFuncs
+
+
+class QuadsTypeSchema(BaseModel):
+    id: int
+    short: str
+    long: str
+    exclude: list[str] | None
+
+
+class QuadsGroupSchema(BaseModel):
+    id: int
+    short: str
+    long: str
+    types: list[QuadsTypeSchema]
