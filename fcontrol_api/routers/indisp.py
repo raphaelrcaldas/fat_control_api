@@ -8,10 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Funcao, Indisp, Tripulante
+from fcontrol_api.models import Funcao, Indisp, Tripulante, User
 from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
 from fcontrol_api.schemas.users import UserTrip
+from fcontrol_api.security import get_current_user
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -79,7 +80,11 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
 
 
 @router.post('/', status_code=HTTPStatus.CREATED)
-async def create_indisp(indisp: IndispSchema, session: Session):
+async def create_indisp(
+    indisp: IndispSchema,
+    session: Session,
+    user: User = Depends(get_current_user),
+):
     if indisp.date_end < indisp.date_start:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
@@ -107,6 +112,7 @@ async def create_indisp(indisp: IndispSchema, session: Session):
         date_end=indisp.date_end,
         mtv=indisp.mtv,
         obs=indisp.obs,
+        created_by=user.id,
     )  # type: ignore
 
     session.add(new_indisp)

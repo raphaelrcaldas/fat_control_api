@@ -214,7 +214,7 @@ async def get_quads_type(uae: str, session: Session):
     quads = await session.scalars(
         select(QuadsGroup).where(QuadsGroup.uae == uae)
     )
-    quads = quads.all()
+    quads = quads.all()  # type: ignore
 
     for group in quads:
         group.types = sorted(group.types, key=lambda x: x.id)

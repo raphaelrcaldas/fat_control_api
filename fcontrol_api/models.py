@@ -112,8 +112,16 @@ class Indisp:
     date_end: Mapped[date]
     mtv: Mapped[str] = mapped_column(nullable=False)
     obs: Mapped[str] = mapped_column(nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
+    )
+    user_created = relationship(
+        'User',
+        backref='indisps',
+        lazy='selectin',
+        uselist=False,
+        foreign_keys=[created_by],
     )
 
 
