@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
 from fcontrol_api.schemas.message import UserMessage
-from fcontrol_api.schemas.users import UserPublic, UserSchema
+from fcontrol_api.schemas.users import UserFull, UserPublic, UserSchema
 from fcontrol_api.security import get_current_user, get_password_hash
 from fcontrol_api.settings import Settings
 
@@ -108,7 +108,7 @@ async def read_users(session: Session):
     return users.all()
 
 
-@router.get('/{user_id}', response_model=UserSchema)
+@router.get('/{user_id}', response_model=UserFull)
 async def get_user(user_id: int, session: Session):
     query = select(User).where(User.id == user_id)
     db_user = await session.scalar(query)

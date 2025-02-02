@@ -24,6 +24,10 @@ class UserSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserFull(UserSchema):
+    posto: PostoGradSchema
+
+
 class UserPublic(BaseModel):
     id: int
     posto: PostoGradSchema
