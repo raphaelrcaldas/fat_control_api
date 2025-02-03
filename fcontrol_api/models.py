@@ -45,9 +45,7 @@ class User:
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )
-    posto = relationship(
-        'PostoGrad', backref='users', lazy='selectin', uselist=False
-    )
+    posto = relationship('PostoGrad', backref='users')
 
 
 @table_registry.mapped_as_dataclass
@@ -61,9 +59,7 @@ class Tripulante:
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
     uae: Mapped[str]
-    user = relationship(
-        'User', backref='tripulantes', lazy='selectin', uselist=False
-    )
+    user = relationship('User', backref='tripulantes', lazy='selectin')
     funcs = relationship(
         'Funcao', backref='tripulantes', lazy='selectin', uselist=True
     )
@@ -120,7 +116,6 @@ class Indisp:
         'User',
         backref='indisps',
         lazy='selectin',
-        uselist=False,
         foreign_keys=[created_by],
     )
 
