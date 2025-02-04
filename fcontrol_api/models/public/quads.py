@@ -3,7 +3,7 @@ from datetime import date, datetime
 from sqlalchemy import ARRAY, ForeignKey, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .. import Base
+from .base import Base
 
 
 class Quad(Base):

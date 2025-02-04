@@ -1,5 +1,3 @@
-from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
+from .public.base import Base as BasePublic
 
-
-class Base(MappedAsDataclass, DeclarativeBase):
-    """subclasses will be converted to dataclasses"""
+metadata = [BasePublic.metadata]

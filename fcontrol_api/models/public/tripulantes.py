@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, Identity, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .. import Base
+from .base import Base
 
 
 class Tripulante(Base):

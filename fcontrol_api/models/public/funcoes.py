@@ -1,9 +1,9 @@
 from datetime import date
 
 from sqlalchemy import ForeignKey, Identity
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .. import Base
+from .base import Base
 
 
 class Funcao(Base):
