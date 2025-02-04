@@ -4,7 +4,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models import User
@@ -111,11 +110,7 @@ async def read_users(session: Session):
 
 @router.get('/{user_id}', response_model=UserFull)
 async def get_user(user_id: int, session: Session):
-    query = (
-        select(User)
-        .where(User.id == user_id)
-        .options(selectinload(User.posto))
-    )
+    query = select(User).where(User.id == user_id)
     db_user = await session.scalar(query)
 
     if not db_user:

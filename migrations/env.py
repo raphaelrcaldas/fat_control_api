@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from fcontrol_api.models import table_registry
+from fcontrol_api.models import Base
 from fcontrol_api.settings import Settings
 
 
@@ -17,7 +17,7 @@ config.set_main_option('sqlalchemy.url', Settings().DATABASE_URL)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = table_registry.metadata
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

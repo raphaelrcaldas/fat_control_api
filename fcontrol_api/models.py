@@ -1,13 +1,20 @@
 from datetime import date, datetime
 
 from sqlalchemy import ARRAY, ForeignKey, Identity, String, func
-from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    mapped_column,
+    relationship,
+)
 
-table_registry = registry()
+
+class Base(MappedAsDataclass, DeclarativeBase):
+    """subclasses will be converted to dataclasses"""
 
 
-@table_registry.mapped_as_dataclass
-class PostoGrad:
+class PostoGrad(Base):
     __tablename__ = 'posto_grad'
 
     id: Mapped[int] = mapped_column(
@@ -21,8 +28,7 @@ class PostoGrad:
     circulo: Mapped[str] = mapped_column(nullable=False)
 
 
-@table_registry.mapped_as_dataclass
-class User:
+class User(Base):
     __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(
@@ -45,11 +51,12 @@ class User:
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )
-    posto = relationship('PostoGrad', backref='users')
+    posto = relationship(
+        'PostoGrad', backref='users', lazy='selectin', uselist=False
+    )
 
 
-@table_registry.mapped_as_dataclass
-class Tripulante:
+class Tripulante(Base):
     __tablename__ = 'tripulantes'
 
     id: Mapped[int] = mapped_column(
@@ -59,14 +66,15 @@ class Tripulante:
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
     uae: Mapped[str]
-    user = relationship('User', backref='tripulantes', lazy='selectin')
+    user = relationship(
+        'User', backref='tripulantes', lazy='selectin', uselist=False
+    )
     funcs = relationship(
         'Funcao', backref='tripulantes', lazy='selectin', uselist=True
     )
 
 
-@table_registry.mapped_as_dataclass
-class Funcao:
+class Funcao(Base):
     __tablename__ = 'trip_funcs'
 
     id: Mapped[int] = mapped_column(
@@ -79,8 +87,7 @@ class Funcao:
     data_op: Mapped[date] = mapped_column(nullable=True)
 
 
-@table_registry.mapped_as_dataclass
-class Quad:
+class Quad(Base):
     __tablename__ = 'quad'
 
     id: Mapped[int] = mapped_column(
@@ -96,8 +103,7 @@ class Quad:
     )
 
 
-@table_registry.mapped_as_dataclass
-class Indisp:
+class Indisp(Base):
     __tablename__ = 'indisps'
 
     id: Mapped[int] = mapped_column(
@@ -120,8 +126,7 @@ class Indisp:
     )
 
 
-@table_registry.mapped_as_dataclass
-class QuadsGroup:
+class QuadsGroup(Base):
     __tablename__ = 'quads_group'
 
     id: Mapped[int] = mapped_column(
@@ -135,8 +140,7 @@ class QuadsGroup:
     )
 
 
-@table_registry.mapped_as_dataclass
-class QuadsType:
+class QuadsType(Base):
     __tablename__ = 'quads_type'
 
     id: Mapped[int] = mapped_column(

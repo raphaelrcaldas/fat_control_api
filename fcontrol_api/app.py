@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fcontrol_api.routers import auth, indisp, postos, users
-from fcontrol_api.routers.ops import ops
+from fcontrol_api.routers import auth, indisp, ops, postos, users
 
 origins = [
     'http://localhost:3000',
