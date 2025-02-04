@@ -1,6 +1,9 @@
-from .funcoes import Funcao
-from .indisp import Indisp
-from .posto_grad import PostoGrad
-from .quads import Quad, QuadsGroup, QuadsType
-from .tripulantes import Tripulante
-from .users import User
+import importlib
+import pkgutil
+
+from .. import public
+
+for _, module_name, _ in pkgutil.walk_packages(
+    public.__path__, public.__name__ + '.'
+):
+    importlib.import_module(module_name)
