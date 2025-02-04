@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models import Funcao, Quad, Tripulante, User
+from fcontrol_api.models.public.models import Funcao, Quad, Tripulante, User
 
 pytestmark = pytest.mark.anyio
 

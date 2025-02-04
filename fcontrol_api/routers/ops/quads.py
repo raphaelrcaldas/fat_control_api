@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Funcao, Quad, QuadsGroup, Tripulante
+from fcontrol_api.models.public import (
+    Funcao,
+    Quad,
+    QuadsGroup,
+    Tripulante,
+)
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.quads import (
     QuadPublic,

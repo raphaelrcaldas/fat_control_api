@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from fcontrol_api.app import app
 from fcontrol_api.database import get_session
-from fcontrol_api.models import PostoGrad, table_registry
+from fcontrol_api.models.public.models import PostoGrad, table_registry
 from fcontrol_api.security import get_password_hash
 from tests.factories import FuncFactory, QuadFactory, TripFactory, UserFactory
 

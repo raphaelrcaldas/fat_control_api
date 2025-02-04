@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import User
+from fcontrol_api.models.public import User
 from fcontrol_api.settings import Settings
 
 settings = Settings()  # type: ignore

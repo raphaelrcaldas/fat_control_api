@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import Tripulante
+from fcontrol_api.models.public import Tripulante
 from fcontrol_api.schemas.message import TripMessage
 from fcontrol_api.schemas.tripulantes import (
     BaseTrip,

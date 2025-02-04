@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models import User
+from fcontrol_api.models.public import User
 from fcontrol_api.schemas.message import UserMessage
 from fcontrol_api.schemas.users import UserFull, UserPublic, UserSchema
 from fcontrol_api.security import get_current_user, get_password_hash
