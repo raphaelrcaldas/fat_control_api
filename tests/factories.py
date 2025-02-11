@@ -4,7 +4,10 @@ import typing
 import factory
 import factory.fuzzy
 
-from fcontrol_api.models.public.models import Funcao, Quad, Tripulante, User
+from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.public.quads import Quad
+from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
 

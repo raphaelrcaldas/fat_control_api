@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 import pytest
 
-from fcontrol_api.schemas.users import UserPublic, UserSchema
+from fcontrol_api.schemas.users import UserFull, UserPublic, UserSchema
 from tests.factories import UserFactory
 
 pytestmark = pytest.mark.anyio
@@ -133,7 +133,7 @@ async def test_read_users_with_users(client, users):
 async def test_get_user(client, users):
     (user, _) = users
 
-    user_schema = UserSchema.model_validate(user).model_dump(mode='json')
+    user_schema = UserFull.model_validate(user).model_dump(mode='json')
 
     response = await client.get(f'/users/{user.id}')
 

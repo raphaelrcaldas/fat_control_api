@@ -1,13 +1,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-
-# from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from fcontrol_api.app import app
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.models import PostoGrad, table_registry
+from fcontrol_api.models import metadata
+from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.security import get_password_hash
 from tests.factories import FuncFactory, QuadFactory, TripFactory, UserFactory
 
@@ -41,7 +40,8 @@ async def session():
     )
 
     async with engine.begin() as conn:
-        await conn.run_sync(table_registry.metadata.create_all)
+        for meta in metadata:
+            await conn.run_sync(meta.create_all)
 
     session = AsyncSession(engine)
     try:
@@ -196,6 +196,8 @@ async def posto_table(session):
 
     session.add_all(postos)
     await session.commit()
+
+    return postos
 
 
 @pytest.fixture

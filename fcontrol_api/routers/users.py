@@ -9,7 +9,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.message import UserMessage
 from fcontrol_api.schemas.users import UserFull, UserPublic, UserSchema
-from fcontrol_api.security import get_current_user, get_password_hash
+from fcontrol_api.security import get_password_hash
 from fcontrol_api.settings import Settings
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -17,11 +17,11 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/users', tags=['users'])
 
 
-@router.get('/me')
-async def read_users_me(
-    current_user: Annotated[User, Depends(get_current_user)],
-):
-    return {'saram': current_user.saram}
+# @router.get('/me')
+# async def read_users_me(
+#     current_user: Annotated[User, Depends(get_current_user)],
+# ):
+#     return {'saram': current_user.saram}
 
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=UserMessage)

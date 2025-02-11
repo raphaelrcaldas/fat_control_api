@@ -1,7 +1,10 @@
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.models import Funcao, Quad, Tripulante, User
+from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.public.quads import Quad
+from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.public.users import User
 
 pytestmark = pytest.mark.anyio
 
@@ -32,7 +35,7 @@ async def test_create_user(session):
 
 
 async def test_create_quad(session):
-    quad = Quad(value=None, type='local', trip_id=1, description='teste')
+    quad = Quad(value=None, type_id=1, trip_id=1, description='teste')
 
     session.add(quad)
     await session.commit()

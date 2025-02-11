@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ARRAY, ForeignKey, Identity, String, func
+from sqlalchemy import ForeignKey, Identity, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -45,4 +45,13 @@ class QuadsType(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey('quads_group.id'))
     short: Mapped[str] = mapped_column(nullable=False)
     long: Mapped[str] = mapped_column(nullable=False)
-    exclude: Mapped[ARRAY] = mapped_column(ARRAY(String), nullable=False)
+
+
+class QuadsFunc(Base):
+    __tablename__ = 'quads_func'
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
+    type_id: Mapped[int] = mapped_column(ForeignKey('quads_type.id'))
+    func: Mapped[str]

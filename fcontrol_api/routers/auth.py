@@ -39,14 +39,10 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
             detail='Dados inválidos',
         )
 
-    scopes = []
-    if user.saram == 6380000:
-        scopes.append('adm')
-
     data = {
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
-        'scopes': scopes,
+        'scopes': [],
     }
 
     access_token = create_access_token(data=data)
@@ -55,17 +51,13 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
 
 
 @router.post('/refresh_token', response_model=Token)
-def refresh_access_token(
+async def refresh_access_token(
     user: User = Depends(get_current_user),
 ):
-    scopes = []
-    if user.saram == 6380000:
-        scopes.append('adm')
-
     data = {
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
-        'scopes': scopes,
+        'scopes': [],
     }
 
     new_access_token = create_access_token(data=data)
