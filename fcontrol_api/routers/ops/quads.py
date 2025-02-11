@@ -224,4 +224,8 @@ async def get_quads_type(uae: str, session: Session):
     for group in quads:
         group.types = sorted(group.types, key=lambda x: x.id)
 
+        for type_quad in group.types:
+            funcs = [e.func for e in type_quad.funcs]
+            setattr(type_quad, "funcs_list", funcs)
+
     return quads
