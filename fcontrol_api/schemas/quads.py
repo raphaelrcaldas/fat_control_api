@@ -39,11 +39,16 @@ class ResQuad(FuncPublic):
     trip: TripWithFuncs
 
 
+class QuadsFunc(BaseModel):
+    id: int
+    func: str
+
+
 class QuadsTypeSchema(BaseModel):
     id: int
     short: str
     long: str
-    exclude: list[str] | None
+    funcs: list[QuadsFunc]
 
 
 class QuadsGroupSchema(BaseModel):

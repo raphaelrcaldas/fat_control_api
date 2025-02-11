@@ -6,10 +6,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.quads import Quad, QuadsGroup
+from fcontrol_api.models.public.quads import Quad, QuadsGroup, QuadsType
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.quads import (
@@ -214,7 +215,9 @@ async def update_quad(id: int, quad: QuadUpdate, session: Session):
 @router.get('/types', response_model=list[QuadsGroupSchema])
 async def get_quads_type(uae: str, session: Session):
     quads = await session.scalars(
-        select(QuadsGroup).where(QuadsGroup.uae == uae)
+        select(QuadsGroup)
+        .where(QuadsGroup.uae == uae)
+        .options(selectinload(QuadsGroup.types).selectinload(QuadsType.funcs))
     )
     quads = quads.all()  # type: ignore
 
