@@ -8,8 +8,17 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.message import UserMessage
-from fcontrol_api.schemas.users import UserFull, UserPublic, UserSchema
-from fcontrol_api.security import get_password_hash
+from fcontrol_api.schemas.users import (
+    PwdSchema,
+    UserFull,
+    UserPublic,
+    UserSchema,
+)
+from fcontrol_api.security import (
+    get_current_user,
+    get_password_hash,
+    verify_password,
+)
 from fcontrol_api.settings import Settings
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -17,11 +26,46 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/users', tags=['users'])
 
 
-# @router.get('/me')
-# async def read_users_me(
-#     current_user: Annotated[User, Depends(get_current_user)],
-# ):
-#     return {'saram': current_user.saram}
+@router.post('/change-pwd')
+async def change_pwd(
+    pwd_schema: PwdSchema,
+    session: Session,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(pwd_schema.prev_pwd, current_user.password):
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_GATEWAY,
+            detail='Revise suas informações',
+        )
+
+    current_user.first_login = False
+    current_user.password = get_password_hash(pwd_schema.new_pwd)
+
+    await session.commit()
+
+    return {'detail': 'Senha alterada com sucesso!'}
+
+
+@router.post('/reset-pwd')
+async def reset_pwd(
+    user_id: int,
+    session: Session,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    db_user = await session.scalar(select(User).where(User.id == user_id))
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='User not found',
+        )
+
+    hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)  # type: ignore
+    db_user.first_login = True
+    db_user.password = hashed_password
+
+    await session.commit()
+
+    return {'detail': 'Senha resetada com sucesso!'}
 
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=UserMessage)

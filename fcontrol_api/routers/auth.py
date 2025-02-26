@@ -45,6 +45,9 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
         'scopes': [],
     }
 
+    if user.first_login:
+        data['first_login'] = True
+
     access_token = create_access_token(data=data)
 
     return {'access_token': access_token, 'token_type': 'bearer'}
