@@ -226,6 +226,6 @@ async def get_quads_type(uae: str, session: Session):
 
         for type_quad in group.types:
             funcs = [e.func for e in type_quad.funcs]
-            setattr(type_quad, "funcs_list", funcs)
+            setattr(type_quad, 'funcs_list', funcs)
 
     return quads

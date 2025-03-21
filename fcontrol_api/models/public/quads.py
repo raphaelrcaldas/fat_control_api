@@ -31,9 +31,7 @@ class QuadsGroup(Base):
     short: Mapped[str] = mapped_column(nullable=False)
     long: Mapped[str] = mapped_column(nullable=False)
     uae: Mapped[str]
-    types = relationship(
-        'QuadsType', backref='quads_group', uselist=True
-    )
+    types = relationship('QuadsType', backref='quads_group', uselist=True)
 
 
 class QuadsType(Base):
@@ -45,9 +43,7 @@ class QuadsType(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey('quads_group.id'))
     short: Mapped[str] = mapped_column(nullable=False)
     long: Mapped[str] = mapped_column(nullable=False)
-    funcs = relationship(
-        'QuadsFunc', backref='quads_type', uselist=True
-    )
+    funcs = relationship('QuadsFunc', backref='quads_type', uselist=True)
 
 
 class QuadsFunc(Base):

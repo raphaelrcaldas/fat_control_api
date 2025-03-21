@@ -37,16 +37,9 @@ class Permissions(Base):
     )
     name: Mapped[str]
     description: Mapped[str]
-
-
-class Roles(Base):
-    __tablename__ = 'roles'
-
-    id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    resource: Mapped[Resources] = relationship(
+        'Resources', backref='permissions', lazy='selectin', uselist=False
     )
-    name: Mapped[str]
-    description: Mapped[str]
 
 
 class RolePermissions(Base):
@@ -59,6 +52,25 @@ class RolePermissions(Base):
     permission_id: Mapped[int] = mapped_column(
         ForeignKey('security.permissions.id')
     )
+    permission: Mapped[Permissions] = relationship(
+        'Permissions',
+        backref='role_permissions',
+        lazy='selectin',
+        uselist=False,
+    )
+
+
+class Roles(Base):
+    __tablename__ = 'roles'
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, unique=True, nullable=False
+    )
+    name: Mapped[str]
+    description: Mapped[str]
+    permissions: Mapped[list[RolePermissions]] = relationship(
+        'RolePermissions', backref='roles', lazy='selectin', uselist=True
+    )
 
 
 class UserRoles(Base):
@@ -69,3 +81,6 @@ class UserRoles(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     role_id: Mapped[int] = mapped_column(ForeignKey('security.roles.id'))
+    role: Mapped[Roles] = relationship(
+        'Roles', backref='user_roles', lazy='selectin', uselist=False
+    )

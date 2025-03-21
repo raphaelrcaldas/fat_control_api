@@ -8,6 +8,7 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
+from fcontrol_api.models.security.resources import Permissions, UserRoles
 from fcontrol_api.schemas.auth import Token
 from fcontrol_api.security import (
     create_access_token,
@@ -19,6 +20,42 @@ router = APIRouter(prefix='/auth', tags=['auth'])
 
 OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
 Session = Annotated[AsyncSession, Depends(get_session)]
+
+
+async def get_user_roles(user_id: int, session: Session):
+    result = await session.scalars(
+        select(UserRoles).where(UserRoles.user_id == user_id)
+    )
+    user_roles = result.all()
+
+    roles = []
+    for user_role in user_roles:
+        role = user_role.role
+
+        perms: list[Permissions] = [
+            perm.permission for perm in (role.permissions)
+        ]
+        perms = [
+            {'resource': perm.resource.name, 'name': perm.name}
+            for perm in perms
+        ]
+
+        roles.append({'role': role.name, 'perms': perms})
+
+    return roles
+
+
+async def token_data(user: User, session: Session):
+    data = {
+        'sub': f'{user.posto.short} {user.nome_guerra}',
+        'user_id': user.id,
+        'roles': await get_user_roles(user.id, session),
+    }
+
+    if user.first_login:
+        data['first_login'] = True
+
+    return data
 
 
 @router.post('/token')
@@ -39,14 +76,7 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
             detail='Dados inválidos',
         )
 
-    data = {
-        'sub': f'{user.posto.short} {user.nome_guerra}',
-        'user_id': user.id,
-        'scopes': [],
-    }
-
-    if user.first_login:
-        data['first_login'] = True
+    data = await token_data(user, session)
 
     access_token = create_access_token(data=data)
 
@@ -55,13 +85,9 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
 
 @router.post('/refresh_token', response_model=Token)
 async def refresh_access_token(
-    user: User = Depends(get_current_user),
+    session: Session, user: User = Depends(get_current_user)
 ):
-    data = {
-        'sub': f'{user.posto.short} {user.nome_guerra}',
-        'user_id': user.id,
-        'scopes': [],
-    }
+    data = await token_data(user, session)
 
     new_access_token = create_access_token(data=data)
 
