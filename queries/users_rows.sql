@@ -1,0 +1,10 @@
+INSERT INTO 
+    "public"."users" 
+    ("id", "p_g", "esp", "nome_guerra", "nome_completo", "id_fab", "saram", "unidade", "cpf", "email_fab", "email_pess", "nasc", "ult_promo", "password", "created_at", "ant_rel", "first_login") 
+
+VALUES 
+    ('1', '2s', 'bco', 'raphael caldas', 'raphael romulo batista caldas', '569945', '6380000', '11gt', '12144149747', 'raphaelcaldasrrbc@fab.mil.br', 'raphael.romullo@gmail.com', '1993-05-25', '2020-12-01', '$argon2id$v=19$m=65536,t=3,p=4$dYNPYwNBCaQX/iV5PpCccQ$ce4rO5aHMlG9t3Fe0d34jLlrz7KoZ70NJANPuqdFz3U', '2024-09-22 12:28:03', null, 'false'), 
+    ('2', '1s', 'bei', 'kassio', 'kassio geraldo ferreita', '518120', '3987957', 'glog', '05715878799', 'kassiokgf@fab.mil.br', 'kassiojgb@gmail.com', '1983-03-06', '2018-08-01', '$argon2id$v=19$m=65536,t=3,p=4$3OetLCXCHIecdQD95z/htA$H+CTLQe69TCqa64w1tK5TvO5q2KawoEWQwBAew64Ac8', '2024-10-12 23:46:19', null, 'true'), 
+    ('3', 'so', 'bma', 'mesquita', 'alexsandro lange de mesquita', '481963', '2691540', 'glog', '00588036706', 'mesquitaalm@fab.mil.br', 'mesquitaalm.am@gmail.com', '1973-09-07', '2021-08-01', '$argon2id$v=19$m=65536,t=3,p=4$RvnTqrswWxe7ii1d5+IXRA$qOzRK4PLVtV3xK84e+d/4ujiftq6y9RDI8FXB3cc5v8', '2024-10-28 18:01:33', null, 'true'), 
+    ('4', 'so', 'bma', 'guerra', 'paulo roberto pinheiro guerra', '495739', '3285740', '11gt', '07913892781', 'guerraprpg@fab.mil.br', 'pauloguerraprpg@gmail.com', '1978-11-03', '2020-12-01', '$argon2id$v=19$m=65536,t=3,p=4$HO4d7niCY3/VQT6FOzWurQ$bTe+gF5LpoRiatt1YxJYY/Ds9dMCXGvn4tpExQ5K9vw', '2024-10-28 18:03:50', null, 'true'), 
+    ('5', '1s', 'bet', 'pinho', 'gerson fabio de pinho gonçalves', '520095', '4146590', 'glog', '05702776712', 'pinhogfpg@fab.mil.br', 'fabiopinho1983@gmail.com', '1983-01-27', '2018-12-01', '$argon2id$v=19$m=65536,t=3,p=4$xRbT9m29mXc/xtlgqSOWSw$QLpiBh493FWfRrPBAK0jZgSHRzyoEhwlz8FL21ebpT8', '2024-11-16 13:26:13', null, 'true');

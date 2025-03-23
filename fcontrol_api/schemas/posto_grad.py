@@ -2,7 +2,6 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PostoGradSchema(BaseModel):
-    id: int
     ant: int
     short: str
     mid: str

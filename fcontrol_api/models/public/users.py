@@ -12,7 +12,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, unique=True, nullable=False
     )
-    p_g: Mapped[int] = mapped_column(ForeignKey('posto_grad.id'))
+    p_g: Mapped[str] = mapped_column(ForeignKey('posto_grad.short'))
     esp: Mapped[str] = mapped_column(nullable=True)
     nome_guerra: Mapped[str]
     nome_completo: Mapped[str] = mapped_column(nullable=True)
