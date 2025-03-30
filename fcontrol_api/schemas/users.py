@@ -20,7 +20,7 @@ class UserSchema(BaseModel):
     email_pess: EmailStr | str
     email_fab: EmailStr | str
     unidade: str
-    ant_rel: int | None = Field(gt=0)
+    # ant_rel: int | None = Field(gt=0)
     model_config = ConfigDict(from_attributes=True)
 
 
