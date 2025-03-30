@@ -155,11 +155,12 @@ async def list_quads(
         return quad['value']
 
     # FILTRAR ULTIMOS QUAD A PARTIR DO TRIP COM MENOR NUMERO DE QUAD
-    min_length = min([len(crew['quads']) for crew in response])  # type: ignore
-    n_slice = 0 if min_length == 0 else min_length - 1
-    for crew in response:
-        crew['quads'] = sorted(crew['quads'], key=order_quads)  # type: ignore
-        crew['quads'] = crew['quads'][n_slice:]  # type: ignore
+    if response:
+        min_length = min([len(crew['quads']) for crew in response])  # type: ignore
+        n_slice = 0 if min_length == 0 else min_length - 1
+        for crew in response:
+            crew['quads'] = sorted(crew['quads'], key=order_quads)  # type: ignore
+            crew['quads'] = crew['quads'][n_slice:]  # type: ignore
 
     return response
 
