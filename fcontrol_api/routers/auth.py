@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
-from fcontrol_api.models.security.resources import Permissions, UserRoles
+from fcontrol_api.models.security.resources import Permissions, UserRole
 from fcontrol_api.schemas.auth import Token
 from fcontrol_api.security import (
     create_access_token,
@@ -23,33 +23,34 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def get_user_roles(user_id: int, session: Session):
-    result = await session.scalars(
-        select(UserRoles).where(UserRoles.user_id == user_id)
+    result = await session.scalar(
+        select(UserRole).where(UserRole.user_id == user_id)
     )
-    user_roles = result.all()
 
-    roles = []
-    for user_role in user_roles:
-        role = user_role.role
+    role_data = None
+
+    if result:
+        user_role = result.role
 
         perms: list[Permissions] = [
-            perm.permission for perm in (role.permissions)
+            perm.permission for perm in (user_role.permissions)
         ]
         perms = [
             {'resource': perm.resource.name, 'name': perm.name}
             for perm in perms
         ]
 
-        roles.append({'role': role.name, 'perms': perms})
+        role_data = {'role': user_role.name, 'perms': perms}
 
-    return roles
+    return role_data
 
 
 async def token_data(user: User, session: Session):
     data = {
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
-        'roles': await get_user_roles(user.id, session),
+        'role': await get_user_roles(user.id, session),
+        # 'is_crew': None,
     }
 
     if user.first_login:

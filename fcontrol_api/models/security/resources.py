@@ -73,7 +73,7 @@ class Roles(Base):
     )
 
 
-class UserRoles(Base):
+class UserRole(Base):
     __tablename__ = 'user_roles'
 
     id: Mapped[int] = mapped_column(
