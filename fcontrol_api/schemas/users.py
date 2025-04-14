@@ -35,6 +35,8 @@ class UserPublic(BaseModel):
     nome_guerra: str
     nome_completo: str
     unidade: str
+    ult_promo: Annotated[date | None, Body()]
+    ant_rel: int | None = Field(gt=0)
     model_config = ConfigDict(from_attributes=True)
 
 
