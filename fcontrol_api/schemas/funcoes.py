@@ -4,8 +4,8 @@ from typing import Annotated, Literal
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict
 
-opers = Literal['op', 'in', 'al']
-funcs = Literal['mc', 'lm', 'oe', 'os', 'tf', 'ml']
+opers = Literal['po', 'pb', 'op', 'in', 'al']
+funcs = Literal['pil', 'mc', 'lm', 'oe', 'os', 'tf', 'ml']
 proj = Literal['kc-390']
 
 
