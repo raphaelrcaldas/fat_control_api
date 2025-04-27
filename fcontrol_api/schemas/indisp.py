@@ -11,7 +11,7 @@ class BaseIndisp(BaseModel):
     date_start: Annotated[date, Body()]
     date_end: Annotated[date, Body()]
     mtv: str
-    obs: str | None
+    obs: str
 
 
 class IndispSchema(BaseIndisp):
