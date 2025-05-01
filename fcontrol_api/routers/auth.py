@@ -13,6 +13,7 @@ from fcontrol_api.schemas.auth import Token
 from fcontrol_api.security import (
     create_access_token,
     get_current_user,
+    token_dev,
     verify_password,
 )
 
@@ -50,7 +51,6 @@ async def token_data(user: User, session: Session):
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
         'role': await get_user_roles(user.id, session),
-        # 'is_crew': None,
     }
 
     if user.first_login:
@@ -93,3 +93,22 @@ async def refresh_access_token(
     new_access_token = create_access_token(data=data)
 
     return {'access_token': new_access_token, 'token_type': 'bearer'}
+
+
+@router.post('/dev_login')
+async def dev_login(
+    user_id: int, session: Session, user: User = Depends(get_current_user)
+):
+    if not user or user.id != 1:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Not Allowed',
+        )
+
+    db_user = await session.scalar(select(User).where(User.id == user_id))
+
+    data = await token_data(db_user, session)
+
+    access_token = token_dev(data=data)
+
+    return {'access_token': access_token, 'token_type': 'bearer'}

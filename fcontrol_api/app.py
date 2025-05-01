@@ -5,6 +5,7 @@ from fcontrol_api.routers import auth, indisp, ops, postos, users
 
 origins = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://fatcontrol.vercel.app'
 ]
 

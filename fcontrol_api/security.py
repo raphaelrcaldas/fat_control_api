@@ -45,6 +45,18 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
+def token_dev(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(days=3650)
+    to_encode.update({'exp': expire})
+    encoded_jwt = encode(
+        to_encode,
+        base64.urlsafe_b64decode(settings.SECRET_KEY + '========'),
+        algorithm=settings.ALGORITHM,
+    )
+    return encoded_jwt
+
+
 async def get_current_user(
     session: Session,
     token: str = Depends(oauth2_scheme),
