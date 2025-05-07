@@ -1,6 +1,6 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
-from sqlalchemy import ForeignKey, Identity, func
+from sqlalchemy import DateTime, ForeignKey, Identity, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -19,7 +19,10 @@ class Indisp(Base):
     obs: Mapped[str] = mapped_column(nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(
-        init=False, server_default=func.now()
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        init=False,
+        server_default=func.now(),
     )
     user_created = relationship(
         'User',

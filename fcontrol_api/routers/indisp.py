@@ -124,6 +124,19 @@ async def create_indisp(
     return {'detail': 'Indisponibilidade adicionada com sucesso'}
 
 
+@router.get('/user/{id}', response_model=list[IndispOut])
+async def get_indisp_user(id: int, session: Session):
+    db_indisps = await session.scalars(
+        select(Indisp)
+        .where(Indisp.user_id == id)
+        .order_by(Indisp.date_end.desc())
+    )
+
+    indisps = db_indisps.all()
+
+    return indisps
+
+
 @router.delete('/{id}')
 async def delete_indisp(id: int, session: Session):
     indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
