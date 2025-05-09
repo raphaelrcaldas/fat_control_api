@@ -2,18 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fcontrol_api.routers import auth, indisp, ops, postos, users
-
-origins = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'https://fatcontrol.vercel.app'
-]
+from fcontrol_api.settings import Settings
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=Settings().CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
