@@ -1,19 +1,8 @@
 from sqlalchemy import ForeignKey, Identity
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    MappedAsDataclass,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..public.users import User
-
-
-class Base(MappedAsDataclass, DeclarativeBase):
-    """subclasses will be converted to dataclasses"""
-
-    __table_args__ = {'schema': 'security'}
+from .base import Base
 
 
 class Resources(Base):
