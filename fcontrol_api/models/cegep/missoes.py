@@ -14,6 +14,8 @@ class FragMis(Base):
     __tablename__ = 'frag_mis'
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
+    desc: Mapped[str] = mapped_column(nullable=False)
+    tipo: Mapped[str] = mapped_column(nullable=False)
     obs: Mapped[str] = mapped_column(nullable=True)
 
 
