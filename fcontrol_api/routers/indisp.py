@@ -32,7 +32,9 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
         .where((Funcao.func == funcao))
         .join(
             Tripulante,
-            (Tripulante.id == Funcao.trip_id) & (Tripulante.uae == uae),
+            (Tripulante.id == Funcao.trip_id)
+            & (Tripulante.uae == uae)
+            & (Tripulante.active),
         )
         .join(
             Indisp,
