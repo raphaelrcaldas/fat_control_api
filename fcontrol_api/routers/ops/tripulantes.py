@@ -83,7 +83,7 @@ async def list_trips(session: Session, uae: str = '11gt', active: bool = True):
 
 
 @router.put('/{id}', status_code=HTTPStatus.OK, response_model=TripMessage)
-async def update_trip(id, trip: BaseTrip, session: Session):
+async def update_trip(id: int, trip: BaseTrip, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
     trip_search = await session.scalar(query)
