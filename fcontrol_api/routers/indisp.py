@@ -128,9 +128,11 @@ async def create_indisp(
 
 @router.get('/user/{id}', response_model=list[IndispOut])
 async def get_indisp_user(id: int, session: Session):
+    date_ini = date.today() - timedelta(days=15)
+
     db_indisps = await session.scalars(
         select(Indisp)
-        .where(Indisp.user_id == id)
+        .where((Indisp.user_id == id) & (Indisp.date_end >= date_ini))
         .order_by(Indisp.date_end.desc())
     )
 
