@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fcontrol_api.routers import auth, cegep, indisp, ops, postos, users
-from fcontrol_api.settings import Settings
 
 app = FastAPI()
 
