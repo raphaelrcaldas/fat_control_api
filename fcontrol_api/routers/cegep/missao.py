@@ -87,7 +87,9 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
 
     # # Adiciona militares
     for u in payload.users:
-        user_data = UserFragMis.model_validate(u).model_dump(exclude='user')
+        user_data = UserFragMis.model_validate(u).model_dump(
+            exclude={'user', 'id'}
+        )
         missao.users.append(UserFrag(**user_data))
 
     await session.commit()
