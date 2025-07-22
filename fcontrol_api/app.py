@@ -1,7 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fcontrol_api.routers import auth, cegep, indisp, ops, postos, users
+from fcontrol_api.routers import (
+    auth,
+    cegep,
+    cities,
+    indisp,
+    ops,
+    postos,
+    users,
+)
 
 app = FastAPI()
 
@@ -19,3 +27,4 @@ app.include_router(ops.router)
 app.include_router(postos.router)
 app.include_router(indisp.router)
 app.include_router(auth.router)
+app.include_router(cities.router)

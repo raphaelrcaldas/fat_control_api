@@ -30,6 +30,7 @@ class UserFull(UserSchema):
 
 class UserPublic(BaseModel):
     id: int
+    p_g: str
     posto: PostoGradSchema
     esp: str
     nome_guerra: str

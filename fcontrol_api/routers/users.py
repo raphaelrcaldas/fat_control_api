@@ -146,8 +146,15 @@ async def create_user(user: UserSchema, session: Session):
 
 
 @router.get('/', response_model=list[UserPublic])
-async def read_users(session: Session):
-    users = await session.scalars(select(User))
+async def read_users(session: Session, search: str = None):
+    query = select(User)
+
+    if search:
+        query = query.where(
+            User.nome_guerra.ilike(f'%{search.strip()}%')
+        ).limit(10)
+
+    users = await session.scalars(query)
 
     return users.all()
 
