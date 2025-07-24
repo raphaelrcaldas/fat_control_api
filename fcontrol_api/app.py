@@ -6,6 +6,7 @@ from fcontrol_api.routers import (
     cegep,
     cities,
     indisp,
+    logs,
     ops,
     postos,
     users,
@@ -28,3 +29,4 @@ app.include_router(postos.router)
 app.include_router(indisp.router)
 app.include_router(auth.router)
 app.include_router(cities.router)
+app.include_router(logs.router)

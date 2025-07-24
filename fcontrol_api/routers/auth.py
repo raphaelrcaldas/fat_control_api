@@ -1,14 +1,13 @@
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
-from fcontrol_api.models.security.resources import Permissions, UserRole
 from fcontrol_api.schemas.auth import Token
 from fcontrol_api.security import (
     create_access_token,
@@ -16,6 +15,8 @@ from fcontrol_api.security import (
     token_dev,
     verify_password,
 )
+from fcontrol_api.services.auth import token_data
+from fcontrol_api.services.logs import log_user_action
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -23,48 +24,13 @@ OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 
-async def get_user_roles(user_id: int, session: Session):
-    result = await session.scalar(
-        select(UserRole).where(UserRole.user_id == user_id)
-    )
-
-    role_data = None
-
-    if result:
-        user_role = result.role
-
-        perms: list[Permissions] = [
-            perm.permission for perm in (user_role.permissions)
-        ]
-        perms = [
-            {'resource': perm.resource.name, 'name': perm.name}
-            for perm in perms
-        ]
-
-        role_data = {'role': user_role.name, 'perms': perms}
-
-    return role_data
-
-
-async def token_data(user: User, session: Session):
-    data = {
-        'sub': f'{user.posto.short} {user.nome_guerra}',
-        'user_id': user.id,
-        'role': await get_user_roles(user.id, session),
-    }
-
-    if user.first_login:
-        data['first_login'] = True
-
-    return data
-
-
 @router.post('/token')
-async def login_for_access_token(form_data: OAuth2Form, session: Session):
+async def login_for_access_token(
+    request: Request, form_data: OAuth2Form, session: Session
+):
     saram = int(form_data.username)
 
     user = await session.scalar(select(User).where(User.saram == saram))
-
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
@@ -76,6 +42,21 @@ async def login_for_access_token(form_data: OAuth2Form, session: Session):
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Dados inválidos',
         )
+
+    ip = request.client.host
+    user_agent = request.headers.get('user-agent')
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='login',
+        resource='auth',
+        resource_id=None,
+        before=None,
+        after={'ip': ip, 'user_agent': user_agent},
+    )
+
+    await session.commit()
 
     data = await token_data(user, session)
 
