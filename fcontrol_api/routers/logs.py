@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, select
@@ -35,9 +35,13 @@ async def listar_logs(
     if action:
         filters.append(UserActionLog.action == action)
     if start:
-        filters.append(UserActionLog.timestamp >= start)
+        filters.append(
+            UserActionLog.timestamp >= datetime.combine(start, time(0, 0, 0))
+        )
     if end:
-        filters.append(UserActionLog.timestamp <= end)
+        filters.append(
+            UserActionLog.timestamp <= datetime.combine(end, time(23, 59, 59))
+        )
 
     if filters:
         query = query.where(and_(*filters))

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class UserSummary(BaseModel):
     id: int
+    p_g: str
     nome_guerra: str
 
 
