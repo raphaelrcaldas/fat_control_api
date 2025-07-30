@@ -29,7 +29,7 @@ async def get_fragmentos(session: Session, ini: date, fim: date):
     stmt = (
         select(FragMis)
         .options(selectinload(FragMis.users))
-        .filter(FragMis.afast >= ini, FragMis.regres <= fim)
+        .filter(FragMis.afast >= ini, FragMis.afast <= fim)
     )
     db_frags = await session.scalars(stmt)
 

@@ -128,3 +128,26 @@ def custo_missao(
         mis['dias'] += pnt['custo']['dias']
 
     return mis
+
+
+def verificar_modulo(missoes: list[dict]):
+    datas: list[date] = []
+    for m in missoes:
+        datas_missao = listar_datas_entre(m['afast'], m['regres'])
+        datas.extend(datas_missao)
+    datas.sort()
+
+    dias_consec = 1
+    for i, _ in enumerate(datas):
+        anterior = datas[i - 1]
+        atual = datas[i]
+
+        dif = (atual - anterior).days
+
+        if dif != 1:
+            dias_consec = 1
+            continue
+
+        dias_consec += 1
+
+    return dias_consec >= 15
