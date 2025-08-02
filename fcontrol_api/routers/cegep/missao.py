@@ -15,6 +15,8 @@ from fcontrol_api.schemas.missoes import (
     PernoiteFragMis,
     UserFragMis,
 )
+from fcontrol_api.services.comis import verificar_usrs_nao_comiss
+from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -30,6 +32,7 @@ async def get_fragmentos(session: Session, ini: date, fim: date):
         select(FragMis)
         .options(selectinload(FragMis.users))
         .filter(FragMis.afast >= ini, FragMis.afast <= fim)
+        .order_by(FragMis.afast)
     )
     db_frags = await session.scalars(stmt)
 
@@ -38,54 +41,24 @@ async def get_fragmentos(session: Session, ini: date, fim: date):
 
 @router.post('/')
 async def create_or_update_missao(payload: FragMisSchema, session: Session):
-    if payload.id:
-        # Atualização
-        missao: FragMis = await session.scalar(
-            select(FragMis).filter(FragMis.id == payload.id)
-        )
-        if not missao:
-            raise HTTPException(
-                status_code=404, detail='Missão não encontrada'
-            )
+    missao = await adicionar_missao(payload, session)
 
-        missao.desc = payload.desc
-        missao.tipo = payload.tipo
-        missao.afast = payload.afast
-        missao.regres = payload.regres
-        missao.indenizavel = payload.indenizavel
-        missao.n_doc = payload.n_doc
-        missao.tipo_doc = payload.tipo_doc
-        missao.obs = payload.obs
+    await verificar_conflitos(payload, session)
 
-        await session.execute(
-            delete(PernoiteFrag).where(PernoiteFrag.frag_id == missao.id)
-        )
-        await session.execute(
-            delete(UserFrag).where(UserFrag.frag_id == missao.id)
-        )
-
-    else:
-        # Criação
-        missao = FragMis(
-            desc=payload.desc,
-            tipo=payload.tipo,
-            afast=payload.afast,
-            regres=payload.regres,
-            indenizavel=payload.indenizavel,
-            n_doc=payload.n_doc,
-            tipo_doc=payload.tipo_doc,
-            obs=payload.obs,
-        )
-        session.add(missao)
+    await verificar_usrs_nao_comiss(
+        [u for u in payload.users if u.sit == 'c'], session
+    )
 
     # Adiciona pernoites
     for p in payload.pernoites:
         pnt_data = PernoiteFragMis.model_validate(p).model_dump(
-            exclude='cidade'
+            exclude={'cidade'}
         )
         missao.pernoites.append(PernoiteFrag(**pnt_data))
 
-    # # Adiciona militares
+    # Verifica se os militares constam em outras missões conflitantes
+
+    # Adiciona militares
     for u in payload.users:
         user_data = UserFragMis.model_validate(u).model_dump(
             exclude={'user', 'id'}

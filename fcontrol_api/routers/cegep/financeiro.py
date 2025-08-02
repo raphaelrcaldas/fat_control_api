@@ -59,7 +59,7 @@ async def get_pgto(
 
     if fim:
         fim = datetime.combine(fim, time(23, 59, 59))
-        stmt = stmt.where(FragMis.regres <= fim)
+        stmt = stmt.where(FragMis.afast <= fim)
 
     result = await session.execute(stmt)
     result: list[tuple[UserFrag, FragMis]] = result.all()
