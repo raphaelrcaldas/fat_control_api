@@ -122,5 +122,6 @@ async def adicionar_missao(
             obs=payload.obs,
         )
         session.add(missao)
+        await session.flush()
 
     return missao
