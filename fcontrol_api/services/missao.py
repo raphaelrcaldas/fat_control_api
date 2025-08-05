@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, delete, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
 from fcontrol_api.schemas.missoes import FragMisSchema
@@ -33,6 +34,7 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
             PernoiteFrag,
             PernoiteFrag.frag_id == FragMis.id,
         )
+        .options(selectinload(UserFrag.user))
         .where(
             and_(
                 UserFrag.user_id.in_([u.user_id for u in payload.users]),

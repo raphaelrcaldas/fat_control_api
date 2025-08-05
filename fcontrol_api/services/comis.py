@@ -32,7 +32,6 @@ async def verificar_usrs_nao_comiss(
         if uf.user_id not in ids_comis:
             user_no_comiss.append(uf)
 
-    # print(users)
     if user_no_comiss:
         msg = '\nOs seguintes militares não estão comissionados:'
         for uf in user_no_comiss:
