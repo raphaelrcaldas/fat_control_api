@@ -31,7 +31,7 @@ async def get_fragmentos(session: Session, ini: date, fim: date):
     stmt = (
         select(FragMis)
         .options(selectinload(FragMis.users))
-        .filter(FragMis.afast >= ini, FragMis.afast <= fim)
+        .filter(FragMis.afast <= fim, ini <= FragMis.regres)
         .order_by(FragMis.afast)
     )
     db_frags = await session.scalars(stmt)
@@ -52,11 +52,10 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
     # Adiciona pernoites
     for p in payload.pernoites:
         pnt_data = PernoiteFragMis.model_validate(p).model_dump(
-            exclude={'cidade'}
+            exclude={'cidade', 'id'}
         )
-        missao.pernoites.append(PernoiteFrag(**pnt_data))
-
-    # Verifica se os militares constam em outras missões conflitantes
+        pernoite = PernoiteFrag(**pnt_data)
+        missao.pernoites.append(pernoite)
 
     # Adiciona militares
     for u in payload.users:
@@ -66,7 +65,6 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
         missao.users.append(UserFrag(**user_data))
 
     await session.commit()
-    await session.refresh(missao)
 
     return {'detail': 'Missão salva com sucesso'}
 

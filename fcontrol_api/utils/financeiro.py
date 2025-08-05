@@ -62,11 +62,17 @@ def custo_pernoite(
 
     if sit != 'g':
         if meia_diaria:
+            ult_dia = dias_validos[-1]
             valor_ultimo = buscar_valor_por_dia(
-                gp_pg, gp_cid, dias_validos[-1], vals_cache
+                gp_pg, gp_cid, ult_dia, vals_cache
             )
+
             custo['dias'] += 1
             custo['subtotal'] += valor_ultimo * 0.5
+
+            if valor_ultimo not in val_ag:
+                val_ag[valor_ultimo] = {'valor': valor_ultimo, 'qtd': 0}
+
             val_ag[valor_ultimo]['qtd'] += 0.5
 
         if ac_desloc:
