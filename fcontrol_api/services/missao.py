@@ -71,7 +71,10 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     if conflitos:
         msg = '\nVerifique o seguinte conflito:'
         for uf, fm, pn in conflitos:
-            row = f'\n - {fm.tipo_doc} {fm.n_doc} {uf.user.p_g} {uf.user.nome_guerra}'.upper()
+            row = (
+                f'\n - {fm.tipo_doc} {fm.n_doc} '
+                f'{uf.user.p_g} {uf.user.nome_guerra}'
+            ).upper()
             msg += row
 
         raise HTTPException(
