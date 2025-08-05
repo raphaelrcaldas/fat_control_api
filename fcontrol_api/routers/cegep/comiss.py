@@ -13,6 +13,7 @@ from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.schemas.comiss import ComissSchema
 from fcontrol_api.schemas.missoes import FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.services.comis import verificar_conflito_comiss
 from fcontrol_api.services.financeiro import cache_diarias
 from fcontrol_api.utils.financeiro import custo_missao, verificar_modulo
 
@@ -108,7 +109,7 @@ async def get_cmtos(session: Session):
     return response
 
 
-@router.put('/')
+@router.post('/')
 async def create_cmto(
     session: Session,
     comiss: ComissSchema,
@@ -125,6 +126,10 @@ async def create_cmto(
             detail='Já existe um comissionamento aberto para este usuário.',
         )
 
+    await verificar_conflito_comiss(
+        comiss.user_id, comiss.data_ab, comiss.data_fc, session
+    )
+
     comiss_data = ComissSchema.model_validate(comiss).model_dump(
         exclude={'id'}
     )
@@ -135,3 +140,139 @@ async def create_cmto(
     await session.commit()
 
     return {'detail': 'Comissionamento criado com sucesso'}
+
+
+@router.put('/{comiss_id}')
+async def update_cmto(
+    comiss_id: int,
+    session: Session,
+    comiss: ComissSchema,
+):
+    db_comiss = await session.scalar(
+        select(Comissionamento).where((Comissionamento.id == comiss_id))
+    )
+
+    if not db_comiss:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Comissionamento não encontrado',
+        )
+
+    await verificar_conflito_comiss(
+        comiss.user_id, comiss.data_ab, comiss.data_fc, session, comiss_id
+    )
+
+    mis_comiss = await session.scalars(
+        select(FragMis, Comissionamento)
+        .join(
+            UserFrag,
+            and_(
+                UserFrag.user_id == Comissionamento.user_id,
+                UserFrag.sit == 'c',
+            ),
+        )
+        .join(
+            FragMis,
+            and_(
+                FragMis.id == UserFrag.frag_id,
+                FragMis.afast >= Comissionamento.data_ab,
+                FragMis.regres <= Comissionamento.data_fc,
+            ),
+        )
+        .where(Comissionamento.id == comiss_id)
+    )
+    mis_comiss = mis_comiss.all()
+
+    mis_update_comiss = await session.scalars(
+        select(FragMis, Comissionamento)
+        .join(
+            UserFrag,
+            and_(
+                UserFrag.user_id == Comissionamento.user_id,
+                UserFrag.sit == 'c',
+            ),
+        )
+        .join(
+            FragMis,
+            and_(
+                FragMis.id == UserFrag.frag_id,
+                FragMis.afast >= comiss.data_ab,
+                FragMis.regres <= comiss.data_fc,
+            ),
+        )
+        .where(Comissionamento.id == comiss_id)
+    )
+    mis_update_comiss = mis_update_comiss.all()
+
+    mis_not_found: list[FragMis] = []
+    for mis in mis_comiss:
+        try:
+            mis_update_comiss.index(mis)
+        except ValueError:
+            mis_not_found.append(mis)
+
+    if mis_not_found:
+        msg = '\nAs seguintes missões ficarão fora do escopo:\n'
+
+        for mis in mis_not_found:
+            msg += f'- {mis.tipo_doc} {mis.n_doc} {mis.afast}\n'.upper()
+
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=msg,
+        )
+
+    for key, value in comiss.model_dump(exclude_unset=True).items():
+        setattr(db_comiss, key, value)
+
+    await session.commit()
+    await session.refresh(db_comiss)
+
+    return {'detail': 'Comissionamento atualizado com sucesso'}
+
+
+@router.delete('/{comiss_id}')
+async def delete_cmto(
+    comiss_id: int,
+    session: Session,
+):
+    db_comiss = await session.scalar(
+        select(Comissionamento).where((Comissionamento.id == comiss_id))
+    )
+
+    if not db_comiss:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Comissionamento não encontrado',
+        )
+
+    comiss_missoes = await session.scalar(
+        select(Comissionamento, FragMis, UserFrag)
+        .join(
+            UserFrag,
+            and_(
+                UserFrag.user_id == Comissionamento.user_id,
+                UserFrag.sit == 'c',
+            ),
+        )
+        .join(
+            FragMis,
+            and_(
+                FragMis.id == UserFrag.frag_id,
+                FragMis.afast >= Comissionamento.data_ab,
+                FragMis.regres <= Comissionamento.data_fc,
+            ),
+        )
+        .where(Comissionamento.id == comiss_id)
+    )
+
+    if comiss_missoes:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Não foi possível excluir. Existem missões atribuidas a este comissionamento',
+        )
+
+    await session.delete(db_comiss)
+    await session.commit()
+
+    return {'detail': 'Comissionamento deletado.'}

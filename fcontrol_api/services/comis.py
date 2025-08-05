@@ -1,3 +1,4 @@
+from datetime import date
 from http import HTTPStatus
 
 from fastapi import HTTPException
@@ -41,4 +42,30 @@ async def verificar_usrs_nao_comiss(
         raise HTTPException(
             status_code=HTTPStatus.BAD_GATEWAY,
             detail=msg,
+        )
+
+
+async def verificar_conflito_comiss(
+    user_id: int,
+    data_ab: date,
+    data_fc: date,
+    session: AsyncSession,
+    comiss_id: int = None,
+):
+    query = select(Comissionamento).where(
+        and_(
+            (Comissionamento.user_id == user_id),
+            (Comissionamento.data_ab <= data_fc),
+            (data_ab <= Comissionamento.data_fc),
+        )
+    )
+
+    if comiss_id:
+        query = query.where(Comissionamento.id != comiss_id)
+
+    comiss_conflict = await session.scalar(query)
+    if comiss_conflict:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Comissionamento em conflito de datas para este usuário',
         )
