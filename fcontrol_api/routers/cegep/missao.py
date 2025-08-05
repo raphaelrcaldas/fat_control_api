@@ -52,17 +52,17 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
     # Adiciona pernoites
     for p in payload.pernoites:
         pnt_data = PernoiteFragMis.model_validate(p).model_dump(
-            exclude={'cidade', 'id'}
+            exclude={'cidade', 'id', 'frag_id'}
         )
-        pernoite = PernoiteFrag(**pnt_data)
-        missao.pernoites.append(pernoite)
+        pernoite = PernoiteFrag(**pnt_data, frag_id=missao.id)
+        session.add(pernoite)
 
     # Adiciona militares
     for u in payload.users:
         user_data = UserFragMis.model_validate(u).model_dump(
-            exclude={'user', 'id'}
+            exclude={'user', 'id', 'frag_id'}
         )
-        missao.users.append(UserFrag(**user_data))
+        session.add(UserFrag(**user_data, frag_id=missao.id))
 
     await session.commit()
 
