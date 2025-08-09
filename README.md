@@ -8,7 +8,9 @@ Este aplicativo foi desenvolvido para apoiar o **1º/1º GT** no controle de usu
 
 Entre as principais funcionalidades, destacam-se:
 - Controle de **estatísticas operacionais**;
+- Gerencimento de **Pagamentos** integrado.
 - Sistema de **perfis de acesso e roles**, com níveis de permissão locais e globais.
+- Logs de atividade dos usuários para auditoria.
 
 O sistema é ideal para unidades que buscam centralizar e padronizar seus processos administrativos e operacionais em uma plataforma segura e acessível.
 
@@ -50,18 +52,22 @@ Estas bibliotecas auxiliam no suporte ao desenvolvimento, testes e qualidade do 
 - Pau de Sebo (Ranking de mais voados por função)
 - Cartões (Saúde, CVI, Simulador...)
 
+### Sistema de Pagamentos
+- **Gerenciamento de Ordens de Serviço**
+- **Controle de Comissionamento** com exportação para planilha Excel.
+- Acompanhamento de **Gratificação por Representação** (GratRep)
+
 ### Controle de Acesso
 - **Autenticação via JWT**: O projeto utiliza **JSON Web Tokens (JWT)** para controle de acesso seguro e eficiente.  
   - Após a autenticação, um token JWT é gerado e enviado ao cliente.
   - Esse token é utilizado para acessar endpoints protegidos.
   - O controle é implementado com validação de tokens, garantindo que apenas usuários autenticados possam acessar dados protegidos.
+- **Logs** de ações dos usuários para auditoria.
 
 ## 🚀 Funcionalidades Futuras
-- Logs do Sistema (auditoria);
-- Gestão **financeira integrada** (acompanhamento de ordens de serviço, pagamentos de diárias e comissionamentos);
-- Módulo de relatórios avançados (relatórios financeiros);
-- Dashboards customizáveis por perfil.
-- Gerenciamento de **ordens de missão**;
+- Confecção das Fichas de Diária individual.
+- Implementação OAuth2 para autenticação.
+- Gerenciamento de **ordens de missão** (setor de operações);
 
 ## 📄 Licença
 Este projeto é licenciado sob a MIT.
