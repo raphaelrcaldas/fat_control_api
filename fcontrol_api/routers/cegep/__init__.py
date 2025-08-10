@@ -1,8 +1,6 @@
 from fastapi import APIRouter
 
-import fcontrol_api.routers.cegep.comiss as comiss
-import fcontrol_api.routers.cegep.financeiro as financeiro
-import fcontrol_api.routers.cegep.missao as missao
+from fcontrol_api.routers.cegep import comiss, financeiro, missao
 
 router = APIRouter(prefix='/cegep')
 

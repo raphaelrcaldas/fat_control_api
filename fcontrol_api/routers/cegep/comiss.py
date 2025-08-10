@@ -68,14 +68,14 @@ async def get_cmtos(session: Session):
 
     for comiss, missao, user_frag in registros:
         user = UserPublic.model_validate(comiss.user).model_dump()
-        comiss = ComissSchema.model_validate(comiss).model_dump(
+        comiss_data = ComissSchema.model_validate(comiss).model_dump(
             exclude={'user_id'},
         )
 
-        if comiss['id'] not in agrupado:
-            comiss['user'] = user
-            agrupado[comiss['id']] = {
-                **comiss,
+        if comiss_data['id'] not in agrupado:
+            comiss_data['user'] = user
+            agrupado[comiss_data['id']] = {
+                **comiss_data,
                 'missoes': [],
                 'dias_comp': 0,
                 'diarias_comp': 0,
@@ -83,24 +83,24 @@ async def get_cmtos(session: Session):
                 'modulo': False,
             }
 
-        comiss_ag = agrupado[comiss['id']]
+        comiss_ag = agrupado[comiss_data['id']]
 
         if missao:
-            missao = FragMisSchema.model_validate(missao).model_dump(
+            missao_data = FragMisSchema.model_validate(missao).model_dump(
                 exclude={'users'}
             )
-            missao = custo_missao(
+            missao_data = custo_missao(
                 user_frag.p_g,
                 user_frag.sit,
-                missao,
+                missao_data,
                 grupos_pg,
                 grupos_cidade,
                 valores_cache,
             )
-            comiss_ag['diarias_comp'] += missao['diarias']
-            comiss_ag['missoes'].append(missao)
-            comiss_ag['dias_comp'] += missao['dias']
-            comiss_ag['vals_comp'] += missao['valor_total']
+            comiss_ag['diarias_comp'] += missao_data['diarias']
+            comiss_ag['missoes'].append(missao_data)
+            comiss_ag['dias_comp'] += missao_data['dias']
+            comiss_ag['vals_comp'] += missao_data['valor_total']
 
     response = list(agrupado.values())
     for c in response:
@@ -269,7 +269,10 @@ async def delete_cmto(
     if comiss_missoes:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Não foi possível excluir. Existem missões atribuidas a este comissionamento',
+            detail=(
+                'Não foi possível excluir.',
+                ' Existem missões atribuidas a este comissionamento',
+            ),
         )
 
     await session.delete(db_comiss)

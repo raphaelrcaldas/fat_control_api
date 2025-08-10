@@ -84,15 +84,15 @@ async def get_pgto(
 
     response = []
     for usr_frg, missao in result:
-        usr_frg = UserFragMis.model_validate(usr_frg).model_dump(
+        uf_data = UserFragMis.model_validate(usr_frg).model_dump(
             exclude={'user_id', 'frag_id'}
         )
         mis = FragMisSchema.model_validate(missao).model_dump(
             exclude={'users'}
         )
         mis = custo_missao(
-            usr_frg['p_g'],
-            usr_frg['sit'],
+            uf_data['p_g'],
+            uf_data['sit'],
             mis,
             grupos_pg,
             grupos_cidade,
@@ -101,7 +101,7 @@ async def get_pgto(
         )
 
         response.append({
-            'user_mis': usr_frg,
+            'user_mis': uf_data,
             'missao': mis,
         })
 

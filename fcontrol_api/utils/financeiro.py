@@ -41,7 +41,7 @@ def custo_pernoite(
     soldos_cache,
     vals_cache,
 ):
-    custo = {'subtotal': 0, 'qtd_ac': 0, 'vals': [], 'dias': 0}
+    custo = {'subtotal': 0, 'ac_desloc': 0, 'vals': [], 'dias': 0}
     val_ag: dict = {}
 
     dias_validos = listar_datas_entre(ini, fim)
@@ -136,7 +136,13 @@ def custo_missao(
     return mis
 
 
-def verificar_modulo(missoes: list[dict]):
+def verificar_modulo(missoes: list[dict]) -> bool:
+    """Recebe uma lista de missões e verifica
+    se houve um afastamento maior que 15 dias
+    em alguma delas.
+    """
+    DIAS_MODULO = 15
+
     datas: list[date] = []
     for m in missoes:
         datas_missao = listar_datas_entre(m['afast'], m['regres'])
@@ -156,4 +162,4 @@ def verificar_modulo(missoes: list[dict]):
 
         dias_consec += 1
 
-    return dias_consec >= 15
+    return dias_consec >= DIAS_MODULO

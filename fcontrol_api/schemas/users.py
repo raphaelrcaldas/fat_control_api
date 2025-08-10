@@ -34,6 +34,7 @@ class UserPublic(BaseModel):
     posto: PostoGradSchema
     esp: str
     nome_guerra: str
+    saram: int
     nome_completo: str
     unidade: str
     ult_promo: Annotated[date | None, Body()]

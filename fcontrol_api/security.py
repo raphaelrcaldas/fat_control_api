@@ -15,7 +15,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
 from fcontrol_api.settings import Settings
 
-settings = Settings()  # type: ignore
+settings = Settings()
 pwd_context = PasswordHash.recommended()
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -31,23 +31,15 @@ def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict):
+def create_access_token(data: dict, dev: bool = False):
     to_encode = data.copy()
     expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    to_encode.update({'exp': expire})
-    encoded_jwt = encode(
-        to_encode,
-        base64.urlsafe_b64decode(settings.SECRET_KEY + '========'),
-        algorithm=settings.ALGORITHM,
-    )
-    return encoded_jwt
 
+    if dev:
+        expire += timedelta(days=3650)
 
-def token_dev(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(days=3650)
     to_encode.update({'exp': expire})
     encoded_jwt = encode(
         to_encode,

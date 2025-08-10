@@ -12,7 +12,6 @@ from fcontrol_api.schemas.auth import Token
 from fcontrol_api.security import (
     create_access_token,
     get_current_user,
-    token_dev,
     verify_password,
 )
 from fcontrol_api.services.auth import token_data
@@ -90,6 +89,6 @@ async def dev_login(
 
     data = await token_data(db_user, session)
 
-    access_token = token_dev(data=data)
+    access_token = create_access_token(data=data, dev=True)
 
     return {'access_token': access_token, 'token_type': 'bearer'}
