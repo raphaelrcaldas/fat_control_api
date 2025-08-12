@@ -16,7 +16,6 @@ class Quad(Base):
     type_id: Mapped[int] = mapped_column(ForeignKey('quads_type.id'))
     value: Mapped[date] = mapped_column(nullable=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
-
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )

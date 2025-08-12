@@ -30,6 +30,6 @@ class Comissionamento(Base):
     doc_aut: Mapped[str]
     doc_enc: Mapped[str] = mapped_column(nullable=True)
 
-    user: User = relationship(
+    user = relationship(
         User, backref='comissionamento', lazy='selectin', uselist=False
     )
