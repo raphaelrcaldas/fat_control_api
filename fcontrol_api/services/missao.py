@@ -17,12 +17,19 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     regres_ini = payload.regres.replace(hour=0, minute=0)
     regres_fim = payload.regres.replace(hour=23, minute=59)
 
-    ult_pnt = list(
-        filter(
-            lambda p: (p.data_fim > regres_ini and p.data_fim < regres_fim),
-            payload.pernoites,
-        )
-    )[0]
+    check_md_ult_pnt: bool
+    try:
+        ult_pnt = list(
+            filter(
+                lambda p: (
+                    p.data_fim > regres_ini and p.data_fim < regres_fim
+                ),
+                payload.pernoites,
+            )
+        )[0]
+        check_md_ult_pnt = ult_pnt.meia_diaria
+    except IndexError:
+        check_md_ult_pnt = False
 
     query_conf = (
         select(UserFrag, FragMis, PernoiteFrag)
@@ -51,7 +58,7 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
                                 PernoiteFrag.data_fim <= afast_fim,
                             ),
                             and_(
-                                ult_pnt.meia_diaria,
+                                check_md_ult_pnt,
                                 PernoiteFrag.data_ini >= regres_ini,
                                 PernoiteFrag.data_ini <= regres_fim,
                             ),
