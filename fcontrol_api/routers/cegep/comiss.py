@@ -44,6 +44,7 @@ async def get_cmtos(session: Session):
             isouter=True,
         )
         .where(Comissionamento.status == 'aberto')
+        .order_by(FragMis.afast)
     )
 
     result = await session.execute(query)
