@@ -162,4 +162,7 @@ def verificar_modulo(missoes: list[dict]) -> bool:
 
         dias_consec += 1
 
-    return dias_consec >= DIAS_MODULO
+        if dias_consec >= DIAS_MODULO:
+            return True
+
+    return False
