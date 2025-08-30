@@ -10,6 +10,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
+from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.comiss import ComissSchema
 from fcontrol_api.schemas.missoes import FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
@@ -23,7 +24,37 @@ router = APIRouter(prefix='/comiss', tags=['CEGEP'])
 
 
 @router.get('/')
-async def get_cmtos(session: Session):
+async def get_cmtos(
+    session: Session,
+    user_id: int = None,
+    status: str = 'aberto',
+    search: str = None,
+):
+    query_comiss = (
+        select(Comissionamento.id)
+        .join(User)
+        .where(Comissionamento.status == status)
+        .order_by(Comissionamento.data_ab.desc())
+    )
+
+    if user_id:
+        query_comiss = query_comiss.where(Comissionamento.user_id == user_id)
+
+    if status == 'fechado':
+        query_comiss = query_comiss.limit(20)
+
+    if search:
+        query_comiss = query_comiss.where(
+            User.nome_guerra.ilike(f'%{search}%')
+            | User.nome_completo.ilike(f'%{search}%')
+        )
+
+    comiss_valids = await session.execute(query_comiss)
+    comiss_ids = [id for (id,) in comiss_valids.all()]
+
+    if not comiss_ids:
+        return []
+
     query = (
         select(Comissionamento, FragMis, UserFrag)
         .join(
@@ -43,7 +74,7 @@ async def get_cmtos(session: Session):
             ),
             isouter=True,
         )
-        .where(Comissionamento.status == 'aberto')
+        .where(Comissionamento.id.in_(comiss_ids))
         .order_by(FragMis.afast)
     )
 

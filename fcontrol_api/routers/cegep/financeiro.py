@@ -47,7 +47,7 @@ async def get_pgto(
     if user:
         stmt = stmt.where(
             User.nome_guerra.ilike(f'%{user}%')
-            | User.nome_guerra.ilike(f'%{user}%')
+            | User.nome_completo.ilike(f'%{user}%')
         )
 
     if tipo:
