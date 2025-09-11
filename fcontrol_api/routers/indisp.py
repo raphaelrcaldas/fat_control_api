@@ -24,7 +24,7 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 @router.get('/')
 async def get_crew_indisp(session: Session, funcao: str, uae: str):
-    date_ini = date.today() - timedelta(days=15)
+    date_ini = date.today() - timedelta(days=30)
 
     query = (
         select(Indisp, Tripulante, Funcao)
