@@ -24,7 +24,14 @@ router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 
 
 @router.get('/', response_model=list[FragMisSchema])
-async def get_fragmentos(session: Session, ini: date, fim: date):
+async def get_fragmentos(
+    session: Session,
+    tipo_doc: str = None,
+    n_doc: int = None,
+    tipo: str = None,
+    ini: date = None,
+    fim: date = None,
+):
     ini = datetime.combine(ini, time(0, 0, 0))
     fim = datetime.combine(fim, time(23, 59, 59))
 
@@ -34,6 +41,16 @@ async def get_fragmentos(session: Session, ini: date, fim: date):
         .filter(FragMis.afast <= fim, ini <= FragMis.regres)
         .order_by(FragMis.afast)
     )
+
+    if tipo_doc:
+        stmt = stmt.where(FragMis.tipo_doc == tipo_doc)
+
+    if n_doc:
+        stmt = stmt.where(FragMis.n_doc == n_doc)
+
+    if tipo:
+        stmt = stmt.where(FragMis.tipo == tipo)
+
     db_frags = await session.scalars(stmt)
 
     return db_frags.all()
