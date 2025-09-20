@@ -27,21 +27,23 @@ router = APIRouter(prefix='/comiss', tags=['CEGEP'])
 async def get_cmtos(
     session: Session,
     user_id: int = None,
-    status: str = 'aberto',
+    status: str = None,
     search: str = None,
 ):
     query_comiss = (
         select(Comissionamento.id)
         .join(User)
-        .where(Comissionamento.status == status)
         .order_by(Comissionamento.data_ab.desc())
     )
 
     if user_id:
         query_comiss = query_comiss.where(Comissionamento.user_id == user_id)
 
-    if status == 'fechado':
-        query_comiss = query_comiss.limit(20)
+    if status:
+        query_comiss = query_comiss.where(Comissionamento.status == status)
+
+        if status == 'fechado':
+            query_comiss = query_comiss.limit(20)
 
     if search:
         query_comiss = query_comiss.where(
@@ -113,6 +115,7 @@ async def get_cmtos(
                 'diarias_comp': 0,
                 'vals_comp': 0,
                 'modulo': False,
+                'completude': 0,
             }
 
         comiss_ag = agrupado[comiss_data['id']]
@@ -137,6 +140,19 @@ async def get_cmtos(
     response = list(agrupado.values())
     for c in response:
         c['modulo'] = verificar_modulo(c['missoes'])
+
+        if c.get('dias_cumprir'):
+            completude = (
+                c['dias_comp'] / c['dias_cumprir'] if c['dias_cumprir'] else 0
+            )
+        else:
+            soma_cumprir = c['valor_aj_ab'] + c['valor_aj_fc']
+            completude = round(c['vals_comp'] / soma_cumprir, 3)
+
+        if completude > 1:
+            completude = 1
+
+        c['completude'] = completude
 
     return response
 
