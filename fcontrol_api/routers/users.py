@@ -19,6 +19,7 @@ from fcontrol_api.security import (
     get_password_hash,
     verify_password,
 )
+from fcontrol_api.services.users import check_user_conflicts
 from fcontrol_api.settings import Settings
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -70,54 +71,15 @@ async def reset_pwd(
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=UserMessage)
 async def create_user(user: UserSchema, session: Session):
-    db_user_saram = await session.scalar(
-        select(User).where(User.saram == user.saram)
+    # Verifica conflitos de unicidade
+    await check_user_conflicts(
+        session,
+        saram=user.saram,
+        id_fab=user.id_fab,
+        cpf=user.cpf,
+        email_fab=user.email_fab,
+        email_pess=user.email_pess,
     )
-    if db_user_saram:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='SARAM já registrado',
-        )
-
-    if user.id_fab:
-        db_user_id = await session.scalar(
-            select(User).where(User.id_fab == user.id_fab)
-        )
-        if db_user_id:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail='ID FAB já registrado',
-            )
-
-    if user.cpf:
-        db_user_id = await session.scalar(
-            select(User).where(User.cpf == user.cpf)
-        )
-        if db_user_id:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail='CPF já registrado',
-            )
-
-    if user.email_fab:
-        db_email_fab = await session.scalar(
-            select(User).where(User.email_fab == user.email_fab)
-        )
-        if db_email_fab:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail='Zimbra já registrado',
-            )
-
-    if user.email_pess:
-        db_email_pess = await session.scalar(
-            select(User).where(User.email_pess == user.email_pess)
-        )
-        if db_email_pess:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail='Email pessoal já registrado',
-            )
 
     hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)  # type: ignore
 
@@ -181,7 +143,23 @@ async def update_user(user_id: int, user: UserSchema, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
         )
 
-    for key, value in user.model_dump(exclude_unset=True).items():
+    updates = user.model_dump(exclude_unset=True)
+    # Verifica conflitos apenas para os campos presentes na atualização
+    conflict_keys = {
+        k: updates[k]
+        for k in (
+            'saram', 'id_fab', 'cpf', 'email_fab', 'email_pess'
+        )
+        if k in updates
+    }
+    if conflict_keys:
+        await check_user_conflicts(
+            session,
+            exclude_user_id=user_id,
+            **conflict_keys,
+        )
+
+    for key, value in updates.items():
         setattr(db_user, key, value)
 
     await session.commit()
