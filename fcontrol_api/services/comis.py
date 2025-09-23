@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from http import HTTPStatus
 
 from fastapi import HTTPException
@@ -44,7 +44,9 @@ async def verificar_usrs_comiss(
 
         # verifica se a missão está contida no intervalo do comissionamento
         comiss = comiss_for_user[0]
-        if not (comiss.data_ab <= afast and regres <= comiss.data_fc):
+        comiss_data_ab = datetime.combine(comiss.data_ab, time(0, 0, 0))
+        comiss_data_fc = datetime.combine(comiss.data_fc, time(23, 59, 59))
+        if not (comiss_data_ab <= afast and regres <= comiss_data_fc):
             user_no_mis.append(uf)
 
     if user_no_mis or user_no_mis:
