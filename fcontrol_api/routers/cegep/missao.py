@@ -15,7 +15,7 @@ from fcontrol_api.schemas.missoes import (
     PernoiteFragMis,
     UserFragMis,
 )
-from fcontrol_api.services.comis import verificar_usrs_nao_comiss
+from fcontrol_api.services.comis import verificar_usrs_comiss
 from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -62,8 +62,11 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
 
     await verificar_conflitos(payload, session)
 
-    await verificar_usrs_nao_comiss(
-        [u for u in payload.users if u.sit == 'c'], session
+    await verificar_usrs_comiss(
+        [u for u in payload.users if u.sit == 'c'],
+        payload.afast,
+        payload.regres,
+        session,
     )
 
     # Adiciona pernoites

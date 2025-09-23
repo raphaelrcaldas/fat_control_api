@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from http import HTTPStatus
 
 from fastapi import HTTPException
@@ -10,14 +10,19 @@ from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.schemas.missoes import UserFragMis
 
 
-async def verificar_usrs_nao_comiss(
-    users: list[UserFragMis], session: AsyncSession
+async def verificar_usrs_comiss(
+    users: list[UserFragMis],
+    afast: datetime,
+    regres: datetime,
+    session: AsyncSession,
 ) -> None:
     """
     Recebe uma lista de usuários na missão e
-    verifica se os mesmos estão comissionados
+    verifica se os mesmos estão comissionados e
+    se a data da missão está contida na data do
+    comissionamento
     """
-    # procura comissionamento abertos dos usuarios na missao
+    # procura comissionamentos abertos dos usuários envolvidos na missão
     query_comiss = select(Comissionamento).where(
         and_(
             Comissionamento.user_id.in_([u.user_id for u in users]),
@@ -25,22 +30,41 @@ async def verificar_usrs_nao_comiss(
         )
     )
     result_comiss = (await session.scalars(query_comiss)).all()
-    ids_comis = [u.user_id for u in result_comiss]
 
     user_no_comiss: list[UserFragMis] = []
+    user_no_mis: list[UserFragMis] = []
     for uf in users:
-        if uf.user_id not in ids_comis:
-            user_no_comiss.append(uf)
+        # todos os comissionamentos abertos deste usuário
+        comiss_for_user = [c for c in result_comiss if c.user_id == uf.user_id]
 
-    if user_no_comiss:
-        msg = '\nOs seguintes militares não estão comissionados:'
-        for uf in user_no_comiss:
-            row = f'\n - {uf.user.p_g} {uf.user.nome_guerra}'.upper()
-            msg += row
+        # se não houver comissionamento aberto para o usuário
+        if not comiss_for_user:
+            user_no_comiss.append(uf)
+            continue
+
+        # verifica se a missão está contida no intervalo do comissionamento
+        comiss = comiss_for_user[0]
+        if not (comiss.data_ab <= afast and regres <= comiss.data_fc):
+            user_no_mis.append(uf)
+
+    if user_no_mis or user_no_mis:
+        msg_parts = []
+        if user_no_comiss:
+            msg = '\nOs seguintes militares não estão comissionados:'
+            for uf in user_no_comiss:
+                row = f'\n - {uf.user.p_g} {uf.user.nome_guerra}'.upper()
+                msg += row
+            msg_parts.append(msg)
+
+        if user_no_mis:
+            msg = '\nOs seguintes militares não têm comissionamento cobrindo o período da missão:'
+            for uf in user_no_mis:
+                msg += f'\n - {uf.user.p_g} {uf.user.nome_guerra}'.upper()
+            msg_parts.append(msg)
 
         raise HTTPException(
             status_code=HTTPStatus.BAD_GATEWAY,
-            detail=msg,
+            detail='\n\n'.join(msg_parts),
         )
 
 
