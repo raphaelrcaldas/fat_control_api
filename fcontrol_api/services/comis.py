@@ -65,7 +65,7 @@ async def verificar_usrs_comiss(
             msg_parts.append(msg)
 
         raise HTTPException(
-            status_code=HTTPStatus.BAD_GATEWAY,
+            status_code=HTTPStatus.BAD_REQUEST,
             detail='\n\n'.join(msg_parts),
         )
 

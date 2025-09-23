@@ -24,7 +24,7 @@ async def check_user_conflicts(
     exclude_user_id: quando informado, ignora esse id (útil em updates).
     """
     # SARAM
-    if saram is not None:
+    if saram:
         q = select(User).where(User.saram == saram)
         if exclude_user_id is not None:
             q = q.where(User.id != exclude_user_id)
@@ -36,7 +36,7 @@ async def check_user_conflicts(
             )
 
     # ID FAB
-    if id_fab is not None:
+    if id_fab:
         q = select(User).where(User.id_fab == id_fab)
         if exclude_user_id is not None:
             q = q.where(User.id != exclude_user_id)
@@ -48,7 +48,7 @@ async def check_user_conflicts(
             )
 
     # CPF
-    if cpf is not None:
+    if cpf:
         q = select(User).where(User.cpf == cpf)
         if exclude_user_id is not None:
             q = q.where(User.id != exclude_user_id)
@@ -60,7 +60,7 @@ async def check_user_conflicts(
             )
 
     # EMAIL FAB (Zimbra)
-    if email_fab is not None:
+    if email_fab:
         q = select(User).where(User.email_fab == email_fab)
         if exclude_user_id is not None:
             q = q.where(User.id != exclude_user_id)
@@ -72,7 +72,7 @@ async def check_user_conflicts(
             )
 
     # EMAIL PESSOAL
-    if email_pess is not None:
+    if email_pess:
         q = select(User).where(User.email_pess == email_pess)
         if exclude_user_id is not None:
             q = q.where(User.id != exclude_user_id)

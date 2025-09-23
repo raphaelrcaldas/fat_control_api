@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, create_model
 
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
 
@@ -56,3 +56,23 @@ class UserTrip(BaseModel):
 class PwdSchema(BaseModel):
     prev_pwd: str | None
     new_pwd: str
+
+
+# cria UserUpdate dinamicamente a partir dos campos de UserSchema
+_base_fields: dict = {}
+for name, info in UserSchema.model_fields.items():
+    # cada campo vira opcional com default None
+    _base_fields[name] = (info.annotation, None)
+
+# opcional: incluir campos adicionais presentes em UserFull (ex: posto)
+# if 'UserFull' in globals() and 'posto' in UserFull.model_fields:
+#     posto_info = UserFull.model_fields['posto']
+#     _base_fields['posto'] = (posto_info.annotation, None)
+
+UserUpdate = create_model(
+    'UserUpdate',
+    __base__=BaseModel,
+    **_base_fields,
+)
+UserUpdate.model_config = ConfigDict(from_attributes=True)
+UserUpdate.__doc__ = 'Schema para atualização parcial do usuário.'
