@@ -46,7 +46,7 @@ async def listar_logs(
     if filters:
         query = query.where(and_(*filters))
 
-    query = query.order_by(UserActionLog.timestamp.desc())
+    query = query.order_by(UserActionLog.timestamp.desc()).limit(25)
 
     result = await session.scalars(query)
     return result.all()

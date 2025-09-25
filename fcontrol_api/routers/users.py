@@ -173,7 +173,7 @@ async def get_user(user_id: int, session: Session):
 @router.put('/{user_id}')
 async def update_user(
     user_id: int,
-    user_patch: UserUpdate,
+    user_patch: UserUpdate,  # type: ignore
     session: Session,
     user: User = Depends(get_current_user),
 ):
@@ -198,13 +198,13 @@ async def update_user(
             **conflict_keys,
         )
 
-    for key, value in updates.items():
-        setattr(db_user, key, value)
-
     before_patch: dict = {}
     patch = user_patch.model_dump(exclude_none=True)
     for key in patch.keys():
         before_patch[key] = db_user.__getattribute__(key)
+
+    for key, value in updates.items():
+        setattr(db_user, key, value)
 
     await log_user_action(
         session=session,
