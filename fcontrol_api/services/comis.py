@@ -49,7 +49,7 @@ async def verificar_usrs_comiss(
         if not (comiss_data_ab <= afast and regres <= comiss_data_fc):
             user_no_mis.append(uf)
 
-    if user_no_mis or user_no_mis:
+    if user_no_mis or user_no_comiss:
         msg_parts = []
         if user_no_comiss:
             msg = '\nOs seguintes militares não estão comissionados:'
