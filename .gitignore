@@ -98,6 +98,12 @@ ipython_config.py
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
 #   However, in case of collaboration, if having platform-specific dependencies or dependencies
 #   having no cross-platform support, pipenv may install dependencies that don't work, or not
+
+# VSCode
+.vscode/mcp.json
+.vscode/settings.json
+.vscode/*.code-workspace
+
 #   install all needed dependencies.
 #Pipfile.lock
 

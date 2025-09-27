@@ -6,15 +6,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.indisp import Indisp
+from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
-from fcontrol_api.schemas.users import UserTrip
+from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -26,60 +28,75 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 async def get_crew_indisp(session: Session, funcao: str, uae: str):
     date_ini = date.today() - timedelta(days=30)
 
-    query = (
-        select(Indisp, Tripulante, Funcao)
-        .select_from(Funcao)
-        .where((Funcao.func == funcao))
-        .join(
-            Tripulante,
-            (Tripulante.id == Funcao.trip_id)
+    # 1. Query principal para buscar os tripulantes e seus dados
+    # relacionados (exceto indisps)
+    trip_query = (
+        select(Tripulante)
+        .join(Tripulante.funcs)
+        .join(Tripulante.user)
+        .join(User.posto)
+        .options(
+            selectinload(Tripulante.user).selectinload(User.posto),
+            selectinload(Tripulante.funcs),
+        )
+        .where(
+            (Funcao.func == funcao)
             & (Tripulante.uae == uae)
-            & (Tripulante.active),
+            & (Tripulante.active)
         )
-        .join(
-            Indisp,
-            (
-                (Indisp.user_id == Tripulante.user_id)
-                & (Indisp.date_end >= date_ini)
-            ),
-            isouter=True,
+        .order_by(
+            PostoGrad.ant.asc(),
+            User.ult_promo.asc(),
+            User.ant_rel.asc(),
         )
-        .order_by(Indisp.date_end.desc())
     )
 
-    db_indisp = await session.execute(query)
+    result = await session.scalars(trip_query)
+    tripulantes = result.unique().all()
 
-    group_indisp = defaultdict(list)
-    grou_info = {}
-    for indisp, trip, inner_funcao in db_indisp.all():
-        trip_schema = {'trig': trip.trig, 'id': trip.id}
-        func_schema = BaseFunc.model_validate(inner_funcao).model_dump()
+    if not tripulantes:
+        return []
 
-        trip_schema['func'] = func_schema
-        trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
-        grou_info[trip.trig] = trip_schema
+    # 2. Extrai os IDs dos usuários para a próxima query.
+    user_ids = [trip.user_id for trip in tripulantes]
 
-        if indisp:
-            group_indisp[trip.trig].append(
-                IndispOut.model_validate(indisp).model_dump()
-            )
-        else:
-            group_indisp[trip.trig] = []
+    # 3. Uma única query para buscar todas as indisponibilidades relevantes,
+    #    já carregando o usuário que a criou e o posto desse usuário.
+    indisp_query = (
+        select(Indisp)
+        .options(selectinload(Indisp.user_created).selectinload(User.posto))
+        .where(Indisp.user_id.in_(user_ids), Indisp.date_end >= date_ini)
+    )
+    indisps_result = await session.scalars(indisp_query)
 
-    response = [
-        {'trip': info, 'indisps': group_indisp[trig]}
-        for trig, info in grou_info.items()
-    ]
+    # 4. Agrupa as indisponibilidades por user_id em um dicionário para
+    # acesso rápido
+    indisps_by_user = defaultdict(list)
+    for indisp in indisps_result:
+        indisps_by_user[indisp.user_id].append(
+            IndispOut.model_validate(indisp)
+        )
 
-    def order(trip):
-        user = trip['trip']['user']
-        pg_index = user['posto']['ant']
-        ult_promo = user['ult_promo']
-        ant = user['ant_rel']
+    # 5. Monta a resposta final
+    response = []
+    for trip in tripulantes:
+        # Pega as indisponibilidades do dicionário
+        user_indisps = indisps_by_user.get(trip.user_id, [])
+        user_indisps.sort(key=lambda i: i.date_end, reverse=True)
 
-        return (pg_index, ult_promo, ant)
+        func_schema = (
+            BaseFunc.model_validate(trip.funcs[0]) if trip.funcs else None
+        )
 
-    response = sorted(response, key=order)
+        response.append({
+            'trip': {
+                'trig': trip.trig,
+                'id': trip.id,
+                'user': UserPublic.model_validate(trip.user),
+                'func': func_schema,
+            },
+            'indisps': user_indisps,
+        })
 
     return response
 
