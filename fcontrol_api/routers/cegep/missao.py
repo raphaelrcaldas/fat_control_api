@@ -38,8 +38,8 @@ async def get_fragmentos(
     stmt = (
         select(FragMis)
         .options(selectinload(FragMis.users))
-        .filter(FragMis.afast <= fim, ini <= FragMis.regres)
-        .order_by(FragMis.afast)
+        .filter(FragMis.afast >= ini, FragMis.regres <= fim)
+        .order_by(FragMis.afast.desc())
     )
 
     if tipo_doc:
@@ -51,9 +51,19 @@ async def get_fragmentos(
     if tipo:
         stmt = stmt.where(FragMis.tipo == tipo)
 
-    db_frags = await session.scalars(stmt)
+    db_frags = (await session.scalars(stmt)).all()
 
-    return db_frags.all()
+    # Ordena os usuários dentro de cada missão
+    for frag in db_frags:
+        frag.users.sort(
+            key=lambda u: (
+                u.user.posto.ant,
+                u.user.ult_promo or date.min,
+                u.user.ant_rel or 0,
+            )
+        )
+
+    return db_frags
 
 
 @router.post('/')

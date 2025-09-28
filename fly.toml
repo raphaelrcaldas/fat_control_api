@@ -4,7 +4,7 @@
 #
 
 app = 'fcontrol-api'
-primary_region = 'gig'
+primary_region = 'gru'
 
 [build]
 
