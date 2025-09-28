@@ -4,14 +4,16 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import contains_eager, selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.quads import Quad, QuadsGroup, QuadsType
 from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.quads import (
     QuadPublic,
@@ -20,7 +22,7 @@ from fcontrol_api.schemas.quads import (
     QuadUpdate,
 )
 from fcontrol_api.schemas.tripulantes import uaes
-from fcontrol_api.schemas.users import UserTrip
+from fcontrol_api.schemas.users import UserPublic
 
 router = APIRouter()
 
@@ -97,70 +99,116 @@ async def list_quads(
     uae: uaes = '11gt',
     proj: proj = 'kc-390',
 ):
-    query_quads = (
-        select(Quad, Tripulante, Funcao)
-        .select_from(Tripulante)
-        .where((Tripulante.uae == uae) & (Tripulante.active == True))  # noqa: E712
-        .join(
-            Quad,
-            ((Quad.trip_id == Tripulante.id) & (Quad.type_id == tipo_quad)),
-            isouter=True,
+    # 1. CTE para obter os IDs dos tripulantes que correspondem aos filtros
+    trip_ids_cte = (
+        select(Tripulante.id)
+        .join(Funcao)
+        .where(
+            Tripulante.uae == uae,
+            Tripulante.active,
+            Funcao.func == funcao,
+            Funcao.oper != 'al',
+            Funcao.proj == proj,
+            Funcao.data_op.is_not(None),
         )
-        .join(
-            Funcao,
-            (
-                (Funcao.trip_id == Tripulante.id)
-                & (Funcao.func == funcao)
-                & (Funcao.oper != 'al')
-                & (Funcao.proj == proj)
-                & (Funcao.data_op != None)  # noqa: E711
-            ),
+        .cte('trip_ids_cte')
+    )
+
+    # 2. CTE para contar o total de quadrinhos de cada tripulante
+    quad_counts_cte = (
+        select(Quad.trip_id, func.count(Quad.id).label('total_quads'))
+        .where(
+            Quad.trip_id.in_(select(trip_ids_cte.c.id)),
+            Quad.type_id == tipo_quad,
         )
+        .group_by(Quad.trip_id)
+        .cte('quad_counts_cte')
+    )
+
+    # 3. Query principal para buscar os tripulantes e a contagem total
+    # Faz um LEFT JOIN com a contagem, para incluir tripulantes sem quadrinhos
+    trip_query = (
+        select(Tripulante, quad_counts_cte.c.total_quads)
+        .join(Tripulante.funcs)
+        .outerjoin(quad_counts_cte, Tripulante.id == quad_counts_cte.c.trip_id)
+        .options(
+            selectinload(Tripulante.user).selectinload(User.posto),
+            contains_eager(Tripulante.funcs),
+        )
+        .where(Tripulante.id.in_(select(trip_ids_cte.c.id)))
         .order_by(Funcao.data_op)
     )
 
-    result = await session.execute(query_quads)
+    trips_result = await session.execute(trip_query)
+    trip_data = (
+        trips_result.unique().all()
+    )  # Retorna tuplas (Tripulante, total_quads)
 
-    group_quads = defaultdict(list)
-    grou_info = {}
-    for quad, trip, func in result.all():
-        trip_schema = {'trig': trip.trig, 'id': trip.id}
-        func_schema = BaseFunc.model_validate(func).model_dump()
-        trip_schema['func'] = func_schema
-        trip_schema['func'] = func_schema
+    if not trip_data:
+        return []
 
-        trip_schema['user'] = UserTrip.model_validate(trip.user).model_dump()
-        grou_info[trip.trig] = trip_schema
+    # Extrai os IDs e o min_length dos resultados
+    trip_ids = [trip.id for trip, _ in trip_data]
+    min_length = min(
+        (total_quads if total_quads is not None else 0)
+        for _, total_quads in trip_data
+    )
 
-        if quad:
-            group_quads[trip.trig].append(
-                QuadPublic.model_validate(quad).model_dump()
+    # 4. Query avançada para buscar APENAS os quadrinhos já fatiados
+    n_slice = 0 if min_length == 0 else min_length - 1
+
+    # CTE para rankear os quadrinhos
+    ranked_quads_cte = (
+        select(
+            Quad,
+            func.row_number()
+            .over(
+                partition_by=Quad.trip_id,
+                order_by=Quad.value.asc().nullsfirst(),
             )
-        else:
-            group_quads[trip.trig] = []
+            .label('rn'),
+        )
+        .where(Quad.trip_id.in_(trip_ids), Quad.type_id == tipo_quad)
+        .cte('ranked_quads')
+    )
 
+    # Query final para buscar os quadrinhos já fatiados
+    final_quads_query = select(ranked_quads_cte).where(
+        ranked_quads_cte.c.rn > n_slice
+    )
+
+    quads_result = await session.execute(final_quads_query)
+    all_quads_data = quads_result.mappings()
+
+    # 5. Agrupa os dicionários de dados por trip_id
+    quads_by_trip_id = defaultdict(list)
+    for q_data in all_quads_data:
+        quads_by_trip_id[q_data['trip_id']].append(q_data)
+
+    # 6. Monta a resposta final
     response = []
-    for trig, info in grou_info.items():
+    for trip, total_quads in trip_data:
+        relevant_func = trip.funcs[0] if trip.funcs else None
+        trip_info = {
+            'trig': trip.trig,
+            'id': trip.id,
+            'user': UserPublic.model_validate(trip.user).model_dump(),
+            'func': (
+                BaseFunc.model_validate(relevant_func).model_dump()
+                if relevant_func
+                else None
+            ),
+        }
+
+        crew_quads_data = quads_by_trip_id[trip.id]
         response.append({
-            'trip': info,
-            'quads': group_quads[trig],
-            'quads_len': len(group_quads[trig]),
+            'trip': trip_info,
+            'quads': [
+                QuadPublic.model_validate(q).model_dump()
+                for q in crew_quads_data
+            ],
+            'quads_len': total_quads if total_quads is not None else 0,
         })
-
-    # ORDENAR QUADRINHOS
-    def order_quads(quad):
-        if not quad['value']:
-            return date.fromtimestamp(0)
-
-        return quad['value']
-
-    # FILTRAR ULTIMOS QUAD A PARTIR DO TRIP COM MENOR NUMERO DE QUAD
-    if response:
-        min_length = min([len(crew['quads']) for crew in response])  # type: ignore
-        n_slice = 0 if min_length == 0 else min_length - 1
-        for crew in response:
-            crew['quads'] = sorted(crew['quads'], key=order_quads)  # type: ignore
-            crew['quads'] = crew['quads'][n_slice:]  # type: ignore
 
     return response
 

@@ -42,17 +42,6 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserTrip(BaseModel):
-    id: int
-    posto: PostoGradSchema
-    esp: str
-    nome_guerra: str
-    unidade: str
-    ant_rel: int | None
-    ult_promo: Annotated[date | None, Body()]
-    model_config = ConfigDict(from_attributes=True)
-
-
 class PwdSchema(BaseModel):
     prev_pwd: str | None
     new_pwd: str
