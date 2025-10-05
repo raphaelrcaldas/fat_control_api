@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated
 
@@ -10,15 +11,13 @@ from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.users import (
     PwdSchema,
     UserFull,
+    UserProfile,
     UserPublic,
     UserSchema,
     UserUpdate,
 )
-from fcontrol_api.security import (
-    get_current_user,
-    get_password_hash,
-    verify_password,
-)
+from fcontrol_api.security import get_current_user, get_password_hash
+from fcontrol_api.services.auth import get_user_roles
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.users import check_user_conflicts
 from fcontrol_api.settings import Settings
@@ -28,26 +27,37 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/users', tags=['users'])
 
 
+@router.get('/me', response_model=UserProfile)
+async def read_users_me(
+    session: Session, current_user: Annotated[User, Depends(get_current_user)]
+):
+    permissions = await get_user_roles(current_user.id, session)
+
+    profile = UserProfile(
+        id=current_user.id,
+        posto=current_user.p_g,
+        nome_guerra=current_user.nome_guerra,
+        role=permissions.get('role'),
+        permissions=permissions.get('perms', []),
+    )
+
+    return profile
+
+
 @router.post('/change-pwd')
 async def change_pwd(
     pwd_schema: PwdSchema,
     session: Session,
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    if not verify_password(pwd_schema.prev_pwd, current_user.password):
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_GATEWAY,
-            detail='Revise suas informações',
-        )
-
     current_user.first_login = False
     current_user.password = get_password_hash(pwd_schema.new_pwd)
 
     await log_user_action(
         session=session,
         user_id=current_user.id,
-        action='change',
-        resource='pwd',
+        action='change-pwd',
+        resource='user',
         resource_id=current_user.id,
         before=None,
         after=None,
@@ -184,12 +194,12 @@ async def update_user(
             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
         )
 
-    updates = user_patch.model_dump(exclude_unset=True)
+    patch = user_patch.model_dump(exclude_unset=True)
     # Verifica conflitos apenas para os campos presentes na atualização
     conflict_keys = {
-        k: updates[k]
+        k: patch[k]
         for k in ('saram', 'id_fab', 'cpf', 'email_fab', 'email_pess')
-        if k in updates
+        if k in patch
     }
     if conflict_keys:
         await check_user_conflicts(
@@ -198,13 +208,26 @@ async def update_user(
             **conflict_keys,
         )
 
+    # Captura o estado ANTES da atualização
     before_patch: dict = {}
-    patch = user_patch.model_dump(exclude_none=True)
     for key in patch.keys():
-        before_patch[key] = db_user.__getattribute__(key)
+        value = getattr(db_user, key)
+        if isinstance(value, (datetime, date)):
+            before_patch[key] = value.isoformat()
+        else:
+            before_patch[key] = value
 
-    for key, value in updates.items():
+    # Aplica a atualização no objeto
+    for key, value in patch.items():
         setattr(db_user, key, value)
+
+    # Prepara o estado DEPOIS da atualização para o log
+    after_patch: dict = {}
+    for key, value in patch.items():
+        if isinstance(value, (datetime, date)):
+            after_patch[key] = value.isoformat()
+        else:
+            after_patch[key] = value
 
     await log_user_action(
         session=session,
@@ -213,7 +236,7 @@ async def update_user(
         resource='user',
         resource_id=user_id,
         before=before_patch,
-        after=patch,
+        after=after_patch,
     )
 
     await session.commit()

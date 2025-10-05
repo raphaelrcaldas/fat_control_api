@@ -43,14 +43,28 @@ class UserPublic(BaseModel):
 
 
 class PwdSchema(BaseModel):
-    prev_pwd: str | None
     new_pwd: str
+
+
+class Permission(BaseModel):
+    name: str
+    resource: str
+
+
+class UserProfile(BaseModel):
+    id: int
+    posto: str
+    nome_guerra: str
+    role: str | None
+    permissions: list[Permission]
+
+    class Config:
+        from_attributes = True
 
 
 # cria UserUpdate dinamicamente a partir dos campos de UserSchema
 _base_fields: dict = {}
 for name, info in UserSchema.model_fields.items():
-    # cada campo vira opcional com default None
     _base_fields[name] = (info.annotation, None)
 
 # opcional: incluir campos adicionais presentes em UserFull (ex: posto)

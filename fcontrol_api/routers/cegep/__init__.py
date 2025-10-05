@@ -1,9 +1,3 @@
-from fastapi import APIRouter
+from fcontrol_api.utils.router_loader import load_routers
 
-from fcontrol_api.routers.cegep import comiss, financeiro, missao
-
-router = APIRouter(prefix='/cegep')
-
-router.include_router(missao.router)
-router.include_router(financeiro.router)
-router.include_router(comiss.router)
+router = load_routers(__path__, __name__, prefix='/cegep')

@@ -1,9 +1,3 @@
-from fastapi import APIRouter
+from fcontrol_api.utils.router_loader import load_routers
 
-from . import funcoes, quads, tripulantes
-
-router = APIRouter(prefix='/ops')
-
-router.include_router(funcoes.router)
-router.include_router(quads.router)
-router.include_router(tripulantes.router)
+router = load_routers(__path__, __name__, prefix='/ops')

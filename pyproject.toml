@@ -7,17 +7,17 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.13"
-fastapi = {extras = ["standard"], version = "0.*"}
-pydantic = {extras = ["email"], version = "^2.8.2"}
-sqlalchemy = {extras = ["mypy"], version = "^2.0.37"}
+fastapi = { extras = ["standard"], version = "0.*" }
+pydantic = { extras = ["email"], version = "^2.8.2" }
+sqlalchemy = { extras = ["mypy"], version = "^2.0.37" }
 pydantic-settings = "^2.4.0"
 alembic = "^1.13.2"
 pyjwt = "^2.9.0"
-pwdlib = {extras = ["argon2"], version = "0.*"}
+pwdlib = { extras = ["argon2"], version = "0.*" }
 tzdata = "^2024.1"
 python-multipart = "0.*"
 taskipy = "^1.13"
-psycopg = {extras = ["binary"], version = "^3.2.1"}
+psycopg = { extras = ["binary"], version = "^3.2.1" }
 psycopg2-binary = "^2.9.10"
 httptools = "^0.6.4"
 greenlet = "^3.1.1"
@@ -57,7 +57,7 @@ addopts = '-p no:warnings'
 concurrency = ["gevent"]
 
 [tool.taskipy.tasks]
-run = 'fastapi run fcontrol_api/app.py --reload --host 0.0.0.0 --port 8000'
+run = 'fastapi run fcontrol_api/app.py --reload --host localhost --port 8000'
 
 pre_test = 'task lint'
 test = 'pytest -s -x --cov=fcontrol_api -vv'

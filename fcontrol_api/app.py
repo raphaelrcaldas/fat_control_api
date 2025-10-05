@@ -1,45 +1,27 @@
-import time
-
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fcontrol_api.routers import (
-    auth,
-    cegep,
-    cities,
-    indisp,
-    logs,
-    ops,
-    postos,
-    users,
-)
+from fcontrol_api import routers
+from fcontrol_api.middlewares import middleware_stack
+from fcontrol_api.settings import Settings
 
 app = FastAPI()
 
 
-@app.middleware('http')
-async def add_process_time_header(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = round(time.time() - start_time, 4)
-    response.headers['X-Process-Time'] = str(process_time)
-
-    return response
+for middleware in middleware_stack:
+    app.middleware('http')(middleware)
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=[
+        Settings().FATLOGIN_URL,
+        Settings().FATCONTROL_URL,
+        Settings().FATBIRD_URL,
+    ],
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
 )
 
-app.include_router(users.router)
-app.include_router(cegep.router)
-app.include_router(ops.router)
-app.include_router(postos.router)
-app.include_router(indisp.router)
-app.include_router(auth.router)
-app.include_router(cities.router)
-app.include_router(logs.router)
+app.include_router(routers.router)

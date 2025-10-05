@@ -11,3 +11,7 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     DEFAULT_USER_PASSWORD: str
+    FATLOGIN_URL: str
+    FATCONTROL_URL: str
+    FATBIRD_URL: str
+    ENV: str = 'production'
