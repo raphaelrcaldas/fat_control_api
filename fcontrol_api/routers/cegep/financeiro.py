@@ -25,6 +25,7 @@ async def get_pgto(
     n_doc: int = None,
     sit: str = None,
     user: str = None,
+    user_id: int = None,
     tipo: str = None,
     ini: date = None,
     fim: date = None,
@@ -33,6 +34,7 @@ async def get_pgto(
         select(UserFrag, FragMis)
         .join(FragMis, (FragMis.id == UserFrag.frag_id))
         .join(User, (User.id == UserFrag.user_id))
+        .order_by(FragMis.afast.desc())
     )
 
     if tipo_doc:
@@ -43,6 +45,9 @@ async def get_pgto(
 
     if sit:
         stmt = stmt.where(UserFrag.sit == sit)
+
+    if user_id:
+        stmt = stmt.where(UserFrag.user_id == user_id).limit(25)
 
     if user:
         stmt = stmt.where(
