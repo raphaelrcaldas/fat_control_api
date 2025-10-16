@@ -88,8 +88,8 @@ async def reset_pwd(
     await log_user_action(
         session=session,
         user_id=current_user.id,
-        action='reset',
-        resource='pwd',
+        action='reset-pwd',
+        resource='user',
         resource_id=user_id,
         before=None,
         after=None,
