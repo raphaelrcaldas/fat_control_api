@@ -56,7 +56,10 @@ async def verificar_usrs_comiss(
             msg_parts.append(msg)
 
         if user_no_mis:
-            msg = '\nOs seguintes militares não têm comissionamento cobrindo o período da missão:'
+            msg = (
+                '\nOs seguintes militares não têm comissionamento '
+                'cobrindo o período da missão:'
+            )
             for uf in user_no_mis:
                 msg += f'\n - {uf.user.p_g} {uf.user.nome_guerra}'.upper()
             msg_parts.append(msg)
