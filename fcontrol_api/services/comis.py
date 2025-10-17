@@ -24,10 +24,7 @@ async def verificar_usrs_comiss(
     """
     # procura comissionamentos abertos dos usuários envolvidos na missão
     query_comiss = select(Comissionamento).where(
-        and_(
-            Comissionamento.user_id.in_([u.user_id for u in users]),
-            Comissionamento.status == 'aberto',
-        )
+        Comissionamento.user_id.in_([u.user_id for u in users])
     )
     result_comiss = (await session.scalars(query_comiss)).all()
 

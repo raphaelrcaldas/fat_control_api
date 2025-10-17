@@ -41,11 +41,11 @@ def custo_pernoite(
     soldos_cache,
     vals_cache,
 ):
-    custo = {'subtotal': 0, 'ac_desloc': 0, 'vals': [], 'dias': 0}
+    custo = {'subtotal': 0, 'ac_desloc': 0, 'vals': []}
     val_ag: dict = {}
 
     dias_validos = listar_datas_entre(ini, fim)
-    for dia in dias_validos[:-1]:
+    for dia in dias_validos:
         valor_dia: float
         if sit == 'g':
             valor_soldo = buscar_soldo_por_dia(pg, dia, soldos_cache)
@@ -58,7 +58,6 @@ def custo_pernoite(
 
         val_ag[valor_dia]['qtd'] += 1
         custo['subtotal'] += valor_dia
-        custo['dias'] += 1
 
     if sit != 'g':
         if meia_diaria:
@@ -67,13 +66,8 @@ def custo_pernoite(
                 gp_pg, gp_cid, ult_dia, vals_cache
             )
 
-            custo['dias'] += 1
-            custo['subtotal'] += valor_ultimo * 0.5
-
-            if valor_ultimo not in val_ag:
-                val_ag[valor_ultimo] = {'valor': valor_ultimo, 'qtd': 0}
-
-            val_ag[valor_ultimo]['qtd'] += 0.5
+            custo['subtotal'] -= valor_ultimo * 0.5
+            val_ag[valor_ultimo]['qtd'] -= 0.5
 
         if ac_desloc:
             custo['ac_desloc'] = 95
@@ -104,6 +98,7 @@ def custo_missao(
     mis['valor_total'] = 0
     mis['qtd_ac'] = 0
 
+    set_dias = set()
     for pnt in mis['pernoites']:
         grupo_cidade = grupos_cidade.get(pnt['cidade']['codigo'], 3)
         pnt['gp_cid'] = grupo_cidade
@@ -131,7 +126,9 @@ def custo_missao(
                 mis['diarias'] += val['qtd']
 
         mis['valor_total'] += custo['subtotal']
-        mis['dias'] += pnt['custo']['dias']
+        set_dias.update(listar_datas_entre(pnt['data_ini'], pnt['data_fim']))
+
+    mis['dias'] = len(set_dias)
 
     return mis
 
