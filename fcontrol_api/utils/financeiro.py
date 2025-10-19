@@ -41,33 +41,36 @@ def custo_pernoite(
     soldos_cache,
     vals_cache,
 ):
-    custo = {'subtotal': 0, 'ac_desloc': 0, 'vals': []}
+    custo = {'subtotal': 0, 'ac_desloc': 0, 'vals': [], 'dias': 0}
     val_ag: dict = {}
 
     dias_validos = listar_datas_entre(ini, fim)
-    for dia in dias_validos:
-        valor_dia: float
+
+    # Se sit == 'g', não interagir com o último dia: iteramos até penúltimo
+    iter_dias = dias_validos[:-1] if sit == 'g' else dias_validos
+    for dia in iter_dias:
         if sit == 'g':
-            valor_soldo = buscar_soldo_por_dia(pg, dia, soldos_cache)
-            valor_dia = valor_soldo * 0.02  # 2% do soldo
+            valor_dia = buscar_soldo_por_dia(pg, dia, soldos_cache) * 0.02
         else:
             valor_dia = buscar_valor_por_dia(gp_pg, gp_cid, dia, vals_cache)
 
-        if valor_dia not in val_ag:
-            val_ag[valor_dia] = {'valor': valor_dia, 'qtd': 0}
+        key = round(valor_dia, 2)
+        if key not in val_ag:
+            val_ag[key] = {'valor': valor_dia, 'qtd': 0}
 
-        val_ag[valor_dia]['qtd'] += 1
+        val_ag[key]['qtd'] += 1
         custo['subtotal'] += valor_dia
+        custo['dias'] += 1
 
     if sit != 'g':
+        ult_dia = dias_validos[-1]
         if meia_diaria:
-            ult_dia = dias_validos[-1]
             valor_ultimo = buscar_valor_por_dia(
                 gp_pg, gp_cid, ult_dia, vals_cache
             )
-
+            key_last = round(valor_ultimo, 2)
             custo['subtotal'] -= valor_ultimo * 0.5
-            val_ag[valor_ultimo]['qtd'] -= 0.5
+            val_ag[key_last]['qtd'] -= 0.5
 
         if ac_desloc:
             custo['ac_desloc'] = 95
@@ -98,7 +101,6 @@ def custo_missao(
     mis['valor_total'] = 0
     mis['qtd_ac'] = 0
 
-    set_dias = set()
     for pnt in mis['pernoites']:
         grupo_cidade = grupos_cidade.get(pnt['cidade']['codigo'], 3)
         pnt['gp_cid'] = grupo_cidade
@@ -126,9 +128,7 @@ def custo_missao(
                 mis['diarias'] += val['qtd']
 
         mis['valor_total'] += custo['subtotal']
-        set_dias.update(listar_datas_entre(pnt['data_ini'], pnt['data_fim']))
-
-    mis['dias'] = len(set_dias)
+        mis['dias'] += custo['dias']
 
     return mis
 
