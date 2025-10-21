@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
 from fcontrol_api.models.public.posto_grad import Soldo
@@ -101,15 +101,26 @@ def custo_missao(
     mis['valor_total'] = 0
     mis['qtd_ac'] = 0
 
-    for pnt in mis['pernoites']:
+    for i, pnt in enumerate(mis['pernoites']):
         grupo_cidade = grupos_cidade.get(pnt['cidade']['codigo'], 3)
         pnt['gp_cid'] = grupo_cidade
+
+        # VERIFICA SE O DIA DE INICIO DO PROX PERNOITE É O MESMO
+        # DIA DA DATA FIM DO PERNOITE ATUAL, PARA NÃO DUPLICAR
+        fim_pnt = pnt['data_fim']
+        try:
+            pnt_prox = mis['pernoites'][i + 1]
+        except IndexError:
+            pass
+        else:
+            if fim_pnt.day == pnt_prox['data_ini'].day:
+                fim_pnt = fim_pnt - timedelta(days=1)
 
         custo = custo_pernoite(
             p_g,
             sit,
             pnt['data_ini'],
-            pnt['data_fim'],
+            fim_pnt,
             grupo_pg,
             grupo_cidade,
             pnt['meia_diaria'],
