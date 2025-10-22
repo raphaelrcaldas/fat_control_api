@@ -67,6 +67,9 @@ def custo_pernoite(
                 gp_pg, gp_cid, ult_dia, vals_cache
             )
             key_last = round(valor_ultimo, 2)
+            if key_last not in val_ag:
+                val_ag[key_last] = {'valor': valor_ultimo, 'qtd': 0}
+
             custo['subtotal'] += valor_ultimo * 0.5
             val_ag[key_last]['qtd'] += 0.5
 
