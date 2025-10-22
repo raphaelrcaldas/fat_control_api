@@ -57,7 +57,7 @@ addopts = '-p no:warnings'
 concurrency = ["gevent"]
 
 [tool.taskipy.tasks]
-run = 'fastapi run fcontrol_api/app.py --reload --host localhost --port 8000'
+run = 'fastapi run fcontrol_api/app.py --reload --host 0.0.0.0 --port 8000'
 
 pre_test = 'task lint'
 test = 'pytest -s -x --cov=fcontrol_api -vv'

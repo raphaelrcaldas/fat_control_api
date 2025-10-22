@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
 from fcontrol_api.models.public.posto_grad import Soldo
@@ -46,9 +46,7 @@ def custo_pernoite(
 
     dias_validos = listar_datas_entre(ini, fim)
 
-    # Se sit == 'g', não interagir com o último dia: iteramos até penúltimo
-    iter_dias = dias_validos[:-1] if sit == 'g' else dias_validos
-    for dia in iter_dias:
+    for dia in dias_validos[:-1]:
         if sit == 'g':
             valor_dia = buscar_soldo_por_dia(pg, dia, soldos_cache) * 0.02
         else:
@@ -69,8 +67,8 @@ def custo_pernoite(
                 gp_pg, gp_cid, ult_dia, vals_cache
             )
             key_last = round(valor_ultimo, 2)
-            custo['subtotal'] -= valor_ultimo * 0.5
-            val_ag[key_last]['qtd'] -= 0.5
+            custo['subtotal'] += valor_ultimo * 0.5
+            val_ag[key_last]['qtd'] += 0.5
 
         if ac_desloc:
             custo['ac_desloc'] = 95
@@ -98,29 +96,18 @@ def custo_missao(
 
     mis['dias'] = 0
     mis['diarias'] = 0
-    mis['valor_total'] = 0
-    mis['qtd_ac'] = 0
+    mis['valor_total'] = 95 if mis['acrec_desloc'] else 0
+    mis['qtd_ac'] = 1 if mis['acrec_desloc'] else 0
 
-    for i, pnt in enumerate(mis['pernoites']):
+    for pnt in mis['pernoites']:
         grupo_cidade = grupos_cidade.get(pnt['cidade']['codigo'], 3)
         pnt['gp_cid'] = grupo_cidade
-
-        # VERIFICA SE O DIA DE INICIO DO PROX PERNOITE É O MESMO
-        # DIA DA DATA FIM DO PERNOITE ATUAL, PARA NÃO DUPLICAR
-        fim_pnt = pnt['data_fim']
-        try:
-            pnt_prox = mis['pernoites'][i + 1]
-        except IndexError:
-            pass
-        else:
-            if fim_pnt.day == pnt_prox['data_ini'].day:
-                fim_pnt = fim_pnt - timedelta(days=1)
 
         custo = custo_pernoite(
             p_g,
             sit,
             pnt['data_ini'],
-            fim_pnt,
+            pnt['data_fim'],
             grupo_pg,
             grupo_cidade,
             pnt['meia_diaria'],
@@ -153,7 +140,9 @@ def verificar_modulo(missoes: list[dict]) -> bool:
 
     datas: list[date] = []
     for m in missoes:
-        datas_missao = listar_datas_entre(m['afast'], m['regres'])
+        datas_missao = listar_datas_entre(
+            m['afast'].date(), m['regres'].date()
+        )
         datas.extend(datas_missao)
     datas.sort()
 

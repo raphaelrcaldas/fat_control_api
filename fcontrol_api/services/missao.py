@@ -11,19 +11,14 @@ from fcontrol_api.schemas.missoes import FragMisSchema
 
 
 async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
-    # ou retornos e sáidas com meia diária
-    afast_ini = payload.afast.replace(hour=0, minute=0)
-    afast_fim = payload.afast.replace(hour=23, minute=59)
-    regres_ini = payload.regres.replace(hour=0, minute=0)
-    regres_fim = payload.regres.replace(hour=23, minute=59)
+    afast_date = payload.afast.date()
+    regres_date = payload.regres.date()
 
     check_md_ult_pnt: bool
     try:
         ult_pnt = list(
             filter(
-                lambda p: (
-                    p.data_fim > regres_ini and p.data_fim < regres_fim
-                ),
+                lambda p: (p.data_fim == regres_date),
                 payload.pernoites,
             )
         )[0]
@@ -50,18 +45,14 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
                         FragMis.afast < payload.regres,
                         payload.afast < FragMis.regres,
                     ),
-                    and_(
-                        or_(
-                            and_(
-                                PernoiteFrag.meia_diaria,
-                                PernoiteFrag.data_fim >= afast_ini,
-                                PernoiteFrag.data_fim <= afast_fim,
-                            ),
-                            and_(
-                                check_md_ult_pnt,
-                                PernoiteFrag.data_ini >= regres_ini,
-                                PernoiteFrag.data_ini <= regres_fim,
-                            ),
+                    or_(
+                        and_(
+                            PernoiteFrag.meia_diaria,
+                            PernoiteFrag.data_fim == afast_date,
+                        ),
+                        and_(
+                            check_md_ult_pnt,
+                            PernoiteFrag.data_ini == regres_date,
                         ),
                     ),
                 ),
@@ -78,14 +69,30 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     if conflitos:
         msg = '\nVerifique o seguinte conflito:'
         for uf, fm, pn in conflitos:
+            c1 = (fm.afast < payload.regres) and (payload.afast < fm.regres)
+            c2 = bool(pn.meia_diaria and pn.data_fim == afast_date)
+            c3 = bool(check_md_ult_pnt and pn.data_ini == regres_date)
+
+            motivo = []
+            if c1:
+                motivo.append('sobreposição de datas')
+            if c2:
+                motivo.append('afastamento em conflito com meia diária')
+            if c3:
+                motivo.append('meia diária em conflito com o afastamento')
+
+            motivo_txt = (
+                ' / '.join(motivo) if motivo else 'condição desconhecida'
+            )
+
             row = (
                 f'\n - {fm.tipo_doc} {fm.n_doc} '
-                f'{uf.user.p_g} {uf.user.nome_guerra}'
+                f'{uf.user.p_g} {uf.user.nome_guerra} -> {motivo_txt}'
             ).upper()
             msg += row
 
         raise HTTPException(
-            status_code=HTTPStatus.BAD_GATEWAY,
+            status_code=HTTPStatus.BAD_REQUEST,
             detail=msg,
         )
 
@@ -111,6 +118,7 @@ async def adicionar_missao(
         missao.n_doc = payload.n_doc
         missao.tipo_doc = payload.tipo_doc
         missao.obs = payload.obs
+        missao.acrec_desloc = payload.acrec_desloc
 
         await session.execute(
             delete(PernoiteFrag).where(PernoiteFrag.frag_id == missao.id)
@@ -130,6 +138,7 @@ async def adicionar_missao(
             n_doc=payload.n_doc,
             tipo_doc=payload.tipo_doc,
             obs=payload.obs,
+            acrec_desloc=payload.acrec_desloc,
         )
         session.add(missao)
         await session.flush()

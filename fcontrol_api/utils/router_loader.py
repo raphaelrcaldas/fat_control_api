@@ -38,7 +38,7 @@ def load_routers(path: list[str], name: str, prefix: str = '') -> APIRouter:
             if settings.ENV == 'development':
                 print(f'Erro ao importar o roteador {full_module_name}: {e}')
 
-    if settings.ENV == 'development' and loaded_modules:
-        print(f'Módulo "{name}" carregou os roteadores de: {loaded_modules}')
+    # if settings.ENV == 'development' and loaded_modules:
+    #     print(f'Módulo "{name}" carregou os roteadores de: {loaded_modules}')
 
     return router

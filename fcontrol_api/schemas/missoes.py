@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -17,8 +17,8 @@ class PernoiteFragMis(BaseModel):
     id: Optional[int] = None
     frag_id: Optional[int] = None
     acrec_desloc: bool
-    data_ini: datetime
-    data_fim: datetime
+    data_ini: date
+    data_fim: date
     meia_diaria: bool
     obs: str
     cidade_id: int
@@ -42,6 +42,7 @@ class FragMisSchema(BaseModel):
     n_doc: int
     tipo_doc: str
     indenizavel: bool
+    acrec_desloc: bool
     afast: datetime
     regres: datetime
     desc: str

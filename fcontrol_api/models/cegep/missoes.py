@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import ForeignKey, Identity
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,6 +20,7 @@ class FragMis(Base):
     tipo: Mapped[str] = mapped_column(nullable=False)
     afast: Mapped[datetime] = mapped_column(nullable=False)
     regres: Mapped[datetime] = mapped_column(nullable=False)
+    acrec_desloc: Mapped[bool] = mapped_column(server_default='false')
     obs: Mapped[str] = mapped_column(nullable=True)
     indenizavel: Mapped[bool] = mapped_column(nullable=False)
     pernoites = relationship(
@@ -46,8 +47,8 @@ class PernoiteFrag(Base):
     cidade_id: Mapped[int] = mapped_column(ForeignKey(Cidade.codigo))
     frag_id: Mapped[int] = mapped_column(ForeignKey(FragMis.id))
     acrec_desloc: Mapped[bool]
-    data_ini: Mapped[datetime] = mapped_column(nullable=True)
-    data_fim: Mapped[datetime] = mapped_column(nullable=True)
+    data_ini: Mapped[date]
+    data_fim: Mapped[date]
     obs: Mapped[str] = mapped_column(nullable=True)
     meia_diaria: Mapped[bool]
     cidade: Cidade = relationship(
