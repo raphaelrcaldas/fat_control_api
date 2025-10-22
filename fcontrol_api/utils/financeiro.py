@@ -72,6 +72,7 @@ def custo_pernoite(
 
             custo['subtotal'] += valor_ultimo * 0.5
             val_ag[key_last]['qtd'] += 0.5
+            custo['dias'] += 1
 
         if ac_desloc:
             custo['ac_desloc'] = 95
