@@ -44,7 +44,10 @@ async def get_pgto(
         stmt = stmt.where(FragMis.n_doc == n_doc)
 
     if sit:
-        stmt = stmt.where(UserFrag.sit == sit)
+        if sit.startswith('!'):
+            stmt = stmt.where(UserFrag.sit != sit[1:])
+        else:
+            stmt = stmt.where(UserFrag.sit == sit)
 
     if user_id:
         stmt = stmt.where(UserFrag.user_id == user_id).limit(25)
