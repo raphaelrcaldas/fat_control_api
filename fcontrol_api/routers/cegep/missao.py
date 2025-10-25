@@ -10,6 +10,8 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
+from fcontrol_api.models.public.estados_cidades import Cidade
+from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.missoes import (
     FragMisSchema,
     PernoiteFragMis,
@@ -29,6 +31,8 @@ async def get_fragmentos(
     tipo_doc: str = None,
     n_doc: int = None,
     tipo: str = None,
+    user_search: str = None,
+    city: str = None,
     ini: date = None,
     fim: date = None,
 ):
@@ -51,7 +55,21 @@ async def get_fragmentos(
     if tipo:
         stmt = stmt.where(FragMis.tipo == tipo)
 
-    db_frags = (await session.scalars(stmt)).all()
+    if city:
+        stmt = (
+            stmt.join(PernoiteFrag)
+            .join(Cidade)
+            .where(Cidade.nome.ilike(f'%{city}%'))
+        )
+
+    if user_search:
+        stmt = (
+            stmt.join(UserFrag)
+            .join(User)
+            .where(User.nome_guerra.ilike(f'%{user_search}%'))
+        )
+
+    db_frags = (await session.scalars(stmt)).unique().all()
 
     # Ordena os usuários dentro de cada missão
     for frag in db_frags:
