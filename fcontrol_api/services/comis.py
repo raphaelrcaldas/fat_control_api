@@ -40,10 +40,15 @@ async def verificar_usrs_comiss(
             continue
 
         # verifica se a missão está contida no intervalo do comissionamento
-        comiss = comiss_for_user[0]
-        comiss_data_ab = datetime.combine(comiss.data_ab, time(0, 0, 0))
-        comiss_data_fc = datetime.combine(comiss.data_fc, time(23, 59, 59))
-        if not (comiss_data_ab <= afast and regres <= comiss_data_fc):
+        checar_periodo: list[bool] = []
+        for c in comiss_for_user:
+            comiss_data_ab = datetime.combine(c.data_ab, time(0, 0, 0))
+            comiss_data_fc = datetime.combine(c.data_fc, time(23, 59, 59))
+            checar_periodo.append(
+                comiss_data_ab <= afast and regres <= comiss_data_fc
+            )
+
+        if not any(checar_periodo):
             user_no_mis.append(uf)
 
     if user_no_mis or user_no_comiss:
