@@ -11,9 +11,11 @@ from jwt import DecodeError, ExpiredSignatureError, decode, encode
 from pwdlib import PasswordHash
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
+from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.settings import Settings
 
 settings = Settings()
@@ -106,6 +108,30 @@ async def get_current_user(
 
     if not user:
         raise credentials_exception
+
+    return user
+
+
+async def require_admin(
+    session: Session,
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Dependência que valida se o usuário atual possui o perfil 'admin'.
+
+    Retorna o usuário quando for administrador; senão levanta HTTP 403.
+    """
+
+    # busca o registro de user role do usuário atual
+    ur = await session.scalar(
+        select(UserRole)
+        .where(UserRole.user_id == user.id)
+        .options(joinedload(UserRole.role))
+    )
+
+    if not ur or not ur.role or (ur.role.name.lower() != 'admin'):
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail='Permissão negada'
+        )
 
     return user
 

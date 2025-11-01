@@ -70,6 +70,9 @@ class UserRole(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     role_id: Mapped[int] = mapped_column(ForeignKey('security.roles.id'))
-    role: Mapped[Roles] = relationship(
-        'Roles', backref='user_roles', lazy='selectin', uselist=False
+    role = relationship(
+        Roles, backref='user_roles', lazy='selectin', uselist=False
+    )
+    user = relationship(
+        User, backref='user_roles', lazy='raise', uselist=False
     )
