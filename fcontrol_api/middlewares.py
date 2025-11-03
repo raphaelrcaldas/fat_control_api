@@ -6,7 +6,6 @@ from fastapi import Request, Response
 
 from fcontrol_api.security import verify_token
 
-
 # async def validate_token_and_clear_cookie(request: Request, call_next):
 #     # Ignora as rotas de obtenção de credenciais
 #     if request.url.path in ['/auth/authorize', '/auth/token']:

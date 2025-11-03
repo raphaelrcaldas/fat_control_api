@@ -35,7 +35,6 @@ router = APIRouter(prefix='/quads', tags=['quads'])
 async def create_quad(quads: list[QuadSchema], session: Session):
     insert_quads = []
     for quad in quads:
-        # VALUE 0 PARA LASTRO
         if quad.value is not None:
             db_quad = await session.scalar(
                 select(Quad).where(
@@ -56,14 +55,14 @@ async def create_quad(quads: list[QuadSchema], session: Session):
             description=quad.description,
             type_id=quad.type_id,
             trip_id=quad.trip_id,
-        )  # type: ignore
+        )
 
         insert_quads.append(quad_db)
 
     session.add_all(insert_quads)
     await session.commit()
 
-    return {'detail': 'Inserido com sucesso'}
+    return {'detail': 'Quadrinho inserido com sucesso'}
 
 
 @router.get(
@@ -72,21 +71,16 @@ async def create_quad(quads: list[QuadSchema], session: Session):
     response_model=list[QuadPublic],
 )
 async def quads_by_trip(trip_id: int, type_id: int, session: Session):
-    query = select(Quad).where(
-        (Quad.trip_id == trip_id) & (Quad.type_id == type_id)
+    query = (
+        select(Quad)
+        .where((Quad.trip_id == trip_id) & (Quad.type_id == type_id))
+        .order_by(
+            Quad.value.desc().nulls_last()
+        )  # ordena NULLs primeiro, depois valores em DESC
     )
 
     result = await session.scalars(query)
     quads = result.all()
-
-    # ORDENAR QUADRINHOS
-    def order_quads(quad: Quad):
-        if not quad.value:
-            return date.fromtimestamp(0)
-
-        return quad.value
-
-    quads = sorted(quads, key=order_quads, reverse=True)
 
     return quads
 
