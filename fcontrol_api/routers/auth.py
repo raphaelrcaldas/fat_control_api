@@ -75,7 +75,14 @@ async def authorize(
             status_code=HTTPStatus.UNAUTHORIZED, detail='Credenciais inválidas'
         )
 
-    # 3. Gerar e salvar o código de autorização de uso único
+    # 3. Verficar se usuário esta ativo
+    if not user.active:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail='Conta inativa. Contate o suporte',
+        )
+
+    # 4. Gerar e salvar o código de autorização de uso único
     auth_code = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
 

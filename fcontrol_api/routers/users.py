@@ -116,7 +116,7 @@ async def create_user(
         email_pess=payloadUser.email_pess,
     )
 
-    hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)  # type: ignore
+    hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)
 
     db_user = User(
         p_g=payloadUser.p_g,
@@ -133,7 +133,7 @@ async def create_user(
         unidade=payloadUser.unidade,
         ant_rel=payloadUser.ant_rel,
         password=hashed_password,
-    )  # type: ignore
+    )
 
     session.add(db_user)
     await session.flush()
@@ -159,7 +159,7 @@ async def read_users(session: Session, search: str = None):
 
     if search:
         query = query.where(
-            User.nome_guerra.ilike(f'%{search.strip()}%')
+            User.nome_guerra.ilike(f'%{search.strip()}%') & User.active
         ).limit(10)
 
     users = await session.scalars(query)
