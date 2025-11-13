@@ -100,9 +100,7 @@ ipython_config.py
 #   having no cross-platform support, pipenv may install dependencies that don't work, or not
 
 # VSCode
-.vscode/mcp.json
-.vscode/settings.json
-.vscode/*.code-workspace
+.vscode
 
 #   install all needed dependencies.
 #Pipfile.lock

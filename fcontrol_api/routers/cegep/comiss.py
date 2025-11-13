@@ -317,10 +317,7 @@ async def delete_cmto(
     if comiss_missoes:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail=(
-                'Não foi possível excluir.',
-                ' Existem missões atribuidas a este comissionamento',
-            ),
+            detail=('Existem missões atribuidas a este comissionamento',),
         )
 
     await session.delete(db_comiss)
