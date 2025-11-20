@@ -50,5 +50,6 @@ class FragMisSchema(BaseModel):
     tipo: str
     pernoites: list[PernoiteFragMis]
     users: list[UserFragMis]
+    custos: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)

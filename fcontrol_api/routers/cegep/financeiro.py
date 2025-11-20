@@ -6,11 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.missoes import FragMisSchema, UserFragMis
-from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
 from fcontrol_api.utils.financeiro import custo_missao
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -72,24 +70,6 @@ async def get_pgto(
     result = await session.execute(stmt)
     result: list[tuple[UserFrag, FragMis]] = result.all()
 
-    # Cache de valores de diária por grupo
-    valores_cache = await cache_diarias(session)
-
-    # Cache de valores de soldo
-    soldos_cache = await cache_soldos(session)
-
-    # Cache de grupos
-    grupos_pg = dict(
-        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
-    )
-    grupos_cidade = dict(
-        (
-            await session.execute(
-                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
-            )
-        ).all()
-    )
-
     response = []
     for usr_frg, missao in result:
         uf_data = UserFragMis.model_validate(usr_frg).model_dump(
@@ -98,14 +78,11 @@ async def get_pgto(
         mis = FragMisSchema.model_validate(missao).model_dump(
             exclude={'users'}
         )
+        # Read costs from JSONB column (pre-calculated)
         mis = custo_missao(
             uf_data['p_g'],
             uf_data['sit'],
             mis,
-            grupos_pg,
-            grupos_cidade,
-            valores_cache,
-            soldos_cache,
         )
 
         response.append({

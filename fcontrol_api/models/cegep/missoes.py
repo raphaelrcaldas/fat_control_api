@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import ForeignKey, Identity
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.models.public.estados_cidades import Cidade
@@ -23,6 +24,9 @@ class FragMis(Base):
     acrec_desloc: Mapped[bool] = mapped_column(server_default='false')
     obs: Mapped[str] = mapped_column(nullable=True)
     indenizavel: Mapped[bool] = mapped_column(nullable=False)
+    custos: Mapped[dict] = mapped_column(
+        JSONB, server_default='{}', nullable=False
+    )
     pernoites = relationship(
         'PernoiteFrag',
         backref='frag_mis',

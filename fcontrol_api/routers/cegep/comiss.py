@@ -8,14 +8,12 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.comiss import Comissionamento
-from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.comiss import ComissSchema
 from fcontrol_api.schemas.missoes import FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.services.comis import verificar_conflito_comiss
-from fcontrol_api.services.financeiro import cache_diarias
 from fcontrol_api.utils.financeiro import custo_missao, verificar_modulo
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -83,21 +81,6 @@ async def get_cmtos(
     result = await session.execute(query)
     registros: list[tuple[Comissionamento, FragMis, UserFrag]] = result.all()
 
-    # Cache de valores de diária por grupo
-    valores_cache = await cache_diarias(session)
-
-    # Cache de grupos
-    grupos_pg = dict(
-        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
-    )
-    grupos_cidade = dict(
-        (
-            await session.execute(
-                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
-            )
-        ).all()
-    )
-
     agrupado: dict[int, dict] = {}
 
     for comiss, missao, user_frag in registros:
@@ -121,21 +104,23 @@ async def get_cmtos(
         comiss_ag = agrupado[comiss_data['id']]
 
         if missao:
+            # Serializar missão (inclui custos JSONB se disponível)
             missao_data = FragMisSchema.model_validate(missao).model_dump(
                 exclude={'users'}
             )
+
+            # Calcular custos usando função (lê do JSONB se disponível)
             missao_data = custo_missao(
                 user_frag.p_g,
                 user_frag.sit,
                 missao_data,
-                grupos_pg,
-                grupos_cidade,
-                valores_cache,
             )
+
+            # Acumular valores no comissionamento
             comiss_ag['diarias_comp'] += missao_data['diarias']
-            comiss_ag['missoes'].append(missao_data)
             comiss_ag['dias_comp'] += missao_data['dias']
             comiss_ag['vals_comp'] += missao_data['valor_total']
+            comiss_ag['missoes'].append(missao_data)
 
     response = list(agrupado.values())
     for c in response:

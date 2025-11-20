@@ -9,16 +9,24 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.users import User
+from fcontrol_api.schemas.custos import (
+    CustoFragMisInput,
+    CustoPernoiteInput,
+    CustoUserFragInput,
+)
 from fcontrol_api.schemas.missoes import (
     FragMisSchema,
     PernoiteFragMis,
     UserFragMis,
 )
 from fcontrol_api.services.comis import verificar_usrs_comiss
+from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
 from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
+from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -97,20 +105,74 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
         session,
     )
 
-    # Adiciona pernoites
+    # Adiciona pernoites e prepara inputs validados
+    pernoites_input: list[CustoPernoiteInput] = []
     for p in payload.pernoites:
         pnt_data = PernoiteFragMis.model_validate(p).model_dump(
             exclude={'cidade', 'id', 'frag_id'}
         )
         pernoite = PernoiteFrag(**pnt_data, frag_id=missao.id)
         session.add(pernoite)
+        await session.flush()  # Flush para obter o ID do pernoite
 
-    # Adiciona militares
+        # Criar input validado com Pydantic
+        pernoite_input = CustoPernoiteInput(
+            id=pernoite.id,
+            data_ini=pernoite.data_ini,
+            data_fim=pernoite.data_fim,
+            meia_diaria=pernoite.meia_diaria,
+            acrec_desloc=pernoite.acrec_desloc,
+            cidade_codigo=p.cidade.codigo,  # Extrai código diretamente
+        )
+        pernoites_input.append(pernoite_input)
+
+    # Adiciona militares e prepara inputs validados
+    users_frag_input: list[CustoUserFragInput] = []
     for u in payload.users:
         user_data = UserFragMis.model_validate(u).model_dump(
             exclude={'user', 'id', 'frag_id'}
         )
         session.add(UserFrag(**user_data, frag_id=missao.id))
+
+        # Criar input validado com Pydantic
+        user_input = CustoUserFragInput(
+            p_g=user_data['p_g'],
+            sit=user_data['sit'],
+        )
+        users_frag_input.append(user_input)
+
+    # Carregar caches necessários para cálculo de custos
+    valores_cache = await cache_diarias(session)
+    soldos_cache = await cache_soldos(session)
+
+    # Carregar grupos_pg e grupos_cidade
+    grupos_pg = dict(
+        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
+    )
+    grupos_cidade = dict(
+        (
+            await session.execute(
+                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
+            )
+        ).all()
+    )
+
+    # Criar input validado da missão
+    frag_mis_input = CustoFragMisInput(acrec_desloc=missao.acrec_desloc)
+
+    # Calcular custos com inputs validados e tipados
+    custos = calcular_custos_frag_mis(
+        frag_mis_input,
+        users_frag_input,
+        pernoites_input,
+        grupos_pg,
+        grupos_cidade,
+        valores_cache,
+        soldos_cache,
+    )
+
+    # Atualizar campo custos na missão
+    missao.custos = custos
 
     await session.commit()
 

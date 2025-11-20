@@ -2,10 +2,15 @@ from datetime import date
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
 from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.schemas.custos import (
+    CustoFragMisInput,
+    CustoPernoiteInput,
+    CustoUserFragInput,
+)
 from fcontrol_api.utils.datas import listar_datas_entre
 
 
-def buscar_valor_por_dia(
+def _buscar_valor_por_dia(
     grupo_pg: int, grupo_cidade: int, data: date, cache: dict
 ) -> float:
     lista: list[DiariaValor] = cache.get((grupo_pg, grupo_cidade), [])
@@ -18,7 +23,7 @@ def buscar_valor_por_dia(
     return 0.0
 
 
-def buscar_soldo_por_dia(pg: str, data: date, cache: dict) -> float:
+def _buscar_soldo_por_dia(pg: str, data: date, cache: dict) -> float:
     lista: list[Soldo] = cache.get(pg, [])
 
     for item in lista:
@@ -29,7 +34,7 @@ def buscar_soldo_por_dia(pg: str, data: date, cache: dict) -> float:
     return 0.0
 
 
-def custo_pernoite(
+def _custo_pernoite(
     pg,
     sit,
     ini,
@@ -48,9 +53,9 @@ def custo_pernoite(
 
     for dia in dias_validos[:-1]:
         if sit == 'g':
-            valor_dia = buscar_soldo_por_dia(pg, dia, soldos_cache) * 0.02
+            valor_dia = _buscar_soldo_por_dia(pg, dia, soldos_cache) * 0.02
         else:
-            valor_dia = buscar_valor_por_dia(gp_pg, gp_cid, dia, vals_cache)
+            valor_dia = _buscar_valor_por_dia(gp_pg, gp_cid, dia, vals_cache)
 
         key = round(valor_dia, 2)
         if key not in val_ag:
@@ -63,7 +68,7 @@ def custo_pernoite(
     if sit != 'g':
         ult_dia = dias_validos[-1]
         if meia_diaria:
-            valor_ultimo = buscar_valor_por_dia(
+            valor_ultimo = _buscar_valor_por_dia(
                 gp_pg, gp_cid, ult_dia, vals_cache
             )
             key_last = round(valor_ultimo, 2)
@@ -83,54 +88,57 @@ def custo_pernoite(
     return custo
 
 
-def custo_missao(
-    p_g: str,
-    sit: str,
-    mis: dict,
-    grupos_pg: dict,
-    grupos_cidade: dict,
-    valores_cache: dict,
-    soldos_cache: dict = None,
-) -> dict:
+def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
     """
-    Modifica o dicionário da missão adicionando os custos calculados
-    com base nos pernoites.
+    Lê custos do JSONB pré-calculado e monta estrutura para o frontend.
+
+    Se o JSONB estiver vazio, retorna valores zerados (missão sem custos).
     """
-    grupo_pg = grupos_pg.get(p_g)
+    custos_jsonb = mis.get('custos', {})
 
-    mis['dias'] = 0
-    mis['diarias'] = 0
-    mis['valor_total'] = 95 if mis['acrec_desloc'] else 0
-    mis['qtd_ac'] = 1 if mis['acrec_desloc'] else 0
+    # Se não tem custos, retorna zeros
+    if not custos_jsonb or not isinstance(custos_jsonb, dict):
+        mis['dias'] = 0
+        mis['diarias'] = 0
+        mis['valor_total'] = 0
+        mis['qtd_ac'] = 0
+        return mis
 
-    for pnt in mis['pernoites']:
-        grupo_cidade = grupos_cidade.get(pnt['cidade']['codigo'], 3)
-        pnt['gp_cid'] = grupo_cidade
+    chave_pg_sit = f'pg_{p_g}_sit_{sit}'
 
-        custo = custo_pernoite(
-            p_g,
-            sit,
-            pnt['data_ini'],
-            pnt['data_fim'],
-            grupo_pg,
-            grupo_cidade,
-            pnt['meia_diaria'],
-            pnt['acrec_desloc'],
-            soldos_cache,
-            valores_cache,
-        )
+    # Extrair totais gerais
+    mis['dias'] = custos_jsonb.get('total_dias', 0)
+    mis['diarias'] = custos_jsonb.get('total_diarias', 0)
+    acrec_desloc = custos_jsonb.get('acrec_desloc_missao', 0)
+    mis['qtd_ac'] = 1 if acrec_desloc > 0 else 0
 
-        pnt['custo'] = custo
+    # Extrair total de valor para este pg+sit
+    totais_pg_sit = custos_jsonb.get('totais_pg_sit', {})
+    total_valor = totais_pg_sit.get(chave_pg_sit, {}).get('total_valor', 0)
+    mis['valor_total'] = total_valor
 
-        if pnt['acrec_desloc']:
+    # Popular custos de cada pernoite
+    for pnt in mis.get('pernoites', []):
+        pernoite_key = f'pernoite_{pnt["id"]}'
+        pernoite_custos = custos_jsonb.get(pernoite_key, {})
+
+        # Grupo da cidade
+        pnt['gp_cid'] = pernoite_custos.get('grupo_cid', 3)
+
+        # Custos específicos para este pg+sit
+        pg_sit_custos = pernoite_custos.get(chave_pg_sit, {})
+
+        # Montar estrutura de custo compatível
+        pnt['custo'] = {
+            'subtotal': pg_sit_custos.get('subtotal', 0),
+            'ac_desloc': pernoite_custos.get('ac_desloc', 0),
+            'vals': pg_sit_custos.get('vals', []),
+            'dias': pernoite_custos.get('dias', 0),
+        }
+
+        # Contar acréscimos de deslocamento
+        if pernoite_custos.get('ac_desloc', 0) > 0:
             mis['qtd_ac'] += 1
-
-        if sit != 'g':
-            for val in custo['vals']:
-                mis['diarias'] += val['qtd']
-
-        mis['valor_total'] += custo['subtotal']
-        mis['dias'] += custo['dias']
 
     return mis
 
@@ -167,3 +175,137 @@ def verificar_modulo(missoes: list[dict]) -> bool:
             return True
 
     return False
+
+
+def calcular_custos_frag_mis(
+    frag_mis: CustoFragMisInput,
+    users_frag: list[CustoUserFragInput],
+    pernoites: list[CustoPernoiteInput],
+    grupos_pg: dict[str, int],
+    grupos_cidade: dict[int, int],
+    valores_cache: dict[tuple[int, int], list[DiariaValor]],
+    soldos_cache: dict[str, list[Soldo]],
+) -> dict:
+    """
+    Calcula e retorna custos pré-processados para FragMis em formato JSONB.
+
+    Estrutura retornada:
+    {
+      "pernoite_<id>": {
+        "grupo_cid": int,
+        "dias": int,
+        "ac_desloc": int,
+        "pg_<p_g>_sit_<sit>": {
+          "grupo_pg": int,
+          "vals": [{"valor": float, "qtd": float}],
+          "subtotal": float
+        }
+      },
+      "totais_pg_sit": {
+        "pg_<p_g>_sit_<sit>": {
+          "total_valor": float
+        }
+      },
+      "total_dias": int,
+      "total_diarias": float,
+      "acrec_desloc_missao": int
+    }
+
+    Args:
+        frag_mis: Dados da missão (validados com Pydantic)
+        users_frag: Lista de usuários na missão com p_g e sit (validados)
+        pernoites: Lista de pernoites com dados necessários (validados)
+        grupos_pg: Cache de mapeamento pg_short -> grupo_pg (número)
+        grupos_cidade: Cache de mapeamento cidade_id -> grupo_cidade (número)
+        valores_cache: Cache de valores de diárias por (grupo_pg, grupo_cid)
+        soldos_cache: Cache de soldos por pg_short
+
+    Returns:
+        dict: Estrutura JSONB com custos calculados e validados
+    """
+    custos_jsonb = {}
+    totais_pg_sit = {}
+    total_dias_missao = 0
+    total_diarias_missao = 0
+
+    # 1. Extrair combinações únicas de (p_g, sit)
+    combinacoes_pg_sit = {(uf.p_g, uf.sit) for uf in users_frag}
+
+    # 2. Para cada pernoite, calcular custos
+    for pnt in pernoites:
+        pernoite_id = pnt.id
+        pernoite_key = f'pernoite_{pernoite_id}'
+
+        # Determinar grupo_cidade (acesso direto ao atributo validado)
+        cidade_codigo = pnt.cidade_codigo
+        grupo_cidade = grupos_cidade.get(cidade_codigo, 3)
+
+        # Calcular dias do pernoite (comum a todos os usuários)
+        dias_validos = listar_datas_entre(pnt.data_ini, pnt.data_fim)
+        dias_pernoite = len(dias_validos)
+
+        # Inicializar estrutura do pernoite
+        custos_jsonb[pernoite_key] = {
+            'grupo_cid': grupo_cidade,
+            'dias': dias_pernoite,
+            'ac_desloc': 95 if pnt.acrec_desloc else 0,
+        }
+
+        # 3. Para cada combinação (p_g, sit), calcular custo
+        for p_g, sit in combinacoes_pg_sit:
+            pg_sit_key = f'pg_{p_g}_sit_{sit}'
+            grupo_pg = grupos_pg.get(p_g)
+
+            # Calcular custo do pernoite para este pg+sit
+            custo = _custo_pernoite(
+                p_g,
+                sit,
+                pnt.data_ini,
+                pnt.data_fim,
+                grupo_pg,
+                grupo_cidade,
+                pnt.meia_diaria,
+                pnt.acrec_desloc,
+                soldos_cache,
+                valores_cache,
+            )
+
+            # Armazenar custo no pernoite
+            custos_jsonb[pernoite_key][pg_sit_key] = {
+                'grupo_pg': grupo_pg,
+                'vals': custo['vals'],
+                'subtotal': custo['subtotal'],
+            }
+
+            # Acumular totais por pg+sit
+            if pg_sit_key not in totais_pg_sit:
+                totais_pg_sit[pg_sit_key] = {'total_valor': 0}
+
+            totais_pg_sit[pg_sit_key]['total_valor'] += custo['subtotal']
+
+        # 4. Acumular totais gerais da missão (dias e diárias são comuns a todos)
+        total_dias_missao += dias_pernoite
+
+        # Calcular diárias do pernoite (usando sit != 'g' como referência)
+        # Pega a primeira combinação que não seja 'g' ou qualquer uma se todas forem 'g'
+        diarias_pernoite = 0
+        for p_g, sit in combinacoes_pg_sit:
+            if sit != 'g':
+                pg_sit_key = f'pg_{p_g}_sit_{sit}'
+                custo_ref = custos_jsonb[pernoite_key][pg_sit_key]
+                for val in custo_ref['vals']:
+                    diarias_pernoite += val['qtd']
+                break
+        else:
+            # Se todas forem 'g', não conta diárias (só dias)
+            diarias_pernoite = 0
+
+        total_diarias_missao += diarias_pernoite
+
+    # 5. Adicionar totais ao JSONB
+    custos_jsonb['totais_pg_sit'] = totais_pg_sit
+    custos_jsonb['total_dias'] = total_dias_missao
+    custos_jsonb['total_diarias'] = total_diarias_missao
+    custos_jsonb['acrec_desloc_missao'] = 95 if frag_mis.acrec_desloc else 0
+
+    return custos_jsonb
