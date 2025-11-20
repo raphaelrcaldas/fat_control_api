@@ -4,6 +4,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -40,9 +41,12 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
             selectinload(Tripulante.funcs),
         )
         .where(
-            (Funcao.func == funcao)
-            & (Tripulante.uae == uae)
-            & (Tripulante.active)
+            and_(
+                (Funcao.func == funcao),
+                (Tripulante.uae == uae),
+                (Tripulante.active),
+                (User.active),
+            )
         )
         .order_by(
             PostoGrad.ant.asc(),

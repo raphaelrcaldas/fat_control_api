@@ -19,6 +19,7 @@ class UserSchema(BaseModel):
     nasc: Annotated[date | None, Body()]
     email_pess: EmailStr | str
     email_fab: EmailStr | str
+    active: bool
     unidade: str
     ant_rel: int | None = Field(gt=0)
     model_config = ConfigDict(from_attributes=True)
@@ -36,6 +37,7 @@ class UserPublic(BaseModel):
     nome_guerra: str
     saram: int
     nome_completo: str
+    active: bool
     unidade: str
     ult_promo: Annotated[date | None, Body()]
     ant_rel: int | None = Field(gt=0)
