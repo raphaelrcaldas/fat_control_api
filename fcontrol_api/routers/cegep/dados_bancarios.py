@@ -107,13 +107,6 @@ async def create_dados_bancarios(
             detail='Já existem dados bancários cadastrados para este usuário',
         )
 
-    # Valida tipo de conta
-    if dados.tipo_conta not in ['corrente', 'poupanca']:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Tipo de conta deve ser 'corrente' ou 'poupanca'",
-        )
-
     dados_dict = dados.model_dump()
     new_dados = DadosBancarios(**dados_dict)
 
@@ -142,13 +135,6 @@ async def update_dados_bancarios(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Dados bancários não encontrados',
-        )
-
-    # Valida tipo de conta se fornecido
-    if dados.tipo_conta and dados.tipo_conta not in ['corrente', 'poupanca']:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Tipo de conta deve ser 'corrente' ou 'poupanca'",
         )
 
     for key, value in dados.model_dump(exclude_unset=True).items():
