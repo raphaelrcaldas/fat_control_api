@@ -19,7 +19,6 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 async def get_user_roles(user_id: int, session: Session):
     role_data = {'role': None, 'perms': []}
 
-    # Consulta única e eficiente com Eager Loading
     query = (
         select(UserRole)
         .where(UserRole.user_id == user_id)
