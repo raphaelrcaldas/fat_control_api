@@ -6,7 +6,7 @@ authors = ["Raphael R Caldas <raphael008@hotmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.14"
+python = ">=3.13,<3.15"
 fastapi = { extras = ["standard"], version = "0.*" }
 pydantic = { extras = ["email"], version = "^2.8.2" }
 sqlalchemy = { extras = ["mypy"], version = "^2.0.37" }
