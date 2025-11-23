@@ -11,71 +11,80 @@
 ### ✅ O que já existe (Pontos Fortes)
 
 1. **RBAC Completo**
-   - Resources → Permissions → Roles → Users
-   - Modelos em: `fcontrol_api/models/security/resources.py`
-   - Serviço: `fcontrol_api/services/auth.py::get_user_roles()`
+
+   -  Resources → Permissions → Roles → Users
+   -  Modelos em: `fcontrol_api/models/security/resources.py`
+   -  Serviço: `fcontrol_api/services/auth.py::get_user_roles()`
 
 2. **OAuth2 com PKCE**
-   - Authorization Code Flow implementado
-   - PKCE (SHA256) para proteção contra interceptação
-   - Endpoints: `/auth/authorize`, `/auth/token`
+
+   -  Authorization Code Flow implementado
+   -  PKCE (SHA256) para proteção contra interceptação
+   -  Endpoints: `/auth/authorize`, `/auth/token`
 
 3. **JWT Authentication**
-   - Algoritmo: HS256
-   - Token payload: `{sub, user_id, exp}`
-   - TTL atual: 360 minutos (6 horas)
+
+   -  Algoritmo: HS256
+   -  Token payload: `{sub, user_id, exp}`
+   -  TTL atual: 360 minutos (6 horas)
 
 4. **Auditoria Básica**
-   - Tabela: `security.user_action_logs`
-   - Serviço: `fcontrol_api/services/logs.py::log_user_action()`
-   - Logs: login, CRUD de usuários, mudança de senha
+
+   -  Tabela: `security.user_action_logs`
+   -  Serviço: `fcontrol_api/services/logs.py::log_user_action()`
+   -  Logs: login, CRUD de usuários, mudança de senha
 
 5. **Password Security**
-   - Hashing: Argon2 (via pwdlib)
-   - Não armazena senhas em texto plano
+   -  Hashing: Argon2 (via pwdlib)
+   -  Não armazena senhas em texto plano
 
 ### ❌ Gaps Críticos de Segurança
 
-| Gap | Impacto | Prioridade |
-|-----|---------|------------|
-| Permissões não são verificadas nos endpoints | ⚠️ CRÍTICO | P0 |
-| Middleware de autenticação comentado | ⚠️ CRÍTICO | P0 |
-| Endpoints sem autenticação | ⚠️ CRÍTICO | P0 |
-| Sem revogação de tokens | 🔴 ALTO | P0 |
-| Sem auditoria de leitura | 🔴 ALTO | P1 |
-| Sem rate limiting | 🔴 ALTO | P1 |
-| Token TTL muito longo (6h) | 🟡 MÉDIO | P1 |
-| Sem verificação contextual | 🟡 MÉDIO | P2 |
-| Sem MFA | 🟡 MÉDIO | P3 |
+| Gap                                          | Impacto    | Prioridade |
+| -------------------------------------------- | ---------- | ---------- |
+| Permissões não são verificadas nos endpoints | ⚠️ CRÍTICO | P0         |
+| Middleware de autenticação comentado         | ⚠️ CRÍTICO | P0         |
+| Endpoints sem autenticação                   | ⚠️ CRÍTICO | P0         |
+| Sem revogação de tokens                      | 🔴 ALTO    | P0         |
+| Sem auditoria de leitura                     | 🔴 ALTO    | P1         |
+| Sem rate limiting                            | 🔴 ALTO    | P1         |
+| Token TTL muito longo (6h)                   | 🟡 MÉDIO   | P1         |
+| Sem verificação contextual                   | 🟡 MÉDIO   | P2         |
+| Sem MFA                                      | 🟡 MÉDIO   | P3         |
 
 ---
 
 ## 🎯 Princípios Zero Trust a Implementar
 
 ### 1. Never Trust, Always Verify
-- ✅ Verificar TODAS as requisições
-- ✅ Validar autenticação E autorização
-- ✅ Não confiar em requisições internas
+
+-  ✅ Verificar TODAS as requisições
+-  ✅ Validar autenticação E autorização
+-  ✅ Não confiar em requisições internas
 
 ### 2. Least Privilege Access
-- ✅ Usuários só acessam o que precisam
-- ✅ Permissões granulares por recurso/ação
-- ✅ Validar propriedade de recursos
+
+-  ✅ Usuários só acessam o que precisam
+-  ✅ Permissões granulares por recurso/ação
+-  ✅ Validar propriedade de recursos
 
 ### 3. Assume Breach
-- ✅ Tokens podem ser comprometidos → revogação
-- ✅ Senhas podem vazar → MFA
-- ✅ Rede pode ser hostil → criptografia
+
+-  ✅ Tokens podem ser comprometidos → revogação
+-  ✅ Senhas podem vazar → MFA
+-  ✅ Rede pode ser hostil → criptografia
 
 ### 4. Verify Explicitly
-- ✅ Verificar contexto (IP, device, localização)
-- ✅ Verificar em cada requisição, não apenas no login
-- ✅ Auditoria completa de acessos
+
+-  ✅ Verificar contexto (IP, device, localização)
+-  ✅ Verificar em cada requisição, não apenas no login
+-  ✅ Auditoria completa de acessos
 
 ### 5. Microsegmentation
-- ✅ Controle de acesso por endpoint
-- ✅ Separação por schemas (public, security, cegep)
-- ✅ Isolamento de recursos sensíveis
+
+-  ✅ Controle de acesso por endpoint
+-  ✅ Separação por schemas (public, security, cegep)
+-  ✅ Isolamento de recursos sensíveis
 
 ---
 
@@ -88,6 +97,7 @@
 **Objetivo**: Permitir logout e invalidação de tokens comprometidos
 
 #### Modelo: `TokenBlacklist`
+
 **Arquivo**: `fcontrol_api/models/security/token_blacklist.py` ✅ CRIADO
 
 ```python
@@ -103,6 +113,7 @@ class TokenBlacklist(Base):
 ```
 
 #### Migration
+
 **Arquivo**: `migrations/versions/XXXXX_token_blacklist_zero_trust.py` ⏳ PENDENTE
 
 ```python
@@ -123,6 +134,7 @@ def upgrade() -> None:
 ```
 
 #### Serviços de Revogação
+
 **Arquivo**: `fcontrol_api/security.py` ⏳ ADICIONAR
 
 ```python
@@ -214,6 +226,7 @@ async def cleanup_expired_blacklist(session: AsyncSession) -> int:
 ```
 
 #### Atualizar `verify_token()`
+
 **Arquivo**: `fcontrol_api/security.py` (linhas 139-155) ⏳ MODIFICAR
 
 ```python
@@ -257,150 +270,6 @@ async def verify_token(token: str, session: AsyncSession = None) -> bool:
 
     except (JWTError, ValidationError):
         return False
-```
-
-#### Endpoint de Logout
-**Arquivo**: `fcontrol_api/routers/auth.py` ⏳ ADICIONAR
-
-```python
-@router.post('/logout', status_code=status.HTTP_200_OK)
-async def logout(
-    request: Request,
-    session: Session,
-    user: User = Depends(get_current_user),
-):
-    """
-    Logout do usuário - revoga o token atual.
-
-    Zero Trust: Tokens JWT são stateless, mas precisam ser invalidados
-    ao fazer logout para evitar uso após logout.
-    """
-    # Pegar token do cookie
-    token = request.cookies.get('token')
-
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Token não encontrado'
-        )
-
-    # Revogar token
-    await revoke_token(
-        token=token,
-        user_id=user.id,
-        reason='logout',
-        session=session
-    )
-
-    # Logar ação
-    await log_user_action(
-        session=session,
-        user_id=user.id,
-        action='logout',
-        resource='auth',
-    )
-
-    # Limpar cookie
-    response = Response(content='Logout realizado com sucesso', status_code=200)
-    response.delete_cookie('token')
-
-    return response
-```
-
----
-
-### 1.2 Ativar Middleware de Autenticação Global
-
-**Objetivo**: Garantir que TODAS as requisições sejam autenticadas por padrão
-
-**Arquivo**: `fcontrol_api/middlewares.py` ⏳ MODIFICAR
-
-```python
-# MELHORAR O MIDDLEWARE COMENTADO (linhas 9-27)
-
-import logging
-from datetime import datetime
-
-logger = logging.getLogger(__name__)
-
-# Rotas públicas (whitelist explícita)
-PUBLIC_ROUTES = [
-    '/auth/authorize',
-    '/auth/token',
-    '/docs',
-    '/openapi.json',
-    '/redoc',
-]
-
-async def validate_token_and_clear_cookie(request: Request, call_next):
-    """
-    Middleware de autenticação global - Zero Trust.
-
-    Princípio: Never trust, always verify.
-    - Valida token em TODAS as rotas (exceto whitelist)
-    - Bloqueia acesso sem token válido
-    - Audita tentativas de acesso negado
-    - Adiciona contexto de segurança à requisição
-    """
-
-    # 1. Verificar se rota é pública
-    if request.url.path in PUBLIC_ROUTES or request.url.path.startswith('/docs'):
-        return await call_next(request)
-
-    # 2. Extrair token
-    token = request.cookies.get('token')
-
-    # 3. Validar token
-    if not token:
-        logger.warning(
-            f"Acesso negado - Token ausente | "
-            f"Path: {request.url.path} | "
-            f"IP: {request.client.host} | "
-            f"User-Agent: {request.headers.get('user-agent', 'unknown')}"
-        )
-        response = Response(
-            content='Token não fornecido. Autenticação obrigatória.',
-            status_code=401
-        )
-        response.delete_cookie('token')
-        return response
-
-    # 4. Verificar validade E blacklist
-    # TODO: Passar session para verify_token checar blacklist
-    if not verify_token(token):
-        logger.warning(
-            f"Acesso negado - Token inválido/expirado | "
-            f"Path: {request.url.path} | "
-            f"IP: {request.client.host}"
-        )
-        response = Response(
-            content='Token inválido ou expirado.',
-            status_code=401
-        )
-        response.delete_cookie('token')
-        return response
-
-    # 5. Adicionar contexto de segurança ao request
-    # (usado para auditoria e verificação contextual)
-    request.state.security_context = {
-        'token': token,
-        'ip': request.client.host,
-        'user_agent': request.headers.get('user-agent'),
-        'timestamp': datetime.utcnow(),
-    }
-
-    # 6. Processar requisição
-    response = await call_next(request)
-    return response
-```
-
-**Descomentar no final do arquivo**:
-```python
-# ATIVAR MIDDLEWARE
-middleware_stack = [
-    validate_token_and_clear_cookie,  # ✅ ATIVAR
-    add_process_time_header,
-]
 ```
 
 ---
@@ -544,6 +413,7 @@ __all__ = ['require_permission', 'require_read', 'require_write', 'require_delet
 **Objetivo**: Auditar TODAS as operações (leitura e escrita)
 
 #### Expandir Modelo de Logs
+
 **Arquivo**: Migration nova ⏳ CRIAR
 
 ```python
@@ -568,6 +438,7 @@ def upgrade() -> None:
 ```
 
 #### Atualizar Serviço de Logs
+
 **Arquivo**: `fcontrol_api/services/logs.py` ⏳ MODIFICAR
 
 ```python
@@ -610,6 +481,7 @@ async def log_user_action(
 ```
 
 #### Middleware de Auditoria Automática
+
 **Arquivo**: `fcontrol_api/middlewares.py` ⏳ ADICIONAR
 
 ```python
@@ -713,22 +585,22 @@ async def change_password(
 
 **Arquivo**: `ENDPOINT_PERMISSIONS_MAP.md` 🆕 CRIAR (para referência)
 
-| Endpoint | Método | Resource | Action | Nota |
-|----------|--------|----------|--------|------|
-| `/users/` | GET | users | read | Lista usuários |
-| `/users/` | POST | users | write | Criar usuário |
-| `/users/{id}` | GET | users | read | Ver usuário |
-| `/users/{id}` | PATCH | users | write | Editar usuário |
-| `/users/{id}` | DELETE | users | delete | Deletar usuário |
-| `/security/roles/` | GET | roles | read | Admin only |
-| `/security/roles/` | POST | roles | write | Admin only |
-| `/indisp/` | GET | indisp | read | - |
-| `/indisp/` | POST | indisp | write | - |
-| `/logs/` | GET | logs | read | Admin only |
-| `/cegep/missoes/` | GET | missoes | read | - |
-| `/cegep/missoes/` | POST | missoes | write | - |
-| `/ops/quads/` | GET | quads | read | ⚠️ Atualmente público |
-| `/ops/quads/` | POST | quads | write | ⚠️ Atualmente público |
+| Endpoint           | Método | Resource | Action | Nota                  |
+| ------------------ | ------ | -------- | ------ | --------------------- |
+| `/users/`          | GET    | users    | read   | Lista usuários        |
+| `/users/`          | POST   | users    | write  | Criar usuário         |
+| `/users/{id}`      | GET    | users    | read   | Ver usuário           |
+| `/users/{id}`      | PATCH  | users    | write  | Editar usuário        |
+| `/users/{id}`      | DELETE | users    | delete | Deletar usuário       |
+| `/security/roles/` | GET    | roles    | read   | Admin only            |
+| `/security/roles/` | POST   | roles    | write  | Admin only            |
+| `/indisp/`         | GET    | indisp   | read   | -                     |
+| `/indisp/`         | POST   | indisp   | write  | -                     |
+| `/logs/`           | GET    | logs     | read   | Admin only            |
+| `/cegep/missoes/`  | GET    | missoes  | read   | -                     |
+| `/cegep/missoes/`  | POST   | missoes  | write  | -                     |
+| `/ops/quads/`      | GET    | quads    | read   | ⚠️ Atualmente público |
+| `/ops/quads/`      | POST   | quads    | write  | ⚠️ Atualmente público |
 
 ### 2.2 Exemplo de Aplicação
 
@@ -774,19 +646,19 @@ async def create_user(
 
 ### 2.3 Checklist de Routers a Atualizar
 
-- [ ] `routers/users.py` - 8 endpoints
-- [ ] `routers/security.py` - Já usa `require_admin` (converter para require_permission)
-- [ ] `routers/indisp.py` - 5 endpoints
-- [ ] `routers/logs.py` - 2 endpoints
-- [ ] `routers/postos.py` - 3 endpoints
-- [ ] `routers/cities.py` - 3 endpoints ⚠️ Atualmente públicos
-- [ ] `routers/ops/quads.py` - 4 endpoints ⚠️ Atualmente públicos
-- [ ] `routers/ops/funcoes.py` - 3 endpoints
-- [ ] `routers/ops/tripulantes.py` - 4 endpoints
-- [ ] `routers/cegep/missao.py` - 6 endpoints
-- [ ] `routers/cegep/comiss.py` - 4 endpoints
-- [ ] `routers/cegep/financeiro.py` - 3 endpoints
-- [ ] `routers/cegep/dados_bancarios.py` - 5 endpoints
+-  [ ] `routers/users.py` - 8 endpoints
+-  [ ] `routers/security.py` - Já usa `require_admin` (converter para require_permission)
+-  [ ] `routers/indisp.py` - 5 endpoints
+-  [ ] `routers/logs.py` - 2 endpoints
+-  [ ] `routers/postos.py` - 3 endpoints
+-  [ ] `routers/cities.py` - 3 endpoints ⚠️ Atualmente públicos
+-  [ ] `routers/ops/quads.py` - 4 endpoints ⚠️ Atualmente públicos
+-  [ ] `routers/ops/funcoes.py` - 3 endpoints
+-  [ ] `routers/ops/tripulantes.py` - 4 endpoints
+-  [ ] `routers/cegep/missao.py` - 6 endpoints
+-  [ ] `routers/cegep/comiss.py` - 4 endpoints
+-  [ ] `routers/cegep/financeiro.py` - 3 endpoints
+-  [ ] `routers/cegep/dados_bancarios.py` - 5 endpoints
 
 **Total**: ~53 endpoints a atualizar
 
@@ -1140,10 +1012,11 @@ class UserMFA(Base):
 ```
 
 **Endpoints**:
-- `POST /auth/mfa/enable` - Gera QR code
-- `POST /auth/mfa/verify` - Valida código TOTP
-- `POST /auth/mfa/disable` - Desabilita MFA
-- `GET /auth/mfa/backup-codes` - Regenera códigos de backup
+
+-  `POST /auth/mfa/enable` - Gera QR code
+-  `POST /auth/mfa/verify` - Valida código TOTP
+-  `POST /auth/mfa/disable` - Desabilita MFA
+-  `GET /auth/mfa/backup-codes` - Regenera códigos de backup
 
 ---
 
@@ -1187,50 +1060,56 @@ FROM security.resources r;
 ## ✅ Checklist de Implementação
 
 ### Fase 1 - Fundação Crítica
-- [x] Criar modelo `TokenBlacklist`
-- [ ] Criar migration `token_blacklist`
-- [ ] Implementar serviços de revogação em `security.py`
-- [ ] Atualizar `verify_token()` para checar blacklist
-- [ ] Criar endpoint `POST /auth/logout`
-- [ ] Criar decorator `@require_permission()`
-- [ ] Ativar middleware de autenticação global
-- [ ] Expandir `log_user_action()` com contexto
-- [ ] Criar middleware de auditoria automática
-- [ ] Revogar tokens ao trocar senha
+
+-  [x] Criar modelo `TokenBlacklist`
+-  [ ] Criar migration `token_blacklist`
+-  [ ] Implementar serviços de revogação em `security.py`
+-  [ ] Atualizar `verify_token()` para checar blacklist
+-  [ ] Criar endpoint `POST /auth/logout`
+-  [ ] Criar decorator `@require_permission()`
+-  [ ] Ativar middleware de autenticação global
+-  [ ] Expandir `log_user_action()` com contexto
+-  [ ] Criar middleware de auditoria automática
+-  [ ] Revogar tokens ao trocar senha
 
 ### Fase 2 - Autorização Granular
-- [ ] Criar `ENDPOINT_PERMISSIONS_MAP.md`
-- [ ] Aplicar decorators em 53 endpoints
-- [ ] Criar permissões no banco (SQL acima)
-- [ ] Testar fluxo completo de autorização
-- [ ] Documentar permissões necessárias por role
+
+-  [ ] Criar `ENDPOINT_PERMISSIONS_MAP.md`
+-  [ ] Aplicar decorators em 53 endpoints
+-  [ ] Criar permissões no banco (SQL acima)
+-  [ ] Testar fluxo completo de autorização
+-  [ ] Documentar permissões necessárias por role
 
 ### Fase 3 - Sessões e Rate Limiting
-- [ ] Adicionar Redis ao projeto
-- [ ] Implementar `SessionManager`
-- [ ] Criar sessão ao gerar token
-- [ ] Adicionar rate limiting com slowapi
-- [ ] Configurar limites por endpoint
+
+-  [ ] Adicionar Redis ao projeto
+-  [ ] Implementar `SessionManager`
+-  [ ] Criar sessão ao gerar token
+-  [ ] Adicionar rate limiting com slowapi
+-  [ ] Configurar limites por endpoint
 
 ### Fase 4 - Segurança Avançada
-- [ ] Reduzir token TTL para 30min
-- [ ] Implementar refresh token rotation
-- [ ] Criar middleware de security headers
-- [ ] Gerar par de chaves RSA
-- [ ] Migrar de HS256 para RS256
+
+-  [ ] Reduzir token TTL para 30min
+-  [ ] Implementar refresh token rotation
+-  [ ] Criar middleware de security headers
+-  [ ] Gerar par de chaves RSA
+-  [ ] Migrar de HS256 para RS256
 
 ### Fase 5 - MFA e Monitoramento
-- [ ] Adicionar pyotp e qrcode
-- [ ] Criar modelo `UserMFA`
-- [ ] Implementar endpoints de MFA
-- [ ] Tornar MFA obrigatório para admin
-- [ ] Criar dashboard de segurança
+
+-  [ ] Adicionar pyotp e qrcode
+-  [ ] Criar modelo `UserMFA`
+-  [ ] Implementar endpoints de MFA
+-  [ ] Tornar MFA obrigatório para admin
+-  [ ] Criar dashboard de segurança
 
 ---
 
 ## 🧪 Testes Recomendados
 
 ### Testes de Autenticação
+
 ```python
 # test_auth_zero_trust.py
 
@@ -1267,6 +1146,7 @@ async def test_password_change_revokes_tokens():
 ```
 
 ### Testes de Rate Limiting
+
 ```python
 async def test_rate_limit_login():
     """Deve bloquear após 5 tentativas em 1 minuto."""
@@ -1283,16 +1163,18 @@ async def test_rate_limit_login():
 ## 📚 Referências
 
 ### Documentação
-- [NIST Zero Trust Architecture](https://www.nist.gov/publications/zero-trust-architecture)
-- [OAuth 2.0 RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749)
-- [PKCE RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636)
-- [JWT RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519)
+
+-  [NIST Zero Trust Architecture](https://www.nist.gov/publications/zero-trust-architecture)
+-  [OAuth 2.0 RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749)
+-  [PKCE RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636)
+-  [JWT RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519)
 
 ### Bibliotecas
-- [FastAPI Security](https://fastapi.tiangolo.com/tutorial/security/)
-- [PyJWT](https://pyjwt.readthedocs.io/)
-- [SlowAPI](https://slowapi.readthedocs.io/)
-- [PyOTP](https://pyauth.github.io/pyotp/)
+
+-  [FastAPI Security](https://fastapi.tiangolo.com/tutorial/security/)
+-  [PyJWT](https://pyjwt.readthedocs.io/)
+-  [SlowAPI](https://slowapi.readthedocs.io/)
+-  [PyOTP](https://pyauth.github.io/pyotp/)
 
 ---
 
@@ -1341,15 +1223,15 @@ mv keys/public_key_new.pem keys/public_key.pem
 
 Após implementação completa, o sistema deve atender:
 
-- ✅ **100% dos endpoints** protegidos por autenticação
-- ✅ **100% dos endpoints** protegidos por autorização granular
-- ✅ **100% das operações** auditadas (read + write)
-- ✅ **Logout funcional** com revogação de tokens
-- ✅ **Rate limiting** ativo em endpoints críticos
-- ✅ **Token TTL ≤ 30 minutos**
-- ✅ **Sessões rastreadas** em tempo real
-- ✅ **MFA disponível** para roles críticas
-- ✅ **Zero confiança implícita** em qualquer requisição
+-  ✅ **100% dos endpoints** protegidos por autenticação
+-  ✅ **100% dos endpoints** protegidos por autorização granular
+-  ✅ **100% das operações** auditadas (read + write)
+-  ✅ **Logout funcional** com revogação de tokens
+-  ✅ **Rate limiting** ativo em endpoints críticos
+-  ✅ **Token TTL ≤ 30 minutos**
+-  ✅ **Sessões rastreadas** em tempo real
+-  ✅ **MFA disponível** para roles críticas
+-  ✅ **Zero confiança implícita** em qualquer requisição
 
 ---
 

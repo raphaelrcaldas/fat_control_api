@@ -1,45 +1,102 @@
+import base64
 import inspect
+import logging
 import sys
 import time
+from datetime import datetime
 
 from fastapi import Request, Response
+from jwt import PyJWTError, decode
 
-from fcontrol_api.security import verify_token
+from fcontrol_api.settings import Settings
 
-# async def validate_token_and_clear_cookie(request: Request, call_next):
-#     # Ignora as rotas de obtenção de credenciais
-#     if request.url.path in ['/auth/authorize', '/auth/token']:
-#         return await call_next(request)
+settings = Settings()
+logger = logging.getLogger(__name__)
 
-#     token = request.cookies.get('token')
 
-#     # Se não houver token
-#     # Ou um token for fornecido, mas for inválido, bloqueia o acesso
-#     if not token or not verify_token(token):
-#         response = Response(
-#             content='Token inválido ou expirado.', status_code=401
-#         )
-#         response.delete_cookie('token')
-#         return response
+async def validate_token(request: Request, call_next):
+    PUBLIC_ROUTES = [
+        '/auth/authorize',
+        '/auth/token',
+        '/docs',
+        '/openapi.json',
+        '/redoc',
+    ]
 
-#     # Se o token for válido, processa a requisição
-#     response = await call_next(request)
-#     return response
+    # 1. Verificar se rota é pública
+    if request.url.path in PUBLIC_ROUTES:
+        return await call_next(request)
+
+    # 2. Extrair token
+    auth_header = request.headers.get('authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+    else:
+        logger.warning(
+            f'Token ausente | '
+            f'Path: {request.url.path} | '
+            f'IP: {request.client.host} | '
+            f'User-Agent: {request.headers.get("user-agent", "unknown")}'
+        )
+        response = Response(
+            content='Token não fornecido',
+            status_code=401,
+        )
+        return response
+
+    # 3. DECODIFICAR TOKEN
+    try:
+        payload = decode(
+            token,
+            base64.urlsafe_b64decode(settings.SECRET_KEY + '========'),
+            algorithms=[settings.ALGORITHM],
+        )
+        user_id = payload.get('user_id')
+
+        if not user_id:
+            raise PyJWTError('user_id ausente no token')
+
+    except PyJWTError as e:
+        logger.warning(
+            f'Token inválido: {e} | '
+            f'Path: {request.url.path} | '
+            f'IP: {request.client.host}'
+        )
+        response = Response(
+            content='Token inválido ou expirado.', status_code=401
+        )
+        return response
+
+    # IMPLEMENTAR BLACKLIST
+
+    # 4. Adicionar contexto de segurança ao request
+    request.state.token_payload = payload
+    request.state.user_id = user_id
+    request.state.token = token
+
+    request.state.security_context = {
+        'ip': request.client.host,
+        'user_agent': request.headers.get('user-agent'),
+        'timestamp': datetime.now(),
+    }
+
+    response = await call_next(request)
+    return response
 
 
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
-    process_time = round(time.time() - start_time, 4)
-    response.headers['X-Process-Time'] = str(process_time)
+    duration = (time.time() - start_time) * 1000
+    response.headers['X-Process-Time'] = f'{duration:.2f}ms'
 
     return response
 
 
+# Obtém todas as funções assíncronas definidas neste módulo
 def get_middleware_stack():
     middleware_stack = []
     current_module = sys.modules[__name__]
-    # Obtém todas as funções assíncronas definidas neste módulo
     for _, func in inspect.getmembers(
         current_module, inspect.iscoroutinefunction
     ):

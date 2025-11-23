@@ -5,9 +5,9 @@ from http import HTTPStatus
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jwt import DecodeError, ExpiredSignatureError, decode, encode
+from jwt import encode
 from pwdlib import PasswordHash
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -71,43 +71,32 @@ def create_access_token(data: dict, dev: bool = False):
     return encoded_jwt
 
 
-async def get_current_user(
-    session: Session, token: str = Depends(oauth2_scheme)
-):
-    if not token:
+async def get_current_user(request: Request, session: Session):
+    # Verificar se middleware processou a autenticação
+    if not hasattr(request.state, 'user_id'):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Not authenticated',
-            headers={'WWW-Authenticate': 'Bearer'},
+            status_code=status.HTTP_401_UNAUTHORIZED, detail='Não autenticado'
         )
 
-    credentials_exception = HTTPException(
-        status_code=HTTPStatus.UNAUTHORIZED,
-        detail='Could not validate credentials',
-        headers={'WWW-Authenticate': 'Bearer'},
-    )
+    user_id = request.state.user_id
 
-    try:
-        payload = decode(
-            token,
-            base64.urlsafe_b64decode(settings.SECRET_KEY + '========'),
-            algorithms=[settings.ALGORITHM],
-        )
-
-        user_id: int = payload.get('user_id')
-
-        if not user_id:
-            raise credentials_exception
-
-    except DecodeError:
-        raise credentials_exception
-    except ExpiredSignatureError:
-        raise credentials_exception
-
-    user = await session.scalar(select(User).where(User.id == user_id))
+    # Buscar usuário no banco
+    stmt = select(User).where(User.id == user_id)
+    user = await session.scalar(stmt)
 
     if not user:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Usuário não encontrado',
+        )
+
+    if not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail='Usuário inativo'
+        )
+
+    # Armazenar User em request.state
+    request.state.current_user = user
 
     return user
 
@@ -134,22 +123,3 @@ async def require_admin(
         )
 
     return user
-
-
-def verify_token(token: str | None):
-    try:
-        payload = decode(
-            token,
-            base64.urlsafe_b64decode(settings.SECRET_KEY + '========'),
-            algorithms=[settings.ALGORITHM],
-        )
-
-        user_id: int = payload.get('user_id')
-
-        if not user_id:
-            return False
-
-    except (DecodeError, ExpiredSignatureError):
-        return False
-
-    return True
