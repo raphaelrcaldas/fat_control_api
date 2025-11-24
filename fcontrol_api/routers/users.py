@@ -17,7 +17,11 @@ from fcontrol_api.schemas.users import (
     UserSchema,
     UserUpdate,
 )
-from fcontrol_api.security import get_current_user, get_password_hash
+from fcontrol_api.security import (
+    get_current_user,
+    get_password_hash,
+    permission_checker,
+)
 from fcontrol_api.services.auth import get_user_roles
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.users import check_user_conflicts
@@ -103,36 +107,36 @@ async def reset_pwd(
 
 @router.post('/', status_code=HTTPStatus.CREATED)
 async def create_user(
-    payloadUser: UserSchema,
+    payload: UserSchema,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: User = Depends(permission_checker('user', 'create')),
 ):
     # Verifica conflitos de unicidade
     await check_user_conflicts(
         session,
-        saram=payloadUser.saram,
-        id_fab=payloadUser.id_fab,
-        cpf=payloadUser.cpf,
-        email_fab=payloadUser.email_fab,
-        email_pess=payloadUser.email_pess,
+        saram=payload.saram,
+        id_fab=payload.id_fab,
+        cpf=payload.cpf,
+        email_fab=payload.email_fab,
+        email_pess=payload.email_pess,
     )
 
     hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)
 
     db_user = User(
-        p_g=payloadUser.p_g,
-        esp=payloadUser.esp,
-        nome_guerra=payloadUser.nome_guerra,
-        nome_completo=payloadUser.nome_completo,
-        ult_promo=payloadUser.ult_promo,
-        id_fab=payloadUser.id_fab,
-        saram=payloadUser.saram,
-        cpf=payloadUser.cpf,
-        nasc=payloadUser.nasc,
-        email_pess=payloadUser.email_pess,
-        email_fab=payloadUser.email_fab,
-        unidade=payloadUser.unidade,
-        ant_rel=payloadUser.ant_rel,
+        p_g=payload.p_g,
+        esp=payload.esp,
+        nome_guerra=payload.nome_guerra,
+        nome_completo=payload.nome_completo,
+        ult_promo=payload.ult_promo,
+        id_fab=payload.id_fab,
+        saram=payload.saram,
+        cpf=payload.cpf,
+        nasc=payload.nasc,
+        email_pess=payload.email_pess,
+        email_fab=payload.email_fab,
+        unidade=payload.unidade,
+        ant_rel=payload.ant_rel,
         password=hashed_password,
     )
 
@@ -194,7 +198,7 @@ async def update_user(
     user_id: int,
     user_patch: UserUpdate,  # type: ignore
     session: Session,
-    user: User = Depends(get_current_user),
+    user: User = Depends(permission_checker('user', 'update')),
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
 

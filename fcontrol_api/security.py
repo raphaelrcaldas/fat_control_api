@@ -5,8 +5,7 @@ from http import HTTPStatus
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Request
 from jwt import encode
 from pwdlib import PasswordHash
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,13 +15,14 @@ from sqlalchemy.orm import joinedload
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.resources import UserRole
+from fcontrol_api.services.auth import get_user_roles
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.settings import Settings
 
 settings = Settings()
 pwd_context = PasswordHash.recommended()
 
 Session = Annotated[AsyncSession, Depends(get_session)]
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/token')
 
 
 def get_password_hash(password: str):
@@ -33,15 +33,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_pkce_code_challenge(code_verifier: str) -> str:
-    """Cria um code_challenge a partir de um code_verifier usando S256."""
-    sha256_hash = hashlib.sha256(code_verifier.encode()).digest()
-    return base64.urlsafe_b64encode(sha256_hash).rstrip(b'=').decode()
-
-
 def verify_pkce_challenge(code_verifier: str, code_challenge: str) -> bool:
-    """Verifica se o code_verifier corresponde ao code_challenge."""
-    return create_pkce_code_challenge(code_verifier) == code_challenge
+    sha256_hash = hashlib.sha256(code_verifier.encode()).digest()
+    code = base64.urlsafe_b64encode(sha256_hash).rstrip(b'=').decode()
+
+    return code == code_challenge
 
 
 def token_data(user: User):
@@ -75,7 +71,7 @@ async def get_current_user(request: Request, session: Session):
     # Verificar se middleware processou a autenticação
     if not hasattr(request.state, 'user_id'):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail='Não autenticado'
+            status_code=HTTPStatus.UNAUTHORIZED, detail='Não autenticado'
         )
 
     user_id = request.state.user_id
@@ -86,13 +82,13 @@ async def get_current_user(request: Request, session: Session):
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=HTTPStatus.UNAUTHORIZED,
             detail='Usuário não encontrado',
         )
 
     if not user.active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail='Usuário inativo'
+            status_code=HTTPStatus.FORBIDDEN, detail='Usuário inativo'
         )
 
     # Armazenar User em request.state
@@ -123,3 +119,48 @@ async def require_admin(
         )
 
     return user
+
+
+def permission_checker(resource: str, action: str):
+    async def check_permission(
+        session: Session,
+        user: User = Depends(get_current_user),
+    ) -> User:
+        "Verifica se usuário tem permissão necessária."
+
+        # Buscar permissões do usuário
+        user_data = await get_user_roles(user.id, session)
+
+        if not user_data:
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN,
+                detail='Usuário sem role atribuída',
+            )
+
+        # Verificar se tem a permissão necessária
+        user_permissions = user_data.get('perms', [])
+
+        has_permission = any(
+            perm['resource'] == resource and perm['name'] == action
+            for perm in user_permissions
+        )
+
+        if not has_permission:
+            await log_user_action(
+                session=session,
+                user_id=user.id,
+                action='access_denied',
+                resource=resource,
+                resource_id=None,
+                before=None,
+                after=f"Tentou ação '{action}' sem permissão",
+            )
+
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN,
+                detail=f'Permissão negada: {resource}.{action}',
+            )
+
+        return user
+
+    return check_permission
