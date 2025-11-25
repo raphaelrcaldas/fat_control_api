@@ -34,12 +34,46 @@ router = APIRouter(
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 
-@router.get('/roles', response_model=list[RoleSchema])
+@router.get('/roles', response_model=list[RoleDetailSchema])
 async def list_roles(session: Session, _: User = Depends(require_admin)):
-    stmt = select(Roles).order_by(Roles.name)
-    roles = await session.scalars(stmt)
+    stmt = (
+        select(Roles)
+        .options(
+            joinedload(Roles.permissions)
+            .joinedload(RolePermissions.permission)
+            .joinedload(Permissions.resource)
+        )
+        .order_by(Roles.name)
+    )
+    result = await session.execute(stmt)
+    roles = result.unique().scalars()
 
-    return list(roles)
+    return [
+        RoleDetailSchema(
+            id=role.id,
+            name=role.name,
+            description=role.description,
+            permissions=[
+                PermissionDetailSchema(
+                    id=rp.permission.id,
+                    resource=rp.permission.resource.name,
+                    action=rp.permission.name,
+                    description=rp.permission.description,
+                )
+                for rp in role.permissions
+            ],
+        )
+        for role in roles
+    ]
+
+
+@router.get('/roles/users', response_model=list[UserWithRole])
+async def list_users_roles(session: Session):
+    urs = await session.scalars(
+        select(UserRole).options(joinedload(UserRole.user))
+    )
+
+    return urs.all()
 
 
 @router.get('/roles/{role_id}', response_model=RoleDetailSchema)
@@ -77,15 +111,6 @@ async def get_role_detail(
             for rp in role.permissions
         ],
     )
-
-
-@router.get('/roles/users', response_model=list[UserWithRole])
-async def list_users_roles(session: Session):
-    urs = await session.scalars(
-        select(UserRole).options(joinedload(UserRole.user))
-    )
-
-    return urs.all()
 
 
 @router.post('/roles/users')
