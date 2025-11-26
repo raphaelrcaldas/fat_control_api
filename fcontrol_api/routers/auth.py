@@ -29,6 +29,7 @@ from fcontrol_api.security import (
     verify_password,
     verify_pkce_challenge,
 )
+from fcontrol_api.services.auth import validate_user_client_access
 from fcontrol_api.services.logs import log_user_action
 
 router = APIRouter(prefix='/auth', tags=['auth'])
@@ -75,14 +76,17 @@ async def authorize(
             status_code=HTTPStatus.UNAUTHORIZED, detail='Credenciais inválidas'
         )
 
-    # 3. Verficar se usuário esta ativo
+    # 2.1. Verficar se usuário esta ativo
     if not user.active:
         raise HTTPException(
             status_code=HTTPStatus.UNAUTHORIZED,
             detail='Conta inativa. Contate o suporte',
         )
 
-    # 4. Gerar e salvar o código de autorização de uso único
+    # 2.5 Verificar permissões mínimas baseado no cliente
+    await validate_user_client_access(user.id, client.client_id, session)
+
+    # 3. Gerar e salvar o código de autorização de uso único
     auth_code = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
 
@@ -187,7 +191,7 @@ async def exchange_code_for_token(
 
     await session.commit()
 
-    data = token_data(user)
+    data = token_data(user, client_id)
     access_token = create_access_token(data=data)
 
     return {

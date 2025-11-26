@@ -52,9 +52,13 @@ async def validate_token(request: Request, call_next):
             algorithms=[settings.ALGORITHM],
         )
         user_id = payload.get('user_id')
+        app_client = payload.get('app_client')
 
         if not user_id:
             raise PyJWTError('user_id ausente no token')
+
+        if not app_client:
+            raise PyJWTError('app_client ausente no token')
 
     except PyJWTError as e:
         logger.warning(
@@ -73,6 +77,7 @@ async def validate_token(request: Request, call_next):
     request.state.token_payload = payload
     request.state.user_id = user_id
     request.state.token = token
+    request.state.app_client = app_client
 
     request.state.security_context = {
         'ip': request.client.host,

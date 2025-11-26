@@ -15,7 +15,10 @@ from sqlalchemy.orm import joinedload
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.resources import UserRole
-from fcontrol_api.services.auth import get_user_roles
+from fcontrol_api.services.auth import (
+    get_user_roles,
+    validate_user_client_access,
+)
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.settings import Settings
 
@@ -40,10 +43,11 @@ def verify_pkce_challenge(code_verifier: str, code_challenge: str) -> bool:
     return code == code_challenge
 
 
-def token_data(user: User):
+def token_data(user: User, client: str):
     data = {
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
+        'app_client': client,
     }
 
     return data
@@ -90,6 +94,11 @@ async def get_current_user(request: Request, session: Session):
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN, detail='Usuário inativo'
         )
+
+    # Verificar permissões mínimas a cada requisição
+    app_client = request.state.app_client
+    if app_client:
+        await validate_user_client_access(user.id, app_client, session)
 
     # Armazenar User em request.state
     request.state.current_user = user
