@@ -1,14 +1,21 @@
 import importlib
 import pkgutil
+from typing import Sequence
 
 from fastapi import APIRouter
+from fastapi.params import Depends
 
 from fcontrol_api.settings import Settings
 
 settings = Settings()
 
 
-def load_routers(path: list[str], name: str, prefix: str = '') -> APIRouter:
+def load_routers(
+    path: list[str],
+    name: str,
+    prefix: str = '',
+    dependencies: Sequence[Depends] | None = None,
+) -> APIRouter:
     """
     Carrega dinamicamente os roteadores de um pacote no mesmo nível.
 
@@ -17,11 +24,13 @@ def load_routers(path: list[str], name: str, prefix: str = '') -> APIRouter:
         name (str): O nome do pacote (geralmente __name__).
         prefix (str, optional): Um prefixo a ser adicionado a todas as rotas.
             Defaults to ''.
+        dependencies (Sequence[Depends] | None, optional): Dependências a serem
+            aplicadas a todos os roteadores carregados. Defaults to None.
 
     Returns:
         APIRouter: Uma instância de APIRouter com os roteadores incluídos.
     """
-    router = APIRouter()
+    router = APIRouter(dependencies=dependencies)
     loaded_modules = []
 
     # Itera sobre os módulos no mesmo nível do pacote
