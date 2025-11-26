@@ -59,7 +59,7 @@ async def list_roles(session: Session):
     ]
 
 
-@router.get('/users', response_model=list[UserWithRole])
+@router.get('/users/', response_model=list[UserWithRole])
 async def list_users_roles(session: Session):
     urs = await session.scalars(
         select(UserRole).options(joinedload(UserRole.user))
@@ -103,7 +103,7 @@ async def get_role_detail(role_id: int, session: Session):
     )
 
 
-@router.post('/users')
+@router.post('/users/')
 async def add_user_role(new_role: UserRoleSchema, session: Session):
     user = await session.scalar(
         select(User).where(User.id == new_role.user_id)
@@ -122,7 +122,7 @@ async def add_user_role(new_role: UserRoleSchema, session: Session):
     return {'detail': 'Perfil cadastrado com sucesso'}
 
 
-@router.put('/users')
+@router.put('/users/')
 async def update_user_role(role_patch: UserRoleSchema, session: Session):
     user_reg = await session.scalar(
         select(UserRole).where(UserRole.user_id == role_patch.user_id)
@@ -140,7 +140,7 @@ async def update_user_role(role_patch: UserRoleSchema, session: Session):
     return {'detail': 'Perfil atualizado com sucesso'}
 
 
-@router.delete('/users')
+@router.delete('/users/')
 async def delete_user_role(role_body: UserRoleSchema, session: Session):
     user_reg = await session.scalar(
         select(UserRole).where(UserRole.user_id == role_body.user_id)
