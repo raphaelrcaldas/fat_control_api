@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, create_model
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
 
@@ -22,6 +22,32 @@ class UserSchema(BaseModel):
     active: bool
     unidade: str
     ant_rel: int | None = Field(gt=0)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserUpdate(BaseModel):
+    """Schema para atualização parcial do usuário.
+
+    Todos os campos são opcionais. Apenas os campos fornecidos
+    serão atualizados no banco de dados.
+    """
+
+    p_g: str | None = None
+    esp: str | None = None
+    nome_guerra: str | None = None
+    nome_completo: str | None = None
+    id_fab: int | None = Field(default=None, ge=100000)
+    saram: int | None = Field(default=None, ge=1000000, le=9999999)
+    cpf: str | None = None
+    ult_promo: date | None = None
+    nasc: date | None = None
+    email_pess: EmailStr | str | None = None
+    email_fab: EmailStr | str | None = None
+    active: bool | None = None
+    unidade: str | None = None
+    ant_rel: int | None = Field(default=None, gt=0)
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -62,22 +88,3 @@ class UserProfile(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# cria UserUpdate dinamicamente a partir dos campos de UserSchema
-_base_fields: dict = {}
-for name, info in UserSchema.model_fields.items():
-    _base_fields[name] = (info.annotation, None)
-
-# opcional: incluir campos adicionais presentes em UserFull (ex: posto)
-# if 'UserFull' in globals() and 'posto' in UserFull.model_fields:
-#     posto_info = UserFull.model_fields['posto']
-#     _base_fields['posto'] = (posto_info.annotation, None)
-
-UserUpdate = create_model(
-    'UserUpdate',
-    __base__=BaseModel,
-    **_base_fields,
-)
-UserUpdate.model_config = ConfigDict(from_attributes=True)
-UserUpdate.__doc__ = 'Schema para atualização parcial do usuário.'

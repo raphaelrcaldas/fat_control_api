@@ -48,9 +48,7 @@ async def popular_custos():
 
         grupos_pg = dict(
             (
-                await session.execute(
-                    select(GrupoPg.pg_short, GrupoPg.grupo)
-                )
+                await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))
             ).all()
         )
         grupos_cidade = dict(
@@ -155,13 +153,11 @@ async def popular_custos():
 
                 except Exception as e:
                     erros += 1
-                    erros_detalhes.append(
-                        {
-                            'id': missao.id,
-                            'desc': missao.desc,
-                            'erro': str(e),
-                        }
-                    )
+                    erros_detalhes.append({
+                        'id': missao.id,
+                        'desc': missao.desc,
+                        'erro': str(e),
+                    })
                     pbar.set_description(f'❌ Erro na missão {missao.id}')
 
                 finally:
@@ -187,13 +183,15 @@ async def popular_custos():
             print('DETALHES DOS ERROS:')
             print('-' * 80)
             for erro in erros_detalhes:
-                print(
-                    f"ID {erro['id']:4d} | {erro['desc'][:40]:40s} | {erro['erro']}"
-                )
+                id_erro = f'{erro["id"]:4d}'
+                desc = f'{erro["desc"][:40]:40s}'
+                print(f'ID {id_erro} | {desc} | {erro["erro"]}')
             print()
 
         # Taxa de sucesso
-        taxa_sucesso = (sucesso / total_missoes * 100) if total_missoes > 0 else 0
+        taxa_sucesso = (
+            (sucesso / total_missoes * 100) if total_missoes > 0 else 0
+        )
         print(f'Taxa de sucesso: {taxa_sucesso:.1f}%')
         print('=' * 80)
 

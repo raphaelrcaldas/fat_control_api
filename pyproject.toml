@@ -37,6 +37,7 @@ trio = "^0.28.0"
 pytest-asyncio = "^0.25.2"
 gevent = "^24.11.1"
 tqdm = "^4.66.0"
+testcontainers = {extras = ["postgres"], version = "^4.13.3"}
 
 [tool.ruff]
 line-length = 79
@@ -45,6 +46,7 @@ extend-exclude = ['migrations']
 [tool.ruff.lint]
 preview = true
 select = ['I', 'F', 'E', 'W', 'PL', 'PT']
+ignore = ['PLR0913', 'PLR0915', 'PLR0914', 'PLR0917', 'PLR0912']
 
 [tool.ruff.format]
 preview = true
@@ -54,8 +56,6 @@ quote-style = 'single'
 pythonpath = "."
 addopts = '-p no:warnings'
 
-[tool.coverage.run]
-concurrency = ["gevent"]
 
 [tool.taskipy.tasks]
 run = 'fastapi run fcontrol_api/app.py --reload --host 0.0.0.0 --port 8000'

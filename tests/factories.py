@@ -1,3 +1,7 @@
+"""
+Factories para criação de objetos de teste usando factory_boy.
+"""
+
 import datetime
 import typing
 
@@ -8,15 +12,20 @@ from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.quads import Quad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
+from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
 
 
 class UserFactory(factory.Factory):
+    """
+    Factory para criar usuários de teste.
+    """
+
     class Meta:
         model = User
 
-    p_g = factory.fuzzy.FuzzyChoice([i for i in range(1, 3)])
+    p_g = factory.fuzzy.FuzzyChoice(['2s', '3s', 'cb'])
     esp = factory.fuzzy.FuzzyText(length=3)
     nome_guerra = factory.Sequence(lambda n: f'fulano{n}')
     nome_completo = factory.Sequence(lambda n: f'fulano{n} da silva')
@@ -37,16 +46,24 @@ class UserFactory(factory.Factory):
 
 
 class TripFactory(factory.Factory):
+    """
+    Factory para criar tripulantes.
+    """
+
     class Meta:
         model = Tripulante
 
     user_id: int
     trig = factory.Sequence(lambda n: f'ab{chr(96 + n)}')
-    active = factory.fuzzy.FuzzyChoice([True, False])
+    active = True  # Padrão ativo (mais comum em testes)
     uae = factory.fuzzy.FuzzyChoice(typing.get_args(uaes))
 
 
 class FuncFactory(factory.Factory):
+    """
+    Factory para criar funções vinculadas a tripulantes.
+    """
+
     class Meta:
         model = Funcao
 
@@ -58,10 +75,46 @@ class FuncFactory(factory.Factory):
 
 
 class QuadFactory(factory.Factory):
+    """
+    Factory para criar quadrantes vinculados a tripulantes.
+
+    ATENÇÃO: Esta factory requer seed data para quads_type.
+    O type_id hardcoded (1) assume que existe um quads_type.id = 1
+    no banco de dados.
+
+    IMPORTANTE: Requer trip_id ao criar.
+
+    Status: ⚠️ DESABILITADA até seed data de quads_type ser criada.
+
+    Uso (quando habilitada):
+        quad = QuadFactory(trip_id=trip.id)
+        quad_especifico = QuadFactory(
+            trip_id=trip.id,
+            type_id=2,
+            description='Descrição customizada'
+        )
+
+    TODO: Criar seed data para quads_type ou usar SubFactory
+    """
+
     class Meta:
         model = Quad
 
     description = factory.fuzzy.FuzzyText(length=6)
-    type = factory.fuzzy.FuzzyText(length=6)
-    value = factory.fuzzy.FuzzyInteger(low=1, high=1000000)
+    type_id = 1  # ⚠️ HARDCODED - requer quads_type.id = 1 no seed
+    value = factory.fuzzy.FuzzyDate(datetime.date(2024, 1, 1))
     trip_id: int
+
+
+class OAuth2ClientFactory(factory.Factory):
+    """
+    Factory para criar clientes OAuth2.
+    """
+
+    class Meta:
+        model = OAuth2Client
+
+    client_id = factory.Sequence(lambda n: f'test-client-{n}')
+    client_secret = factory.fuzzy.FuzzyText(length=32)
+    redirect_uri = 'http://localhost:3000/callback'
+    is_confidential = False

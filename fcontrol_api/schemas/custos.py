@@ -44,7 +44,7 @@ class CustoUserFragInput(BaseModel):
     )
     sit: str = Field(
         ...,
-        description="Situação do usuário: 'c' (comissionado) ou 'g' (gratificação)",
+        description="Situação do usuário: 'c' (comiss) ou 'g' (grat rep)",
         pattern='^[cgd]$',
     )
 

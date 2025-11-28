@@ -134,8 +134,7 @@ async def get_cmtos(
             soma_cumprir = c['valor_aj_ab'] + c['valor_aj_fc']
             completude = c['vals_comp'] / soma_cumprir
 
-        if completude > 1:
-            completude = 1
+        completude = min(completude, 1)
 
         c['completude'] = round(completude, 3)
 

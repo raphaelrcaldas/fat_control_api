@@ -19,9 +19,11 @@ class OAuth2Client(Base):
         String(255), nullable=True
     )
     redirect_uri: Mapped[str] = mapped_column(String(255))
-    tokens: Mapped[list['OAuth2Token']] = relationship(back_populates='client')
+    tokens: Mapped[list['OAuth2Token']] = relationship(
+        back_populates='client', init=False, default_factory=list
+    )
     codes: Mapped[list['OAuth2AuthorizationCode']] = relationship(
-        back_populates='client'
+        back_populates='client', init=False, default_factory=list
     )
 
     is_confidential: Mapped[bool] = mapped_column(default=False)
@@ -39,8 +41,10 @@ class OAuth2AuthorizationCode(Base):
 
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
-    client = relationship(OAuth2Client, back_populates='codes')
-    user = relationship(User)
+    client: Mapped[OAuth2Client] = relationship(
+        back_populates='codes', init=False
+    )
+    user: Mapped[User] = relationship(init=False)
     code_challenge_method: Mapped[str] = mapped_column(
         String(10), default='S256'
     )
@@ -62,10 +66,12 @@ class OAuth2Token(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     client_id: Mapped[int] = mapped_column(ForeignKey(OAuth2Client.id))
 
-    client: Mapped['OAuth2Client'] = relationship(back_populates='tokens')
-    user: Mapped[User] = relationship()
+    client: Mapped['OAuth2Client'] = relationship(
+        back_populates='tokens', init=False
+    )
+    user: Mapped[User] = relationship(init=False)
 
     issued_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), server_default=func.now(), init=False
     )
     revoked: Mapped[bool] = mapped_column(default=False)

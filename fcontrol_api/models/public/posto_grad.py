@@ -11,7 +11,7 @@ class PostoGrad(Base):
 
     ant: Mapped[int] = mapped_column(nullable=False)
     short: Mapped[str] = mapped_column(
-        init=False, primary_key=True, unique=True, nullable=False
+        primary_key=True, unique=True, nullable=False
     )
     mid: Mapped[str] = mapped_column(nullable=False)
     long: Mapped[str] = mapped_column(nullable=False)

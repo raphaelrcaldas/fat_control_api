@@ -283,11 +283,10 @@ def calcular_custos_frag_mis(
 
             totais_pg_sit[pg_sit_key]['total_valor'] += custo['subtotal']
 
-        # 4. Acumular totais gerais da missão (dias e diárias são comuns a todos)
+        # 4. Acumular totais gerais da missão
         total_dias_missao += dias_pernoite
 
         # Calcular diárias do pernoite (usando sit != 'g' como referência)
-        # Pega a primeira combinação que não seja 'g' ou qualquer uma se todas forem 'g'
         diarias_pernoite = 0
         for p_g, sit in combinacoes_pg_sit:
             if sit != 'g':
