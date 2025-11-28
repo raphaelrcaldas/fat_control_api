@@ -10,7 +10,7 @@ class Quad(Base):
     __tablename__ = 'quad'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     description: Mapped[str] = mapped_column(nullable=True)
     type_id: Mapped[int] = mapped_column(ForeignKey('quads_type.id'))
@@ -25,7 +25,7 @@ class QuadsGroup(Base):
     __tablename__ = 'quads_group'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     short: Mapped[str] = mapped_column(nullable=False)
     long: Mapped[str] = mapped_column(nullable=False)
@@ -37,7 +37,7 @@ class QuadsType(Base):
     __tablename__ = 'quads_type'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     group_id: Mapped[int] = mapped_column(ForeignKey('quads_group.id'))
     short: Mapped[str] = mapped_column(nullable=False)
@@ -49,7 +49,7 @@ class QuadsFunc(Base):
     __tablename__ = 'quads_func'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     type_id: Mapped[int] = mapped_column(ForeignKey('quads_type.id'))
     func: Mapped[str]

@@ -10,7 +10,7 @@ class Funcao(Base):
     __tablename__ = 'trip_funcs'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
     func: Mapped[str]

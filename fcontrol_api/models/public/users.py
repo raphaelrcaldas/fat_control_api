@@ -11,7 +11,7 @@ class User(Base):
     __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     p_g: Mapped[str] = mapped_column(ForeignKey(PostoGrad.short))
     esp: Mapped[str] = mapped_column(nullable=True)

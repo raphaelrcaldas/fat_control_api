@@ -8,7 +8,7 @@ class Tripulante(Base):
     __tablename__ = 'tripulantes'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     trig: Mapped[str] = mapped_column(String(3))

@@ -10,7 +10,7 @@ class Indisp(Base):
     __tablename__ = 'indisps'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     date_start: Mapped[date]

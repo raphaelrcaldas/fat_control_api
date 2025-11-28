@@ -19,7 +19,7 @@ class Permissions(Base):
     __tablename__ = 'permissions'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     resource_id: Mapped[int] = mapped_column(
         ForeignKey('security.resources.id')
@@ -39,7 +39,7 @@ class RolePermissions(Base):
     __tablename__ = 'role_permissions'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     role_id: Mapped[int] = mapped_column(ForeignKey('security.roles.id'))
     permission_id: Mapped[int] = mapped_column(
@@ -58,7 +58,7 @@ class Roles(Base):
     __tablename__ = 'roles'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     name: Mapped[str]
     description: Mapped[str]
@@ -76,7 +76,7 @@ class UserRole(Base):
     __tablename__ = 'user_roles'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     role_id: Mapped[int] = mapped_column(ForeignKey('security.roles.id'))
