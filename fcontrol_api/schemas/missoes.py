@@ -3,14 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from fcontrol_api.schemas.cidade import CidadeSchema
 from fcontrol_api.schemas.users import UserPublic
-
-
-class CidadeSchema(BaseModel):
-    codigo: int
-    nome: str
-    uf: str
-    model_config = ConfigDict(from_attributes=True)
 
 
 class PernoiteFragMis(BaseModel):
