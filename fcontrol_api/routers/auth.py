@@ -210,7 +210,10 @@ async def refresh_access_token(user: User = Depends(get_current_user)):
 
 @router.post('/dev_login')
 async def dev_login(
-    user_id: int, session: Session, user: User = Depends(get_current_user)
+    user_id: int,
+    session: Session,
+    request: Request,
+    user: User = Depends(get_current_user),
 ):
     if not user or user.id != 1:
         raise HTTPException(
@@ -218,6 +221,6 @@ async def dev_login(
             detail='Not Allowed',
         )
     db_user = await session.get(User, user_id)
-    data = token_data(db_user)
+    data = token_data(db_user, request.state.app_client)
     access_token = create_access_token(data=data, dev=True)
     return {'access_token': access_token, 'token_type': 'bearer'}
