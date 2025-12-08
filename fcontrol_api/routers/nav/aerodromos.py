@@ -7,7 +7,6 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.nav.aerodromos import Aerodromo
-from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.schemas.nav.aerodromo import (
     AerodromoCreate,
     AerodromoPublic,

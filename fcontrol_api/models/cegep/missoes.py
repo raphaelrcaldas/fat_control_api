@@ -25,7 +25,7 @@ class FragMis(Base):
     obs: Mapped[str] = mapped_column(nullable=True)
     indenizavel: Mapped[bool] = mapped_column(nullable=False)
     custos: Mapped[dict] = mapped_column(
-        JSONB, server_default='{}', nullable=False
+        JSONB, server_default='{}', nullable=False, init=False
     )
     pernoites = relationship(
         'PernoiteFrag',
