@@ -196,7 +196,7 @@ async def get_user(user_id: int, session: Session):
 @router.put('/{user_id}')
 async def update_user(
     user_id: int,
-    user_patch: UserUpdate,  # type: ignore
+    user_patch: UserUpdate,
     session: Session,
     user: User = Depends(permission_checker('user', 'update')),
 ):

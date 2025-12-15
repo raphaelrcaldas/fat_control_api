@@ -19,6 +19,7 @@ from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
+from fcontrol_api.services.logs import log_user_action
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -179,7 +180,12 @@ async def delete_indisp(id: int, session: Session):
 
 
 @router.put('/{id}')
-async def update_indisp(id: int, indisp: BaseIndisp, session: Session):
+async def update_indisp(
+    id: int,
+    indisp: BaseIndisp,
+    session: Session,
+    user: User = Depends(get_current_user),
+):
     db_indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
 
     if not db_indisp:
@@ -187,13 +193,26 @@ async def update_indisp(id: int, indisp: BaseIndisp, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Indisp not found'
         )
 
+    # Usa valores do payload ou mantém os existentes para verificação de duplicata
+    check_date_start = (
+        indisp.date_start
+        if indisp.date_start is not None
+        else db_indisp.date_start
+    )
+    check_date_end = (
+        indisp.date_end if indisp.date_end is not None else db_indisp.date_end
+    )
+    check_mtv = indisp.mtv if indisp.mtv is not None else db_indisp.mtv
+    check_obs = indisp.obs if indisp.obs is not None else db_indisp.obs
+
     ss_indisp = await session.scalar(
         select(Indisp).where(
             (Indisp.user_id == db_indisp.user_id)
-            & (Indisp.date_start == indisp.date_start)
-            & (Indisp.date_end == indisp.date_end)
-            & (Indisp.mtv == indisp.mtv)
-            & (Indisp.obs == indisp.obs)
+            & (Indisp.date_start == check_date_start)
+            & (Indisp.date_end == check_date_end)
+            & (Indisp.mtv == check_mtv)
+            & (Indisp.obs == check_obs)
+            & (Indisp.id != id)  # Exclui o próprio registro da verificação
         )
     )
 
@@ -203,9 +222,32 @@ async def update_indisp(id: int, indisp: BaseIndisp, session: Session):
             detail='Indisponibilidade já registrada',
         )
 
+    # Captura os valores antes e depois da alteração
+    before = {}
+    after = {}
     for key, value in indisp.model_dump(exclude_unset=True).items():
-        if getattr(db_indisp, key) != value:
+        if value is None:  # Ignora campos não enviados
+            continue
+        old_value = getattr(db_indisp, key)
+        if old_value != value:
+            # Converte date para string para serialização JSON
+            before[key] = (
+                str(old_value)
+                if hasattr(old_value, 'isoformat')
+                else old_value
+            )
+            after[key] = str(value) if hasattr(value, 'isoformat') else value
             setattr(db_indisp, key, value)
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='patch',
+        resource='indisp',
+        resource_id=db_indisp.id,
+        before=before,
+        after=after,
+    )
 
     await session.commit()
 

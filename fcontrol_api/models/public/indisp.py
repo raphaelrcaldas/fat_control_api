@@ -24,6 +24,12 @@ class Indisp(Base):
         init=False,
         server_default=func.now(),
     )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        init=False,
+        default=None,
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     user_created = relationship(
         'User',
         backref='indisps',

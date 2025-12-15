@@ -8,18 +8,23 @@ from fcontrol_api.schemas.users import UserPublic
 
 
 class BaseIndisp(BaseModel):
+    date_start: Annotated[date | None, Body()] = None
+    date_end: Annotated[date | None, Body()] = None
+    mtv: str | None = None
+    obs: str | None = None
+
+
+class IndispSchema(BaseModel):
+    user_id: int
     date_start: Annotated[date, Body()]
     date_end: Annotated[date, Body()]
     mtv: str
     obs: str
 
 
-class IndispSchema(BaseIndisp):
-    user_id: int
-
-
 class IndispOut(IndispSchema):
     id: int
     created_at: Annotated[datetime, Body()]
+    updated_at: Annotated[datetime | None, Body()] = None
     user_created: UserPublic
     model_config = ConfigDict(from_attributes=True)
