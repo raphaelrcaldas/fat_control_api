@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,4 +27,17 @@ class TripWithFuncs(BaseModel):
     active: bool
     user: UserPublic
     funcs: list[FuncPublic]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TripSearchResult(BaseModel):
+    id: int
+    trig: str
+    p_g: str
+    nome_guerra: str
+    oper: str
+    posto_ant: int
+    ult_promo: date | None
+    ant_rel: int | None
+    id_fab: int | None
     model_config = ConfigDict(from_attributes=True)
