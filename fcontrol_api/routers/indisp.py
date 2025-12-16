@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import Annotated
 
@@ -164,7 +164,11 @@ async def get_indisp_user(id: int, session: Session):
 
 
 @router.delete('/{id}')
-async def delete_indisp(id: int, session: Session):
+async def delete_indisp(
+    id: int,
+    session: Session,
+    user: User = Depends(get_current_user),
+):
     indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
 
     if not indisp:
@@ -173,7 +177,18 @@ async def delete_indisp(id: int, session: Session):
             detail='Indisponibilidade not found',
         )
 
-    await session.delete(indisp)
+    # Soft delete - setar deleted_at
+    indisp.deleted_at = datetime.now(timezone.utc)
+
+    # Log de deleção
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='delete',
+        resource='indisp',
+        resource_id=indisp.id,
+    )
+
     await session.commit()
 
     return {'detail': 'Indisponibilidade deletada'}

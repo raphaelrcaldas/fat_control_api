@@ -26,5 +26,6 @@ class IndispOut(IndispSchema):
     id: int
     created_at: Annotated[datetime, Body()]
     updated_at: Annotated[datetime | None, Body()] = None
+    deleted_at: Annotated[datetime | None, Body()] = None
     user_created: UserPublic
     model_config = ConfigDict(from_attributes=True)

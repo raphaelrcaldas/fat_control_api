@@ -30,6 +30,11 @@ class Indisp(Base):
         default=None,
         onupdate=lambda: datetime.now(timezone.utc),
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        init=False,
+        default=None,
+    )
     user_created = relationship(
         'User',
         backref='indisps',
