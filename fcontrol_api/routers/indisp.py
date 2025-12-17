@@ -149,13 +149,27 @@ async def create_indisp(
 
 
 @router.get('/user/{id}', response_model=list[IndispOut])
-async def get_indisp_user(id: int, session: Session):
-    date_ini = date.today() - timedelta(days=60)
+async def get_indisp_user(
+    id: int,
+    session: Session,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    mtv: str | None = None,
+):
+    # Construção dinâmica dos filtros
+    filters = [Indisp.user_id == id]
+
+    if date_from:
+        filters.append(Indisp.date_end >= date_from)
+
+    if date_to:
+        filters.append(Indisp.date_start <= date_to)
+
+    if mtv:
+        filters.append(Indisp.mtv == mtv)
 
     db_indisps = await session.scalars(
-        select(Indisp)
-        .where((Indisp.user_id == id) & (Indisp.date_end >= date_ini))
-        .order_by(Indisp.date_end.desc())
+        select(Indisp).where(and_(*filters)).order_by(Indisp.date_end.desc())
     )
 
     indisps = db_indisps.all()
