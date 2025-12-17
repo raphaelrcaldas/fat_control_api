@@ -14,7 +14,7 @@ from fcontrol_api.schemas.comiss import ComissSchema
 from fcontrol_api.schemas.missoes import FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.services.comis import verificar_conflito_comiss
-from fcontrol_api.utils.financeiro import custo_missao, verificar_modulo
+from fcontrol_api.utils.financeiro import custo_missao
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -28,117 +28,126 @@ async def get_cmtos(
     status: str = None,
     search: str = None,
 ):
-    query_comiss = (
-        select(Comissionamento.id)
+    """
+    Lista comissionamentos com valores pré-calculados do cache.
+    Não retorna missões - use GET /{comiss_id} para detalhes.
+    """
+    query = (
+        select(Comissionamento)
         .join(User)
         .order_by(Comissionamento.data_ab.desc())
     )
 
     if user_id:
-        query_comiss = query_comiss.where(Comissionamento.user_id == user_id)
+        query = query.where(Comissionamento.user_id == user_id)
 
     if status:
-        query_comiss = query_comiss.where(Comissionamento.status == status)
-
+        query = query.where(Comissionamento.status == status)
         if status == 'fechado':
-            query_comiss = query_comiss.limit(20)
+            query = query.limit(20)
 
     if search:
-        query_comiss = query_comiss.where(
+        query = query.where(
             User.nome_guerra.ilike(f'%{search}%')
             | User.nome_completo.ilike(f'%{search}%')
         )
 
-    comiss_valids = await session.execute(query_comiss)
-    comiss_ids = [id for (id,) in comiss_valids.all()]
+    result = await session.scalars(query)
+    comiss_list = result.all()
 
-    if not comiss_ids:
-        return []
-
-    query = (
-        select(Comissionamento, FragMis, UserFrag)
-        .join(
-            UserFrag,
-            and_(
-                UserFrag.user_id == Comissionamento.user_id,
-                UserFrag.sit == 'c',
-            ),
-            isouter=True,
-        )
-        .join(
-            FragMis,
-            and_(
-                FragMis.id == UserFrag.frag_id,
-                FragMis.afast >= Comissionamento.data_ab,
-                FragMis.regres <= Comissionamento.data_fc,
-            ),
-            isouter=True,
-        )
-        .where(Comissionamento.id.in_(comiss_ids))
-        .order_by(FragMis.afast)
-    )
-
-    result = await session.execute(query)
-    registros: list[tuple[Comissionamento, FragMis, UserFrag]] = result.all()
-
-    agrupado: dict[int, dict] = {}
-
-    for comiss, missao, user_frag in registros:
+    response = []
+    for comiss in comiss_list:
         user = UserPublic.model_validate(comiss.user).model_dump()
         comiss_data = ComissSchema.model_validate(comiss).model_dump(
             exclude={'user_id'},
         )
+        comiss_data['user'] = user
 
-        if comiss_data['id'] not in agrupado:
-            comiss_data['user'] = user
-            agrupado[comiss_data['id']] = {
-                **comiss_data,
-                'missoes': [],
-                'dias_comp': 0,
-                'diarias_comp': 0,
-                'vals_comp': 0,
-                'modulo': False,
-                'completude': 0,
-            }
+        # Ler valores do cache JSONB
+        cache = comiss.cache_calc or {}
+        comiss_data['dias_comp'] = cache.get('dias_comp', 0)
+        comiss_data['diarias_comp'] = cache.get('diarias_comp', 0)
+        comiss_data['vals_comp'] = cache.get('vals_comp', 0)
+        comiss_data['modulo'] = cache.get('modulo', False)
+        comiss_data['completude'] = cache.get('completude', 0)
+        comiss_data['missoes_count'] = cache.get('missoes_count', 0)
 
-        comiss_ag = agrupado[comiss_data['id']]
-
-        if missao:
-            # Serializar missão (inclui custos JSONB se disponível)
-            missao_data = FragMisSchema.model_validate(missao).model_dump(
-                exclude={'users'}
-            )
-
-            # Calcular custos usando função (lê do JSONB se disponível)
-            missao_data = custo_missao(
-                user_frag.p_g,
-                user_frag.sit,
-                missao_data,
-            )
-
-            # Acumular valores no comissionamento
-            comiss_ag['diarias_comp'] += missao_data['diarias']
-            comiss_ag['dias_comp'] += missao_data['dias']
-            comiss_ag['vals_comp'] += missao_data['valor_total']
-            comiss_ag['missoes'].append(missao_data)
-
-    response = list(agrupado.values())
-    for c in response:
-        c['modulo'] = verificar_modulo(c['missoes'])
-
-        if c.get('dias_cumprir'):
-            completude = (
-                c['dias_comp'] / c['dias_cumprir'] if c['dias_cumprir'] else 0
-            )
-        else:
-            soma_cumprir = c['valor_aj_ab'] + c['valor_aj_fc']
-            completude = c['vals_comp'] / soma_cumprir
-
-        completude = min(completude, 1)
-
-        c['completude'] = round(completude, 3)
+        response.append(comiss_data)
 
     return response
+
+
+@router.get('/{comiss_id}')
+async def get_cmto_by_id(
+    comiss_id: int,
+    session: Session,
+):
+    """
+    Retorna um comissionamento com todas as missões agregadas.
+    """
+    comiss = await session.scalar(
+        select(Comissionamento).where(Comissionamento.id == comiss_id)
+    )
+
+    if not comiss:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Comissionamento não encontrado',
+        )
+
+    # Montar dados base
+    user = UserPublic.model_validate(comiss.user).model_dump()
+    comiss_data = ComissSchema.model_validate(comiss).model_dump(
+        exclude={'user_id'},
+    )
+    comiss_data['user'] = user
+
+    # Ler valores do cache JSONB
+    cache = comiss.cache_calc or {}
+    comiss_data['dias_comp'] = cache.get('dias_comp', 0)
+    comiss_data['diarias_comp'] = cache.get('diarias_comp', 0)
+    comiss_data['vals_comp'] = cache.get('vals_comp', 0)
+    comiss_data['modulo'] = cache.get('modulo', False)
+    comiss_data['completude'] = cache.get('completude', 0)
+
+    # Buscar missões do comissionamento
+    query = (
+        select(FragMis, UserFrag)
+        .join(
+            UserFrag,
+            and_(
+                UserFrag.user_id == comiss.user_id,
+                UserFrag.sit == 'c',
+                UserFrag.frag_id == FragMis.id,
+            ),
+        )
+        .where(
+            and_(
+                FragMis.afast >= comiss.data_ab,
+                FragMis.regres <= comiss.data_fc,
+            )
+        )
+        .order_by(FragMis.afast)
+    )
+
+    result = await session.execute(query)
+    registros = result.all()
+
+    missoes = []
+    for missao, user_frag in registros:
+        missao_data = FragMisSchema.model_validate(missao).model_dump(
+            exclude={'users'}
+        )
+        missao_data = custo_missao(
+            user_frag.p_g,
+            user_frag.sit,
+            missao_data,
+        )
+        missoes.append(missao_data)
+
+    comiss_data['missoes'] = missoes
+
+    return comiss_data
 
 
 @router.post('/')

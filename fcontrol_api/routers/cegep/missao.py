@@ -23,7 +23,10 @@ from fcontrol_api.schemas.missoes import (
     PernoiteFragMis,
     UserFragMis,
 )
-from fcontrol_api.services.comis import verificar_usrs_comiss
+from fcontrol_api.services.comis import (
+    recalcular_comiss_afetados,
+    verificar_usrs_comiss,
+)
 from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
 from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
 from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
@@ -174,6 +177,20 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
     # Atualizar campo custos na missão
     missao.custos = custos
 
+    # Recalcular cache dos comissionamentos afetados
+    for u in payload.users:
+        if u.sit == 'c':
+            await recalcular_comiss_afetados(
+                u.user_id,
+                payload.afast.date()
+                if hasattr(payload.afast, 'date')
+                else payload.afast,
+                payload.regres.date()
+                if hasattr(payload.regres, 'date')
+                else payload.regres,
+                session,
+            )
+
     await session.commit()
 
     return {'detail': 'Missão salva com sucesso'}
@@ -181,12 +198,23 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
 
 @router.delete('/{id}')
 async def delete_fragmis(id: int, session: Session):
-    db_frag = await session.scalar(select(FragMis).where((FragMis.id == id)))
+    db_frag = await session.scalar(
+        select(FragMis)
+        .options(selectinload(FragMis.users))
+        .where((FragMis.id == id))
+    )
     if not db_frag:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Missão não encontrada',
         )
+
+    # Guardar dados antes de deletar para recalcular comissionamentos
+    comiss_users = [
+        (u.user_id, db_frag.afast.date(), db_frag.regres.date())
+        for u in db_frag.users
+        if u.sit == 'c'
+    ]
 
     await session.execute(
         delete(PernoiteFrag).where(PernoiteFrag.frag_id == id)
@@ -194,6 +222,11 @@ async def delete_fragmis(id: int, session: Session):
     await session.execute(delete(UserFrag).where(UserFrag.frag_id == id))
 
     await session.delete(db_frag)
+
+    # Recalcular cache dos comissionamentos afetados após deletar
+    for user_id, afast, regres in comiss_users:
+        await recalcular_comiss_afetados(user_id, afast, regres, session)
+
     await session.commit()
 
     return {'detail': 'Missão removida com sucesso'}

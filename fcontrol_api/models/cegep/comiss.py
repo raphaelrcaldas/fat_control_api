@@ -1,6 +1,7 @@
 from datetime import date
 
 from sqlalchemy import ForeignKey, Identity
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.models.public.users import User
@@ -15,6 +16,9 @@ class Comissionamento(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     status: Mapped[str]
     dep: Mapped[bool]
+    cache_calc: Mapped[dict] = mapped_column(
+        JSONB, server_default='{}', nullable=False, init=False
+    )
 
     data_ab: Mapped[date]
     qtd_aj_ab: Mapped[float]
