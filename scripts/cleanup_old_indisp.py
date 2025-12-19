@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.indisp import Indisp
+from fcontrol_api.models.security.logs import UserActionLog
 
 
 async def cleanup_old_indisps(days_threshold: int = 60):
@@ -48,14 +49,24 @@ async def cleanup_old_indisps(days_threshold: int = 60):
             print('Nenhuma indisponibilidade antiga para limpar.')
             break
 
-        # Hard delete
+        # Excluir logs relacionados para evitar registros órfãos
+        logs_delete_result = await session.execute(
+            delete(UserActionLog).where(
+                UserActionLog.resource == 'indisp',
+                UserActionLog.resource_id.in_(ids_to_delete),
+            )
+        )
+        logs_deleted = logs_delete_result.rowcount
+
+        # Hard delete das indisponibilidades
         await session.execute(
             delete(Indisp).where(Indisp.id.in_(ids_to_delete))
         )
 
         await session.commit()
 
-        print(f'Registros deletados: {total}')
+        print(f'Logs deletados: {logs_deleted}')
+        print(f'Indisponibilidades deletadas: {total}')
         print(f'IDs removidos: {ids_to_delete}')
         print(f'[{datetime.now(timezone.utc).isoformat()}] Limpeza concluida!')
         break
