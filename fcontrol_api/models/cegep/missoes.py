@@ -42,6 +42,14 @@ class FragMis(Base):
         lazy='noload',
         uselist=True,
     )
+    etiquetas = relationship(
+        'Etiqueta',
+        secondary='cegep.frag_etiqueta',
+        back_populates='missoes',
+        lazy='selectin',
+        init=False,
+        default_factory=list,
+    )
 
 
 class PernoiteFrag(Base):

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
+from fcontrol_api.models.cegep.etiquetas import Etiqueta
 from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
 from fcontrol_api.schemas.missoes import FragMisSchema
 
@@ -142,5 +143,18 @@ async def adicionar_missao(
         )
         session.add(missao)
         await session.flush()
+
+    # Processar etiquetas
+    if payload.etiquetas:
+        etiqueta_ids = [e.id for e in payload.etiquetas if e.id]
+        if etiqueta_ids:
+            db_etiquetas = (
+                await session.scalars(
+                    select(Etiqueta).where(Etiqueta.id.in_(etiqueta_ids))
+                )
+            ).all()
+            missao.etiquetas = list(db_etiquetas)
+    else:
+        missao.etiquetas = []
 
     return missao
