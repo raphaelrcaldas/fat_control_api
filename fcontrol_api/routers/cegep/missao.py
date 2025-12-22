@@ -46,6 +46,7 @@ async def get_fragmentos(
     city: str = None,
     ini: date = None,
     fim: date = None,
+    etiqueta_ids: str = None,  # IDs separados por vírgula: "1,2,3"
 ):
     ini = datetime.combine(ini, time(0, 0, 0))
     fim = datetime.combine(fim, time(23, 59, 59))
@@ -79,6 +80,16 @@ async def get_fragmentos(
             .join(User)
             .where(User.nome_guerra.ilike(f'%{user_search}%'))
         )
+
+    # Filtro por etiquetas (multi-select)
+    if etiqueta_ids:
+        ids = [int(id.strip()) for id in etiqueta_ids.split(',') if id.strip().isdigit()]
+        if ids:
+            from fcontrol_api.models.cegep.etiquetas import FragEtiqueta
+            stmt = (
+                stmt.join(FragEtiqueta, FragEtiqueta.frag_id == FragMis.id)
+                .where(FragEtiqueta.etiqueta_id.in_(ids))
+            )
 
     db_frags = (await session.scalars(stmt)).unique().all()
 
