@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.schemas.cidade import CidadeSchema
+from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -44,6 +45,8 @@ class FragMisSchema(BaseModel):
     tipo: str
     pernoites: list[PernoiteFragMis]
     users: list[UserFragMis]
+    etiquetas: list[EtiquetaSchema] = []
     custos: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
+
