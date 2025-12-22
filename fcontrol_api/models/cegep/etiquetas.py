@@ -6,6 +6,7 @@ from .base import Base
 
 class FragEtiqueta(Base):
     """Tabela associativa para relação many-to-many entre FragMis e Etiqueta"""
+
     __tablename__ = 'frag_etiqueta'
 
     frag_id: Mapped[int] = mapped_column(
@@ -18,12 +19,17 @@ class FragEtiqueta(Base):
 
 class Etiqueta(Base):
     """Modelo para etiquetas de missões"""
+
     __tablename__ = 'etiqueta'
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     nome: Mapped[str] = mapped_column(String(100), nullable=False)
-    cor: Mapped[str] = mapped_column(String(7), nullable=False)  # Hex color #RRGGBB
-    descricao: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    cor: Mapped[str] = mapped_column(
+        String(7), nullable=False
+    )  # Hex color #RRGGBB
+    descricao: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None
+    )
 
     # Relação many-to-many com FragMis (definida via back_populates no FragMis)
     missoes = relationship(

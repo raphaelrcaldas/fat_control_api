@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class EtiquetaSchema(BaseModel):
     """Schema para serialização de etiquetas"""
+
     id: Optional[int] = None
     nome: str
     cor: str

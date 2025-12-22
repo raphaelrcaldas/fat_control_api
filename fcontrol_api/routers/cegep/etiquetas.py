@@ -46,10 +46,10 @@ async def create_or_update_etiqueta(payload: EtiquetaSchema, session: Session):
             descricao=payload.descricao,
         )
         session.add(db_etiqueta)
-    
+
     await session.commit()
     await session.refresh(db_etiqueta)
-    
+
     return db_etiqueta
 
 
@@ -64,8 +64,8 @@ async def delete_etiqueta(etiqueta_id: int, session: Session):
             status_code=HTTPStatus.NOT_FOUND,
             detail='Etiqueta não encontrada',
         )
-    
+
     await session.delete(db_etiqueta)
     await session.commit()
-    
+
     return {'detail': 'Etiqueta removida com sucesso'}
