@@ -66,6 +66,10 @@ async def search_trips(
             Tripulante.uae == uae,
             Funcao.func == func,
             Funcao.proj == proj,
+        ).order_by(
+            PostoGrad.ant.asc(),
+            User.ult_promo.asc(),
+            User.ant_rel.asc(),
         )
     )
 
