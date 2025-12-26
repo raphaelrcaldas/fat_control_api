@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
 
 
@@ -88,3 +89,9 @@ class UserProfile(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UserPublicPaginated(PaginatedResponse[UserPublic]):
+    """Resposta paginada de usuários públicos."""
+
+    pass

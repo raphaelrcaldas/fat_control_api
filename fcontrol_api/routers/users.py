@@ -3,6 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -14,6 +15,7 @@ from fcontrol_api.schemas.users import (
     UserFull,
     UserProfile,
     UserPublic,
+    UserPublicPaginated,
     UserSchema,
     UserUpdate,
 )
@@ -158,26 +160,64 @@ async def create_user(
     return {'detail': 'Usuário Adicionado com sucesso'}
 
 
-@router.get('/', response_model=list[UserPublic])
-async def read_users(session: Session, search: str = None):
-    query = (
-        select(User)
-        .join(PostoGrad)
-        .order_by(
-            PostoGrad.ant.asc(),
-            User.ult_promo.asc(),
-            User.ant_rel.asc(),
-        )
+@router.get('/', response_model=UserPublicPaginated)
+async def read_users(
+    session: Session,
+    search: str | None = None,
+    p_g: str | None = None,
+    active: bool | None = None,
+    page: int = 1,
+    per_page: int = 15,
+):
+    # Limita per_page para evitar queries muito pesadas
+    per_page = min(per_page, 100)
+    page = max(page, 1)
+    offset = (page - 1) * per_page
+
+    # Query base ordenada
+    base_query = select(User).join(PostoGrad).order_by(
+        PostoGrad.ant.asc(),
+        User.ult_promo.asc(),
+        User.ant_rel.asc(),
     )
 
+    # Query de contagem
+    count_query = select(func.count()).select_from(User)
+
+    # Aplica filtros
+    filters = []
+
     if search:
-        query = query.where(
-            User.nome_guerra.ilike(f'%{search.strip()}%') & User.active
-        ).limit(10)
+        filters.append(User.nome_guerra.ilike(f'%{search.strip()}%'))
 
-    users = await session.scalars(query)
+    if p_g:
+        filters.append(User.p_g == p_g)
 
-    return users.all()
+    if active is not None:
+        filters.append(User.active == active)
+
+    # Aplica todos os filtros
+    for f in filters:
+        base_query = base_query.where(f)
+        count_query = count_query.where(f)
+
+    # Executa count e fetch em paralelo
+    total = await session.scalar(count_query) or 0
+    users_result = await session.scalars(
+        base_query.offset(offset).limit(per_page)
+    )
+    users = users_result.all()
+
+    # Calcula número de páginas
+    pages = (total + per_page - 1) // per_page if total > 0 else 1
+
+    return UserPublicPaginated(
+        items=users,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
 
 
 @router.get('/{user_id}', response_model=UserFull)
