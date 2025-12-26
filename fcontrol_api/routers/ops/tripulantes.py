@@ -17,6 +17,7 @@ from fcontrol_api.schemas.tripulantes import (
     TripSearchResult,
     TripWithFuncs,
 )
+from fcontrol_api.security import get_current_user
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -144,6 +145,31 @@ async def create_trip(trip: TripSchema, session: Session):
     await session.refresh(tripulante)
 
     return {'detail': 'Tripulante adicionado com sucesso', 'data': tripulante}
+
+
+@router.get('/me', status_code=HTTPStatus.OK, response_model=TripWithFuncs)
+async def get_my_trip(
+    session: Session,
+    current_user: User = Depends(get_current_user),
+    uae: str = '11gt',
+):
+    """
+    Retorna o tripulante do usuário autenticado.
+    """
+    trip = await session.scalar(
+        select(Tripulante).where(
+            Tripulante.user_id == current_user.id,
+            Tripulante.uae == uae,
+        )
+    )
+
+    if not trip:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante não encontrado para este usuário',
+        )
+
+    return trip
 
 
 @router.get('/{id}', status_code=HTTPStatus.OK, response_model=TripWithFuncs)
