@@ -10,6 +10,7 @@ from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.message import TripMessage
+from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.tripulantes import (
     BaseTrip,
     TripSchema,
@@ -66,7 +67,8 @@ async def search_trips(
             Tripulante.uae == uae,
             Funcao.func == func,
             Funcao.proj == proj,
-        ).order_by(
+        )
+        .order_by(
             PostoGrad.ant.asc(),
             User.ult_promo.asc(),
             User.ant_rel.asc(),
@@ -156,17 +158,118 @@ async def get_trip(id: int, session: Session):
     return trip
 
 
-@router.get('/', status_code=HTTPStatus.OK, response_model=list[TripWithFuncs])
-async def list_trips(session: Session, uae: str = '11gt', active: bool = True):
-    query = (
-        select(Tripulante)
-        .join(User)
+@router.get(
+    '/',
+    status_code=HTTPStatus.OK,
+    response_model=PaginatedResponse[TripWithFuncs],
+)
+async def list_trips(
+    session: Session,
+    uae: str = '11gt',
+    active: bool = True,
+    page: int = 1,
+    per_page: int = 10,
+    search: str | None = None,
+    p_g: str | None = None,
+    func: str | None = None,
+    oper: str | None = None,
+):
+    """
+    Lista tripulantes com paginação.
+
+    - **uae**: Unidade aérea (padrão: 11gt)
+    - **active**: Status ativo (padrão: True)
+    - **page**: Número da página (padrão: 1)
+    - **per_page**: Itens por página (padrão: 10)
+    - **search**: Termo de busca (trigrama ou nome de guerra)
+    - **p_g**: Lista de postos/graduações separados por vírgula
+    - **func**: Lista de funções separadas por vírgula (pil, mc, lm, oe, os, tf, ml, md)
+    - **oper**: Lista de operacionalidades separadas por vírgula (ba, op, in, al)
+    """
+    from sqlalchemy import func as sql_func
+
+    from fcontrol_api.models.public.posto_grad import PostoGrad
+
+    # Flag para saber se precisa fazer join com Funcao
+    needs_func_join = bool(func or oper)
+
+    # Query base para filtrar IDs
+    filter_query = (
+        select(Tripulante.id)
+        .join(User, Tripulante.user_id == User.id)
+        .join(PostoGrad, User.p_g == PostoGrad.short)
         .where(User.active, Tripulante.active == active, Tripulante.uae == uae)
     )
 
-    trips = await session.scalars(query)
+    # Filtro de busca por nome/trigrama
+    if search:
+        search_term = search.lower()
+        filter_query = filter_query.where(
+            (Tripulante.trig.ilike(f'%{search_term}%'))
+            | (User.nome_guerra.ilike(f'%{search_term}%'))
+        )
 
-    return trips.all()
+    # Filtro por posto/graduação
+    if p_g:
+        p_g_list = [pg.strip() for pg in p_g.split(',') if pg.strip()]
+        if p_g_list:
+            filter_query = filter_query.where(User.p_g.in_(p_g_list))
+
+    # Filtro por função - requer join com Funcao
+    if func:
+        func_list = [f.strip() for f in func.split(',') if f.strip()]
+        if func_list:
+            filter_query = filter_query.join(
+                Funcao, Tripulante.id == Funcao.trip_id
+            ).where(Funcao.func.in_(func_list))
+
+    # Filtro por operacionalidade - requer join com Funcao (se não fez ainda)
+    if oper:
+        oper_list = [o.strip() for o in oper.split(',') if o.strip()]
+        if oper_list:
+            if not func:  # Se não fez join com Funcao ainda
+                filter_query = filter_query.join(
+                    Funcao, Tripulante.id == Funcao.trip_id
+                )
+            filter_query = filter_query.where(Funcao.oper.in_(oper_list))
+
+    # Distinct para evitar duplicatas quando há joins com Funcao
+    if needs_func_join:
+        filter_query = filter_query.distinct()
+
+    # Subconsulta com os IDs filtrados
+    filtered_ids = filter_query.subquery()
+
+    # Contagem total
+    count_query = select(sql_func.count()).select_from(filtered_ids)
+    total = await session.scalar(count_query) or 0
+
+    # Query principal para buscar tripulantes com ordenação e paginação
+    main_query = (
+        select(Tripulante)
+        .join(User, Tripulante.user_id == User.id)
+        .join(PostoGrad, User.p_g == PostoGrad.short)
+        .where(Tripulante.id.in_(select(filtered_ids.c.id)))
+        .order_by(
+            PostoGrad.ant.asc(), User.ult_promo.asc(), User.ant_rel.asc()
+        )
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+
+    trips = await session.scalars(main_query)
+    items = trips.all()
+
+    # Cálculo de páginas
+    pages = (total + per_page - 1) // per_page if total > 0 else 1
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
 
 
 @router.put('/{id}', status_code=HTTPStatus.OK, response_model=TripMessage)
