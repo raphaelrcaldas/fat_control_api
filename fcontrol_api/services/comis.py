@@ -187,7 +187,7 @@ async def recalcular_cache_comiss(
         completude = vals_comp / soma_cumprir if soma_cumprir else 0
 
     completude = min(completude, 1)
-    completude = round(completude, 3)
+    completude = round(completude * 100, 1)  # Retorna já em percentual (0-100)
 
     # Montar cache
     cache_data = {
