@@ -1,7 +1,7 @@
 from datetime import date
 
 from sqlalchemy import ForeignKey, Identity
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 
@@ -24,3 +24,5 @@ class Soldo(Base):
     data_inicio: Mapped[date] = mapped_column(nullable=False)
     data_fim: Mapped[date] = mapped_column(nullable=True)
     valor: Mapped[float] = mapped_column(nullable=False)
+
+    posto_grad: Mapped['PostoGrad'] = relationship(init=False, lazy='joined')
