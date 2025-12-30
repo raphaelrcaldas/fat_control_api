@@ -8,14 +8,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.om import Etapa, OrdemMissao, TripulacaoOrdem
+from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.om import (
     OrdemMissaoCreate,
     OrdemMissaoList,
-    OrdemMissaoOut,
     OrdemMissaoUpdate,
 )
 from fcontrol_api.schemas.pagination import PaginatedResponse
@@ -25,6 +26,131 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/om', tags=['ordens-missao'])
+
+
+def escape_like(value: str) -> str:
+    """Escapa caracteres especiais para ILIKE (%, _, \\)."""
+    return (
+        value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    )
+
+
+async def get_ordem_with_relations(
+    session: AsyncSession, ordem_id: int
+) -> OrdemMissao | None:
+    """Busca ordem com relacionamentos carregados."""
+    result = await session.execute(
+        select(OrdemMissao)
+        .where(OrdemMissao.id == ordem_id, OrdemMissao.deleted_at.is_(None))
+        .options(
+            selectinload(OrdemMissao.etapas),
+            selectinload(OrdemMissao.tripulacao)
+            .selectinload(TripulacaoOrdem.tripulante)
+            .selectinload(Tripulante.user),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+def build_ordem_response(ordem: OrdemMissao) -> dict:
+    """Constrói resposta da ordem com tripulação formatada."""
+    tripulacao = []
+    for t in ordem.tripulacao:
+        trip = t.tripulante
+        tripulacao.append({
+            'id': t.id,
+            'tripulante_id': t.tripulante_id,
+            'funcao': t.funcao,
+            'p_g': t.p_g,  # Snapshot do posto/graduacao na OM
+            'tripulante': {
+                'id': trip.id,
+                'trig': trip.trig,
+                'p_g': trip.user.p_g if trip and trip.user else '',
+                'nome_guerra': (
+                    trip.user.nome_guerra if trip and trip.user else ''
+                ),
+            }
+            if trip
+            else None,
+        })
+
+    return {
+        'id': ordem.id,
+        'numero': ordem.numero,
+        'matricula_anv': ordem.matricula_anv,
+        'tipo': ordem.tipo,
+        'projeto': ordem.projeto,
+        'status': ordem.status,
+        'campos_especiais': ordem.campos_especiais or [],
+        'doc_ref': ordem.doc_ref,
+        'created_by': ordem.created_by,
+        'created_at': ordem.created_at,
+        'updated_at': ordem.updated_at,
+        'deleted_at': ordem.deleted_at,
+        'etapas': [
+            {
+                'id': e.id,
+                'ordem_id': e.ordem_id,
+                'dt_dep': e.dt_dep,
+                'origem': e.origem,
+                'dest': e.dest,
+                'dt_arr': e.dt_arr,
+                'alternativa': e.alternativa,
+                'tvoo_etp': e.tvoo_etp,
+                'tvoo_alt': e.tvoo_alt,
+                'qtd_comb': e.qtd_comb,
+                'esf_aer': e.esf_aer,
+            }
+            for e in ordem.etapas
+        ],
+        'tripulacao': tripulacao,
+    }
+
+
+async def _criar_tripulacao_batch(
+    session: AsyncSession, ordem_id: int, tripulacao_data
+) -> None:
+    """
+    Cria registros de tripulacao usando batch query para evitar N+1.
+
+    Args:
+        session: Sessao do banco de dados
+        ordem_id: ID da ordem de missao
+        tripulacao_data: Dados da tripulacao (TripulacaoOM schema)
+    """
+    # Coletar todos os IDs de tripulantes
+    all_trip_ids = []
+    tripulacao_dict = tripulacao_data.model_dump()
+    for trip_ids in tripulacao_dict.values():
+        all_trip_ids.extend(trip_ids)
+
+    if not all_trip_ids:
+        return
+
+    # Uma unica query para buscar todos os tripulantes
+    tripulantes_result = await session.scalars(
+        select(Tripulante)
+        .where(Tripulante.id.in_(all_trip_ids))
+        .options(selectinload(Tripulante.user))
+    )
+    tripulantes_map = {t.id: t for t in tripulantes_result.all()}
+
+    # Criar registros de tripulacao usando o map
+    for funcao, trip_ids in tripulacao_dict.items():
+        for trip_id in trip_ids:
+            tripulante = tripulantes_map.get(trip_id)
+            if not tripulante or not tripulante.user:
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail=f'Tripulante {trip_id} não encontrado',
+                )
+            trip_ordem = TripulacaoOrdem(
+                ordem_id=ordem_id,
+                tripulante_id=trip_id,
+                funcao=funcao,
+                p_g=tripulante.user.p_g,  # Snapshot do p_g atual
+            )
+            session.add(trip_ordem)
 
 
 @router.get(
@@ -57,24 +183,28 @@ async def list_ordens(
     if status:
         query = query.where(OrdemMissao.status.in_(status))
 
-    # Filtro por tipo
+    # Filtro por tipo (com escape de caracteres especiais ILIKE)
     if tipo:
-        query = query.where(OrdemMissao.tipo.ilike(f'%{tipo}%'))
+        escaped_tipo = escape_like(tipo)
+        query = query.where(
+            OrdemMissao.tipo.ilike(f'%{escaped_tipo}%', escape='\\')
+        )
 
     # Filtro por busca (número da ordem ou código ICAO das etapas)
     if busca:
-        busca_term = busca.upper()
+        escaped_busca = escape_like(busca)
+        escaped_busca_upper = escape_like(busca.upper())
         # Subquery para encontrar ordens que têm etapas com o código ICAO
         etapas_subquery = (
             select(Etapa.ordem_id)
             .where(
-                (Etapa.origem.ilike(f'%{busca_term}%'))
-                | (Etapa.dest.ilike(f'%{busca_term}%'))
+                (Etapa.origem.ilike(f'%{escaped_busca_upper}%', escape='\\'))
+                | (Etapa.dest.ilike(f'%{escaped_busca_upper}%', escape='\\'))
             )
             .distinct()
         )
         query = query.where(
-            (OrdemMissao.numero.ilike(f'%{busca}%'))
+            (OrdemMissao.numero.ilike(f'%{escaped_busca}%', escape='\\'))
             | (OrdemMissao.id.in_(etapas_subquery))
         )
 
@@ -118,14 +248,10 @@ async def list_ordens(
     )
 
 
-@router.get('/{id}', status_code=HTTPStatus.OK, response_model=OrdemMissaoOut)
+@router.get('/{id}', status_code=HTTPStatus.OK)
 async def get_ordem(id: int, session: Session):
     """Busca uma ordem de missão por ID"""
-    ordem = await session.scalar(
-        select(OrdemMissao).where(
-            OrdemMissao.id == id, OrdemMissao.deleted_at.is_(None)
-        )
-    )
+    ordem = await get_ordem_with_relations(session, id)
 
     if not ordem:
         raise HTTPException(
@@ -133,12 +259,10 @@ async def get_ordem(id: int, session: Session):
             detail='Ordem de missão não encontrada',
         )
 
-    return ordem
+    return build_ordem_response(ordem)
 
 
-@router.post(
-    '/', status_code=HTTPStatus.CREATED, response_model=OrdemMissaoOut
-)
+@router.post('/', status_code=HTTPStatus.CREATED)
 async def create_ordem(
     ordem_data: OrdemMissaoCreate, session: Session, current_user: CurrentUser
 ):
@@ -190,24 +314,20 @@ async def create_ordem(
         )
         session.add(etapa)
 
-    # Criar tripulação
+    # Criar tripulação (batch query para evitar N+1)
     if ordem_data.tripulacao:
-        for funcao, trip_ids in ordem_data.tripulacao.model_dump().items():
-            for trip_id in trip_ids:
-                trip_ordem = TripulacaoOrdem(
-                    ordem_id=ordem.id,
-                    tripulante_id=trip_id,
-                    funcao=funcao,
-                )
-                session.add(trip_ordem)
+        await _criar_tripulacao_batch(
+            session, ordem.id, ordem_data.tripulacao
+        )
 
     await session.commit()
-    await session.refresh(ordem)
 
-    return ordem
+    # Buscar ordem com relacionamentos carregados para retorno
+    ordem_loaded = await get_ordem_with_relations(session, ordem.id)
+    return build_ordem_response(ordem_loaded)
 
 
-@router.put('/{id}', status_code=HTTPStatus.OK, response_model=OrdemMissaoOut)
+@router.put('/{id}', status_code=HTTPStatus.OK)
 async def update_ordem(
     id: int,
     ordem_data: OrdemMissaoUpdate,
@@ -248,7 +368,7 @@ async def update_ordem(
         ordem.campos_especiais = (
             [ce.model_dump() for ce in ordem_data.campos_especiais]
             if ordem_data.campos_especiais
-            else None
+            else []
         )
         del update_data['campos_especiais']
 
@@ -280,7 +400,7 @@ async def update_ordem(
 
         del update_data['etapas']
 
-    # Atualizar tripulação se fornecida
+    # Atualizar tripulação se fornecida (batch query para evitar N+1)
     if 'tripulacao' in update_data:
         # Remover tripulação existente
         for trip in ordem.tripulacao:
@@ -288,14 +408,9 @@ async def update_ordem(
 
         # Criar nova tripulação
         if ordem_data.tripulacao:
-            for funcao, trip_ids in ordem_data.tripulacao.model_dump().items():
-                for trip_id in trip_ids:
-                    trip_ordem = TripulacaoOrdem(
-                        ordem_id=ordem.id,
-                        tripulante_id=trip_id,
-                        funcao=funcao,
-                    )
-                    session.add(trip_ordem)
+            await _criar_tripulacao_batch(
+                session, ordem.id, ordem_data.tripulacao
+            )
 
         del update_data['tripulacao']
 
@@ -305,9 +420,10 @@ async def update_ordem(
             setattr(ordem, key, value)
 
     await session.commit()
-    await session.refresh(ordem)
 
-    return ordem
+    # Buscar ordem com relacionamentos carregados para retorno
+    ordem_loaded = await get_ordem_with_relations(session, ordem.id)
+    return build_ordem_response(ordem_loaded)
 
 
 @router.delete('/{id}', status_code=HTTPStatus.OK)

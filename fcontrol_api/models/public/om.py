@@ -103,6 +103,10 @@ class TripulacaoOrdem(Base):
     funcao: Mapped[str] = mapped_column(
         String(10), nullable=False
     )  # pil, mc, lm, tf, oe, os
+    # Snapshot do posto/graduacao no momento da criacao da OM
+    p_g: Mapped[str] = mapped_column(
+        ForeignKey('posto_grad.short'), nullable=False
+    )
 
     # Relacionamento com tripulante
     tripulante = relationship('Tripulante', lazy='selectin')

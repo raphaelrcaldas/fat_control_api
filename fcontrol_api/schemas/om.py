@@ -77,6 +77,8 @@ class TripulanteInfo(BaseModel):
 
     id: int
     trig: str
+    p_g: str
+    nome_guerra: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -84,6 +86,7 @@ class TripulacaoOrdemOut(BaseModel):
     id: int
     tripulante_id: int
     funcao: str
+    p_g: str  # Snapshot do posto/graduacao no momento da criacao da OM
     tripulante: TripulanteInfo | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -105,7 +108,7 @@ class OrdemMissaoBase(BaseModel):
     tipo: str
     projeto: str
     status: str
-    campos_especiais: list[CampoEspecial]
+    campos_especiais: list[CampoEspecial] = []
     doc_ref: str | None = None
 
 

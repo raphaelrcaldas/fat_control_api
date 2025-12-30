@@ -14,7 +14,6 @@ from fcontrol_api.schemas.users import (
     PwdSchema,
     UserFull,
     UserProfile,
-    UserPublic,
     UserPublicPaginated,
     UserSchema,
     UserUpdate,

@@ -9,7 +9,7 @@ class Resources(Base):
     __tablename__ = 'resources'
 
     id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True, unique=True, nullable=False
+        Identity(), init=False, primary_key=True, nullable=False
     )
     name: Mapped[str]
     description: Mapped[str]

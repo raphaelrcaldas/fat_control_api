@@ -49,4 +49,3 @@ class FragMisSchema(BaseModel):
     custos: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
-
