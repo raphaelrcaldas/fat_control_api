@@ -6,6 +6,8 @@ from typing import Annotated
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from fcontrol_api.schemas.etiquetas import EtiquetaSchema
+
 
 # --- Campo Especial (usado como JSONB) ---
 class CampoEspecial(BaseModel):
@@ -50,7 +52,8 @@ class EtapaBase(BaseModel):
         tvoo_etp = int((self.dt_arr - self.dt_dep).total_seconds() / 60)
         if tvoo_etp < 5:
             raise ValueError(
-                f'Tempo de voo da etapa deve ser no mínimo 5 minutos (calculado: {tvoo_etp})'
+                'Tempo de voo da etapa deve ser no mínimo 5 minutos '
+                f'(calculado: {tvoo_etp})'
             )
         return self
 
@@ -63,6 +66,15 @@ class EtapaOut(EtapaBase):
     id: int
     ordem_id: int
     tvoo_etp: int  # calculado: dt_arr - dt_dep em minutos
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EtapaListItem(BaseModel):
+    """Schema simplificado de etapa para listagem de ordens"""
+
+    dt_dep: Annotated[datetime, Body()]
+    origem: str
+    dest: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -115,6 +127,7 @@ class OrdemMissaoBase(BaseModel):
 class OrdemMissaoCreate(OrdemMissaoBase):
     etapas: list[EtapaCreate] = []
     tripulacao: TripulacaoAgrupada | None = None
+    etiquetas_ids: list[int] = []
 
 
 class OrdemMissaoUpdate(BaseModel):
@@ -127,6 +140,7 @@ class OrdemMissaoUpdate(BaseModel):
     campos_especiais: list[CampoEspecial] | None = None
     etapas: list[EtapaCreate] | None = None
     tripulacao: TripulacaoAgrupada | None = None
+    etiquetas_ids: list[int] | None = None
 
 
 class OrdemMissaoOut(OrdemMissaoBase):
@@ -137,6 +151,7 @@ class OrdemMissaoOut(OrdemMissaoBase):
     deleted_at: Annotated[datetime | None, Body()] = None
     etapas: list[EtapaOut] = []
     tripulacao: list[TripulacaoOrdemOut] = []
+    etiquetas: list[EtiquetaSchema] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -151,4 +166,6 @@ class OrdemMissaoList(BaseModel):
     status: str
     created_at: Annotated[datetime, Body()]
     doc_ref: str | None = None
+    etapas: list[EtapaListItem] = []
+    etiquetas: list[EtiquetaSchema] = []
     model_config = ConfigDict(from_attributes=True)

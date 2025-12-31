@@ -1,12 +1,40 @@
 """Modelos para Ordem de Missão (OM)"""
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Identity, String, func
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Identity,
+    String,
+    Table,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+if TYPE_CHECKING:
+    from .etiquetas import Etiqueta
+
 from .base import Base
+
+# Tabela associativa para Many-to-Many entre OrdemMissao e Etiqueta
+ordem_etiqueta = Table(
+    'ordem_etiqueta',
+    Base.metadata,
+    Column(
+        'ordem_id',
+        ForeignKey('ordens_missao.id', ondelete='CASCADE'),
+        primary_key=True,
+    ),
+    Column(
+        'etiqueta_id',
+        ForeignKey('etiquetas.id', ondelete='CASCADE'),
+        primary_key=True,
+    ),
+)
 
 
 class OrdemMissao(Base):
@@ -66,6 +94,15 @@ class OrdemMissao(Base):
         backref='ordens_criadas',
         lazy='selectin',
         foreign_keys=[created_by],
+    )
+    # Relacionamento many-to-many com etiquetas
+    etiquetas: Mapped[list['Etiqueta']] = relationship(
+        'Etiqueta',
+        secondary=ordem_etiqueta,
+        back_populates='ordens',
+        lazy='selectin',
+        init=False,
+        default_factory=list,
     )
 
 

@@ -11,10 +11,12 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.public.etiquetas import Etiqueta
 from fcontrol_api.models.public.om import Etapa, OrdemMissao, TripulacaoOrdem
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.om import (
+    EtapaListItem,
     OrdemMissaoCreate,
     OrdemMissaoList,
     OrdemMissaoUpdate,
@@ -30,9 +32,7 @@ router = APIRouter(prefix='/om', tags=['ordens-missao'])
 
 def escape_like(value: str) -> str:
     """Escapa caracteres especiais para ILIKE (%, _, \\)."""
-    return (
-        value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-    )
+    return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 async def get_ordem_with_relations(
@@ -47,6 +47,7 @@ async def get_ordem_with_relations(
             selectinload(OrdemMissao.tripulacao)
             .selectinload(TripulacaoOrdem.tripulante)
             .selectinload(Tripulante.user),
+            selectinload(OrdemMissao.etiquetas),
         )
     )
     return result.scalar_one_or_none()
@@ -68,6 +69,9 @@ def build_ordem_response(ordem: OrdemMissao) -> dict:
                 'p_g': trip.user.p_g if trip and trip.user else '',
                 'nome_guerra': (
                     trip.user.nome_guerra if trip and trip.user else ''
+                ),
+                'nome_completo': (
+                    trip.user.nome_completo if trip and trip.user else ''
                 ),
             }
             if trip
@@ -104,6 +108,15 @@ def build_ordem_response(ordem: OrdemMissao) -> dict:
             for e in ordem.etapas
         ],
         'tripulacao': tripulacao,
+        'etiquetas': [
+            {
+                'id': et.id,
+                'nome': et.nome,
+                'cor': et.cor,
+                'descricao': et.descricao,
+            }
+            for et in ordem.etiquetas
+        ],
     }
 
 
@@ -163,15 +176,18 @@ async def list_ordens(
     page: int = 1,
     per_page: int = 20,
     status: Annotated[list[str] | None, Query()] = None,
+    status_ne: str | None = None,
     tipo: str | None = None,
     data_inicio: str | None = None,
     data_fim: str | None = None,
     busca: str | None = None,
+    etiquetas_ids: Annotated[list[int] | None, Query()] = None,
 ):
     """
     Lista ordens de missão com filtros e paginação.
 
-    - **status**: Lista de status (Rascunho, Elaborada, Finalizada, Revisada)
+    - **status**: Lista de status para incluir
+    - **status_ne**: Status para excluir (not equal, ex: rascunho)
     - **tipo**: Tipo de missão
     - **data_inicio/data_fim**: Filtro por data de decolagem da primeira etapa
     - **busca**: Busca por número ou localidades
@@ -179,9 +195,11 @@ async def list_ordens(
     # Query base: apenas ordens não deletadas
     query = select(OrdemMissao).where(OrdemMissao.deleted_at.is_(None))
 
-    # Filtro por status
+    # Filtro por status (inclusão ou exclusão)
     if status:
         query = query.where(OrdemMissao.status.in_(status))
+    elif status_ne:
+        query = query.where(OrdemMissao.status != status_ne)
 
     # Filtro por tipo (com escape de caracteres especiais ILIKE)
     if tipo:
@@ -208,15 +226,25 @@ async def list_ordens(
             | (OrdemMissao.id.in_(etapas_subquery))
         )
 
+    # Filtro por etiquetas
+    if etiquetas_ids:
+        query = query.where(
+            OrdemMissao.etiquetas.any(Etiqueta.id.in_(etiquetas_ids))
+        )
+
     # Contagem total
     count_query = select(func.count()).select_from(query.subquery())
     total = await session.scalar(count_query) or 0
 
-    # Paginação e ordenação
+    # Paginação e ordenação com eager load de etapas
     query = (
         query.order_by(OrdemMissao.created_at.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
+        .options(
+            selectinload(OrdemMissao.etapas),
+            selectinload(OrdemMissao.etiquetas),
+        )
     )
 
     result = await session.scalars(query)
@@ -233,6 +261,23 @@ async def list_ordens(
             status=ordem.status,
             created_at=ordem.created_at,
             doc_ref=ordem.doc_ref,
+            etapas=[
+                EtapaListItem(
+                    dt_dep=e.dt_dep,
+                    origem=e.origem,
+                    dest=e.dest,
+                )
+                for e in ordem.etapas
+            ],
+            etiquetas=[
+                {
+                    'id': et.id,
+                    'nome': et.nome,
+                    'cor': et.cor,
+                    'descricao': et.descricao,
+                }
+                for et in ordem.etiquetas
+            ],
         )
         for ordem in ordens
     ]
@@ -277,14 +322,14 @@ async def create_ordem(
             detail='Já existe uma ordem com este número',
         )
 
-    # Criar ordem (sempre como Rascunho na criação)
+    # Criar ordem (sempre como rascunho na criação)
     ordem = OrdemMissao(
         numero=ordem_data.numero,
         matricula_anv=ordem_data.matricula_anv,
         tipo=ordem_data.tipo,
         created_by=current_user.id,
         projeto=ordem_data.projeto,
-        status='Rascunho',  # Regra de negócio: nova ordem é sempre rascunho
+        status='rascunho',  # Regra de negócio: nova ordem é sempre rascunho
         campos_especiais=[
             ce.model_dump() for ce in ordem_data.campos_especiais
         ],
@@ -316,9 +361,14 @@ async def create_ordem(
 
     # Criar tripulação (batch query para evitar N+1)
     if ordem_data.tripulacao:
-        await _criar_tripulacao_batch(
-            session, ordem.id, ordem_data.tripulacao
+        await _criar_tripulacao_batch(session, ordem.id, ordem_data.tripulacao)
+
+    # Vincular etiquetas
+    if ordem_data.etiquetas_ids:
+        etiquetas_result = await session.execute(
+            select(Etiqueta).where(Etiqueta.id.in_(ordem_data.etiquetas_ids))
         )
+        ordem.etiquetas = list(etiquetas_result.scalars().all())
 
     await session.commit()
 
@@ -413,6 +463,19 @@ async def update_ordem(
             )
 
         del update_data['tripulacao']
+
+    # Atualizar etiquetas se fornecidas
+    if 'etiquetas_ids' in update_data:
+        if ordem_data.etiquetas_ids is not None:
+            etiquetas_result = await session.execute(
+                select(Etiqueta).where(
+                    Etiqueta.id.in_(ordem_data.etiquetas_ids)
+                )
+            )
+            ordem.etiquetas = list(etiquetas_result.scalars().all())
+        else:
+            ordem.etiquetas = []
+        del update_data['etiquetas_ids']
 
     # Atualizar demais campos
     for key, value in update_data.items():
