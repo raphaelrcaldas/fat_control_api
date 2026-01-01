@@ -1,8 +1,8 @@
 from datetime import date, datetime, time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -19,58 +19,83 @@ router = APIRouter(prefix='/financeiro', tags=['CEGEP'])
 @router.get('/pgts')
 async def get_pgto(
     session: Session,
-    tipo_doc: str = None,
+    tipo_doc: list[str] = Query(None, description='Tipos de documento'),
     n_doc: int = None,
-    sit: str = None,
+    sit: list[str] = Query(None, description='Situações'),
     user: str = None,
     user_id: int = None,
-    tipo: str = None,
+    tipo: list[str] = Query(None, description='Tipos de missão'),
     ini: date = None,
     fim: date = None,
+    page: int = Query(1, ge=1, description='Número da página'),
+    limit: int = Query(20, ge=1, le=100, description='Itens por página'),
 ):
-    stmt = (
+    # Query base com joins
+    base_query = (
         select(UserFrag, FragMis)
         .join(FragMis, (FragMis.id == UserFrag.frag_id))
         .join(User, (User.id == UserFrag.user_id))
-        .order_by(FragMis.afast.desc())
     )
 
+    # Query para contagem
+    count_query = (
+        select(func.count())
+        .select_from(UserFrag)
+        .join(FragMis, (FragMis.id == UserFrag.frag_id))
+        .join(User, (User.id == UserFrag.user_id))
+    )
+
+    # Aplicar filtros em ambas as queries
     if tipo_doc:
-        stmt = stmt.where(FragMis.tipo_doc == tipo_doc)
+        base_query = base_query.where(FragMis.tipo_doc.in_(tipo_doc))
+        count_query = count_query.where(FragMis.tipo_doc.in_(tipo_doc))
 
     if n_doc:
-        stmt = stmt.where(FragMis.n_doc == n_doc)
+        base_query = base_query.where(FragMis.n_doc == n_doc)
+        count_query = count_query.where(FragMis.n_doc == n_doc)
 
     if sit:
-        if sit.startswith('!'):
-            stmt = stmt.where(UserFrag.sit != sit[1:])
-        else:
-            stmt = stmt.where(UserFrag.sit == sit)
+        base_query = base_query.where(UserFrag.sit.in_(sit))
+        count_query = count_query.where(UserFrag.sit.in_(sit))
 
     if user_id:
-        stmt = stmt.where(UserFrag.user_id == user_id).limit(25)
+        base_query = base_query.where(UserFrag.user_id == user_id)
+        count_query = count_query.where(UserFrag.user_id == user_id)
 
     if user:
-        stmt = stmt.where(
+        user_filter = (
             User.nome_guerra.ilike(f'%{user}%')
             | User.nome_completo.ilike(f'%{user}%')
         )
+        base_query = base_query.where(user_filter)
+        count_query = count_query.where(user_filter)
 
     if tipo:
-        stmt = stmt.where(FragMis.tipo == tipo)
+        base_query = base_query.where(FragMis.tipo.in_(tipo))
+        count_query = count_query.where(FragMis.tipo.in_(tipo))
 
     if ini:
         ini = datetime.combine(ini, time(0, 0, 0))
-        stmt = stmt.where(FragMis.afast >= ini)
+        base_query = base_query.where(FragMis.afast >= ini)
+        count_query = count_query.where(FragMis.afast >= ini)
 
     if fim:
         fim = datetime.combine(fim, time(23, 59, 59))
-        stmt = stmt.where(FragMis.afast <= fim)
+        base_query = base_query.where(FragMis.afast <= fim)
+        count_query = count_query.where(FragMis.afast <= fim)
+
+    # Executar contagem total
+    total_result = await session.execute(count_query)
+    total = total_result.scalar()
+
+    # Aplicar ordenação e paginação
+    offset = (page - 1) * limit
+    stmt = base_query.order_by(FragMis.afast.desc()).offset(offset).limit(limit)
 
     result = await session.execute(stmt)
     result: list[tuple[UserFrag, FragMis]] = result.all()
 
-    response = []
+    items = []
     for usr_frg, missao in result:
         uf_data = UserFragMis.model_validate(usr_frg).model_dump(
             exclude={'user_id', 'frag_id'}
@@ -85,9 +110,17 @@ async def get_pgto(
             mis,
         )
 
-        response.append({
+        items.append({
             'user_mis': uf_data,
             'missao': mis,
         })
 
-    return response
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+
+    return {
+        'items': items,
+        'total': total,
+        'page': page,
+        'limit': limit,
+        'total_pages': total_pages,
+    }
