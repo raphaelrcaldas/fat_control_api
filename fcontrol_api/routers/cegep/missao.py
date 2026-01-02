@@ -3,13 +3,14 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
+from fcontrol_api.models.cegep.etiquetas import FragEtiqueta
 from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.users import User
@@ -20,9 +21,11 @@ from fcontrol_api.schemas.custos import (
 )
 from fcontrol_api.schemas.missoes import (
     FragMisSchema,
+    MissoesFilterParams,
     PernoiteFragMis,
     UserFragMis,
 )
+from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
@@ -36,64 +39,145 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 
 
-@router.get('/', response_model=list[FragMisSchema])
+@router.get('/', response_model=PaginatedResponse[FragMisSchema])
 async def get_fragmentos(
     session: Session,
-    tipo_doc: str = None,
-    n_doc: int = None,
-    tipo: str = None,
-    user_search: str = None,
-    city: str = None,
-    ini: date = None,
-    fim: date = None,
-    etiqueta_ids: str = None,  # IDs separados por vírgula: "1,2,3"
+    params: MissoesFilterParams = Depends(),
 ):
-    ini = datetime.combine(ini, time(0, 0, 0))
-    fim = datetime.combine(fim, time(23, 59, 59))
+    """
+    Listar missões com filtros avançados e paginação.
 
-    stmt = (
+    **Segurança:**
+    - Todos os parâmetros são validados via Pydantic (MissoesFilterParams)
+    - SQLAlchemy ORM usa parameterização automática para prevenir SQL injection
+    - Limite máximo de 100 itens por página para prevenir DoS
+    - Validação de tipos e limites de tamanho para todos os inputs
+
+    **Filtros disponíveis:**
+    - tipo_doc: Tipo do documento
+    - n_doc: Número do documento
+    - tipo: Tipo da missão
+    - user_search: Nome de guerra (busca parcial case-insensitive)
+    - city: Nome da cidade (busca parcial case-insensitive)
+    - ini/fim: Intervalo de datas (afastamento/regresso)
+    - etiqueta_ids: IDs de etiquetas separados por vírgula
+
+    **Paginação:**
+    - page: Número da página (padrão: 1)
+    - per_page: Itens por página (padrão: 20, máx: 100)
+    """
+    # Pydantic já valida per_page <= 100,
+    # mas garantimos via min() por defesa em profundidade
+    per_page = min(params.per_page, 100)
+    page = max(params.page, 1)  # Redundante, mas mantemos por segurança
+    offset = (page - 1) * per_page
+
+    # Conversão de datas com null checks
+    # Se ini ou fim não foram fornecidos, usa valores padrão
+    # que capturam todas as missões
+    if params.ini:
+        ini = datetime.combine(params.ini, time(0, 0, 0))
+    else:
+        # Data mínima que captura todas as missões
+        ini = datetime(1900, 1, 1, 0, 0, 0)
+
+    if params.fim:
+        fim = datetime.combine(params.fim, time(23, 59, 59))
+    else:
+        # Data máxima que captura todas as missões
+        fim = datetime(2100, 12, 31, 23, 59, 59)
+
+    # Query base com ordenação
+    base_query = (
         select(FragMis)
         .options(selectinload(FragMis.users))
         .filter(FragMis.afast >= ini, FragMis.regres <= fim)
         .order_by(FragMis.afast.desc())
     )
 
-    if tipo_doc:
-        stmt = stmt.where(FragMis.tipo_doc == tipo_doc)
+    # Query de contagem (sem options e sem ordenação para performance)
+    count_query = (
+        select(func.count())
+        .select_from(FragMis)
+        .filter(FragMis.afast >= ini, FragMis.regres <= fim)
+    )
 
-    if n_doc:
-        stmt = stmt.where(FragMis.n_doc == n_doc)
+    # Aplica filtros validados em ambas as queries
+    if params.tipo_doc:
+        base_query = base_query.where(FragMis.tipo_doc == params.tipo_doc)
+        count_query = count_query.where(FragMis.tipo_doc == params.tipo_doc)
 
-    if tipo:
-        stmt = stmt.where(FragMis.tipo == tipo)
+    if params.n_doc:
+        base_query = base_query.where(FragMis.n_doc == params.n_doc)
+        count_query = count_query.where(FragMis.n_doc == params.n_doc)
 
-    if city:
-        stmt = (
-            stmt.join(PernoiteFrag)
+    if params.tipo:
+        base_query = base_query.where(FragMis.tipo == params.tipo)
+        count_query = count_query.where(FragMis.tipo == params.tipo)
+
+    # Filtro por cidade (busca parcial case-insensitive)
+    # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
+    if params.city:
+        base_query = (
+            base_query.join(PernoiteFrag)
             .join(Cidade)
-            .where(Cidade.nome.ilike(f'%{city}%'))
+            .where(Cidade.nome.ilike(f'%{params.city}%'))
+        )
+        count_query = (
+            count_query.join(PernoiteFrag)
+            .join(Cidade)
+            .where(Cidade.nome.ilike(f'%{params.city}%'))
         )
 
-    if user_search:
-        stmt = (
-            stmt.join(UserFrag)
+    # Filtro por nome de guerra (busca parcial case-insensitive)
+    # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
+    if params.user_search:
+        base_query = (
+            base_query.join(UserFrag)
             .join(User)
-            .where(User.nome_guerra.ilike(f'%{user_search}%'))
+            .where(User.nome_guerra.ilike(f'%{params.user_search}%'))
+        )
+        count_query = (
+            count_query.join(UserFrag)
+            .join(User)
+            .where(User.nome_guerra.ilike(f'%{params.user_search}%'))
         )
 
     # Filtro por etiquetas (multi-select)
-    if etiqueta_ids:
-        ids = [int(id.strip()) for id in etiqueta_ids.split(',') if id.strip().isdigit()]
-        if ids:
-            from fcontrol_api.models.cegep.etiquetas import FragEtiqueta
-            stmt = (
-                stmt.join(FragEtiqueta, FragEtiqueta.frag_id == FragMis.id)
-                .where(FragEtiqueta.etiqueta_id.in_(ids))
-            )
+    # Parsing seguro com tratamento de erro e validação
+    if params.etiqueta_ids:
+        try:
+            # Pydantic já validou o padrão regex,
+            # mas fazemos parsing defensivo
+            ids = [
+                int(id.strip())
+                for id in params.etiqueta_ids.split(',')
+                if id.strip().isdigit()
+            ]
 
-    db_frags = (await session.scalars(stmt)).unique().all()
+            # Só aplica filtro se houver IDs válidos
+            if ids:
+                base_query = base_query.join(
+                    FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
+                ).where(FragEtiqueta.etiqueta_id.in_(ids))
 
-    # Ordena os usuários dentro de cada missão
+                count_query = count_query.join(
+                    FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
+                ).where(FragEtiqueta.etiqueta_id.in_(ids))
+
+        except (ValueError, AttributeError):
+            # Se parsing falhar (não deveria devido validação Pydantic),
+            # ignora filtro de etiquetas silenciosamente
+            pass
+
+    # Executa count e fetch
+    total = await session.scalar(count_query) or 0
+    frags_result = await session.scalars(
+        base_query.offset(offset).limit(per_page)
+    )
+    db_frags = frags_result.unique().all()
+
+    # Ordena os usuários dentro de cada missão por posto/antiguidade
     for frag in db_frags:
         frag.users.sort(
             key=lambda u: (
@@ -103,7 +187,16 @@ async def get_fragmentos(
             )
         )
 
-    return db_frags
+    # Calcula número de páginas
+    pages = (total + per_page - 1) // per_page if total > 0 else 1
+
+    return PaginatedResponse(
+        items=db_frags,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
 
 
 @router.post('/')
