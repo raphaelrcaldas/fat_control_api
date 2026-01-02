@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
@@ -72,7 +72,40 @@ class UserPublic(BaseModel):
 
 
 class PwdSchema(BaseModel):
-    new_pwd: str
+    new_pwd: str = Field(min_length=8, max_length=128)
+
+    @field_validator('new_pwd')
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """
+        Valida a força da senha.
+        Requisitos:
+        - Mínimo 8 caracteres
+        - Pelo menos 1 letra maiúscula
+        - Pelo menos 1 letra minúscula
+        - Pelo menos 1 dígito
+        - Pelo menos 1 caractere especial
+        """
+        import re
+
+        errors = []
+
+        if not re.search(r'[A-Z]', v):
+            errors.append('pelo menos 1 letra maiúscula')
+
+        if not re.search(r'[a-z]', v):
+            errors.append('pelo menos 1 letra minúscula')
+
+        if not re.search(r'\d', v):
+            errors.append('pelo menos 1 dígito')
+
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~]', v):
+            errors.append('pelo menos 1 caractere especial (!@#$%^&*...)')
+
+        if errors:
+            raise ValueError(f'Senha deve conter: {", ".join(errors)}')
+
+        return v
 
 
 class Permission(BaseModel):

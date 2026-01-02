@@ -215,12 +215,68 @@ async def dev_login(
     request: Request,
     user: User = Depends(get_current_user),
 ):
+    """
+    Endpoint exclusivo para desenvolvimento.
+    Permite gerar token de qualquer usuário para testar diferentes perfis.
+
+    Restrições:
+    - Somente funciona em ambiente de desenvolvimento (ENV=development)
+    - Somente o usuário com id=1 pode usar
+    - Token expira em 7 dias
+    """
+    from fcontrol_api.settings import Settings
+
+    settings = Settings()
+
+    # Bloquear em produção
+    if settings.ENV != 'development':
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Este endpoint só disponível em ambiente de desenvolvimento',
+        )
+
+    # Verificar se é o usuário admin (id=1)
     if not user or user.id != 1:
         raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Not Allowed',
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Apenas o administrador pode usar este endpoint',
         )
+
+    # Buscar usuário alvo
     db_user = await session.get(User, user_id)
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail=f'Usuário com id={user_id} não encontrado',
+        )
+
+    # Logging de auditoria
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='dev_login',
+        resource='auth',
+        resource_id=user_id,
+        before=None,
+        after={
+            'target_user': f'{db_user.posto.short} {db_user.nome_guerra}'
+            if db_user.posto
+            else db_user.nome_guerra,
+            'ip': request.client.host,
+            'user_agent': request.headers.get('user-agent'),
+        },
+    )
+    await session.commit()
+
+    # Gerar token com expiração de 7 dias
     data = token_data(db_user, request.state.app_client)
     access_token = create_access_token(data=data, dev=True)
-    return {'access_token': access_token, 'token_type': 'bearer'}
+
+    return {
+        'access_token': access_token,
+        'token_type': 'bearer',
+        'target_user': f'{db_user.posto.short} {db_user.nome_guerra}'
+        if db_user.posto
+        else db_user.nome_guerra,
+        'expires_in_days': 7,
+    }
