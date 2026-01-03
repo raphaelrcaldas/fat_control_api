@@ -3,7 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -174,10 +174,14 @@ async def read_users(
     offset = (page - 1) * per_page
 
     # Query base ordenada
-    base_query = select(User).join(PostoGrad).order_by(
-        PostoGrad.ant.asc(),
-        User.ult_promo.asc(),
-        User.ant_rel.asc(),
+    base_query = (
+        select(User)
+        .join(PostoGrad)
+        .order_by(
+            PostoGrad.ant.asc(),
+            User.ult_promo.asc(),
+            User.ant_rel.asc(),
+        )
     )
 
     # Query de contagem
@@ -187,10 +191,22 @@ async def read_users(
     filters = []
 
     if search:
-        filters.append(User.nome_guerra.ilike(f'%{search.strip()}%'))
+        # Busca por nome de guerra OU nome completo
+        search_term = f'%{search.strip()}%'
+        filters.append(
+            or_(
+                User.nome_guerra.ilike(search_term),
+                User.nome_completo.ilike(search_term),
+            )
+        )
 
     if p_g:
-        filters.append(User.p_g == p_g)
+        # Suporta múltiplos P/G separados por vírgula
+        pg_list = [pg.strip() for pg in p_g.split(',') if pg.strip()]
+        if len(pg_list) == 1:
+            filters.append(User.p_g == pg_list[0])
+        elif len(pg_list) > 1:
+            filters.append(User.p_g.in_(pg_list))
 
     if active is not None:
         filters.append(User.active == active)
