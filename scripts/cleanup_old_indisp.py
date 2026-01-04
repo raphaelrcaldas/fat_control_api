@@ -7,9 +7,6 @@ anterior a 60 dias da data atual.
 Uso:
     cd /path/to/api
     python -m scripts.cleanup_old_indisp
-
-Para Fly.io scheduled machine:
-    fly machine run . --schedule daily --command "python -m scripts.cleanup_old_indisp"
 """
 
 import asyncio

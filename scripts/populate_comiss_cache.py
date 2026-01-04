@@ -23,7 +23,7 @@ async def populate_all_cache():
         comiss_ids = [id for (id,) in result.all()]
 
         print(
-            f'Encontrados {len(comiss_ids)} comissionamentos para recalcular...'
+            f'Encontrados {len(comiss_ids)} comissionamentos para recalcular'
         )
 
         for i, comiss_id in enumerate(comiss_ids, 1):

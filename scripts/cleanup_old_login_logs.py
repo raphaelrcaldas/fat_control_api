@@ -7,9 +7,6 @@ anterior a 30 dias da data atual.
 Uso:
     cd /path/to/api
     python -m scripts.cleanup_old_login_logs
-
-Para Fly.io scheduled machine:
-    fly machine run . --schedule daily --command "python -m scripts.cleanup_old_login_logs"
 """
 
 import asyncio
