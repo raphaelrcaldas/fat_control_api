@@ -115,7 +115,6 @@ class TripulacaoAgrupada(BaseModel):
 
 # --- Ordem de Missão ---
 class OrdemMissaoBase(BaseModel):
-    numero: str
     matricula_anv: int
     tipo: str
     projeto: str
@@ -127,13 +126,14 @@ class OrdemMissaoBase(BaseModel):
 
 
 class OrdemMissaoCreate(OrdemMissaoBase):
+    """Schema para criação de OM - numero será gerado pelo backend"""
+
     etapas: list[EtapaCreate] = []
     tripulacao: TripulacaoAgrupada | None = None
     etiquetas_ids: list[int] = []
 
 
 class OrdemMissaoUpdate(BaseModel):
-    numero: str | None = None
     matricula_anv: int | None = None
     tipo: str | None = None
     doc_ref: str | None = None
@@ -143,11 +143,11 @@ class OrdemMissaoUpdate(BaseModel):
     etapas: list[EtapaCreate] | None = None
     tripulacao: TripulacaoAgrupada | None = None
     etiquetas_ids: list[int] | None = None
-    uae: str | None = None
 
 
 class OrdemMissaoOut(OrdemMissaoBase):
     id: int
+    numero: str
     created_by: int
     created_at: Annotated[datetime, Body()]
     updated_at: Annotated[datetime | None, Body()] = None
@@ -162,7 +162,7 @@ class OrdemMissaoList(BaseModel):
     """Schema simplificado para listagem"""
 
     id: int
-    numero: str
+    numero: str  # Gerado pelo backend
     matricula_anv: int
     tipo: str
     projeto: str
