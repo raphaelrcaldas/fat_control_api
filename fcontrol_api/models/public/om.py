@@ -1,10 +1,11 @@
 """Modelos para Ordem de Missão (OM)"""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Identity,
@@ -46,7 +47,7 @@ class OrdemMissao(Base):
         Identity(), init=False, primary_key=True, nullable=False
     )
     numero: Mapped[str] = mapped_column(
-        String(50), nullable=False, unique=True
+        String(50), nullable=False, unique=False
     )
     matricula_anv: Mapped[int] = mapped_column(nullable=False)
     tipo: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -58,6 +59,10 @@ class OrdemMissao(Base):
     doc_ref: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None
     )
+    data_saida: Mapped[date | None] = mapped_column(
+        Date, nullable=True, default=None
+    )
+    uae: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -5,7 +5,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -87,6 +87,8 @@ def build_ordem_response(ordem: OrdemMissao) -> dict:
         'status': ordem.status,
         'campos_especiais': ordem.campos_especiais or [],
         'doc_ref': ordem.doc_ref,
+        'data_saida': ordem.data_saida,
+        'uae': ordem.uae,
         'created_by': ordem.created_by,
         'created_at': ordem.created_at,
         'updated_at': ordem.updated_at,
@@ -261,6 +263,8 @@ async def list_ordens(
             status=ordem.status,
             created_at=ordem.created_at,
             doc_ref=ordem.doc_ref,
+            data_saida=ordem.data_saida,
+            uae=ordem.uae,
             etapas=[
                 EtapaListItem(
                     dt_dep=e.dt_dep,
@@ -322,9 +326,14 @@ async def create_ordem(
             detail='Já existe uma ordem com este número',
         )
 
+    # Calcular data_saida (data da primeira etapa)
+    data_saida = None
+    if ordem_data.etapas:
+        data_saida = min(e.dt_dep for e in ordem_data.etapas).date()
+
     # Criar ordem (sempre como rascunho na criação)
     ordem = OrdemMissao(
-        numero=ordem_data.numero,
+        numero='auto',  # Regra de negócio: nova ordem é sempre auto
         matricula_anv=ordem_data.matricula_anv,
         tipo=ordem_data.tipo,
         created_by=current_user.id,
@@ -334,6 +343,8 @@ async def create_ordem(
             ce.model_dump() for ce in ordem_data.campos_especiais
         ],
         doc_ref=ordem_data.doc_ref,
+        data_saida=data_saida,
+        uae=ordem_data.uae,
     )
 
     session.add(ordem)
@@ -397,18 +408,73 @@ async def update_ordem(
             detail='Ordem de missão não encontrada',
         )
 
-    # Verificar número duplicado
-    if ordem_data.numero and ordem_data.numero != ordem.numero:
-        existing = await session.scalar(
-            select(OrdemMissao).where(
-                OrdemMissao.numero == ordem_data.numero, OrdemMissao.id != id
-            )
-        )
-        if existing:
+    # Identificar transição para aprovada para gerar número
+    if (
+        ordem_data.status == 'aprovada'
+        and ordem.status == 'rascunho'
+        and (ordem.numero == 'auto' or not ordem.numero)
+    ):
+        # 1. Identificar data da primeira etapa
+        if not ordem.data_saida:
+            # Garantir que temos a data_saida
+            if ordem_data.etapas:
+                ordem.data_saida = min(
+                    e.dt_dep for e in ordem_data.etapas
+                ).date()
+            elif ordem.etapas:
+                ordem.data_saida = min(e.dt_dep for e in ordem.etapas).date()
+
+        if not ordem.data_saida:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail='Já existe uma ordem com este número',
+                detail='A ordem deve ter pelo menos uma etapa',
             )
+
+        # 2. Consultar quantas OMs numeradas existem no ano/UAE
+        year = ordem.data_saida.year
+        target_uae = ordem_data.uae if ordem_data.uae else ordem.uae
+
+        count = await session.scalar(
+            select(func.count(OrdemMissao.id)).where(
+                OrdemMissao.numero != 'auto',
+                OrdemMissao.deleted_at.is_(None),
+                extract('year', OrdemMissao.data_saida) == year,
+                OrdemMissao.uae == target_uae,
+            )
+        )
+
+        # 3. Atribuir número sequencial
+        seq = (count or 0) + 1
+        ordem.numero = f'{seq:03d}'
+
+    # Verificar número duplicado (se fornecido manualmente)
+    if ordem_data.numero and ordem_data.numero not in {'auto', ordem.numero}:
+        # Garantir que temos o target_year e target_uae
+        target_year = None
+        target_uae = ordem_data.uae if ordem_data.uae else ordem.uae
+        if ordem_data.etapas:
+            target_year = min(e.dt_dep for e in ordem_data.etapas).year
+        elif ordem.data_saida:
+            target_year = ordem.data_saida.year
+
+        if target_year and target_uae:
+            existing = await session.scalar(
+                select(OrdemMissao).where(
+                    OrdemMissao.numero == ordem_data.numero,
+                    OrdemMissao.id != id,
+                    OrdemMissao.deleted_at.is_(None),
+                    extract('year', OrdemMissao.data_saida) == target_year,
+                    OrdemMissao.uae == target_uae,
+                )
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail=(
+                        f'Já existe uma ordem com este número '
+                        f'no ano {target_year} para a UAE {target_uae}'
+                    ),
+                )
 
     # Atualizar campos simples
     update_data = ordem_data.model_dump(exclude_unset=True)
@@ -424,6 +490,12 @@ async def update_ordem(
 
     # Atualizar etapas se fornecidas
     if 'etapas' in update_data:
+        # Atualizar data_saida
+        if ordem_data.etapas:
+            ordem.data_saida = min(e.dt_dep for e in ordem_data.etapas).date()
+        else:
+            ordem.data_saida = None
+
         # Remover etapas existentes
         for etapa in ordem.etapas:
             await session.delete(etapa)

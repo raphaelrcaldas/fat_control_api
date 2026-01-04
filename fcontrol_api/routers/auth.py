@@ -232,7 +232,7 @@ async def dev_login(
     if settings.ENV != 'development':
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN,
-            detail='Este endpoint só disponível em ambiente de desenvolvimento',
+            detail='Endpoint só disponível em ambiente de desenvolvimento',
         )
 
     # Verificar se é o usuário admin (id=1)

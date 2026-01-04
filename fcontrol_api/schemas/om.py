@@ -1,6 +1,6 @@
 """Schemas Pydantic para Ordem de Missão (OM)"""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import Body
@@ -122,6 +122,8 @@ class OrdemMissaoBase(BaseModel):
     status: str
     campos_especiais: list[CampoEspecial] = []
     doc_ref: str | None = None
+    data_saida: date | None = None
+    uae: str
 
 
 class OrdemMissaoCreate(OrdemMissaoBase):
@@ -141,6 +143,7 @@ class OrdemMissaoUpdate(BaseModel):
     etapas: list[EtapaCreate] | None = None
     tripulacao: TripulacaoAgrupada | None = None
     etiquetas_ids: list[int] | None = None
+    uae: str | None = None
 
 
 class OrdemMissaoOut(OrdemMissaoBase):
@@ -166,6 +169,8 @@ class OrdemMissaoList(BaseModel):
     status: str
     created_at: Annotated[datetime, Body()]
     doc_ref: str | None = None
+    data_saida: date | None = None
+    uae: str
     etapas: list[EtapaListItem] = []
     etiquetas: list[EtiquetaSchema] = []
     model_config = ConfigDict(from_attributes=True)
