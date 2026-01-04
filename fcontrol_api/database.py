@@ -6,10 +6,8 @@ from fcontrol_api.settings import Settings
 settings = Settings()
 
 config = {
-    'pool_pre_ping': True,        # Detecta e descarta conexões mortas
-    'connect_args': {
-        'command_timeout': 60,     # Timeout de comandos SQL
-    },
+    'pool_pre_ping': True,
+    'connect_args': {'command_timeout': 60},
     'echo': False,
 }
 
