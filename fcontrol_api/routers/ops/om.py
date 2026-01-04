@@ -484,6 +484,16 @@ async def update_ordem(
     # Atualizar campos simples
     update_data = ordem_data.model_dump(exclude_unset=True)
 
+    # Se um número foi gerado automaticamente, remover 'numero' de update_data
+    # para evitar sobrescrever o valor gerado
+    if (
+        ordem_data.status == 'aprovada'
+        and ordem.status == 'rascunho'
+        and ordem.numero != 'auto'  # Número foi gerado (linha 453)
+        and 'numero' in update_data
+    ):
+        del update_data['numero']
+
     # Tratar campos especiais
     if 'campos_especiais' in update_data:
         ordem.campos_especiais = (
@@ -563,6 +573,7 @@ async def update_ordem(
 
     # Buscar ordem com relacionamentos carregados para retorno
     ordem_loaded = await get_ordem_with_relations(session, ordem.id)
+
     return build_ordem_response(ordem_loaded)
 
 
@@ -592,7 +603,7 @@ async def delete_ordem(id: int, session: Session, current_user: CurrentUser):
 # =============================================================================
 
 
-@router.get('/etiquetas', response_model=list[EtiquetaSchema])
+@router.get('/etiquetas/', response_model=list[EtiquetaSchema])
 async def list_etiquetas(session: Session):
     """Lista todas as etiquetas cadastradas"""
     result = await session.execute(select(Etiqueta).order_by(Etiqueta.nome))
@@ -600,7 +611,9 @@ async def list_etiquetas(session: Session):
 
 
 @router.post(
-    '/etiquetas', response_model=EtiquetaSchema, status_code=HTTPStatus.CREATED
+    '/etiquetas/',
+    response_model=EtiquetaSchema,
+    status_code=HTTPStatus.CREATED,
 )
 async def create_etiqueta(
     etiqueta_data: EtiquetaCreate, session: Session, current_user: CurrentUser
