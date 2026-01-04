@@ -321,15 +321,6 @@ async def create_ordem(
     ordem_data: OrdemMissaoCreate, session: Session, current_user: CurrentUser
 ):
     """Cria uma nova ordem de missão"""
-    # Verificar se número já existe
-    existing = await session.scalar(
-        select(OrdemMissao).where(OrdemMissao.numero == ordem_data.numero)
-    )
-    if existing:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Já existe uma ordem com este número',
-        )
 
     # Calcular data_saida (data da primeira etapa)
     data_saida = None
@@ -419,15 +410,11 @@ async def update_ordem(
         and ordem.status == 'rascunho'
         and (ordem.numero == 'auto' or not ordem.numero)
     ):
-        # 1. Identificar data da primeira etapa
-        if not ordem.data_saida:
-            # Garantir que temos a data_saida
-            if ordem_data.etapas:
-                ordem.data_saida = min(
-                    e.dt_dep for e in ordem_data.etapas
-                ).date()
-            elif ordem.etapas:
-                ordem.data_saida = min(e.dt_dep for e in ordem.etapas).date()
+        # Garantir que temos a data_saida
+        if ordem_data.etapas:
+            ordem.data_saida = min(e.dt_dep for e in ordem_data.etapas).date()
+        elif ordem.etapas:
+            ordem.data_saida = min(e.dt_dep for e in ordem.etapas).date()
 
         if not ordem.data_saida:
             raise HTTPException(
@@ -437,7 +424,7 @@ async def update_ordem(
 
         # 2. Consultar quantas OMs numeradas existem no ano/UAE
         year = ordem.data_saida.year
-        target_uae = ordem_data.uae if ordem_data.uae else ordem.uae
+        target_uae = ordem.uae
 
         count = await session.scalar(
             select(func.count(OrdemMissao.id)).where(
@@ -452,11 +439,9 @@ async def update_ordem(
         seq = (count or 0) + 1
         ordem.numero = f'{seq:03d}'
 
-    # Verificar número duplicado (se fornecido manualmente)
-    if ordem_data.numero and ordem_data.numero not in {'auto', ordem.numero}:
         # Garantir que temos o target_year e target_uae
         target_year = None
-        target_uae = ordem_data.uae if ordem_data.uae else ordem.uae
+        target_uae = ordem.uae
         if ordem_data.etapas:
             target_year = min(e.dt_dep for e in ordem_data.etapas).year
         elif ordem.data_saida:
@@ -465,7 +450,7 @@ async def update_ordem(
         if target_year and target_uae:
             existing = await session.scalar(
                 select(OrdemMissao).where(
-                    OrdemMissao.numero == ordem_data.numero,
+                    OrdemMissao.numero == ordem.numero,
                     OrdemMissao.id != id,
                     OrdemMissao.deleted_at.is_(None),
                     extract('year', OrdemMissao.data_saida) == target_year,
