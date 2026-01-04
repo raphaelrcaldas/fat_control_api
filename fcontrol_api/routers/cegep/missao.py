@@ -10,8 +10,13 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
-from fcontrol_api.models.cegep.etiquetas import FragEtiqueta
-from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
+from fcontrol_api.models.cegep.missoes import (
+    Etiqueta,
+    FragEtiqueta,
+    FragMis,
+    PernoiteFrag,
+    UserFrag,
+)
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.custos import (
@@ -19,6 +24,7 @@ from fcontrol_api.schemas.custos import (
     CustoPernoiteInput,
     CustoUserFragInput,
 )
+from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.missoes import (
     FragMisSchema,
     MissoesFilterParams,
@@ -334,3 +340,63 @@ async def delete_fragmis(id: int, session: Session):
     await session.commit()
 
     return {'detail': 'Missão removida com sucesso'}
+
+
+# ============ ENDPOINTS DE ETIQUETAS ============
+
+
+@router.get('/etiquetas', response_model=list[EtiquetaSchema])
+async def get_etiquetas(session: Session):
+    """Lista todas as etiquetas disponíveis"""
+    stmt = select(Etiqueta).order_by(Etiqueta.nome)
+    db_etiquetas = (await session.scalars(stmt)).all()
+    return db_etiquetas
+
+
+@router.post('/etiquetas', response_model=EtiquetaSchema)
+async def create_or_update_etiqueta(payload: EtiquetaSchema, session: Session):
+    """Cria ou atualiza uma etiqueta"""
+    if payload.id:
+        # Atualização
+        db_etiqueta = await session.scalar(
+            select(Etiqueta).where(Etiqueta.id == payload.id)
+        )
+        if not db_etiqueta:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail='Etiqueta não encontrada',
+            )
+        db_etiqueta.nome = payload.nome
+        db_etiqueta.cor = payload.cor
+        db_etiqueta.descricao = payload.descricao
+    else:
+        # Criação
+        db_etiqueta = Etiqueta(
+            nome=payload.nome,
+            cor=payload.cor,
+            descricao=payload.descricao,
+        )
+        session.add(db_etiqueta)
+
+    await session.commit()
+    await session.refresh(db_etiqueta)
+
+    return db_etiqueta
+
+
+@router.delete('/etiquetas/{etiqueta_id}')
+async def delete_etiqueta(etiqueta_id: int, session: Session):
+    """Remove uma etiqueta"""
+    db_etiqueta = await session.scalar(
+        select(Etiqueta).where(Etiqueta.id == etiqueta_id)
+    )
+    if not db_etiqueta:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Etiqueta não encontrada',
+        )
+
+    await session.delete(db_etiqueta)
+    await session.commit()
+
+    return {'detail': 'Etiqueta removida com sucesso'}

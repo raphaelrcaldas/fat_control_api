@@ -55,14 +55,13 @@ class OrdemMissao(Base):
     projeto: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20))
     campos_especiais: Mapped[list] = mapped_column(JSONB)
-    # Campo opcional
+    uae: Mapped[str] = mapped_column(String(20), nullable=False)
     doc_ref: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None
     )
     data_saida: Mapped[date | None] = mapped_column(
         Date, nullable=True, default=None
     )
-    uae: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

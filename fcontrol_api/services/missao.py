@@ -6,8 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from fcontrol_api.models.cegep.etiquetas import Etiqueta
-from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
+from fcontrol_api.models.cegep.missoes import (
+    Etiqueta,
+    FragMis,
+    PernoiteFrag,
+    UserFrag,
+)
 from fcontrol_api.schemas.missoes import FragMisSchema
 
 
