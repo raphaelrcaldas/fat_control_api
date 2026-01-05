@@ -21,6 +21,13 @@ primary_region = 'gru'
     hard_limit = 25
     soft_limit = 20
 
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'
