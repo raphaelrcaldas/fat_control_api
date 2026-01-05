@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.models.cegep.missoes import (
     Etiqueta,
+    FragEtiqueta,
     FragMis,
     PernoiteFrag,
     UserFrag,
@@ -108,7 +109,9 @@ async def adicionar_missao(
     if payload.id:
         # Atualização
         missao: FragMis = await session.scalar(
-            select(FragMis).filter(FragMis.id == payload.id)
+            select(FragMis)
+            .options(selectinload(FragMis.etiquetas))
+            .filter(FragMis.id == payload.id)
         )
         if not missao:
             raise HTTPException(
@@ -130,6 +133,9 @@ async def adicionar_missao(
         )
         await session.execute(
             delete(UserFrag).where(UserFrag.frag_id == missao.id)
+        )
+        await session.execute(
+            delete(FragEtiqueta).where(FragEtiqueta.frag_id == missao.id)
         )
 
     else:
@@ -158,7 +164,5 @@ async def adicionar_missao(
                 )
             ).all()
             missao.etiquetas = list(db_etiquetas)
-    else:
-        missao.etiquetas = []
 
     return missao
