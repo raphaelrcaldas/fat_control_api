@@ -22,7 +22,7 @@ primary_region = 'gru'
     soft_limit = 20
 
   [[http_service.checks]]
-    grace_period = "10s"
+    grace_period = "15s"
     interval = "15s"
     method = "GET"
     timeout = "5s"
