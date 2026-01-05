@@ -18,6 +18,7 @@ async def validate_token(request: Request, call_next):
     PUBLIC_ROUTES = [
         '/auth/authorize',
         '/auth/token',
+        '/health',
         '/docs',
         '/openapi.json',
         '/redoc',
