@@ -184,7 +184,6 @@ async def list_ordens(
     per_page: int = 20,
     status: Annotated[list[str] | None, Query()] = None,
     status_ne: str | None = None,
-    tipo: str | None = None,
     data_inicio: str | None = None,
     data_fim: str | None = None,
     busca: str | None = None,
@@ -195,9 +194,8 @@ async def list_ordens(
 
     - **status**: Lista de status para incluir
     - **status_ne**: Status para excluir (not equal, ex: rascunho)
-    - **tipo**: Tipo de missão
     - **data_inicio/data_fim**: Filtro por data de decolagem da primeira etapa
-    - **busca**: Busca por número ou localidades
+    - **busca**: Busca por número, localidade, tipo ou nome de guerra
     """
     # Query base: apenas ordens não deletadas
     query = select(OrdemMissao).where(OrdemMissao.deleted_at.is_(None))
@@ -208,18 +206,12 @@ async def list_ordens(
     elif status_ne:
         query = query.where(OrdemMissao.status != status_ne)
 
-    # Filtro por tipo (com escape de caracteres especiais ILIKE)
-    if tipo:
-        escaped_tipo = escape_like(tipo)
-        query = query.where(
-            OrdemMissao.tipo.ilike(f'%{escaped_tipo}%', escape='\\')
-        )
-
-    # Filtro por busca (número da ordem ou código ICAO das etapas)
+    # Filtro por busca (número, ICAO, tipo, ou nome de guerra)
     if busca:
         escaped_busca = escape_like(busca)
         escaped_busca_upper = escape_like(busca.upper())
-        # Subquery para encontrar ordens que têm etapas com o código ICAO
+
+        # Subquery: ordens com etapas que têm o código ICAO
         etapas_subquery = (
             select(Etapa.ordem_id)
             .where(
@@ -228,9 +220,21 @@ async def list_ordens(
             )
             .distinct()
         )
+
+        # Subquery: ordens com tripulantes que têm o nome de guerra
+        tripulacao_subquery = (
+            select(TripulacaoOrdem.ordem_id)
+            .join(TripulacaoOrdem.tripulante)
+            .join(Tripulante.user)
+            .where(User.nome_guerra.ilike(f'%{escaped_busca}%', escape='\\'))
+            .distinct()
+        )
+
         query = query.where(
             (OrdemMissao.numero.ilike(f'%{escaped_busca}%', escape='\\'))
             | (OrdemMissao.id.in_(etapas_subquery))
+            | (OrdemMissao.tipo.ilike(f'%{escaped_busca}%', escape='\\'))
+            | (OrdemMissao.id.in_(tripulacao_subquery))
         )
 
     # Filtro por etiquetas
@@ -267,6 +271,7 @@ async def list_ordens(
             projeto=ordem.projeto,
             status=ordem.status,
             created_at=ordem.created_at,
+            updated_at=ordem.updated_at,
             doc_ref=ordem.doc_ref,
             data_saida=ordem.data_saida,
             uae=ordem.uae,

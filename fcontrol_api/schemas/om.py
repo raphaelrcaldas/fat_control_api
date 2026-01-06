@@ -168,6 +168,7 @@ class OrdemMissaoList(BaseModel):
     projeto: str
     status: str
     created_at: Annotated[datetime, Body()]
+    updated_at: Annotated[datetime | None, Body()] = None
     doc_ref: str | None = None
     data_saida: date | None = None
     uae: str
