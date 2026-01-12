@@ -120,10 +120,11 @@ async def create_indisp(
 
     db_indisp = await session.scalar(
         select(Indisp).where(
-            (Indisp.user_id == indisp.user_id)
-            & (Indisp.date_start == indisp.date_start)
-            & (Indisp.date_end == indisp.date_end)
-            & (Indisp.mtv == indisp.mtv)
+            (Indisp.user_id == indisp.user_id),
+            (Indisp.date_start == indisp.date_start),
+            (Indisp.date_end == indisp.date_end),
+            (Indisp.mtv == indisp.mtv),
+            (Indisp.deleted_at.is_(None)),
         )
     )
 
@@ -222,7 +223,8 @@ async def update_indisp(
             status_code=HTTPStatus.NOT_FOUND, detail='Indisp not found'
         )
 
-    # Usa valores do payload ou mantém os existentes para verificação de duplicata
+    # Usa valores do payload ou mantém os existentes
+    # para verificação de duplicata
     check_date_start = (
         indisp.date_start
         if indisp.date_start is not None
