@@ -123,9 +123,7 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
 @router.put('/{soldo_id}', response_model=SoldoPublic)
 async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
     """Atualiza um soldo existente"""
-    db_soldo = await session.scalar(
-        select(Soldo).where(Soldo.id == soldo_id)
-    )
+    db_soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
 
     if not db_soldo:
         raise HTTPException(
@@ -166,9 +164,7 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
 @router.delete('/{soldo_id}')
 async def delete_soldo(soldo_id: int, session: Session):
     """Deleta um registro de soldo"""
-    db_soldo = await session.scalar(
-        select(Soldo).where(Soldo.id == soldo_id)
-    )
+    db_soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
 
     if not db_soldo:
         raise HTTPException(

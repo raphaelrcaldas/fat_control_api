@@ -1,6 +1,9 @@
 from sqlalchemy import ForeignKey, Identity, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.public.users import User
+
 from .base import Base
 
 
@@ -14,9 +17,18 @@ class Tripulante(Base):
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
     uae: Mapped[str]
-    user = relationship(
-        'User', backref='tripulantes', lazy='selectin', uselist=False
+
+    user: Mapped[User] = relationship(
+        User,
+        init=False,
+        backref='tripulantes',
+        lazy='selectin',
+        uselist=False,
     )
-    funcs = relationship(
-        'Funcao', backref='tripulantes', lazy='selectin', uselist=True
+    funcs: Mapped[list[Funcao]] = relationship(
+        Funcao,
+        init=False,
+        backref='tripulantes',
+        lazy='selectin',
+        uselist=True,
     )

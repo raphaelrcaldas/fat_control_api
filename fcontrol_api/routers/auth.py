@@ -224,7 +224,7 @@ async def dev_login(
     - Somente o usuário com id=1 pode usar
     - Token expira em 7 dias
     """
-    from fcontrol_api.settings import Settings
+    from fcontrol_api.settings import Settings  # noqa: PLC0415
 
     settings = Settings()
 

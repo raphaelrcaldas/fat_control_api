@@ -154,7 +154,8 @@ async def list_quads(
     ranked_quads_cte = (
         select(
             Quad,
-            func.row_number()
+            func
+            .row_number()
             .over(
                 partition_by=Quad.trip_id,
                 order_by=Quad.value.asc().nullsfirst(),

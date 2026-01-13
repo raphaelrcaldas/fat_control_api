@@ -1,47 +1,64 @@
 """Modelos para Ordem de Missão (OM)"""
 
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Column,
     Date,
     DateTime,
     ForeignKey,
     Identity,
     String,
-    Table,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-if TYPE_CHECKING:
-    from .etiquetas import Etiqueta
-
 from .base import Base
 
-# Tabela associativa para Many-to-Many entre OrdemMissao e Etiqueta
-ordem_etiqueta = Table(
-    'ordem_etiqueta',
-    Base.metadata,
-    Column(
-        'ordem_id',
-        ForeignKey('ordens_missao.id', ondelete='CASCADE'),
+
+class Etiqueta(Base):
+    """Modelo para etiquetas de Ordens de Missão"""
+
+    __tablename__ = 'om_etiquetas'
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    nome: Mapped[str] = mapped_column(String(100), nullable=False)
+    cor: Mapped[str] = mapped_column(
+        String(7), nullable=False
+    )  # Hex color #RRGGBB
+    descricao: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None
+    )
+
+    # Relacionamento back-reference para Ordens de Missão
+    ordens = relationship(
+        'OrdemMissao',
+        secondary='om_etiqueta',
+        back_populates='etiquetas',
+        init=False,
+        default_factory=list,
+    )
+
+
+class OrdemEtiqueta(Base):
+    """Tabela associativa Many-to-Many entre OrdemMissao e Etiqueta"""
+
+    __tablename__ = 'om_etiqueta'
+
+    ordem_id: Mapped[int] = mapped_column(
+        ForeignKey('om_ordens_missao.id', ondelete='CASCADE'),
         primary_key=True,
-    ),
-    Column(
-        'etiqueta_id',
-        ForeignKey('etiquetas.id', ondelete='CASCADE'),
+    )
+    etiqueta_id: Mapped[int] = mapped_column(
+        ForeignKey('om_etiquetas.id', ondelete='CASCADE'),
         primary_key=True,
-    ),
-)
+    )
 
 
 class OrdemMissao(Base):
     """Ordem de Missão principal"""
 
-    __tablename__ = 'ordens_missao'
+    __tablename__ = 'om_ordens_missao'
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, nullable=False
@@ -56,6 +73,7 @@ class OrdemMissao(Base):
     status: Mapped[str] = mapped_column(String(20))
     campos_especiais: Mapped[list] = mapped_column(JSONB)
     uae: Mapped[str] = mapped_column(String(20), nullable=False)
+    esf_aer: Mapped[int] = mapped_column(nullable=False, default=0)
     doc_ref: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None
     )
@@ -81,14 +99,14 @@ class OrdemMissao(Base):
     )
 
     # Relacionamentos (carregados automaticamente com selectin)
-    etapas: Mapped[list['Etapa']] = relationship(
-        'Etapa',
+    etapas: Mapped[list['OrdemEtapa']] = relationship(
+        'OrdemEtapa',
         lazy='selectin',
         cascade='all, delete-orphan',
         init=False,
     )
-    tripulacao: Mapped[list['TripulacaoOrdem']] = relationship(
-        'TripulacaoOrdem',
+    tripulacao: Mapped[list['OrdemTripulacao']] = relationship(
+        'OrdemTripulacao',
         lazy='selectin',
         cascade='all, delete-orphan',
         init=False,
@@ -102,7 +120,7 @@ class OrdemMissao(Base):
     # Relacionamento many-to-many com etiquetas
     etiquetas: Mapped[list['Etiqueta']] = relationship(
         'Etiqueta',
-        secondary=ordem_etiqueta,
+        secondary='om_etiqueta',
         back_populates='ordens',
         lazy='selectin',
         init=False,
@@ -110,19 +128,19 @@ class OrdemMissao(Base):
     )
 
 
-class Etapa(Base):
+class OrdemEtapa(Base):
     """Etapa de uma Ordem de Missão"""
 
-    __tablename__ = 'etapas_missao'
+    __tablename__ = 'om_etapas'
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, nullable=False
     )
-    ordem_id: Mapped[int] = mapped_column(ForeignKey('ordens_missao.id'))
-    dt_dep: Mapped[datetime]
+    ordem_id: Mapped[int] = mapped_column(ForeignKey('om_ordens_missao.id'))
+    dt_dep: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     origem: Mapped[str] = mapped_column(String(10))
     dest: Mapped[str] = mapped_column(String(10))
-    dt_arr: Mapped[datetime]
+    dt_arr: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     alternativa: Mapped[str] = mapped_column(String(10))
     tvoo_etp: Mapped[int]
@@ -131,15 +149,15 @@ class Etapa(Base):
     esf_aer: Mapped[str] = mapped_column(String(200))
 
 
-class TripulacaoOrdem(Base):
+class OrdemTripulacao(Base):
     """Tripulante alocado em uma Ordem de Missão"""
 
-    __tablename__ = 'tripulacao_ordem'
+    __tablename__ = 'om_tripulacao'
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, nullable=False
     )
-    ordem_id: Mapped[int] = mapped_column(ForeignKey('ordens_missao.id'))
+    ordem_id: Mapped[int] = mapped_column(ForeignKey('om_ordens_missao.id'))
     tripulante_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
     funcao: Mapped[str] = mapped_column(
         String(10), nullable=False

@@ -114,9 +114,15 @@ async def recalcular_cache_comiss(
     Recalcula o cache de um comissionamento específico.
     Retorna o dict com os valores calculados.
     """
-    from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
-    from fcontrol_api.schemas.missoes import FragMisSchema
-    from fcontrol_api.utils.financeiro import custo_missao, verificar_modulo
+    from fcontrol_api.models.cegep.missoes import (  # noqa: PLC0415
+        FragMis,
+        UserFrag,
+    )
+    from fcontrol_api.schemas.missoes import FragMisSchema  # noqa: PLC0415
+    from fcontrol_api.utils.financeiro import (  # noqa: PLC0415
+        custo_missao,
+        verificar_modulo,
+    )
 
     # Buscar comissionamento
     comiss = await session.scalar(

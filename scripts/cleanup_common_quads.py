@@ -165,7 +165,8 @@ async def cleanup_for_combination(
             Quad.id.label('quad_id'),
             Quad.trip_id,
             Quad.value,
-            func.row_number()
+            func
+            .row_number()
             .over(
                 partition_by=Quad.trip_id,
                 order_by=Quad.value.asc().nullsfirst(),

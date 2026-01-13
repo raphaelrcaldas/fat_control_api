@@ -2,11 +2,13 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.message import TripMessage
@@ -14,7 +16,6 @@ from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.tripulantes import (
     BaseTrip,
     TripSchema,
-    TripSearchResult,
     TripWithFuncs,
 )
 from fcontrol_api.security import get_current_user
@@ -22,89 +23,6 @@ from fcontrol_api.security import get_current_user
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
-
-
-@router.get(
-    '/search', status_code=HTTPStatus.OK, response_model=list[TripSearchResult]
-)
-async def search_trips(
-    session: Session,
-    func: str,
-    q: str = '',
-    proj: str = 'kc-390',
-    uae: str = '11gt',
-):
-    """
-    Busca tripulantes por função e projeto para seleção em ordens de missão.
-
-    - **func**: Função requerida (pil, mc, lm, oe, os, tf)
-    - **proj**: Projeto/aeronave (padrão: kc-390)
-    - **q**: Termo de busca (trigrama ou nome)
-    - **uae**: Unidade aérea (padrão: 11gt)
-    """
-    # Query base: tripulantes ativos com a função e projeto especificados
-    # Fazemos import do PostoGrad aqui para evitar circular import
-    from fcontrol_api.models.public.posto_grad import PostoGrad
-
-    query = (
-        select(
-            Tripulante.id,
-            Tripulante.trig,
-            User.p_g,
-            User.nome_guerra,
-            User.nome_completo,
-            User.id_fab,
-            Funcao.oper,
-            PostoGrad.ant.label('posto_ant'),
-            User.ult_promo,
-            User.ant_rel,
-        )
-        .join(User, Tripulante.user_id == User.id)
-        .join(Funcao, Tripulante.id == Funcao.trip_id)
-        .join(PostoGrad, User.p_g == PostoGrad.short)
-        .where(
-            User.active,
-            Tripulante.active,
-            Tripulante.uae == uae,
-            Funcao.func == func,
-            Funcao.proj == proj,
-        )
-        .order_by(
-            PostoGrad.ant.asc(),
-            User.ult_promo.asc(),
-            User.ant_rel.asc(),
-        )
-    )
-
-    # Filtro de busca (trigrama ou nome)
-    if q:
-        search_term = q.lower()
-        query = query.where(
-            (Tripulante.trig.ilike(f'{search_term}%'))
-            | (User.nome_guerra.ilike(f'%{search_term}%'))
-            | (User.nome_completo.ilike(f'%{search_term}%'))
-        )
-
-    # Limitar resultados e ordenar por trigrama
-    query = query.order_by(Tripulante.trig).limit(10)
-
-    result = await session.execute(query)
-    rows = result.all()
-
-    return [
-        TripSearchResult(
-            id=row.id,
-            trig=row.trig,
-            p_g=row.p_g,
-            nome_guerra=row.nome_guerra,
-            oper=row.oper,
-            posto_ant=row.posto_ant,
-            ult_promo=row.ult_promo,
-            ant_rel=row.ant_rel,
-            id_fab=row.id_fab,
-        )
-        for row in rows
-    ]
 
 
 @router.post('/', status_code=HTTPStatus.CREATED, response_model=TripMessage)
@@ -138,7 +56,7 @@ async def create_trip(trip: TripSchema, session: Session):
         trig=trip.trig,
         active=trip.active,
         uae=trip.uae,
-    )  # type: ignore
+    )
 
     session.add(tripulante)
     await session.commit()
@@ -200,31 +118,19 @@ async def list_trips(
     func: str | None = None,
     oper: str | None = None,
 ):
-    """
-    Lista tripulantes com paginação.
-
-    - **uae**: Unidade aérea (padrão: 11gt)
-    - **active**: Status ativo (padrão: True)
-    - **page**: Número da página (padrão: 1)
-    - **per_page**: Itens por página (padrão: 10)
-    - **search**: Termo de busca (trigrama ou nome de guerra)
-    - **p_g**: Lista de postos/graduações separados por vírgula
-    - **func**: Lista de funções separadas por vírgula (pil, mc, lm, oe, os, tf, ml, md)
-    - **oper**: Lista de operacionalidades separadas por vírgula (ba, op, in, al)
-    """
-    from sqlalchemy import func as sql_func
-
-    from fcontrol_api.models.public.posto_grad import PostoGrad
-
     # Flag para saber se precisa fazer join com Funcao
     needs_func_join = bool(func or oper)
 
     # Query base para filtrar IDs
     filter_query = (
         select(Tripulante.id)
-        .join(User, Tripulante.user_id == User.id)
-        .join(PostoGrad, User.p_g == PostoGrad.short)
-        .where(User.active, Tripulante.active == active, Tripulante.uae == uae)
+        .join(User)
+        .join(PostoGrad)
+        .where(
+            User.active,
+            Tripulante.active == active,
+            Tripulante.uae == uae,
+        )
     )
 
     # Filtro de busca por nome/trigrama
@@ -273,11 +179,13 @@ async def list_trips(
     # Query principal para buscar tripulantes com ordenação e paginação
     main_query = (
         select(Tripulante)
-        .join(User, Tripulante.user_id == User.id)
-        .join(PostoGrad, User.p_g == PostoGrad.short)
+        .join(User)
+        .join(PostoGrad)
         .where(Tripulante.id.in_(select(filtered_ids.c.id)))
         .order_by(
-            PostoGrad.ant.asc(), User.ult_promo.asc(), User.ant_rel.asc()
+            PostoGrad.ant.asc(),
+            User.ult_promo.asc(),
+            User.ant_rel.asc(),
         )
         .offset((page - 1) * per_page)
         .limit(per_page)

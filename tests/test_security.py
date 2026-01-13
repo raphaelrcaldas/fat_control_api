@@ -62,9 +62,9 @@ def test_create_access_token_dev_mode():
 
     # Permitir tolerância de tempo
     time_diff = abs((exp_time - expected_exp).total_seconds())
-    assert (
-        time_diff < MAX_TIME_DIFF_SECONDS
-    ), f'Diferença de tempo: {time_diff}s'
+    assert time_diff < MAX_TIME_DIFF_SECONDS, (
+        f'Diferença de tempo: {time_diff}s'
+    )
 
 
 # Linha 77: get_current_user sem user_id no request.state

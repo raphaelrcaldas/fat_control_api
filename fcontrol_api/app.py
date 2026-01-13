@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -27,9 +25,3 @@ app.add_middleware(
 )
 
 app.include_router(routers.router)
-
-
-# fcontrol_api/app.py
-@app.get('/health')
-async def health():
-    return {'status': 'healthy', 'timestamp': datetime.now().isoformat()}

@@ -63,10 +63,9 @@ async def get_pgto(
         count_query = count_query.where(UserFrag.user_id == user_id)
 
     if user:
-        user_filter = (
-            User.nome_guerra.ilike(f'%{user}%')
-            | User.nome_completo.ilike(f'%{user}%')
-        )
+        user_filter = User.nome_guerra.ilike(
+            f'%{user}%'
+        ) | User.nome_completo.ilike(f'%{user}%')
         base_query = base_query.where(user_filter)
         count_query = count_query.where(user_filter)
 
@@ -90,7 +89,9 @@ async def get_pgto(
 
     # Aplicar ordenação e paginação
     offset = (page - 1) * limit
-    stmt = base_query.order_by(FragMis.afast.desc()).offset(offset).limit(limit)
+    stmt = (
+        base_query.order_by(FragMis.afast.desc()).offset(offset).limit(limit)
+    )
 
     result = await session.execute(stmt)
     result: list[tuple[UserFrag, FragMis]] = result.all()

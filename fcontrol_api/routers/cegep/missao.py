@@ -125,12 +125,14 @@ async def get_fragmentos(
     # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
     if params.city:
         base_query = (
-            base_query.join(PernoiteFrag)
+            base_query
+            .join(PernoiteFrag)
             .join(Cidade)
             .where(Cidade.nome.ilike(f'%{params.city}%'))
         )
         count_query = (
-            count_query.join(PernoiteFrag)
+            count_query
+            .join(PernoiteFrag)
             .join(Cidade)
             .where(Cidade.nome.ilike(f'%{params.city}%'))
         )
@@ -139,12 +141,14 @@ async def get_fragmentos(
     # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
     if params.user_search:
         base_query = (
-            base_query.join(UserFrag)
+            base_query
+            .join(UserFrag)
             .join(User)
             .where(User.nome_guerra.ilike(f'%{params.user_search}%'))
         )
         count_query = (
-            count_query.join(UserFrag)
+            count_query
+            .join(UserFrag)
             .join(User)
             .where(User.nome_guerra.ilike(f'%{params.user_search}%'))
         )

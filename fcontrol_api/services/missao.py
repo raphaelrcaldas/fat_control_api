@@ -24,7 +24,7 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     try:
         ult_pnt = list(
             filter(
-                lambda p: (p.data_fim == regres_date),
+                lambda p: p.data_fim == regres_date,
                 payload.pernoites,
             )
         )[0]

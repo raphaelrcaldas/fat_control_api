@@ -61,6 +61,7 @@ class UserPublic(BaseModel):
     p_g: str
     posto: PostoGradSchema
     esp: str
+    id_fab: int | None
     nome_guerra: str
     saram: int
     nome_completo: str
@@ -86,7 +87,7 @@ class PwdSchema(BaseModel):
         - Pelo menos 1 dígito
         - Pelo menos 1 caractere especial
         """
-        import re
+        import re  # noqa: PLC0415
 
         errors = []
 

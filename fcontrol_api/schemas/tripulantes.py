@@ -20,12 +20,16 @@ class TripSchema(BaseTrip):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TripWithFuncs(BaseModel):
+class TripBasicInfo(BaseModel):
     id: int
     trig: str = Field(min_length=3, max_length=3)
     uae: uaes
     active: bool
     user: UserPublic
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TripWithFuncs(TripBasicInfo):
     funcs: list[FuncPublic]
     model_config = ConfigDict(from_attributes=True)
 
