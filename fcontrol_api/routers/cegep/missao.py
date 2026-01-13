@@ -93,12 +93,12 @@ async def get_fragmentos(
         # Data máxima que captura todas as missões
         fim = datetime(2100, 12, 31, 23, 59, 59)
 
-    # Query base com ordenação
+    # Query base com ordenação determinística (afast + id)
     base_query = (
         select(FragMis)
         .options(selectinload(FragMis.users))
         .filter(FragMis.afast >= ini, FragMis.regres <= fim)
-        .order_by(FragMis.afast.desc())
+        .order_by(FragMis.afast.desc(), FragMis.id.desc())
     )
 
     # Query de contagem (sem options e sem ordenação para performance)

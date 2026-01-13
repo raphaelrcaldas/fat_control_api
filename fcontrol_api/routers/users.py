@@ -173,7 +173,7 @@ async def read_users(
     page = max(page, 1)
     offset = (page - 1) * per_page
 
-    # Query base ordenada
+    # Query base ordenada (determinística com User.id como critério final)
     base_query = (
         select(User)
         .join(PostoGrad)
@@ -181,6 +181,7 @@ async def read_users(
             PostoGrad.ant.asc(),
             User.ult_promo.asc(),
             User.ant_rel.asc(),
+            User.id,
         )
     )
 

@@ -88,9 +88,18 @@ async def get_pgto(
     total = total_result.scalar()
 
     # Aplicar ordenação e paginação
+    # Ordenação determinística: afast > frag_id > user_frag_id
+    # Garante consistência na paginação quando múltiplos usuários
+    # estão na mesma missão (mesmo afast)
     offset = (page - 1) * limit
     stmt = (
-        base_query.order_by(FragMis.afast.desc()).offset(offset).limit(limit)
+        base_query.order_by(
+            FragMis.afast.desc(),
+            FragMis.id.desc(),
+            UserFrag.id,
+        )
+        .offset(offset)
+        .limit(limit)
     )
 
     result = await session.execute(stmt)

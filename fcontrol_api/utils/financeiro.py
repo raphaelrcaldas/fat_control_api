@@ -51,21 +51,33 @@ def _custo_pernoite(
 
     dias_validos = listar_datas_entre(ini, fim)
 
-    for dia in dias_validos[:-1]:
-        if sit == 'g':
+    # Para gratificação, processa TODOS os dias (2% do soldo por dia)
+    # Para diárias normais, processa todos exceto o último (tratado separado)
+    if sit == 'g':
+        for dia in dias_validos:
             valor_dia = _buscar_soldo_por_dia(pg, dia, soldos_cache) * 0.02
-        else:
+
+            key = round(valor_dia, 2)
+            if key not in val_ag:
+                val_ag[key] = {'valor': valor_dia, 'qtd': 0}
+
+            val_ag[key]['qtd'] += 1
+            custo['subtotal'] += valor_dia
+            custo['dias'] += 1
+    else:
+        # Diárias normais: processa todos exceto último
+        for dia in dias_validos[:-1]:
             valor_dia = _buscar_valor_por_dia(gp_pg, gp_cid, dia, vals_cache)
 
-        key = round(valor_dia, 2)
-        if key not in val_ag:
-            val_ag[key] = {'valor': valor_dia, 'qtd': 0}
+            key = round(valor_dia, 2)
+            if key not in val_ag:
+                val_ag[key] = {'valor': valor_dia, 'qtd': 0}
 
-        val_ag[key]['qtd'] += 1
-        custo['subtotal'] += valor_dia
-        custo['dias'] += 1
+            val_ag[key]['qtd'] += 1
+            custo['subtotal'] += valor_dia
+            custo['dias'] += 1
 
-    if sit != 'g':
+        # Último dia: meia-diária opcional + acréscimo deslocamento
         ult_dia = dias_validos[-1]
         if meia_diaria:
             valor_ultimo = _buscar_valor_por_dia(
