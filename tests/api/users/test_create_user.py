@@ -29,7 +29,7 @@ async def test_create_user_success(
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
         'id_fab': 123456,
-        'saram': 9876543,
+        'saram': 9876545,  # SARAM válido com DV correto
         'cpf': '12345678901',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
@@ -71,7 +71,7 @@ async def test_create_user_without_permission_fails(client, users, make_token):
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
         'id_fab': 123456,
-        'saram': 9876543,
+        'saram': 9876545,  # SARAM válido com DV correto
         'cpf': '12345678901',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
@@ -142,7 +142,7 @@ async def test_create_user_duplicate_cpf_fails(
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
         'id_fab': 123456,
-        'saram': 9876543,
+        'saram': 9876545,  # SARAM válido com DV correto
         'cpf': existing_user.cpf,  # CPF duplicado
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
@@ -173,7 +173,7 @@ async def test_create_user_without_token_fails(client):
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
         'id_fab': 123456,
-        'saram': 9876543,
+        'saram': 9876545,  # SARAM válido com DV correto
         'cpf': '12345678901',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
@@ -222,3 +222,43 @@ async def test_create_user_with_invalid_data_fails(
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_create_user_with_invalid_saram_dv_fails(
+    client, user_with_create_permission, make_token
+):
+    """
+    Testa que criação com SARAM com dígito verificador incorreto é rejeitada.
+    """
+    token = await make_token(user_with_create_permission)
+
+    # SARAM com DV incorreto (deveria ser 5, mas está como 3)
+    user_data = {
+        'p_g': '2s',
+        'esp': 'inf',
+        'nome_guerra': 'novo_usuario',
+        'nome_completo': 'Novo Usuario da Silva',
+        'id_fab': 123456,
+        'saram': 9876543,  # DV incorreto (correto seria 9876545)
+        'cpf': '12345678901',
+        'ult_promo': '2020-01-15',
+        'nasc': '1990-05-20',
+        'email_pess': 'novo@email.com',
+        'email_fab': 'novo@fab.mil.br',
+        'active': True,
+        'unidade': 'TEST',
+        'ant_rel': 100,
+    }
+
+    response = await client.post(
+        '/users/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=user_data,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    response_data = response.json()
+    assert 'detail' in response_data
+    # Verifica que o erro menciona SARAM ou dígito verificador
+    error_detail = str(response_data['detail']).lower()
+    assert 'saram' in error_detail or 'verificador' in error_detail
