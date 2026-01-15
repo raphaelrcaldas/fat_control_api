@@ -15,6 +15,25 @@ from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
+from fcontrol_api.utils.validators import calcular_dv_saram
+
+
+def gerar_saram_valido(n: int) -> int:
+    """
+    Gera um SARAM válido com dígito verificador correto.
+
+    Args:
+        n: Número sequencial para gerar o SARAM base
+
+    Returns:
+        SARAM válido (7 dígitos) com DV correto
+    """
+    # Gera um número base de 6 dígitos
+    numero_base = str(100000 + n)
+    # Calcula o DV
+    dv = calcular_dv_saram(numero_base)
+    # Retorna o SARAM completo como int
+    return int(numero_base + str(dv))
 
 
 class UserFactory(factory.Factory):
@@ -30,7 +49,7 @@ class UserFactory(factory.Factory):
     nome_guerra = factory.Sequence(lambda n: f'fulano{n}')
     nome_completo = factory.Sequence(lambda n: f'fulano{n} da silva')
     id_fab = factory.Sequence(lambda n: 100000 + n)
-    saram = factory.Sequence(lambda n: 1000000 + n)
+    saram = factory.Sequence(gerar_saram_valido)
     unidade = factory.fuzzy.FuzzyText(length=5)
     cpf = factory.Sequence(lambda n: f'0000000000{n}')
     email_fab = factory.LazyAttribute(
