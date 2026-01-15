@@ -211,6 +211,25 @@ async def get_fragmentos(
 
 @router.post('/')
 async def create_or_update_missao(payload: FragMisSchema, session: Session):
+    # Capturar usuários antigos ANTES de deletar (para recalcular removidos)
+    usuarios_antigos_comiss: list[tuple[int, date, date]] = []
+    if payload.id:
+        missao_antiga = await session.scalar(
+            select(FragMis)
+            .options(selectinload(FragMis.users))
+            .where(FragMis.id == payload.id)
+        )
+        if missao_antiga:
+            usuarios_antigos_comiss = [
+                (
+                    u.user_id,
+                    missao_antiga.afast.date(),
+                    missao_antiga.regres.date(),
+                )
+                for u in missao_antiga.users
+                if u.sit == 'c'
+            ]
+
     missao = await adicionar_missao(payload, session)
 
     await verificar_conflitos(payload, session)
@@ -291,19 +310,30 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
     # Atualizar campo custos na missão
     missao.custos = custos
 
-    # Recalcular cache dos comissionamentos afetados
-    for u in payload.users:
-        if u.sit == 'c':
-            await recalcular_comiss_afetados(
-                u.user_id,
-                payload.afast.date()
-                if hasattr(payload.afast, 'date')
-                else payload.afast,
-                payload.regres.date()
-                if hasattr(payload.regres, 'date')
-                else payload.regres,
-                session,
-            )
+    # Recalcular comissionamentos de todos os usuários envolvidos
+    # (antigos removidos + novos/mantidos com sit='c')
+    usuarios_envolvidos = {
+        user_id for user_id, _, _ in usuarios_antigos_comiss
+    }
+    usuarios_envolvidos.update(
+        u.user_id for u in payload.users if u.sit == 'c'
+    )
+
+    afast_date = (
+        payload.afast.date()
+        if hasattr(payload.afast, 'date')
+        else payload.afast
+    )
+    regres_date = (
+        payload.regres.date()
+        if hasattr(payload.regres, 'date')
+        else payload.regres
+    )
+
+    for user_id in usuarios_envolvidos:
+        await recalcular_comiss_afetados(
+            user_id, afast_date, regres_date, session
+        )
 
     await session.commit()
 
