@@ -252,18 +252,17 @@ def calcular_custos_frag_mis(
         cidade_codigo = pnt.cidade_codigo
         grupo_cidade = grupos_cidade.get(cidade_codigo, 3)
 
-        # Calcular dias do pernoite (comum a todos os usuários)
-        dias_validos = listar_datas_entre(pnt.data_ini, pnt.data_fim)
-        dias_pernoite = len(dias_validos)
-
-        # Inicializar estrutura do pernoite
+        # Inicializar estrutura do pernoite (dias será preenchido após loop)
         custos_jsonb[pernoite_key] = {
             'grupo_cid': grupo_cidade,
-            'dias': dias_pernoite,
+            'dias': 0,
             'ac_desloc': 95 if pnt.acrec_desloc else 0,
         }
 
         # 3. Para cada combinação (p_g, sit), calcular custo
+        dias_pernoite = 0
+        diarias_pernoite = 0
+
         for p_g, sit in combinacoes_pg_sit:
             pg_sit_key = f'pg_{p_g}_sit_{sit}'
             grupo_pg = grupos_pg.get(p_g)
@@ -295,22 +294,24 @@ def calcular_custos_frag_mis(
 
             totais_pg_sit[pg_sit_key]['total_valor'] += custo['subtotal']
 
+            # Capturar dias/diárias do primeiro usuário não-gratificação
+            if sit != 'g' and dias_pernoite == 0:
+                dias_pernoite = custo['dias']
+                for val in custo['vals']:
+                    diarias_pernoite += val['qtd']
+
+        # Se todos forem gratificação, usar dias do primeiro
+        if dias_pernoite == 0 and combinacoes_pg_sit:
+            p_g, sit = next(iter(combinacoes_pg_sit))
+            pg_sit_key = f'pg_{p_g}_sit_{sit}'
+            # Recalcular dias para gratificação (todos os dias)
+            dias_pernoite = len(listar_datas_entre(pnt.data_ini, pnt.data_fim))
+
+        # Atualizar dias no pernoite
+        custos_jsonb[pernoite_key]['dias'] = dias_pernoite
+
         # 4. Acumular totais gerais da missão
         total_dias_missao += dias_pernoite
-
-        # Calcular diárias do pernoite (usando sit != 'g' como referência)
-        diarias_pernoite = 0
-        for p_g, sit in combinacoes_pg_sit:
-            if sit != 'g':
-                pg_sit_key = f'pg_{p_g}_sit_{sit}'
-                custo_ref = custos_jsonb[pernoite_key][pg_sit_key]
-                for val in custo_ref['vals']:
-                    diarias_pernoite += val['qtd']
-                break
-        else:
-            # Se todas forem 'g', não conta diárias (só dias)
-            diarias_pernoite = 0
-
         total_diarias_missao += diarias_pernoite
 
     # 5. Adicionar totais ao JSONB

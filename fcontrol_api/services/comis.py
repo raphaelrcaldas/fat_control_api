@@ -199,7 +199,7 @@ async def recalcular_cache_comiss(
     cache_data = {
         'dias_comp': dias_comp,
         'diarias_comp': diarias_comp,
-        'vals_comp': vals_comp,
+        'vals_comp': round(vals_comp, 2),
         'modulo': modulo,
         'completude': completude,
         'missoes_count': len(missoes_data),
