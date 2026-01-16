@@ -135,6 +135,7 @@ class OrdemMissaoCreate(OrdemMissaoCore):
 class OrdemMissaoUpdate(BaseModel):
     """Atualização parcial de OM - todos campos opcionais"""
 
+    numero: str | None = None
     matricula_anv: int | None = None
     tipo: str | None = None
     projeto: str | None = None

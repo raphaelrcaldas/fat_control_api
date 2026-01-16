@@ -349,6 +349,48 @@ async def update_ordem(
     ):
         del update_data['numero']
 
+    # Validação de edição manual de número (somente para ordens aprovadas)
+    if ordem_data.numero and ordem_data.numero != ordem.numero:
+        # Só permite editar número em ordens aprovadas
+        # (em rascunho, o número é gerado automaticamente na aprovação)
+        status_atual = ordem_data.status or ordem.status
+        if status_atual != 'aprovada':
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=(
+                    'O número da OM só pode ser editado '
+                    'após a ordem ser aprovada'
+                ),
+            )
+
+        # Validar unicidade do novo número (ano + UAE)
+        target_year = None
+        target_uae = ordem_data.uae or ordem.uae
+        if ordem_data.etapas:
+            target_year = min(e.dt_dep for e in ordem_data.etapas).year
+        elif ordem.data_saida:
+            target_year = ordem.data_saida.year
+
+        if target_year and target_uae:
+            existing = await session.scalar(
+                select(OrdemMissao).where(
+                    OrdemMissao.numero == ordem_data.numero,
+                    OrdemMissao.id != id,
+                    OrdemMissao.deleted_at.is_(None),
+                    extract('year', OrdemMissao.data_saida) == target_year,
+                    OrdemMissao.uae == target_uae,
+                )
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail=(
+                        f'Já existe uma ordem com o número '
+                        f'{ordem_data.numero} no ano {target_year} '
+                        f'para a UAE {target_uae}'
+                    ),
+                )
+
     # Tratar campos especiais
     if 'campos_especiais' in update_data:
         ordem.campos_especiais = (
