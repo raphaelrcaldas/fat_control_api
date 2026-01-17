@@ -24,7 +24,7 @@ from fcontrol_api.schemas.custos import (
     CustoPernoiteInput,
     CustoUserFragInput,
 )
-from fcontrol_api.schemas.etiquetas import EtiquetaSchema
+from fcontrol_api.schemas.etiquetas import EtiquetaInput, EtiquetaSchema
 from fcontrol_api.schemas.missoes import (
     FragMisSchema,
     MissoesFilterParams,
@@ -388,7 +388,7 @@ async def get_etiquetas(session: Session):
 
 
 @router.post('/etiquetas', response_model=EtiquetaSchema)
-async def create_or_update_etiqueta(payload: EtiquetaSchema, session: Session):
+async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
     """Cria ou atualiza uma etiqueta"""
     if payload.id:
         # Atualização

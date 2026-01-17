@@ -93,7 +93,8 @@ async def get_pgto(
     # estão na mesma missão (mesmo afast)
     offset = (page - 1) * limit
     stmt = (
-        base_query.order_by(
+        base_query
+        .order_by(
             FragMis.afast.desc(),
             FragMis.id.desc(),
             UserFrag.id,

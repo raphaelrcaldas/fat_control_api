@@ -25,10 +25,12 @@ from fcontrol_api.schemas.etiquetas import (
     EtiquetaUpdate,
 )
 from fcontrol_api.schemas.om import (
+    ICAO_CODE_LENGTH,
     OrdemMissaoCreate,
     OrdemMissaoList,
     OrdemMissaoOut,
     OrdemMissaoUpdate,
+    RouteSuggestionOut,
 )
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.security import get_current_user
@@ -151,6 +153,65 @@ async def list_ordens(
     )
 
 
+@router.get(
+    '/route-suggestions',
+    status_code=HTTPStatus.OK,
+    response_model=RouteSuggestionOut | None,
+)
+async def get_route_suggestion(
+    origem: str,
+    dest: str,
+    session: Session,
+    current_user: CurrentUser,
+):
+    """
+    Busca sugestão de rota baseada em missões anteriores (não rascunho).
+
+    Retorna os dados da etapa mais recente com a mesma origem/destino.
+    """
+    # Validar códigos ICAO
+    if len(origem) != ICAO_CODE_LENGTH or len(dest) != ICAO_CODE_LENGTH:
+        return None
+
+    origem_upper = origem.upper()
+    dest_upper = dest.upper()
+
+    # Buscar etapa mais recente com esta rota em ordens não-rascunho
+    result = await session.execute(
+        select(
+            OrdemEtapa.origem,
+            OrdemEtapa.dest,
+            OrdemEtapa.tvoo_etp,
+            OrdemEtapa.alternativa,
+            OrdemEtapa.tvoo_alt,
+            OrdemEtapa.qtd_comb,
+        )
+        .join(OrdemMissao, OrdemEtapa.ordem_id == OrdemMissao.id)
+        .where(
+            OrdemEtapa.origem == origem_upper,
+            OrdemEtapa.dest == dest_upper,
+            OrdemMissao.status != 'rascunho',
+            OrdemMissao.deleted_at.is_(None),
+        )
+        .order_by(OrdemMissao.created_at.desc(), OrdemMissao.id.desc())
+        .limit(1)
+    )
+
+    row = result.first()
+
+    if not row:
+        return None
+
+    return RouteSuggestionOut(
+        origem=row.origem,
+        dest=row.dest,
+        tvoo_etp=row.tvoo_etp,
+        alternativa=row.alternativa,
+        tvoo_alt=row.tvoo_alt,
+        qtd_comb=row.qtd_comb,
+    )
+
+
 @router.get('/{id}', status_code=HTTPStatus.OK, response_model=OrdemMissaoOut)
 async def get_ordem(id: int, session: Session):
     """Busca uma ordem de missão por ID"""
@@ -249,9 +310,7 @@ async def create_ordem(
         )
     )
 
-    return OrdemMissaoOut.model_validate(
-        ordem_criada, from_attributes=True
-    )
+    return OrdemMissaoOut.model_validate(ordem_criada, from_attributes=True)
 
 
 @router.put('/{id}', status_code=HTTPStatus.OK, response_model=OrdemMissaoOut)

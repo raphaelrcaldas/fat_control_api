@@ -11,6 +11,7 @@ from fcontrol_api.schemas.tripulantes import TripBasicInfo
 
 # Constantes de validação
 TVOO_MINIMO = 5  # Tempo mínimo de voo em minutos
+ICAO_CODE_LENGTH = 4  # Código ICAO de aeródromo
 
 
 # --- Campo Especial (usado como JSONB) ---
@@ -180,5 +181,19 @@ class OrdemMissaoList(OrdemMissaoCore):
 
     created_at: Annotated[datetime, Body()]
     updated_at: Annotated[datetime | None, Body()] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Sugestão de Rota ---
+class RouteSuggestionOut(BaseModel):
+    """Sugestão de rota baseada em missões anteriores"""
+
+    origem: str
+    dest: str
+    tvoo_etp: int  # tempo de voo em minutos
+    alternativa: str
+    tvoo_alt: int
+    qtd_comb: int
 
     model_config = ConfigDict(from_attributes=True)

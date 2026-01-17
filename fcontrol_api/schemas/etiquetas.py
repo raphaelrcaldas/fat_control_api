@@ -20,8 +20,14 @@ class EtiquetaUpdate(BaseModel):
 
 
 class EtiquetaSchema(EtiquetaBase):
-    """Schema para serialização de etiquetas"""
+    """Schema para serialização de etiquetas (output)"""
 
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EtiquetaInput(EtiquetaBase):
+    """Schema para criação/atualização de etiquetas (input)"""
+
+    id: Optional[int] = None
