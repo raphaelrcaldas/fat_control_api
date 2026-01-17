@@ -1,73 +1,132 @@
 # FATCONTROL API
 
-# 🛡️ Sistema de Gestão Operacional - 1º/1º GT
+## Sistema de Gestao Operacional - 1o/1o GT
 
-## 📌 Descrição do Projeto
+### Descricao
 
-Este aplicativo foi desenvolvido para apoiar o **1º/1º GT** no controle de usuários e na gestão de informações operacionais. Sua arquitetura é flexível e permite o gerenciamento de múltiplos esquadrões, oferecendo uma solução escalável e adaptável para diferentes unidades.
+Backend do sistema de gestao operacional desenvolvido para o **1o/1o GT**. Oferece uma API RESTful para controle de usuarios, gestao de informacoes operacionais e sistema de pagamentos.
 
-Entre as principais funcionalidades, destacam-se:
-- Controle de **estatísticas operacionais**;
-- Gerencimento de **Pagamentos** integrado.
-- Sistema de **perfis de acesso e roles**, com níveis de permissão locais e globais.
-- Logs de atividade dos usuários para auditoria.
+---
 
-O sistema é ideal para unidades que buscam centralizar e padronizar seus processos administrativos e operacionais em uma plataforma segura e acessível.
+## Stack Tecnologica
 
-## Tecnologias Utilizadas
+| Tecnologia       | Versao    | Descricao                           |
+| ---------------- | --------- | ----------------------------------- |
+| Python           | >= 3.13   | Linguagem principal                 |
+| FastAPI          | 0.x       | Framework web assincrono            |
+| SQLAlchemy       | 2.x       | ORM com suporte a async             |
+| Pydantic         | 2.x       | Validacao e schemas                 |
+| Alembic          | 1.13+     | Migracao de banco de dados          |
+| PostgreSQL       | -         | Banco de dados (Supabase/Podman)    |
+| PyJWT            | 2.9+      | Autenticacao JWT                    |
+| pwdlib (Argon2)  | 0.x       | Hash seguro de senhas               |
+| asyncpg          | 0.30+     | Driver assincrono PostgreSQL        |
+| Ruff             | 0.x       | Linting e formatacao                |
+| Pytest           | 8.x       | Framework de testes                 |
+| Testcontainers   | 4.x       | Containers para testes              |
 
-### Bibliotecas Funcionais
-Estas bibliotecas são essenciais para as funcionalidades principais do projeto:
-- **FastAPI**: Framework moderno e eficiente para criação de APIs.
-- **SQLAlchemy**: ORM para interação com bancos de dados.
-- **Pydantic**: Validação e definição de modelos de dados.
-- **Alembic**: Gerenciamento de migrações de banco de dados.
-- **PyJWT**: Manipulação e geração de tokens JWT para autenticação.
-- **Asyncpg**: Driver assíncrono para interação com PostgreSQL.
-- **Psycopg** e **Psycopg2-binary**: Drivers para conexão com PostgreSQL.
-- **Python-Multipart**: Suporte para upload de arquivos.
+---
 
-### Bibliotecas Não Funcionais
-Estas bibliotecas auxiliam no suporte ao desenvolvimento, testes e qualidade do código:
-- **Ruff**: Ferramenta rápida de linting para garantir qualidade e padronização do código.
-- **Taskipy**: Gerenciador de tarefas para automação de comandos no projeto.
-- **Pytest**: Framework para execução de testes.
-- **Pytest-Cov**: Plugin para medir cobertura de testes.
-- **HTTPX**: Cliente HTTP assíncrono para testes e requisições.
-- **Factory-Boy**: Ferramenta para criação de objetos de teste (fixtures).
-- **Freezegun**: Manipulação de datas em testes.
-- **AioSQLite**: Driver assíncrono para SQLite.
-- **Trio**: Biblioteca para programação assíncrona.
-- **Pytest-Asyncio**: Plugin para testes assíncronos.
+## Estrutura do Projeto
+
+```
+api/
+├── fcontrol_api/
+│   ├── app.py              # Ponto de entrada FastAPI
+│   ├── database.py         # Configuracao do banco de dados
+│   ├── middlewares.py      # Middlewares customizados
+│   ├── security.py         # Autenticacao e autorizacao
+│   ├── settings.py         # Configuracoes da aplicacao
+│   ├── models/             # Modelos SQLAlchemy
+│   ├── schemas/            # Schemas Pydantic
+│   ├── routers/            # Endpoints da API
+│   │   ├── auth.py         # Autenticacao (login, refresh)
+│   │   ├── users.py        # Gerenciamento de usuarios
+│   │   ├── indisp.py       # Indisponibilidades
+│   │   ├── logs.py         # Logs de auditoria
+│   │   ├── postos.py       # Postos/Graduacoes
+│   │   ├── cities.py       # Cidades
+│   │   ├── cegep/          # Modulo financeiro
+│   │   │   ├── comiss.py       # Comissionamento
+│   │   │   ├── diarias.py      # Controle de diarias
+│   │   │   ├── financeiro.py   # Dados financeiros
+│   │   │   ├── missao.py       # Missoes
+│   │   │   ├── soldos.py       # Soldos
+│   │   │   └── dados_bancarios.py
+│   │   ├── ops/            # Modulo operacional
+│   │   │   ├── funcoes.py      # Funcoes a bordo
+│   │   │   ├── quads.py        # Quadrinhos de missao
+│   │   │   ├── tripulantes.py  # Tripulantes
+│   │   │   └── om.py           # Ordens de missao
+│   │   ├── nav/            # Modulo navegacao
+│   │   │   └── aerodromos.py   # Aerodromos
+│   │   └── security/       # Modulo seguranca
+│   │       ├── roles.py        # Roles de acesso
+│   │       ├── resources.py    # Recursos protegidos
+│   │       └── permissions.py  # Permissoes
+│   ├── services/           # Logica de negocio
+│   └── utils/              # Utilitarios
+├── migrations/             # Migrações Alembic
+├── tests/                  # Testes automatizados
+├── scripts/                # Scripts auxiliares
+├── assets/                 # Arquivos estaticos
+├── alembic.ini             # Configuracao Alembic
+├── pyproject.toml          # Dependencias e configuracao
+└── Dockerfile              # Build da imagem
+```
+
+---
+
+## Configuracao do Ambiente
+
+### Variaveis de Ambiente
+
+Crie um arquivo `.env` na raiz do projeto:
+
+```env
+DATABASE_URL="postgresql+asyncpg://username:password@127.0.0.1:5432/app_db"
+SECRET_KEY="sua-chave-secreta"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
 
 ## Funcionalidades
 
-### Gerenciamento de Usuários
-- CRUD para operações básicas de manipulação de dados pessoais
-- Controle de Indisponibilidade Pessoal
+### Autenticacao e Seguranca
+- Autenticacao via JWT com refresh tokens
+- Hash de senhas com Argon2 (pwdlib)
+- Sistema de roles e permissoes granulares
+- Logs de auditoria de acoes
 
-### Acompanhamento Operacional de Tripulantes
-- Funções a bordo
-- Quadrinhos de Missão
-- Pau de Sebo (Ranking de mais voados por função)
-- Cartões (Saúde, CVI, Simulador...)
+### Gerenciamento de Usuarios
+- CRUD completo de usuarios
+- Controle de indisponibilidades pessoais
+- Vinculacao a esquadroes
 
-### Sistema de Pagamentos
-- **Gerenciamento de Ordens de Serviço**
-- **Controle de Comissionamento** com exportação para planilha Excel.
-- Acompanhamento de **Gratificação por Representação** (GratRep)
+### Modulo Operacional (ops/)
+- Funcoes a bordo
+- Quadrinhos de missao
+- Gestao de tripulantes
+- Ordens de missao
 
-### Controle de Acesso
-- **Autenticação via JWT**: O projeto utiliza **JSON Web Tokens (JWT)** para controle de acesso seguro e eficiente.  
-  - Após a autenticação, um token JWT é gerado e enviado ao cliente.
-  - Esse token é utilizado para acessar endpoints protegidos.
-  - O controle é implementado com validação de tokens, garantindo que apenas usuários autenticados possam acessar dados protegidos.
-- **Logs** de ações dos usuários para auditoria.
+### Modulo Financeiro (cegep/)
+- Controle de comissionamento
+- Gestao de diarias
+- Dados bancarios
+- Controle de soldos
 
-## 🚀 Funcionalidades Futuras
-- Confecção das Fichas de Diária individual.
-- Implementação OAuth2 para autenticação.
-- Gerenciamento de **ordens de missão** (setor de operações);
+### Modulo Navegacao (nav/)
+- Cadastro de aerodromos
 
-## 📄 Licença
-Este projeto é licenciado sob a MIT.
+## Deploy
+
+O projeto inclui configuracao para deploy no Fly.io:
+
+- `Dockerfile` - Build da imagem
+- `fly.toml` - Configuracao do Fly.io
+
+---
+
+## Licenca
+
+Este projeto e licenciado sob a MIT.
