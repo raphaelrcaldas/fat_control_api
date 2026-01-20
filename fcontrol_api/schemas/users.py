@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
+from fcontrol_api.utils.validators import validar_saram
 
 
 class UserSchema(BaseModel):
@@ -25,6 +26,17 @@ class UserSchema(BaseModel):
     ant_rel: int | None = Field(gt=0)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator('saram')
+    @classmethod
+    def validate_saram(cls, v: int) -> int:
+        """
+        Valida o dígito verificador do SARAM.
+        Usa algoritmo módulo 11 com pesos de 2 a 7.
+        """
+        if not validar_saram(v):
+            raise ValueError('SARAM inválido: dígito verificador incorreto')
+        return v
 
 
 class UserUpdate(BaseModel):
@@ -50,6 +62,17 @@ class UserUpdate(BaseModel):
     ant_rel: int | None = Field(default=None, gt=0)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator('saram')
+    @classmethod
+    def validate_saram(cls, v: int | None) -> int | None:
+        """
+        Valida o dígito verificador do SARAM.
+        Usa algoritmo módulo 11 com pesos de 2 a 7.
+        """
+        if v is not None and not validar_saram(v):
+            raise ValueError('SARAM inválido: dígito verificador incorreto')
+        return v
 
 
 class UserFull(UserSchema):
