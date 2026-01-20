@@ -51,3 +51,45 @@ def validar_saram(saram: str | int) -> bool:
     dv_calculado = calcular_dv_saram(numero_base)
 
     return dv_informado == dv_calculado
+
+
+def validar_cpf(cpf: str) -> bool:
+    """
+    Valida um CPF brasileiro.
+    Aceita formatos: XXX.XXX.XXX-XX ou XXXXXXXXXXX.
+
+    Args:
+        cpf: CPF a ser validado (string)
+
+    Returns:
+        True se o CPF é válido, False caso contrário
+    """
+    # Remove caracteres não numéricos
+    cpf_numeros = ''.join(c for c in cpf if c.isdigit())
+
+    # CPF deve ter 11 dígitos
+    if len(cpf_numeros) != 11:
+        return False
+
+    # Rejeita CPFs com todos os dígitos iguais (ex: 111.111.111-11)
+    if len(set(cpf_numeros)) == 1:
+        return False
+
+    # Calcula o primeiro dígito verificador
+    soma = 0
+    for i in range(9):
+        soma += int(cpf_numeros[i]) * (10 - i)
+    resto = soma % 11
+    dv1 = 0 if resto < 2 else 11 - resto
+
+    if int(cpf_numeros[9]) != dv1:
+        return False
+
+    # Calcula o segundo dígito verificador
+    soma = 0
+    for i in range(10):
+        soma += int(cpf_numeros[i]) * (11 - i)
+    resto = soma % 11
+    dv2 = 0 if resto < 2 else 11 - resto
+
+    return int(cpf_numeros[10]) == dv2

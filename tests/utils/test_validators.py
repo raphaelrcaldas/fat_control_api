@@ -2,7 +2,11 @@
 
 import pytest
 
-from fcontrol_api.utils.validators import calcular_dv_saram, validar_saram
+from fcontrol_api.utils.validators import (
+    calcular_dv_saram,
+    validar_cpf,
+    validar_saram,
+)
 
 
 class TestCalcularDvSaram:
@@ -126,3 +130,56 @@ class TestValidarSaram:
     def test_aceita_saram_com_espacos_nas_pontas(self):
         """Testa que espaços nas pontas são removidos."""
         assert validar_saram('  1234560  ') is True
+
+
+class TestValidarCpf:
+    """Testes para validar_cpf."""
+
+    def test_valida_cpf_correto_sem_formatacao(self):
+        """Testa validação de CPF válido sem formatação."""
+        assert validar_cpf('52998224725') is True
+
+    def test_valida_cpf_correto_com_formatacao(self):
+        """Testa validação de CPF válido com formatação."""
+        assert validar_cpf('529.982.247-25') is True
+
+    def test_rejeita_cpf_com_dv_incorreto(self):
+        """Testa rejeição de CPF com dígito verificador incorreto."""
+        assert validar_cpf('52998224700') is False
+
+    def test_rejeita_cpf_com_digitos_iguais(self):
+        """Testa rejeição de CPFs com todos os dígitos iguais."""
+        assert validar_cpf('11111111111') is False
+        assert validar_cpf('00000000000') is False
+        assert validar_cpf('99999999999') is False
+
+    def test_rejeita_cpf_muito_curto(self):
+        """Testa rejeição de CPF com menos de 11 dígitos."""
+        assert validar_cpf('1234567890') is False
+
+    def test_rejeita_cpf_muito_longo(self):
+        """Testa rejeição de CPF com mais de 11 dígitos."""
+        assert validar_cpf('123456789012') is False
+
+    def test_rejeita_cpf_vazio(self):
+        """Testa rejeição de string vazia."""
+        assert validar_cpf('') is False
+
+    def test_valida_cpf_conhecido_1(self):
+        """Testa CPF válido conhecido."""
+        # CPF de teste comumente usado
+        assert validar_cpf('453.178.287-91') is True
+
+    def test_valida_cpf_conhecido_2(self):
+        """Testa outro CPF válido conhecido."""
+        assert validar_cpf('111.444.777-35') is True
+
+    def test_rejeita_cpf_com_primeiro_dv_errado(self):
+        """Testa rejeição quando primeiro dígito verificador está errado."""
+        # 529.982.247-25 é válido, 529.982.247-35 tem primeiro DV errado
+        assert validar_cpf('529.982.247-35') is False
+
+    def test_rejeita_cpf_com_segundo_dv_errado(self):
+        """Testa rejeição quando segundo dígito verificador está errado."""
+        # 529.982.247-25 é válido, 529.982.247-26 tem segundo DV errado
+        assert validar_cpf('529.982.247-26') is False

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
-from fcontrol_api.utils.validators import validar_saram
+from fcontrol_api.utils.validators import validar_cpf, validar_saram
 
 
 class UserSchema(BaseModel):
@@ -35,7 +35,18 @@ class UserSchema(BaseModel):
         Usa algoritmo módulo 11 com pesos de 2 a 7.
         """
         if not validar_saram(v):
-            raise ValueError('SARAM inválido: dígito verificador incorreto')
+            raise ValueError('SARAM inválido')
+        return v
+
+    @field_validator('cpf')
+    @classmethod
+    def validate_cpf(cls, v: str) -> str:
+        """
+        Valida o CPF brasileiro.
+        Permite string vazia (CPF opcional).
+        """
+        if v and not validar_cpf(v):
+            raise ValueError('CPF inválido')
         return v
 
 
@@ -71,7 +82,18 @@ class UserUpdate(BaseModel):
         Usa algoritmo módulo 11 com pesos de 2 a 7.
         """
         if v is not None and not validar_saram(v):
-            raise ValueError('SARAM inválido: dígito verificador incorreto')
+            raise ValueError('SARAM inválido')
+        return v
+
+    @field_validator('cpf')
+    @classmethod
+    def validate_cpf(cls, v: str | None) -> str | None:
+        """
+        Valida o CPF brasileiro.
+        Permite None ou string vazia (CPF opcional).
+        """
+        if v and not validar_cpf(v):
+            raise ValueError('CPF inválido')
         return v
 
 
