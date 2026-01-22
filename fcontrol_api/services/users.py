@@ -9,8 +9,8 @@ from fcontrol_api.models.public.users import User
 
 async def check_user_conflicts(
     session: AsyncSession,
-    saram: int | None = None,
-    id_fab: int | None = None,
+    saram: str | None = None,
+    id_fab: str | None = None,
     cpf: str | None = None,
     email_fab: str | None = None,
     email_pess: str | None = None,

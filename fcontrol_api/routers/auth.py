@@ -45,7 +45,7 @@ async def authorize(
     response_type: str = Form(...),
     code_challenge: str = Form(...),
     code_challenge_method: str = Form('S256'),
-    saram: int = Form(...),
+    saram: str = Form(...),
     password: str = Form(...),
 ):
     if response_type != 'code':

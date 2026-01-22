@@ -4,18 +4,19 @@ from typing import Annotated
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
 from fcontrol_api.utils.validators import validar_cpf, validar_saram
 
 
 class UserSchema(BaseModel):
-    p_g: str
+    p_g: PostoGradEnum
     esp: str
     nome_guerra: str
     nome_completo: str
-    id_fab: int | None = Field(ge=100000)
-    saram: int = Field(ge=1000000, le=9999999)
+    id_fab: str | None = Field(default=None, min_length=6, max_length=6)
+    saram: str = Field(min_length=7, max_length=7)
     cpf: str
     ult_promo: Annotated[date | None, Body()]
     nasc: Annotated[date | None, Body()]
@@ -27,13 +28,25 @@ class UserSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator('id_fab')
+    @classmethod
+    def validate_id_fab(cls, v: str | None) -> str | None:
+        """
+        Valida que id_fab contém apenas dígitos.
+        """
+        if v is not None and not v.isdigit():
+            raise ValueError('ID FAB deve conter apenas dígitos')
+        return v
+
     @field_validator('saram')
     @classmethod
-    def validate_saram(cls, v: int) -> int:
+    def validate_saram(cls, v: str) -> str:
         """
         Valida o dígito verificador do SARAM.
         Usa algoritmo módulo 11 com pesos de 2 a 7.
         """
+        if not v.isdigit():
+            raise ValueError('SARAM deve conter apenas dígitos')
         if not validar_saram(v):
             raise ValueError('SARAM inválido')
         return v
@@ -57,12 +70,12 @@ class UserUpdate(BaseModel):
     serão atualizados no banco de dados.
     """
 
-    p_g: str | None = None
+    p_g: PostoGradEnum | None = None
     esp: str | None = None
     nome_guerra: str | None = None
     nome_completo: str | None = None
-    id_fab: int | None = Field(default=None, ge=100000)
-    saram: int | None = Field(default=None, ge=1000000, le=9999999)
+    id_fab: str | None = Field(default=None, min_length=6, max_length=6)
+    saram: str | None = Field(default=None, min_length=7, max_length=7)
     cpf: str | None = None
     ult_promo: date | None = None
     nasc: date | None = None
@@ -74,15 +87,28 @@ class UserUpdate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator('id_fab')
+    @classmethod
+    def validate_id_fab(cls, v: str | None) -> str | None:
+        """
+        Valida que id_fab contém apenas dígitos.
+        """
+        if v is not None and not v.isdigit():
+            raise ValueError('ID FAB deve conter apenas dígitos')
+        return v
+
     @field_validator('saram')
     @classmethod
-    def validate_saram(cls, v: int | None) -> int | None:
+    def validate_saram(cls, v: str | None) -> str | None:
         """
         Valida o dígito verificador do SARAM.
         Usa algoritmo módulo 11 com pesos de 2 a 7.
         """
-        if v is not None and not validar_saram(v):
-            raise ValueError('SARAM inválido')
+        if v is not None:
+            if not v.isdigit():
+                raise ValueError('SARAM deve conter apenas dígitos')
+            if not validar_saram(v):
+                raise ValueError('SARAM inválido')
         return v
 
     @field_validator('cpf')
@@ -103,12 +129,12 @@ class UserFull(UserSchema):
 
 class UserPublic(BaseModel):
     id: int
-    p_g: str
+    p_g: PostoGradEnum
     posto: PostoGradSchema
     esp: str
-    id_fab: int | None
+    id_fab: str | None
     nome_guerra: str
-    saram: int
+    saram: str
     nome_completo: str
     active: bool
     unidade: str

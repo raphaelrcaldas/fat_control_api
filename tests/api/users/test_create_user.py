@@ -28,9 +28,9 @@ async def test_create_user_success(
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
-        'saram': 9876545,  # SARAM válido com DV correto
-        'cpf': '12345678901',
+        'id_fab': '123456',
+        'saram': '9876545',  # SARAM válido com DV correto
+        'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
         'email_pess': 'novo@email.com',
@@ -70,9 +70,9 @@ async def test_create_user_without_permission_fails(client, users, make_token):
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
-        'saram': 9876545,  # SARAM válido com DV correto
-        'cpf': '12345678901',
+        'id_fab': '123456',
+        'saram': '9876545',  # SARAM válido com DV correto
+        'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
         'email_pess': 'novo@email.com',
@@ -105,9 +105,9 @@ async def test_create_user_duplicate_saram_fails(
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
+        'id_fab': '123456',
         'saram': existing_user.saram,  # Saram duplicado
-        'cpf': '12345678901',
+        'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
         'email_pess': 'novo@email.com',
@@ -141,8 +141,8 @@ async def test_create_user_duplicate_cpf_fails(
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
-        'saram': 9876545,  # SARAM válido com DV correto
+        'id_fab': '123457',
+        'saram': '9876545',  # SARAM válido com DV correto
         'cpf': existing_user.cpf,  # CPF duplicado
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
@@ -172,9 +172,9 @@ async def test_create_user_without_token_fails(client):
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
-        'saram': 9876545,  # SARAM válido com DV correto
-        'cpf': '12345678901',
+        'id_fab': '123456',
+        'saram': '9876545',  # SARAM válido com DV correto
+        'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
         'email_pess': 'novo@email.com',
@@ -203,9 +203,9 @@ async def test_create_user_with_invalid_data_fails(
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
-        'saram': 123,  # Inválido
-        'cpf': '12345678901',
+        'id_fab': '123456',
+        'saram': '123',  # Inválido (muito curto)
+        'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
         'email_pess': 'novo@email.com',
@@ -238,9 +238,9 @@ async def test_create_user_with_invalid_saram_dv_fails(
         'esp': 'inf',
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
-        'id_fab': 123456,
-        'saram': 9876543,  # DV incorreto (correto seria 9876545)
-        'cpf': '12345678901',
+        'id_fab': '123456',
+        'saram': '9876543',  # DV incorreto (correto seria 9876545)
+        'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
         'email_pess': 'novo@email.com',

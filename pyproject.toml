@@ -39,7 +39,7 @@ trio = "^0.28.0"
 pytest-asyncio = "^0.25.2"
 gevent = "^24.11.1"
 tqdm = "^4.66.0"
-testcontainers = {extras = ["postgres"], version = "^4.13.3"}
+testcontainers = { extras = ["postgres"], version = "^4.13.3" }
 
 [tool.ruff]
 line-length = 79
@@ -48,7 +48,15 @@ extend-exclude = ['migrations']
 [tool.ruff.lint]
 preview = true
 select = ['I', 'F', 'E', 'W', 'PL', 'PT']
-ignore = ['PLR0913', 'PLR0915', 'PLR0914', 'PLR0917', 'PLR0912']
+ignore = [
+    'PLR0913',
+    'PLR0915',
+    'PLR0914',
+    'PLR0917',
+    'PLR0912',
+    'PLR6301',
+    'PLR2004',
+]
 
 [tool.ruff.format]
 preview = true

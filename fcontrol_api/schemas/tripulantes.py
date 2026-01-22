@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.funcoes import FuncPublic
 from fcontrol_api.schemas.users import UserPublic
 
@@ -37,11 +38,11 @@ class TripWithFuncs(TripBasicInfo):
 class TripSearchResult(BaseModel):
     id: int
     trig: str
-    p_g: str
+    p_g: PostoGradEnum
     nome_guerra: str
     oper: str
     posto_ant: int
     ult_promo: date | None
     ant_rel: int | None
-    id_fab: int | None
+    id_fab: str | None
     model_config = ConfigDict(from_attributes=True)

@@ -22,7 +22,7 @@ def calcular_dv_saram(numero_base: str) -> int:
     resto = soma % 11
     dv = 11 - resto
 
-    if dv == 10 or dv == 11:
+    if dv in {10, 11}:
         dv = 0
 
     return dv
@@ -40,7 +40,7 @@ def validar_saram(saram: str | int) -> bool:
         True se o SARAM é válido, False caso contrário
     """
     # Converte para string e remove hífen, se houver
-    saram_str = str(saram).replace("-", "").strip()
+    saram_str = str(saram).replace('-', '').strip()
 
     if not saram_str.isdigit() or len(saram_str) < 2:
         return False

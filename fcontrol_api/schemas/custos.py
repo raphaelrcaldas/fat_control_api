@@ -4,6 +4,8 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
+from fcontrol_api.enums.posto_grad import PostoGradEnum
+
 
 class CustoPernoiteInput(BaseModel):
     """
@@ -36,11 +38,9 @@ class CustoUserFragInput(BaseModel):
     Usado pela função calcular_custos_frag_mis para ter type hints adequados.
     """
 
-    p_g: str = Field(
+    p_g: PostoGradEnum = Field(
         ...,
         description='Posto/graduação (short)',
-        min_length=1,
-        max_length=10,
     )
     sit: str = Field(
         ...,

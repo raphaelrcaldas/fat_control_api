@@ -17,7 +17,7 @@ MAX_SEARCH_RESULTS = 10  # Limite máximo de resultados na busca
 
 async def test_read_users_returns_list(client, users, token):
     """
-    Testa que o endpoint retorna uma lista de usuários.
+    Testa que o endpoint retorna uma lista de usuários paginada.
     """
     response = await client.get(
         '/users/',
@@ -27,9 +27,10 @@ async def test_read_users_returns_list(client, users, token):
     assert response.status_code == HTTPStatus.OK
     data = response.json()
 
-    assert isinstance(data, list)
+    assert 'items' in data
+    assert isinstance(data['items'], list)
     # Deve ter pelo menos os 2 usuários criados pela fixture
-    assert len(data) >= MIN_USERS_FROM_FIXTURE
+    assert len(data['items']) >= MIN_USERS_FROM_FIXTURE
 
 
 async def test_read_users_returns_correct_fields(client, users, token):
@@ -44,8 +45,8 @@ async def test_read_users_returns_correct_fields(client, users, token):
     assert response.status_code == HTTPStatus.OK
     data = response.json()
 
-    if len(data) > 0:
-        user = data[0]
+    if len(data['items']) > 0:
+        user = data['items'][0]
         # Campos obrigatórios de UserPublic
         assert 'id' in user
         assert 'p_g' in user
@@ -73,7 +74,7 @@ async def test_read_users_ordered_by_posto_and_antiguidade(
     data = response.json()
 
     # Verifica que retornou usuários
-    assert len(data) > 0
+    assert len(data['items']) > 0
 
 
 async def test_read_users_with_search_returns_filtered_results(
@@ -95,9 +96,9 @@ async def test_read_users_with_search_returns_filtered_results(
     data = response.json()
 
     # Deve retornar pelo menos o usuário buscado
-    assert len(data) >= 1
+    assert len(data['items']) >= 1
     # Verifica que o usuário buscado está nos resultados
-    found = any(u['id'] == user.id for u in data)
+    found = any(u['id'] == user.id for u in data['items'])
     assert found
 
 
@@ -118,7 +119,7 @@ async def test_read_users_with_search_case_insensitive(client, users, token):
     data = response.json()
 
     # Deve encontrar o usuário
-    found = any(u['id'] == user.id for u in data)
+    found = any(u['id'] == user.id for u in data['items'])
     assert found
 
 
@@ -132,14 +133,14 @@ async def test_read_users_with_search_limits_to_10_results(
     response = await client.get(
         '/users/',
         headers={'Authorization': f'Bearer {token}'},
-        params={'search': ''},
+        params={'search': '', 'per_page': MAX_SEARCH_RESULTS},
     )
 
     assert response.status_code == HTTPStatus.OK
     data = response.json()
 
     # Deve retornar no máximo 10 resultados
-    assert len(data) <= MAX_SEARCH_RESULTS
+    assert len(data['items']) <= MAX_SEARCH_RESULTS
 
 
 async def test_read_users_with_search_no_match_returns_empty(client, token):
@@ -155,8 +156,8 @@ async def test_read_users_with_search_no_match_returns_empty(client, token):
     assert response.status_code == HTTPStatus.OK
     data = response.json()
 
-    assert isinstance(data, list)
-    assert len(data) == 0
+    assert isinstance(data['items'], list)
+    assert len(data['items']) == 0
 
 
 async def test_read_users_without_authentication_fails(client):

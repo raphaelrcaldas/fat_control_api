@@ -14,7 +14,7 @@ async def test_create_user(session: AsyncSession):
         nome_guerra='fulano',
         nome_completo=None,
         id_fab=None,
-        saram=5555555,
+        saram='5555556',
         unidade='11gt',
         cpf=None,
         email_fab=None,

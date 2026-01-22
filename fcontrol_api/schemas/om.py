@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.tripulantes import TripBasicInfo
 
@@ -93,7 +94,8 @@ class TripulacaoOrdemOut(BaseModel):
     id: int
     tripulante_id: int
     funcao: str
-    p_g: str  # Snapshot do posto/graduacao no momento da criacao da OM
+    # Snapshot do posto/graduacao no momento da criacao da OM
+    p_g: PostoGradEnum
     tripulante: TripBasicInfo | None = None
     model_config = ConfigDict(from_attributes=True)
 

@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.cidade import CidadeSchema
 from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.users import UserPublic
@@ -83,7 +84,7 @@ class UserFragMis(BaseModel):
     id: Optional[int] = None
     frag_id: Optional[int] = None
     user_id: int
-    p_g: str
+    p_g: PostoGradEnum
     sit: str
     user: UserPublic
 

@@ -164,7 +164,7 @@ async def test_authorize_user_not_found(client, oauth_client):
             'response_type': 'code',
             'code_challenge': code_challenge,
             'code_challenge_method': 'S256',
-            'saram': 9999999,
+            'saram': '9999999',
             'password': 'any-password',
         },
     )

@@ -24,7 +24,7 @@ async def test_change_pwd_success(client, token, users, session):
     response = await client.post(
         '/users/change-pwd',
         headers={'Authorization': f'Bearer {token}'},
-        json={'new_pwd': 'newpassword123'},
+        json={'new_pwd': 'NewPass123!'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -35,7 +35,7 @@ async def test_change_pwd_success(client, token, users, session):
     db_user = await session.scalar(select(User).where(User.id == user.id))
 
     assert db_user is not None
-    assert verify_password('newpassword123', db_user.password)
+    assert verify_password('NewPass123!', db_user.password)
     assert db_user.first_login is False
 
 
@@ -52,7 +52,7 @@ async def test_change_pwd_updates_first_login_flag(
     response = await client.post(
         '/users/change-pwd',
         headers={'Authorization': f'Bearer {token}'},
-        json={'new_pwd': 'newpassword123'},
+        json={'new_pwd': 'NewPass123!'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -68,7 +68,7 @@ async def test_change_pwd_without_token_fails(client):
     """
     response = await client.post(
         '/users/change-pwd',
-        json={'new_pwd': 'newpassword123'},
+        json={'new_pwd': 'NewPass123!'},
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -81,7 +81,7 @@ async def test_change_pwd_with_invalid_token_fails(client):
     response = await client.post(
         '/users/change-pwd',
         headers={'Authorization': 'Bearer invalid-token'},
-        json={'new_pwd': 'newpassword123'},
+        json={'new_pwd': 'NewPass123!'},
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED

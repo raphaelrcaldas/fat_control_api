@@ -8,5 +8,5 @@ class Token(BaseModel):
 
 
 class FormAuth(BaseModel):
-    saram: int = Field(gt=1000000, lt=9999999)
+    saram: str = Field(min_length=7, max_length=7)
     password: str

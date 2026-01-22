@@ -21,7 +21,7 @@ from fcontrol_api.security import (
 from tests.factories import UserFactory
 
 
-def create_user_from_factory(saram: int) -> User:
+def create_user_from_factory(saram: str) -> User:
     """Helper para criar User do factory"""
     user_data = UserFactory.build(saram=saram)
     return User(
@@ -104,7 +104,7 @@ async def test_get_current_user_user_not_found(session):
 @pytest.mark.anyio
 async def test_get_current_user_inactive_user(session):
     """Testa raise quando usuário está inativo"""
-    user = create_user_from_factory(saram=999999)
+    user = create_user_from_factory(saram='9999990')
     session.add(user)
     await session.flush()
 
@@ -128,7 +128,7 @@ async def test_get_current_user_inactive_user(session):
 @pytest.mark.anyio
 async def test_require_admin_success(session):
     """Testa require_admin quando usuário é admin"""
-    user = create_user_from_factory(saram=888888)
+    user = create_user_from_factory(saram='8888881')
     session.add(user)
     await session.flush()
 
@@ -151,7 +151,7 @@ async def test_require_admin_success(session):
 @pytest.mark.anyio
 async def test_require_admin_user_not_admin(session):
     """Testa require_admin quando usuário não é admin"""
-    user = create_user_from_factory(saram=777777)
+    user = create_user_from_factory(saram='7777772')
     session.add(user)
     await session.flush()
 
@@ -177,7 +177,7 @@ async def test_require_admin_user_not_admin(session):
 @pytest.mark.anyio
 async def test_require_admin_no_role(session):
     """Testa require_admin quando usuário não tem role"""
-    user = create_user_from_factory(saram=666666)
+    user = create_user_from_factory(saram='6666663')
     session.add(user)
     await session.flush()
 
@@ -193,7 +193,7 @@ async def test_require_admin_no_role(session):
 @pytest.mark.anyio
 async def test_permission_checker_user_data_none(session):
     """Testa raise quando get_user_roles retorna None"""
-    user = create_user_from_factory(saram=555555)
+    user = create_user_from_factory(saram='5555554')
     session.add(user)
     await session.flush()
 
@@ -220,7 +220,7 @@ async def test_permission_checker_user_data_none(session):
 @pytest.mark.anyio
 async def test_permission_checker_user_data_empty_dict(session):
     """Testa raise quando get_user_roles retorna dict vazio"""
-    user = create_user_from_factory(saram=444444)
+    user = create_user_from_factory(saram='4444445')
     session.add(user)
     await session.flush()
 
