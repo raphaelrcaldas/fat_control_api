@@ -160,6 +160,72 @@ async def test_update_user_duplicate_cpf_fails(
     assert 'cpf' in response.json()['detail'].lower()
 
 
+async def test_update_user_duplicate_id_fab_fails(
+    client, session, users, user_with_update_permission, make_token
+):
+    """
+    Testa que não é possível atualizar para um ID FAB já existente.
+    """
+    token = await make_token(user_with_update_permission)
+    user, other_user = users
+
+    # Tenta atualizar other_user para ter o CPF de user
+    update_data = {'id_fab': user.id_fab}
+
+    response = await client.put(
+        f'/users/{other_user.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json=update_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'id fab' in response.json()['detail'].lower()
+
+
+async def test_update_user_duplicate_zimbra_fails(
+    client, session, users, user_with_update_permission, make_token
+):
+    """
+    Testa que não é possível atualizar para um Zimbra já existente.
+    """
+    token = await make_token(user_with_update_permission)
+    user, other_user = users
+
+    # Tenta atualizar other_user para ter o Zimbra de user
+    update_data = {'email_fab': user.email_fab}
+
+    response = await client.put(
+        f'/users/{other_user.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json=update_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'zimbra' in response.json()['detail'].lower()
+
+
+async def test_update_user_duplicate_email_pessoal_fails(
+    client, session, users, user_with_update_permission, make_token
+):
+    """
+    Testa que não é possível atualizar para um email pessoal já existente.
+    """
+    token = await make_token(user_with_update_permission)
+    user, other_user = users
+
+    # Tenta atualizar other_user para ter o Email pessoal de user
+    update_data = {'email_pess': user.email_pess}
+
+    response = await client.put(
+        f'/users/{other_user.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json=update_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'email pessoal' in response.json()['detail'].lower()
+
+
 async def test_update_user_without_token_fails(client, users):
     """
     Testa que requisição sem token é rejeitada.

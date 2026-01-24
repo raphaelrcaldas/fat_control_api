@@ -163,6 +163,114 @@ async def test_create_user_duplicate_cpf_fails(
     assert 'cpf' in response.json()['detail'].lower()
 
 
+async def test_create_user_duplicate_id_fab_fails(
+    client, session, user_with_create_permission, make_token, users
+):
+    """
+    Testa que não é possível criar usuário com ID FAB duplicado.
+    """
+    token = await make_token(user_with_create_permission)
+    existing_user, _ = users
+
+    user_data = {
+        'p_g': '2s',
+        'esp': 'inf',
+        'nome_guerra': 'novo_usuario',
+        'nome_completo': 'Novo Usuario da Silva',
+        'id_fab': existing_user.id_fab,
+        'saram': '9876545',
+        'cpf': '52998224725',
+        'ult_promo': '2020-01-15',
+        'nasc': '1990-05-20',
+        'email_pess': 'novo@email.com',
+        'email_fab': 'novo@fab.mil.br',
+        'active': True,
+        'unidade': 'TEST',
+        'ant_rel': 100,
+    }
+
+    response = await client.post(
+        '/users/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=user_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'id fab' in response.json()['detail'].lower()
+
+
+async def test_create_user_duplicate_zimbra_fails(
+    client, session, user_with_create_permission, make_token, users
+):
+    """
+    Testa que não é possível criar usuário com Zimbra duplicado.
+    """
+    token = await make_token(user_with_create_permission)
+    existing_user, _ = users
+
+    user_data = {
+        'p_g': '2s',
+        'esp': 'inf',
+        'nome_guerra': 'novo_usuario',
+        'nome_completo': 'Novo Usuario da Silva',
+        'id_fab': '123457',
+        'saram': '9876545',
+        'cpf': '52998224725',
+        'ult_promo': '2020-01-15',
+        'nasc': '1990-05-20',
+        'email_pess': 'novo@email.mil.br',
+        'email_fab': existing_user.email_fab,
+        'active': True,
+        'unidade': 'TEST',
+        'ant_rel': 100,
+    }
+
+    response = await client.post(
+        '/users/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=user_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'zimbra' in response.json()['detail'].lower()
+
+
+async def test_create_user_duplicate_email_pess_fails(
+    client, session, user_with_create_permission, make_token, users
+):
+    """
+    Testa que não é possível criar usuário com Email pessoal duplicado.
+    """
+    token = await make_token(user_with_create_permission)
+    existing_user, _ = users
+
+    user_data = {
+        'p_g': '2s',
+        'esp': 'inf',
+        'nome_guerra': 'novo_usuario',
+        'nome_completo': 'Novo Usuario da Silva',
+        'id_fab': '123457',
+        'saram': '9876545',
+        'cpf': '52998224725',
+        'ult_promo': '2020-01-15',
+        'nasc': '1990-05-20',
+        'email_pess': existing_user.email_pess,
+        'email_fab': 'novo@fab.mil.br',
+        'active': True,
+        'unidade': 'TEST',
+        'ant_rel': 100,
+    }
+
+    response = await client.post(
+        '/users/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=user_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'email pessoal' in response.json()['detail'].lower()
+
+
 async def test_create_user_without_token_fails(client):
     """
     Testa que requisição sem token é rejeitada.
@@ -173,7 +281,7 @@ async def test_create_user_without_token_fails(client):
         'nome_guerra': 'novo_usuario',
         'nome_completo': 'Novo Usuario da Silva',
         'id_fab': '123456',
-        'saram': '9876545',  # SARAM válido com DV correto
+        'saram': '9876545',
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',

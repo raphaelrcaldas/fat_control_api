@@ -40,12 +40,11 @@ async def test_example_post_with_token(client, token, users):
             'user_id': user.id,  # Usa o ID real do usuário
             'date_start': '2023-03-23',
             'date_end': '2023-03-24',
-            'mtv': 'teste_teste',
-            'obs': 'obs_obs',
+            'mtv': 'fer',  # Valor válido do IndispEnum (férias)
+            'obs': 'Exemplo de indisponibilidade',
         },
     )
 
-    # O status pode variar dependendo da validação
     assert response.status_code == HTTPStatus.CREATED
 
 
