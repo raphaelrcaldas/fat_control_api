@@ -93,3 +93,19 @@ def validar_cpf(cpf: str) -> bool:
     dv2 = 0 if resto < 2 else 11 - resto
 
     return int(cpf_numeros[10]) == dv2
+
+
+def validar_zimbra(email: str) -> bool:
+    """
+    Valida se o email FAB (Zimbra) termina com fab.mil.br.
+
+    Args:
+        email: Email FAB a ser validado
+
+    Returns:
+        True se o email termina com fab.mil.br, False caso contrário
+    """
+    if not email:
+        return False
+
+    return email.lower().endswith('@fab.mil.br')

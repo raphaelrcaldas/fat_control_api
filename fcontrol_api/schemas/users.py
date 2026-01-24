@@ -7,7 +7,11 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
-from fcontrol_api.utils.validators import validar_cpf, validar_saram
+from fcontrol_api.utils.validators import (
+    validar_cpf,
+    validar_saram,
+    validar_zimbra,
+)
 
 
 class UserSchema(BaseModel):
@@ -60,6 +64,16 @@ class UserSchema(BaseModel):
         """
         if v and not validar_cpf(v):
             raise ValueError('CPF inválido')
+        return v
+
+    @field_validator('email_fab')
+    @classmethod
+    def validate_email_fab(cls, v: str) -> str:
+        """
+        Valida que o email FAB (Zimbra) termina com @fab.mil.br.
+        """
+        if not validar_zimbra(v):
+            raise ValueError('Email FAB deve terminar com @fab.mil.br')
         return v
 
 
@@ -120,6 +134,17 @@ class UserUpdate(BaseModel):
         """
         if v and not validar_cpf(v):
             raise ValueError('CPF inválido')
+        return v
+
+    @field_validator('email_fab')
+    @classmethod
+    def validate_email_fab(cls, v: str | None) -> str | None:
+        """
+        Valida que o email FAB (Zimbra) termina com @fab.mil.br.
+        Permite None (campo opcional em update), mas rejeita string vazia.
+        """
+        if v is not None and not validar_zimbra(v):
+            raise ValueError('Email FAB deve terminar com @fab.mil.br')
         return v
 
 
