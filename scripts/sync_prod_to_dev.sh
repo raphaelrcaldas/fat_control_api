@@ -35,12 +35,17 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# Extrair URL de producao (linha comentada)
-PROD_URL=$(grep -E "^#.*DATABASE_URL.*supabase" "$ENV_FILE" | sed 's/^#\s*//' | cut -d'"' -f2)
+# Extrair URL de producao (prioriza IPv4/pooler, senao usa IPv6)
+PROD_URL=$(grep -E "DATABASE_URL.*pooler\.supabase\.com" "$ENV_FILE" | head -1 | sed 's/^#\s*//' | cut -d'"' -f2)
+
+# Se nao encontrar pooler (IPv4), tenta URL direta (IPv6)
+if [ -z "$PROD_URL" ]; then
+    PROD_URL=$(grep -E "^#.*DATABASE_URL.*supabase\.co" "$ENV_FILE" | sed 's/^#\s*//' | cut -d'"' -f2)
+fi
 
 if [ -z "$PROD_URL" ]; then
     echo -e "${RED}Erro: URL de producao nao encontrada no .env${NC}"
-    echo "Certifique-se de que existe uma linha comentada com a URL do Supabase"
+    echo "Certifique-se de que existe uma URL do Supabase (pooler ou direta)"
     exit 1
 fi
 
