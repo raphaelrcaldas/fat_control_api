@@ -8,7 +8,9 @@ import typing
 import factory
 import factory.fuzzy
 
+from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.public.indisp import Indisp
 from fcontrol_api.models.public.quads import Quad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
@@ -100,7 +102,10 @@ class TripFactory(factory.Factory):
         model = Tripulante
 
     user_id: int
-    trig = factory.Sequence(lambda n: f'ab{chr(96 + n)}')
+    trig = factory.Sequence(
+        lambda n: f'{chr(97 + n % 26)}{chr(97 + (n // 26) % 26)}'
+        f'{chr(97 + (n // 676) % 26)}'
+    )
     active = True  # Padrão ativo (mais comum em testes)
     uae = factory.fuzzy.FuzzyChoice(typing.get_args(uaes))
 
@@ -164,3 +169,32 @@ class OAuth2ClientFactory(factory.Factory):
     client_secret = factory.fuzzy.FuzzyText(length=32)
     redirect_uri = 'http://localhost:3000/callback'
     is_confidential = False
+
+
+class IndispFactory(factory.Factory):
+    """
+    Factory para criar indisponibilidades de teste.
+
+    IMPORTANTE: Requer user_id e created_by ao criar.
+
+    Uso:
+        indisp = IndispFactory(user_id=user.id, created_by=creator.id)
+        indisp_ferias = IndispFactory(
+            user_id=user.id,
+            created_by=creator.id,
+            mtv='fer',
+            obs='Ferias programadas'
+        )
+    """
+
+    class Meta:
+        model = Indisp
+
+    user_id: int
+    created_by: int
+    date_start = factory.LazyFunction(datetime.date.today)
+    date_end = factory.LazyAttribute(
+        lambda _: datetime.date.today() + datetime.timedelta(days=7)
+    )
+    mtv = factory.fuzzy.FuzzyChoice([e.value for e in IndispEnum])
+    obs = factory.Sequence(lambda n: f'Observacao teste {n}')
