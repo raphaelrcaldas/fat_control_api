@@ -115,9 +115,11 @@ async def get_pgto(
             exclude={'users'}
         )
         # Read costs from JSONB column (pre-calculated)
+        # Usa valores diretamente do modelo SQLAlchemy para consistência
+        # com o endpoint de comiss (evita problemas com enum serialization)
         mis = custo_missao(
-            uf_data['p_g'],
-            uf_data['sit'],
+            usr_frg.p_g,
+            usr_frg.sit,
             mis,
         )
 
