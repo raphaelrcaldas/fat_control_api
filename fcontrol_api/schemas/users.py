@@ -24,8 +24,8 @@ class UserSchema(BaseModel):
     cpf: str
     ult_promo: Annotated[date | None, Body()]
     nasc: Annotated[date | None, Body()]
-    email_pess: EmailStr | str
-    email_fab: EmailStr | str
+    email_pess: EmailStr | None
+    email_fab: EmailStr | None
     active: bool
     unidade: str
     ant_rel: int | None = Field(gt=0)
@@ -72,7 +72,7 @@ class UserSchema(BaseModel):
         """
         Valida que o email FAB (Zimbra) termina com @fab.mil.br.
         """
-        if not validar_zimbra(v):
+        if v and not validar_zimbra(v):
             raise ValueError('Email FAB deve terminar com @fab.mil.br')
         return v
 
@@ -93,8 +93,8 @@ class UserUpdate(BaseModel):
     cpf: str | None = None
     ult_promo: date | None = None
     nasc: date | None = None
-    email_pess: EmailStr | str | None = None
-    email_fab: EmailStr | str | None = None
+    email_pess: EmailStr | None = None
+    email_fab: EmailStr | None = None
     active: bool | None = None
     unidade: str | None = None
     ant_rel: int | None = Field(default=None, gt=0)
