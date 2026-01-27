@@ -264,12 +264,12 @@ def calcular_custos_frag_mis(
         diarias_pernoite = 0
 
         for p_g, sit in combinacoes_pg_sit:
-            pg_sit_key = f'pg_{p_g}_sit_{sit}'
-            grupo_pg = grupos_pg.get(p_g)
+            pg_sit_key = f'pg_{p_g.value}_sit_{sit}'
+            grupo_pg = grupos_pg.get(p_g.value)
 
             # Calcular custo do pernoite para este pg+sit
             custo = _custo_pernoite(
-                p_g,
+                p_g.value,
                 sit,
                 pnt.data_ini,
                 pnt.data_fim,
@@ -303,7 +303,7 @@ def calcular_custos_frag_mis(
         # Se todos forem gratificação, usar dias do primeiro
         if dias_pernoite == 0 and combinacoes_pg_sit:
             p_g, sit = next(iter(combinacoes_pg_sit))
-            pg_sit_key = f'pg_{p_g}_sit_{sit}'
+            pg_sit_key = f'pg_{p_g.value}_sit_{sit}'
             # Recalcular dias para gratificação (todos os dias)
             dias_pernoite = len(listar_datas_entre(pnt.data_ini, pnt.data_fim))
 
