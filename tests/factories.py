@@ -9,13 +9,18 @@ import factory
 import factory.fuzzy
 
 from fcontrol_api.enums.indisp import IndispEnum
+from fcontrol_api.models.cegep.dados_bancarios import DadosBancarios
+from fcontrol_api.models.cegep.diarias import DiariaValor, GrupoCidade, GrupoPg
+from fcontrol_api.models.nav.aerodromos import Aerodromo
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.indisp import Indisp
 from fcontrol_api.models.public.om import OrdemEtapa, OrdemMissao
+from fcontrol_api.models.public.posto_grad import Soldo
 from fcontrol_api.models.public.quads import Quad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.auth import OAuth2Client
+from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.tripulantes import uaes
 from fcontrol_api.utils.validators import calcular_dv_saram
@@ -264,3 +269,171 @@ class OrdemEtapaFactory(factory.Factory):
     tvoo_alt = 30  # 30 minutos
     qtd_comb = factory.fuzzy.FuzzyInteger(10, 20)
     esf_aer = factory.fuzzy.FuzzyText(length=10)
+
+
+class DadosBancariosFactory(factory.Factory):
+    """
+    Factory para criar dados bancários de teste.
+
+    IMPORTANTE: Requer user_id ao criar.
+
+    Uso:
+        dados = DadosBancariosFactory(user_id=user.id)
+        dados_customizado = DadosBancariosFactory(
+            user_id=user.id,
+            banco='Banco do Brasil',
+            codigo_banco='001',
+            agencia='1234-5',
+            conta='12345-6'
+        )
+    """
+
+    class Meta:
+        model = DadosBancarios
+
+    user_id: int
+    banco = factory.Sequence(lambda n: f'Banco Teste {n}')
+    codigo_banco = factory.Sequence(lambda n: str(100 + n).zfill(3))
+    agencia = factory.Sequence(lambda n: f'{n:04d}-{n % 10}')
+    conta = factory.Sequence(lambda n: f'{n:05d}-{n % 10}')
+
+
+class UserActionLogFactory(factory.Factory):
+    """
+    Factory para criar logs de acoes de usuario.
+
+    IMPORTANTE: Requer user_id ao criar.
+
+    Uso:
+        log = UserActionLogFactory(user_id=user.id)
+        log_customizado = UserActionLogFactory(
+            user_id=user.id,
+            action='create',
+            resource='users',
+            resource_id=123
+        )
+    """
+
+    class Meta:
+        model = UserActionLog
+
+    user_id: int
+    action = factory.fuzzy.FuzzyChoice(['create', 'update', 'delete', 'read'])
+    resource = factory.fuzzy.FuzzyChoice(['users', 'trips', 'quads', 'indisp'])
+    resource_id = factory.Sequence(lambda n: n + 1)
+    before = None
+    after = None
+
+
+class SoldoFactory(factory.Factory):
+    """
+    Factory para criar soldos de teste.
+
+    IMPORTANTE: Requer pg (posto/graduacao) valido do seed data.
+    Valores disponiveis: 'cb', '2s', '3s', '1t', 'cp', 'mj', etc.
+
+    Uso:
+        soldo = SoldoFactory(pg='cb')
+        soldo_customizado = SoldoFactory(
+            pg='2s',
+            valor=5000.00,
+            data_inicio=date(2025, 1, 1)
+        )
+    """
+
+    class Meta:
+        model = Soldo
+
+    pg = 'cb'  # Cabo - disponivel no seed data
+    data_inicio = factory.LazyFunction(datetime.date.today)
+    data_fim = None
+    valor = factory.fuzzy.FuzzyFloat(3000.0, 15000.0)
+
+
+class GrupoCidadeFactory(factory.Factory):
+    """
+    Factory para criar grupos de cidade de teste.
+
+    IMPORTANTE: Requer cidade_id valido (codigo da cidade no seed).
+    Codigos disponiveis: 3550308 (SP), 3304557 (RJ), 5300108 (BSB), etc.
+
+    Uso:
+        grupo = GrupoCidadeFactory(grupo=1, cidade_id=3550308)
+    """
+
+    class Meta:
+        model = GrupoCidade
+
+    grupo: int
+    cidade_id: int
+
+
+class GrupoPgFactory(factory.Factory):
+    """
+    Factory para criar grupos de posto/graduacao de teste.
+
+    IMPORTANTE: Requer pg_short valido do seed data.
+    Valores disponiveis: 'cb', '2s', '3s', '1t', 'cp', 'mj', etc.
+
+    Uso:
+        grupo = GrupoPgFactory(grupo=1, pg_short='cb')
+    """
+
+    class Meta:
+        model = GrupoPg
+
+    grupo: int
+    pg_short: str
+
+
+class DiariaValorFactory(factory.Factory):
+    """
+    Factory para criar valores de diarias de teste.
+
+    Uso:
+        valor = DiariaValorFactory(grupo_pg=1, grupo_cid=1)
+        valor_customizado = DiariaValorFactory(
+            grupo_pg=2,
+            grupo_cid=1,
+            valor=350.00,
+            data_inicio=date(2025, 1, 1)
+        )
+    """
+
+    class Meta:
+        model = DiariaValor
+
+    grupo_pg: int
+    grupo_cid: int
+    valor = factory.fuzzy.FuzzyFloat(100.0, 500.0)
+    data_inicio = factory.LazyFunction(datetime.date.today)
+    data_fim = None
+
+
+class AerodromoFactory(factory.Factory):
+    """
+    Factory para criar aerodromos de teste.
+
+    Uso:
+        aerodromo = AerodromoFactory()
+        aerodromo_customizado = AerodromoFactory(
+            nome='Aeroporto de Guarulhos',
+            codigo_icao='SBGR',
+            codigo_iata='GRU'
+        )
+    """
+
+    class Meta:
+        model = Aerodromo
+
+    nome = factory.Sequence(lambda n: f'Aeroporto Teste {n}')
+    codigo_icao = factory.Sequence(lambda n: f'SB{n:02d}')
+    codigo_iata = None
+    latitude = factory.fuzzy.FuzzyFloat(-33.0, 5.0)
+    longitude = factory.fuzzy.FuzzyFloat(-73.0, -35.0)
+    elevacao = factory.fuzzy.FuzzyFloat(0.0, 1500.0)
+    pais = 'BR'
+    utc = -3
+    base_aerea = None
+    codigo_cidade = None
+    cidade_manual = None
