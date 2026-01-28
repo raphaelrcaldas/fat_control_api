@@ -167,7 +167,12 @@ async def get_route_suggestion(
     """
     Busca sugestão de rota baseada em missões anteriores (não rascunho).
 
-    Retorna os dados da etapa mais recente com a mesma origem/destino.
+    Realiza duas buscas:
+    1. Rota completa (origem + dest): tvoo_etp, qtd_comb
+    2. Apenas destino: alternativa, tvoo_alt
+
+    Isso permite sugerir alternativa mesmo para rotas nunca voadas,
+    desde que o destino já tenha sido visitado anteriormente.
     """
     # Validar códigos ICAO
     if len(origem) != ICAO_CODE_LENGTH or len(dest) != ICAO_CODE_LENGTH:
@@ -176,39 +181,62 @@ async def get_route_suggestion(
     origem_upper = origem.upper()
     dest_upper = dest.upper()
 
-    # Buscar etapa mais recente com esta rota em ordens não-rascunho
-    result = await session.execute(
+    # Filtro comum: ordens não-rascunho e não-deletadas
+    base_filter = [
+        OrdemMissao.status != 'rascunho',
+        OrdemMissao.deleted_at.is_(None),
+    ]
+
+    # Query 1: Buscar rota completa (origem + dest) -> tvoo_etp, qtd_comb
+    route_result = await session.execute(
         select(
-            OrdemEtapa.origem,
-            OrdemEtapa.dest,
             OrdemEtapa.tvoo_etp,
-            OrdemEtapa.alternativa,
-            OrdemEtapa.tvoo_alt,
             OrdemEtapa.qtd_comb,
         )
         .join(OrdemMissao, OrdemEtapa.ordem_id == OrdemMissao.id)
         .where(
             OrdemEtapa.origem == origem_upper,
             OrdemEtapa.dest == dest_upper,
-            OrdemMissao.status != 'rascunho',
-            OrdemMissao.deleted_at.is_(None),
+            *base_filter,
         )
         .order_by(OrdemMissao.created_at.desc(), OrdemMissao.id.desc())
         .limit(1)
     )
+    route_row = route_result.first()
 
-    row = result.first()
+    # Query 2: Buscar dados do destino (apenas dest) -> alternativa, tvoo_alt
+    dest_result = await session.execute(
+        select(
+            OrdemEtapa.alternativa,
+            OrdemEtapa.tvoo_alt,
+        )
+        .join(OrdemMissao, OrdemEtapa.ordem_id == OrdemMissao.id)
+        .where(
+            OrdemEtapa.dest == dest_upper,
+            *base_filter,
+        )
+        .order_by(OrdemMissao.created_at.desc(), OrdemMissao.id.desc())
+        .limit(1)
+    )
+    dest_row = dest_result.first()
 
-    if not row:
+    # Nenhum dado encontrado
+    if not route_row and not dest_row:
         return None
 
+    # Construir resposta combinada
     return RouteSuggestionOut(
-        origem=row.origem,
-        dest=row.dest,
-        tvoo_etp=row.tvoo_etp,
-        alternativa=row.alternativa,
-        tvoo_alt=row.tvoo_alt,
-        qtd_comb=row.qtd_comb,
+        dest=dest_upper,
+        # Dados do destino
+        alternativa=dest_row.alternativa if dest_row else None,
+        tvoo_alt=dest_row.tvoo_alt if dest_row else None,
+        # Dados da rota completa
+        origem=origem_upper if route_row else None,
+        tvoo_etp=route_row.tvoo_etp if route_row else None,
+        qtd_comb=route_row.qtd_comb if route_row else None,
+        # Flags
+        has_route_data=route_row is not None,
+        has_destination_data=dest_row is not None,
     )
 
 

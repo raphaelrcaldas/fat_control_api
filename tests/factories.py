@@ -11,6 +11,7 @@ import factory.fuzzy
 from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.indisp import Indisp
+from fcontrol_api.models.public.om import OrdemEtapa, OrdemMissao
 from fcontrol_api.models.public.quads import Quad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
@@ -198,3 +199,68 @@ class IndispFactory(factory.Factory):
     )
     mtv = factory.fuzzy.FuzzyChoice([e.value for e in IndispEnum])
     obs = factory.Sequence(lambda n: f'Observacao teste {n}')
+
+
+class OrdemMissaoFactory(factory.Factory):
+    """
+    Factory para criar Ordens de Missão de teste.
+
+    IMPORTANTE: Requer created_by ao criar.
+
+    Uso:
+        ordem = OrdemMissaoFactory(created_by=user.id)
+        ordem_rascunho = OrdemMissaoFactory(
+            created_by=user.id,
+            status='rascunho'
+        )
+    """
+
+    class Meta:
+        model = OrdemMissao
+
+    numero = factory.Sequence(lambda n: f'OM-{n:04d}/2025')
+    matricula_anv = factory.fuzzy.FuzzyInteger(2800, 2899)
+    tipo = factory.fuzzy.FuzzyChoice(
+        ['instrucao', 'operacional', 'transporte']
+    )
+    created_by: int
+    projeto = factory.fuzzy.FuzzyChoice(['ABAFA', 'ACAO', 'INST'])
+    status = 'aprovada'
+    campos_especiais = []
+    uae = factory.fuzzy.FuzzyChoice(['1/1 GT', '2/1 GT', '3/1 GT'])
+    esf_aer = factory.fuzzy.FuzzyInteger(0, 5)
+
+
+class OrdemEtapaFactory(factory.Factory):
+    """
+    Factory para criar Etapas de Ordem de Missão de teste.
+
+    IMPORTANTE: Requer ordem_id ao criar.
+
+    Uso:
+        etapa = OrdemEtapaFactory(ordem_id=ordem.id)
+        etapa_especifica = OrdemEtapaFactory(
+            ordem_id=ordem.id,
+            origem='SBGL',
+            dest='SBBR',
+            alternativa='SBCF'
+        )
+    """
+
+    class Meta:
+        model = OrdemEtapa
+
+    ordem_id: int
+    dt_dep = factory.LazyFunction(
+        lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
+    origem = factory.fuzzy.FuzzyChoice(['SBGL', 'SBGR', 'SBRF', 'SBCF'])
+    dest = factory.fuzzy.FuzzyChoice(['SBBR', 'SBSP', 'SBJD', 'SBSV'])
+    dt_arr = factory.LazyAttribute(
+        lambda obj: obj.dt_dep + datetime.timedelta(hours=1)
+    )
+    alternativa = factory.fuzzy.FuzzyChoice(['SBCF', 'SBSP', 'SBGL', 'SBBR'])
+    tvoo_etp = 60  # 1 hora em minutos
+    tvoo_alt = 30  # 30 minutos
+    qtd_comb = factory.fuzzy.FuzzyInteger(10, 20)
+    esf_aer = factory.fuzzy.FuzzyText(length=10)

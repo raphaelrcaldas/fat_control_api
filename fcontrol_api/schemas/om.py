@@ -189,13 +189,28 @@ class OrdemMissaoList(OrdemMissaoCore):
 
 # --- Sugestão de Rota ---
 class RouteSuggestionOut(BaseModel):
-    """Sugestão de rota baseada em missões anteriores"""
+    """Sugestão de rota combinando dados de rota completa e destino.
 
-    origem: str
+    Realiza duas buscas:
+    1. Rota completa (origem + dest): tvoo_etp, qtd_comb
+    2. Apenas destino: alternativa, tvoo_alt
+
+    Permite sugerir alternativa mesmo para rotas nunca voadas,
+    desde que o destino já tenha sido visitado anteriormente.
+    """
+
     dest: str
-    tvoo_etp: int  # tempo de voo em minutos
-    alternativa: str
-    tvoo_alt: int
-    qtd_comb: int
+    # Dados do destino (preenchidos se destino existir em alguma etapa)
+    alternativa: str | None = None
+    tvoo_alt: int | None = None
+
+    # Dados da rota completa (preenchidos se rota origem+dest existir)
+    origem: str | None = None
+    tvoo_etp: int | None = None  # tempo de voo em minutos
+    qtd_comb: int | None = None
+
+    # Flags de proveniência
+    has_route_data: bool = False  # True se encontrou rota completa
+    has_destination_data: bool = False  # True se encontrou dados do destino
 
     model_config = ConfigDict(from_attributes=True)
