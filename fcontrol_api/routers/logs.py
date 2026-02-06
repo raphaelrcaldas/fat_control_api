@@ -8,11 +8,16 @@ from sqlalchemy.orm import selectinload
 from fcontrol_api.database import get_session
 from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.schemas.logs import UserActionLogOut
+from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.responses import success_response
 
 router = APIRouter(prefix='/logs', tags=['Logs'])
 
 
-@router.get('/user-actions', response_model=list[UserActionLogOut])
+@router.get(
+    '/user-actions',
+    response_model=ApiResponse[list[UserActionLogOut]],
+)
 async def listar_logs(
     session: AsyncSession = Depends(get_session),
     user_id: int | None = None,
@@ -49,4 +54,4 @@ async def listar_logs(
     query = query.order_by(UserActionLog.timestamp.desc()).limit(25)
 
     result = await session.scalars(query)
-    return result.all()
+    return success_response(data=list(result.all()))

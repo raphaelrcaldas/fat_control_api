@@ -22,6 +22,7 @@ from fcontrol_api.models.security.auth import (
     OAuth2Client,
 )
 from fcontrol_api.schemas.auth import Token
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     create_access_token,
     get_current_user,
@@ -31,13 +32,14 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.auth import validate_user_client_access
 from fcontrol_api.services.logs import log_user_action
+from fcontrol_api.utils.responses import success_response
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 
-@router.post('/authorize')
+@router.post('/authorize', response_model=ApiResponse[dict])
 async def authorize(
     session: Session,
     client_id: str = Form(...),
@@ -102,10 +104,10 @@ async def authorize(
     session.add(new_auth_code)
     await session.commit()
 
-    return {'code': auth_code}
+    return success_response(data={'code': auth_code})
 
 
-@router.post('/token', response_model=Token)
+@router.post('/token', response_model=ApiResponse[Token])
 async def exchange_code_for_token(
     request: Request,
     session: Session,
@@ -194,18 +196,26 @@ async def exchange_code_for_token(
     data = token_data(user, client_id)
     access_token = create_access_token(data=data)
 
-    return {
-        'first_login': user.first_login,
-        'access_token': access_token,
-        'token_type': 'bearer',
-    }
+    return success_response(
+        data=Token(
+            first_login=user.first_login,
+            access_token=access_token,
+            token_type='bearer',
+        )
+    )
 
 
-@router.post('/refresh_token', response_model=Token)
+@router.post('/refresh_token', response_model=ApiResponse[Token])
 async def refresh_access_token(user: User = Depends(get_current_user)):
     data = token_data(user)
     new_access_token = create_access_token(data=data)
-    return {'access_token': new_access_token, 'token_type': 'bearer'}
+    return success_response(
+        data=Token(
+            first_login=user.first_login,
+            access_token=new_access_token,
+            token_type='bearer',
+        )
+    )
 
 
 @router.post('/dev_login')
@@ -272,11 +282,18 @@ async def dev_login(
     data = token_data(db_user, request.state.app_client)
     access_token = create_access_token(data=data, dev=True)
 
-    return {
-        'access_token': access_token,
-        'token_type': 'bearer',
-        'target_user': f'{db_user.posto.short} {db_user.nome_guerra}'
+    target_user = (
+        f'{db_user.posto.short} {db_user.nome_guerra}'
         if db_user.posto
-        else db_user.nome_guerra,
-        'expires_in_days': 7,
-    }
+        else db_user.nome_guerra
+    )
+
+    return success_response(
+        data={
+            'access_token': access_token,
+            'token_type': 'bearer',
+            'target_user': target_user,
+            'expires_in_days': 7,
+        },
+        message=f'Token de desenvolvimento gerado para {target_user}',
+    )

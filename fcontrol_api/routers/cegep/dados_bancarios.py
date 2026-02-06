@@ -14,13 +14,15 @@ from fcontrol_api.schemas.dados_bancarios import (
     DadosBancariosUpdate,
     DadosBancariosWithUser,
 )
+from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/dados-bancarios', tags=['CEGEP'])
 
 
-@router.get('/', response_model=list[DadosBancariosWithUser])
+@router.get('/', response_model=ApiResponse[list[DadosBancariosWithUser]])
 async def get_dados_bancarios(
     session: Session,
     user_id: int = None,
@@ -41,10 +43,10 @@ async def get_dados_bancarios(
     result = await session.execute(query)
     dados = result.scalars().all()
 
-    return dados
+    return success_response(data=list(dados))
 
 
-@router.get('/{dados_id}', response_model=DadosBancariosWithUser)
+@router.get('/{dados_id}', response_model=ApiResponse[DadosBancariosWithUser])
 async def get_dados_bancarios_by_id(
     dados_id: int,
     session: Session,
@@ -60,10 +62,13 @@ async def get_dados_bancarios_by_id(
             detail='Dados bancários não encontrados',
         )
 
-    return dados
+    return success_response(data=dados)
 
 
-@router.get('/user/{user_id}', response_model=DadosBancariosPublic)
+@router.get(
+    '/user/{user_id}',
+    response_model=ApiResponse[DadosBancariosPublic],
+)
 async def get_dados_bancarios_by_user(
     user_id: int,
     session: Session,
@@ -79,17 +84,20 @@ async def get_dados_bancarios_by_user(
             detail='Dados bancários não encontrados para este usuário',
         )
 
-    return dados
+    return success_response(data=dados)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
+@router.post(
+    '/',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[DadosBancariosPublic],
+)
 async def create_dados_bancarios(
     session: Session,
     dados: DadosBancariosCreate,
 ):
     """Cria novos dados bancários para um usuário"""
     # Verifica se o usuário existe
-    print(dados)
     user = await session.scalar(select(User).where(User.id == dados.user_id))
     if not user:
         raise HTTPException(
@@ -114,13 +122,13 @@ async def create_dados_bancarios(
     await session.commit()
     await session.refresh(new_dados)
 
-    return {
-        'detail': 'Dados bancários criados com sucesso',
-        'id': new_dados.id,
-    }
+    return success_response(
+        data=DadosBancariosPublic.model_validate(new_dados),
+        message='Dados bancários criados com sucesso',
+    )
 
 
-@router.put('/{dados_id}')
+@router.put('/{dados_id}', response_model=ApiResponse[None])
 async def update_dados_bancarios(
     dados_id: int,
     session: Session,
@@ -143,10 +151,10 @@ async def update_dados_bancarios(
     await session.commit()
     await session.refresh(db_dados)
 
-    return {'detail': 'Dados bancários atualizados com sucesso'}
+    return success_response(message='Dados bancários atualizados com sucesso')
 
 
-@router.delete('/{dados_id}')
+@router.delete('/{dados_id}', response_model=ApiResponse[None])
 async def delete_dados_bancarios(
     dados_id: int,
     session: Session,
@@ -165,4 +173,4 @@ async def delete_dados_bancarios(
     await session.delete(db_dados)
     await session.commit()
 
-    return {'detail': 'Dados bancários deletados com sucesso'}
+    return success_response(message='Dados bancários deletados com sucesso')

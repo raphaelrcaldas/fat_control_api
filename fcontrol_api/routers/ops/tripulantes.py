@@ -11,21 +11,23 @@ from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.message import TripMessage
-from fcontrol_api.schemas.pagination import PaginatedResponse
+from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.tripulantes import (
     BaseTrip,
     TripSchema,
     TripWithFuncs,
 )
 from fcontrol_api.security import get_current_user
+from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=TripMessage)
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[TripSchema]
+)
 async def create_trip(trip: TripSchema, session: Session):
     db_trig = await session.scalar(
         select(Tripulante).where(
@@ -62,10 +64,15 @@ async def create_trip(trip: TripSchema, session: Session):
     await session.commit()
     await session.refresh(tripulante)
 
-    return {'detail': 'Tripulante adicionado com sucesso', 'data': tripulante}
+    return success_response(
+        data=TripSchema.model_validate(tripulante),
+        message='Tripulante adicionado com sucesso',
+    )
 
 
-@router.get('/me', status_code=HTTPStatus.OK, response_model=TripWithFuncs)
+@router.get(
+    '/me', status_code=HTTPStatus.OK, response_model=ApiResponse[TripWithFuncs]
+)
 async def get_my_trip(
     session: Session,
     current_user: User = Depends(get_current_user),
@@ -87,10 +94,14 @@ async def get_my_trip(
             detail='Tripulante não encontrado para este usuário',
         )
 
-    return trip
+    return success_response(data=TripWithFuncs.model_validate(trip))
 
 
-@router.get('/{id}', status_code=HTTPStatus.OK, response_model=TripWithFuncs)
+@router.get(
+    '/{id}',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[TripWithFuncs],
+)
 async def get_trip(id: int, session: Session):
     trip = await session.scalar(select(Tripulante).where(Tripulante.id == id))
 
@@ -99,13 +110,13 @@ async def get_trip(id: int, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
         )
 
-    return trip
+    return success_response(data=TripWithFuncs.model_validate(trip))
 
 
 @router.get(
     '/',
     status_code=HTTPStatus.OK,
-    response_model=PaginatedResponse[TripWithFuncs],
+    response_model=ApiPaginatedResponse[TripWithFuncs],
 )
 async def list_trips(
     session: Session,
@@ -194,19 +205,17 @@ async def list_trips(
     trips = await session.scalars(main_query)
     items = trips.all()
 
-    # Cálculo de páginas
-    pages = (total + per_page - 1) // per_page if total > 0 else 1
-
-    return PaginatedResponse(
-        items=items,
+    return paginated_response(
+        items=list(items),
         total=total,
         page=page,
         per_page=per_page,
-        pages=pages,
     )
 
 
-@router.put('/{id}', status_code=HTTPStatus.OK, response_model=TripMessage)
+@router.put(
+    '/{id}', status_code=HTTPStatus.OK, response_model=ApiResponse[TripSchema]
+)
 async def update_trip(id: int, trip: BaseTrip, session: Session):
     query = select(Tripulante).where(Tripulante.id == id)
 
@@ -237,7 +246,10 @@ async def update_trip(id: int, trip: BaseTrip, session: Session):
     await session.commit()
     await session.refresh(trip_search)
 
-    return {'detail': 'Tripulante atualizado com sucesso', 'data': trip_search}
+    return success_response(
+        data=TripSchema.model_validate(trip_search),
+        message='Tripulante atualizado com sucesso',
+    )
 
 
 # @router.delete('/{id}')

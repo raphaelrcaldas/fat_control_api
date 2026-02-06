@@ -12,16 +12,18 @@ from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.comiss import ComissSchema
 from fcontrol_api.schemas.missoes import FragMisSchema
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.services.comis import verificar_conflito_comiss
 from fcontrol_api.utils.financeiro import custo_missao
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/comiss', tags=['CEGEP'])
 
 
-@router.get('/')
+@router.get('/', response_model=ApiResponse[list])
 async def get_cmtos(
     session: Session,
     user_id: int = None,
@@ -74,10 +76,10 @@ async def get_cmtos(
 
         response.append(comiss_data)
 
-    return response
+    return success_response(data=response)
 
 
-@router.get('/{comiss_id}')
+@router.get('/{comiss_id}', response_model=ApiResponse[dict])
 async def get_cmto_by_id(
     comiss_id: int,
     session: Session,
@@ -147,10 +149,10 @@ async def get_cmto_by_id(
 
     comiss_data['missoes'] = missoes
 
-    return comiss_data
+    return success_response(data=comiss_data)
 
 
-@router.post('/')
+@router.post('/', response_model=ApiResponse[None])
 async def create_cmto(
     session: Session,
     comiss: ComissSchema,
@@ -180,10 +182,10 @@ async def create_cmto(
 
     await session.commit()
 
-    return {'detail': 'Comissionamento criado com sucesso'}
+    return success_response(message='Comissionamento criado com sucesso')
 
 
-@router.put('/{comiss_id}')
+@router.put('/{comiss_id}', response_model=ApiResponse[None])
 async def update_cmto(
     comiss_id: int,
     session: Session,
@@ -269,10 +271,10 @@ async def update_cmto(
     await session.commit()
     await session.refresh(db_comiss)
 
-    return {'detail': 'Comissionamento atualizado com sucesso'}
+    return success_response(message='Comissionamento atualizado com sucesso')
 
 
-@router.delete('/{comiss_id}')
+@router.delete('/{comiss_id}', response_model=ApiResponse[None])
 async def delete_cmto(
     comiss_id: int,
     session: Session,
@@ -316,4 +318,4 @@ async def delete_cmto(
     await session.delete(db_comiss)
     await session.commit()
 
-    return {'detail': 'Comissionamento deletado.'}
+    return success_response(message='Comissionamento deletado')

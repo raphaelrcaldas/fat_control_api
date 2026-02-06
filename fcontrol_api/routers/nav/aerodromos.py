@@ -12,13 +12,19 @@ from fcontrol_api.schemas.nav.aerodromo import (
     AerodromoPublic,
     AerodromoUpdate,
 )
+from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/aerodromos', tags=['aerodromos'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
+@router.post(
+    '/',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[AerodromoPublic],
+)
 async def create_aerodromo(aerodromo: AerodromoCreate, session: Session):
     db_aerodromo_icao = await session.scalar(
         select(Aerodromo).where(Aerodromo.codigo_icao == aerodromo.codigo_icao)
@@ -64,16 +70,19 @@ async def create_aerodromo(aerodromo: AerodromoCreate, session: Session):
     await session.commit()
     await session.refresh(new_aerodromo, ['cidade'])
 
-    return new_aerodromo
+    return success_response(
+        data=AerodromoPublic.model_validate(new_aerodromo),
+        message='Aeródromo criado com sucesso',
+    )
 
 
-@router.get('/', response_model=list[AerodromoPublic])
+@router.get('/', response_model=ApiResponse[list[AerodromoPublic]])
 async def list_aerodromos(session: Session):
     aerodromos = await session.scalars(select(Aerodromo))
-    return aerodromos.all()
+    return success_response(data=list(aerodromos.all()))
 
 
-@router.get('/{id}', response_model=AerodromoPublic)
+@router.get('/{id}', response_model=ApiResponse[AerodromoPublic])
 async def get_aerodromo(id: int, session: Session):
     aerodromo = await session.scalar(
         select(Aerodromo).where(Aerodromo.id == id)
@@ -84,10 +93,10 @@ async def get_aerodromo(id: int, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Aeródromo não encontrado'
         )
 
-    return aerodromo
+    return success_response(data=aerodromo)
 
 
-@router.put('/{id}', response_model=AerodromoPublic)
+@router.put('/{id}', response_model=ApiResponse[AerodromoPublic])
 async def update_aerodromo(
     id: int, aerodromo: AerodromoUpdate, session: Session
 ):
@@ -124,10 +133,13 @@ async def update_aerodromo(
     await session.commit()
     await session.refresh(db_aerodromo, ['cidade'])
 
-    return db_aerodromo
+    return success_response(
+        data=AerodromoPublic.model_validate(db_aerodromo),
+        message='Aeródromo atualizado com sucesso',
+    )
 
 
-@router.delete('/{id}')
+@router.delete('/{id}', response_model=ApiResponse[None])
 async def delete_aerodromo(id: int, session: Session):
     aerodromo = await session.scalar(
         select(Aerodromo).where(Aerodromo.id == id)
@@ -141,4 +153,4 @@ async def delete_aerodromo(id: int, session: Session):
     await session.delete(aerodromo)
     await session.commit()
 
-    return {'detail': 'Aeródromo deletado com sucesso'}
+    return success_response(message='Aeródromo deletado com sucesso')

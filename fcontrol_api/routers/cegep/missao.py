@@ -31,7 +31,10 @@ from fcontrol_api.schemas.missoes import (
     PernoiteFragMis,
     UserFragMis,
 )
-from fcontrol_api.schemas.pagination import PaginatedResponse
+from fcontrol_api.schemas.response import (
+    ApiPaginatedResponse,
+    ApiResponse,
+)
 from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
@@ -39,13 +42,14 @@ from fcontrol_api.services.comis import (
 from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
 from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
 from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
+from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 
 
-@router.get('/', response_model=PaginatedResponse[FragMisSchema])
+@router.get('/', response_model=ApiPaginatedResponse[FragMisSchema])
 async def get_fragmentos(
     session: Session,
     params: MissoesFilterParams = Depends(),
@@ -197,19 +201,15 @@ async def get_fragmentos(
             )
         )
 
-    # Calcula número de páginas
-    pages = (total + per_page - 1) // per_page if total > 0 else 1
-
-    return PaginatedResponse(
+    return paginated_response(
         items=db_frags,
         total=total,
         page=page,
         per_page=per_page,
-        pages=pages,
     )
 
 
-@router.post('/')
+@router.post('/', response_model=ApiResponse[None])
 async def create_or_update_missao(payload: FragMisSchema, session: Session):
     # Capturar usuários antigos ANTES de deletar (para recalcular removidos)
     usuarios_antigos_comiss: list[tuple[int, date, date]] = []
@@ -337,10 +337,10 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
 
     await session.commit()
 
-    return {'detail': 'Missão salva com sucesso'}
+    return success_response(message='Missão salva com sucesso')
 
 
-@router.delete('/{id}')
+@router.delete('/{id}', response_model=ApiResponse[None])
 async def delete_fragmis(id: int, session: Session):
     db_frag = await session.scalar(
         select(FragMis)
@@ -373,21 +373,21 @@ async def delete_fragmis(id: int, session: Session):
 
     await session.commit()
 
-    return {'detail': 'Missão removida com sucesso'}
+    return success_response(message='Missão removida com sucesso')
 
 
 # ============ ENDPOINTS DE ETIQUETAS ============
 
 
-@router.get('/etiquetas', response_model=list[EtiquetaSchema])
+@router.get('/etiquetas', response_model=ApiResponse[list[EtiquetaSchema]])
 async def get_etiquetas(session: Session):
     """Lista todas as etiquetas disponíveis"""
     stmt = select(Etiqueta).order_by(Etiqueta.nome)
     db_etiquetas = (await session.scalars(stmt)).all()
-    return db_etiquetas
+    return success_response(data=list(db_etiquetas))
 
 
-@router.post('/etiquetas', response_model=EtiquetaSchema)
+@router.post('/etiquetas', response_model=ApiResponse[EtiquetaSchema])
 async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
     """Cria ou atualiza uma etiqueta"""
     if payload.id:
@@ -403,6 +403,7 @@ async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
         db_etiqueta.nome = payload.nome
         db_etiqueta.cor = payload.cor
         db_etiqueta.descricao = payload.descricao
+        msg = 'Etiqueta atualizada com sucesso'
     else:
         # Criação
         db_etiqueta = Etiqueta(
@@ -411,14 +412,18 @@ async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
             descricao=payload.descricao,
         )
         session.add(db_etiqueta)
+        msg = 'Etiqueta criada com sucesso'
 
     await session.commit()
     await session.refresh(db_etiqueta)
 
-    return db_etiqueta
+    return success_response(
+        data=EtiquetaSchema.model_validate(db_etiqueta),
+        message=msg,
+    )
 
 
-@router.delete('/etiquetas/{etiqueta_id}')
+@router.delete('/etiquetas/{etiqueta_id}', response_model=ApiResponse[None])
 async def delete_etiqueta(etiqueta_id: int, session: Session):
     """Remove uma etiqueta"""
     db_etiqueta = await session.scalar(
@@ -433,4 +438,4 @@ async def delete_etiqueta(etiqueta_id: int, session: Session):
     await session.delete(db_etiqueta)
     await session.commit()
 
-    return {'detail': 'Etiqueta removida com sucesso'}
+    return success_response(message='Etiqueta removida com sucesso')

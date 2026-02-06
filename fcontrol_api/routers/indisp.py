@@ -17,16 +17,18 @@ from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
 from fcontrol_api.services.logs import log_user_action
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 
-@router.get('/')
+@router.get('/', response_model=ApiResponse[list])
 async def get_crew_indisp(session: Session, funcao: str, uae: str):
     date_ini = date.today() - timedelta(days=30)
 
@@ -60,7 +62,7 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
     tripulantes = result.unique().all()
 
     if not tripulantes:
-        return []
+        return success_response(data=[])
 
     # 2. Extrai os IDs dos usuários para a próxima query.
     user_ids = [trip.user_id for trip in tripulantes]
@@ -103,10 +105,14 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
             'indisps': user_indisps,
         })
 
-    return response
+    return success_response(data=response)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
+@router.post(
+    '/',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[None],
+)
 async def create_indisp(
     indisp: IndispSchema,
     session: Session,
@@ -146,10 +152,10 @@ async def create_indisp(
     session.add(new_indisp)
     await session.commit()
 
-    return {'detail': 'Indisponibilidade adicionada com sucesso'}
+    return success_response(message='Indisponibilidade adicionada com sucesso')
 
 
-@router.get('/user/{id}', response_model=list[IndispOut])
+@router.get('/user/{id}', response_model=ApiResponse[list[IndispOut]])
 async def get_indisp_user(
     id: int,
     session: Session,
@@ -175,10 +181,10 @@ async def get_indisp_user(
 
     indisps = db_indisps.all()
 
-    return indisps
+    return success_response(data=list(indisps))
 
 
-@router.delete('/{id}')
+@router.delete('/{id}', response_model=ApiResponse[None])
 async def delete_indisp(
     id: int,
     session: Session,
@@ -206,10 +212,10 @@ async def delete_indisp(
 
     await session.commit()
 
-    return {'detail': 'Indisponibilidade deletada'}
+    return success_response(message='Indisponibilidade deletada')
 
 
-@router.put('/{id}')
+@router.put('/{id}', response_model=ApiResponse[None])
 async def update_indisp(
     id: int,
     indisp: BaseIndisp,
@@ -282,4 +288,4 @@ async def update_indisp(
 
     await session.commit()
 
-    return {'detail': 'Indisponibilidade atualizada'}
+    return success_response(message='Indisponibilidade atualizada')

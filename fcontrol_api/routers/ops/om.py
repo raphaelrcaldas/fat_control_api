@@ -32,9 +32,10 @@ from fcontrol_api.schemas.om import (
     OrdemMissaoUpdate,
     RouteSuggestionOut,
 )
-from fcontrol_api.schemas.pagination import PaginatedResponse
+from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.security import get_current_user
 from fcontrol_api.services.om import criar_tripulacao_batch
+from fcontrol_api.utils.responses import paginated_response, success_response
 from fcontrol_api.utils.strings import escape_like
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -46,7 +47,7 @@ router = APIRouter(prefix='/om', tags=['ordens-missao'])
 @router.get(
     '/',
     status_code=HTTPStatus.OK,
-    response_model=PaginatedResponse[OrdemMissaoList],
+    response_model=ApiPaginatedResponse[OrdemMissaoList],
 )
 async def list_ordens(
     session: Session,
@@ -142,21 +143,18 @@ async def list_ordens(
     # Transformar para OrdemMissaoList usando from_attributes do Pydantic
     items = [OrdemMissaoList.model_validate(ordem) for ordem in ordens]
 
-    pages = (total + per_page - 1) // per_page if total > 0 else 1
-
-    return PaginatedResponse(
+    return paginated_response(
         items=items,
         total=total,
         page=page,
         per_page=per_page,
-        pages=pages,
     )
 
 
 @router.get(
     '/route-suggestions',
     status_code=HTTPStatus.OK,
-    response_model=RouteSuggestionOut | None,
+    response_model=ApiResponse[RouteSuggestionOut | None],
 )
 async def get_route_suggestion(
     origem: str,
@@ -176,7 +174,7 @@ async def get_route_suggestion(
     """
     # Validar códigos ICAO
     if len(origem) != ICAO_CODE_LENGTH or len(dest) != ICAO_CODE_LENGTH:
-        return None
+        return success_response(data=None)
 
     origem_upper = origem.upper()
     dest_upper = dest.upper()
@@ -222,25 +220,31 @@ async def get_route_suggestion(
 
     # Nenhum dado encontrado
     if not route_row and not dest_row:
-        return None
+        return success_response(data=None)
 
     # Construir resposta combinada
-    return RouteSuggestionOut(
-        dest=dest_upper,
-        # Dados do destino
-        alternativa=dest_row.alternativa if dest_row else None,
-        tvoo_alt=dest_row.tvoo_alt if dest_row else None,
-        # Dados da rota completa
-        origem=origem_upper if route_row else None,
-        tvoo_etp=route_row.tvoo_etp if route_row else None,
-        qtd_comb=route_row.qtd_comb if route_row else None,
-        # Flags
-        has_route_data=route_row is not None,
-        has_destination_data=dest_row is not None,
+    return success_response(
+        data=RouteSuggestionOut(
+            dest=dest_upper,
+            # Dados do destino
+            alternativa=dest_row.alternativa if dest_row else None,
+            tvoo_alt=dest_row.tvoo_alt if dest_row else None,
+            # Dados da rota completa
+            origem=origem_upper if route_row else None,
+            tvoo_etp=route_row.tvoo_etp if route_row else None,
+            qtd_comb=route_row.qtd_comb if route_row else None,
+            # Flags
+            has_route_data=route_row is not None,
+            has_destination_data=dest_row is not None,
+        )
     )
 
 
-@router.get('/{id}', status_code=HTTPStatus.OK, response_model=OrdemMissaoOut)
+@router.get(
+    '/{id}',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[OrdemMissaoOut],
+)
 async def get_ordem(id: int, session: Session):
     """Busca uma ordem de missão por ID"""
     ordem = await session.scalar(
@@ -259,11 +263,13 @@ async def get_ordem(id: int, session: Session):
             detail='Ordem de missão não encontrada',
         )
 
-    return ordem
+    return success_response(data=ordem)
 
 
 @router.post(
-    '/', status_code=HTTPStatus.CREATED, response_model=OrdemMissaoOut
+    '/',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[OrdemMissaoOut],
 )
 async def create_ordem(
     ordem_data: OrdemMissaoCreate, session: Session, current_user: CurrentUser
@@ -338,10 +344,17 @@ async def create_ordem(
         )
     )
 
-    return OrdemMissaoOut.model_validate(ordem_criada, from_attributes=True)
+    return success_response(
+        data=OrdemMissaoOut.model_validate(ordem_criada, from_attributes=True),
+        message='Ordem de missão criada com sucesso',
+    )
 
 
-@router.put('/{id}', status_code=HTTPStatus.OK, response_model=OrdemMissaoOut)
+@router.put(
+    '/{id}',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[OrdemMissaoOut],
+)
 async def update_ordem(
     id: int,
     ordem_data: OrdemMissaoUpdate,
@@ -566,12 +579,19 @@ async def update_ordem(
         )
     )
 
-    return OrdemMissaoOut.model_validate(
-        ordem_atualizada, from_attributes=True
+    return success_response(
+        data=OrdemMissaoOut.model_validate(
+            ordem_atualizada, from_attributes=True
+        ),
+        message='Ordem de missão atualizada com sucesso',
     )
 
 
-@router.delete('/{id}', status_code=HTTPStatus.OK)
+@router.delete(
+    '/{id}',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[None],
+)
 async def delete_ordem(id: int, session: Session, current_user: CurrentUser):
     """Soft delete de uma ordem de missão"""
     ordem = await session.scalar(
@@ -589,7 +609,7 @@ async def delete_ordem(id: int, session: Session, current_user: CurrentUser):
     ordem.deleted_at = datetime.now(timezone.utc)
     await session.commit()
 
-    return {'detail': 'Ordem de missão excluída com sucesso'}
+    return success_response(message='Ordem de missão excluída com sucesso')
 
 
 # =============================================================================
@@ -597,16 +617,16 @@ async def delete_ordem(id: int, session: Session, current_user: CurrentUser):
 # =============================================================================
 
 
-@router.get('/etiquetas/', response_model=list[EtiquetaSchema])
+@router.get('/etiquetas/', response_model=ApiResponse[list[EtiquetaSchema]])
 async def list_etiquetas(session: Session):
     """Lista todas as etiquetas cadastradas"""
     result = await session.execute(select(Etiqueta).order_by(Etiqueta.nome))
-    return result.scalars().all()
+    return success_response(data=list(result.scalars().all()))
 
 
 @router.post(
     '/etiquetas/',
-    response_model=EtiquetaSchema,
+    response_model=ApiResponse[EtiquetaSchema],
     status_code=HTTPStatus.CREATED,
 )
 async def create_etiqueta(
@@ -621,10 +641,13 @@ async def create_etiqueta(
     session.add(etiqueta)
     await session.commit()
     await session.refresh(etiqueta)
-    return etiqueta
+    return success_response(
+        data=EtiquetaSchema.model_validate(etiqueta),
+        message='Etiqueta criada com sucesso',
+    )
 
 
-@router.put('/etiquetas/{id}', response_model=EtiquetaSchema)
+@router.put('/etiquetas/{id}', response_model=ApiResponse[EtiquetaSchema])
 async def update_etiqueta(
     id: int,
     etiqueta_data: EtiquetaUpdate,
@@ -644,10 +667,17 @@ async def update_etiqueta(
 
     await session.commit()
     await session.refresh(etiqueta)
-    return etiqueta
+    return success_response(
+        data=EtiquetaSchema.model_validate(etiqueta),
+        message='Etiqueta atualizada com sucesso',
+    )
 
 
-@router.delete('/etiquetas/{id}', status_code=HTTPStatus.OK)
+@router.delete(
+    '/etiquetas/{id}',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[None],
+)
 async def delete_etiqueta(
     id: int, session: Session, current_user: CurrentUser
 ):
@@ -660,4 +690,4 @@ async def delete_etiqueta(
 
     await session.delete(etiqueta)
     await session.commit()
-    return {'detail': 'Etiqueta removida com sucesso'}
+    return success_response(message='Etiqueta removida com sucesso')

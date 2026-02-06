@@ -9,19 +9,21 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.posto_grad import PostoGrad, Soldo
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.soldo import (
     SoldoCreate,
     SoldoPublic,
     SoldoStats,
     SoldoUpdate,
 )
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/soldos', tags=['CEGEP'])
 
 
-@router.get('/stats', response_model=SoldoStats)
+@router.get('/stats', response_model=ApiResponse[SoldoStats])
 async def get_soldo_stats(
     session: Session,
     circulo: str | None = Query(None, description='Filtrar por circulo'),
@@ -39,14 +41,16 @@ async def get_soldo_stats(
     result = await session.execute(query)
     row = result.one()
 
-    return SoldoStats(
-        total=row[0] or 0,
-        min_valor=row[1],
-        max_valor=row[2],
+    return success_response(
+        data=SoldoStats(
+            total=row[0] or 0,
+            min_valor=row[1],
+            max_valor=row[2],
+        )
     )
 
 
-@router.get('/', response_model=list[SoldoPublic])
+@router.get('/', response_model=ApiResponse[list[SoldoPublic]])
 async def list_soldos(
     session: Session,
     circulo: str | None = Query(None, description='Filtrar por circulo'),
@@ -70,10 +74,10 @@ async def list_soldos(
     query = query.order_by(Soldo.data_inicio.desc())
 
     result = await session.scalars(query)
-    return result.all()
+    return success_response(data=list(result.all()))
 
 
-@router.get('/{soldo_id}', response_model=SoldoPublic)
+@router.get('/{soldo_id}', response_model=ApiResponse[SoldoPublic])
 async def get_soldo(soldo_id: int, session: Session):
     """Busca um soldo por ID"""
     soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
@@ -84,10 +88,14 @@ async def get_soldo(soldo_id: int, session: Session):
             detail='Soldo nao encontrado',
         )
 
-    return soldo
+    return success_response(data=soldo)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=SoldoPublic)
+@router.post(
+    '/',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[SoldoPublic],
+)
 async def create_soldo(soldo: SoldoCreate, session: Session):
     """Cria um novo registro de soldo"""
     if soldo.data_fim and soldo.data_fim <= soldo.data_inicio:
@@ -117,10 +125,13 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
     await session.commit()
     await session.refresh(new_soldo)
 
-    return new_soldo
+    return success_response(
+        data=SoldoPublic.model_validate(new_soldo),
+        message='Soldo criado com sucesso',
+    )
 
 
-@router.put('/{soldo_id}', response_model=SoldoPublic)
+@router.put('/{soldo_id}', response_model=ApiResponse[SoldoPublic])
 async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
     """Atualiza um soldo existente"""
     db_soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
@@ -158,10 +169,13 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
     await session.commit()
     await session.refresh(db_soldo)
 
-    return db_soldo
+    return success_response(
+        data=SoldoPublic.model_validate(db_soldo),
+        message='Soldo atualizado com sucesso',
+    )
 
 
-@router.delete('/{soldo_id}')
+@router.delete('/{soldo_id}', response_model=ApiResponse[None])
 async def delete_soldo(soldo_id: int, session: Session):
     """Deleta um registro de soldo"""
     db_soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
@@ -175,4 +189,4 @@ async def delete_soldo(soldo_id: int, session: Session):
     await session.delete(db_soldo)
     await session.commit()
 
-    return {'detail': 'Soldo deletado com sucesso'}
+    return success_response(message='Soldo deletado com sucesso')

@@ -14,19 +14,21 @@ from fcontrol_api.models.security.resources import (
     Roles,
     UserRole,
 )
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.security import (
     PermissionDetailSchema,
     RoleDetailSchema,
     UserRoleSchema,
     UserWithRole,
 )
+from fcontrol_api.utils.responses import success_response
 
 router = APIRouter(prefix='/roles')
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 
-@router.get('/', response_model=list[RoleDetailSchema])
+@router.get('/', response_model=ApiResponse[list[RoleDetailSchema]])
 async def list_roles(session: Session):
     stmt = (
         select(Roles)
@@ -40,35 +42,37 @@ async def list_roles(session: Session):
     result = await session.execute(stmt)
     roles = result.unique().scalars()
 
-    return [
-        RoleDetailSchema(
-            id=role.id,
-            name=role.name,
-            description=role.description,
-            permissions=[
-                PermissionDetailSchema(
-                    id=rp.permission.id,
-                    resource=rp.permission.resource.name,
-                    action=rp.permission.name,
-                    description=rp.permission.description,
-                )
-                for rp in role.permissions
-            ],
-        )
-        for role in roles
-    ]
+    return success_response(
+        data=[
+            RoleDetailSchema(
+                id=role.id,
+                name=role.name,
+                description=role.description,
+                permissions=[
+                    PermissionDetailSchema(
+                        id=rp.permission.id,
+                        resource=rp.permission.resource.name,
+                        action=rp.permission.name,
+                        description=rp.permission.description,
+                    )
+                    for rp in role.permissions
+                ],
+            )
+            for role in roles
+        ]
+    )
 
 
-@router.get('/users/', response_model=list[UserWithRole])
+@router.get('/users/', response_model=ApiResponse[list[UserWithRole]])
 async def list_users_roles(session: Session):
     urs = await session.scalars(
         select(UserRole).options(joinedload(UserRole.user))
     )
 
-    return urs.all()
+    return success_response(data=list(urs.all()))
 
 
-@router.get('/{role_id}', response_model=RoleDetailSchema)
+@router.get('/{role_id}', response_model=ApiResponse[RoleDetailSchema])
 async def get_role_detail(role_id: int, session: Session):
     stmt = (
         select(Roles)
@@ -87,23 +91,25 @@ async def get_role_detail(role_id: int, session: Session):
             status_code=HTTPStatus.NOT_FOUND, detail='Role não encontrada'
         )
 
-    return RoleDetailSchema(
-        id=role.id,
-        name=role.name,
-        description=role.description,
-        permissions=[
-            PermissionDetailSchema(
-                id=rp.permission.id,
-                resource=rp.permission.resource.name,
-                action=rp.permission.name,
-                description=rp.permission.description,
-            )
-            for rp in role.permissions
-        ],
+    return success_response(
+        data=RoleDetailSchema(
+            id=role.id,
+            name=role.name,
+            description=role.description,
+            permissions=[
+                PermissionDetailSchema(
+                    id=rp.permission.id,
+                    resource=rp.permission.resource.name,
+                    action=rp.permission.name,
+                    description=rp.permission.description,
+                )
+                for rp in role.permissions
+            ],
+        )
     )
 
 
-@router.post('/users/')
+@router.post('/users/', response_model=ApiResponse[None])
 async def add_user_role(new_role: UserRoleSchema, session: Session):
     user = await session.scalar(
         select(User).where(User.id == new_role.user_id)
@@ -119,10 +125,10 @@ async def add_user_role(new_role: UserRoleSchema, session: Session):
     session.add(ur)
     await session.commit()
 
-    return {'detail': 'Perfil cadastrado com sucesso'}
+    return success_response(message='Perfil cadastrado com sucesso')
 
 
-@router.put('/users/')
+@router.put('/users/', response_model=ApiResponse[None])
 async def update_user_role(role_patch: UserRoleSchema, session: Session):
     user_reg = await session.scalar(
         select(UserRole).where(UserRole.user_id == role_patch.user_id)
@@ -137,10 +143,10 @@ async def update_user_role(role_patch: UserRoleSchema, session: Session):
 
     await session.commit()
 
-    return {'detail': 'Perfil atualizado com sucesso'}
+    return success_response(message='Perfil atualizado com sucesso')
 
 
-@router.delete('/users/')
+@router.delete('/users/', response_model=ApiResponse[None])
 async def delete_user_role(role_body: UserRoleSchema, session: Session):
     user_reg = await session.scalar(
         select(UserRole).where(UserRole.user_id == role_body.user_id)
@@ -160,4 +166,4 @@ async def delete_user_role(role_body: UserRoleSchema, session: Session):
     await session.delete(user_reg)
     await session.commit()
 
-    return {'detail': 'Perfil deletado com sucesso'}
+    return success_response(message='Perfil deletado com sucesso')

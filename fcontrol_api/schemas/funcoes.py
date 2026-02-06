@@ -26,12 +26,25 @@ PosicoesComissario = Literal['TF', 'IF', 'AF']
 
 # Todas as posições válidas (para validação genérica)
 FuncBordo = Literal[
-    '1P', '2P', 'IN', 'AL',  # pil
-    'MC', 'IC', 'AC',         # mc
-    'LM', 'IG', 'AG',         # lm
-    'O3', 'I3', 'A3',         # oe
-    'OS', 'IS', 'AS',         # os
-    'TF', 'IF', 'AF',         # tf
+    '1P',
+    '2P',
+    'IN',
+    'AL',  # pil
+    'MC',
+    'IC',
+    'AC',  # mc
+    'LM',
+    'IG',
+    'AG',  # lm
+    'O3',
+    'I3',
+    'A3',  # oe
+    'OS',
+    'IS',
+    'AS',  # os
+    'TF',
+    'IF',
+    'AF',  # tf
 ]
 
 # Mapeamento função → posições válidas (para validação condicional)

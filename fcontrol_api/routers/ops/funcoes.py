@@ -9,13 +9,17 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.schemas.funcoes import BaseFunc, FuncUpdate
+from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/trips/func', tags=['func'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[None]
+)
 async def create_funcao(trip_id: int, funcao: BaseFunc, session: Session):
     db_trip = await session.scalar(
         select(Tripulante).where((Tripulante.id == trip_id))
@@ -50,10 +54,10 @@ async def create_funcao(trip_id: int, funcao: BaseFunc, session: Session):
     session.add(new_func)
     await session.commit()
 
-    return {'detail': 'Função cadastrada com sucesso'}
+    return success_response(message='Função cadastrada com sucesso')
 
 
-@router.put('/{id}')
+@router.put('/{id}', response_model=ApiResponse[None])
 async def update_funcao(id: int, funcao: FuncUpdate, session: Session):
     db_func = await session.scalar(select(Funcao).where(Funcao.id == id))
 
@@ -67,10 +71,10 @@ async def update_funcao(id: int, funcao: FuncUpdate, session: Session):
 
     await session.commit()
 
-    return {'detail': 'Função atualizada com sucesso'}
+    return success_response(message='Função atualizada com sucesso')
 
 
-@router.delete('/{id}')
+@router.delete('/{id}', response_model=ApiResponse[None])
 async def delete_func(id: int, session: Session):
     db_func = await session.scalar(select(Funcao).where(Funcao.id == id))
 
@@ -82,4 +86,4 @@ async def delete_func(id: int, session: Session):
     await session.delete(db_func)
     await session.commit()
 
-    return {'detail': 'Função deletada'}
+    return success_response(message='Função deletada')

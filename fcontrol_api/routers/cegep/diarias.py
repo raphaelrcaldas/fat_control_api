@@ -18,6 +18,8 @@ from fcontrol_api.schemas.diaria import (
     GrupoCidadePublic,
     GrupoPgPublic,
 )
+from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -34,7 +36,7 @@ def calculate_status(data_inicio: date, data_fim: date | None) -> str:
     return 'vigente'
 
 
-@router.get('/valores/', response_model=list[DiariaValorPublic])
+@router.get('/valores/', response_model=ApiResponse[list[DiariaValorPublic]])
 async def list_diaria_valores(
     session: Session,
     grupo_cid: int | None = Query(
@@ -74,21 +76,26 @@ async def list_diaria_valores(
     valores = result.all()
 
     # Adiciona status calculado
-    return [
-        DiariaValorPublic(
-            id=v.id,
-            grupo_pg=v.grupo_pg,
-            grupo_cid=v.grupo_cid,
-            valor=v.valor,
-            data_inicio=v.data_inicio,
-            data_fim=v.data_fim,
-            status=calculate_status(v.data_inicio, v.data_fim),
-        )
-        for v in valores
-    ]
+    return success_response(
+        data=[
+            DiariaValorPublic(
+                id=v.id,
+                grupo_pg=v.grupo_pg,
+                grupo_cid=v.grupo_cid,
+                valor=v.valor,
+                data_inicio=v.data_inicio,
+                data_fim=v.data_fim,
+                status=calculate_status(v.data_inicio, v.data_fim),
+            )
+            for v in valores
+        ]
+    )
 
 
-@router.get('/valores/{valor_id}', response_model=DiariaValorPublic)
+@router.get(
+    '/valores/{valor_id}',
+    response_model=ApiResponse[DiariaValorPublic],
+)
 async def get_diaria_valor(valor_id: int, session: Session):
     """Busca valor de diária por ID"""
     valor = await session.scalar(
@@ -101,21 +108,23 @@ async def get_diaria_valor(valor_id: int, session: Session):
             detail='Valor de diária não encontrado',
         )
 
-    return DiariaValorPublic(
-        id=valor.id,
-        grupo_pg=valor.grupo_pg,
-        grupo_cid=valor.grupo_cid,
-        valor=valor.valor,
-        data_inicio=valor.data_inicio,
-        data_fim=valor.data_fim,
-        status=calculate_status(valor.data_inicio, valor.data_fim),
+    return success_response(
+        data=DiariaValorPublic(
+            id=valor.id,
+            grupo_pg=valor.grupo_pg,
+            grupo_cid=valor.grupo_cid,
+            valor=valor.valor,
+            data_inicio=valor.data_inicio,
+            data_fim=valor.data_fim,
+            status=calculate_status(valor.data_inicio, valor.data_fim),
+        )
     )
 
 
 @router.post(
     '/valores/',
     status_code=HTTPStatus.CREATED,
-    response_model=DiariaValorPublic,
+    response_model=ApiResponse[DiariaValorPublic],
 )
 async def create_diaria_valor(data: DiariaValorCreate, session: Session):
     """Cria um novo valor de diária"""
@@ -137,18 +146,24 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
     await session.commit()
     await session.refresh(new_valor)
 
-    return DiariaValorPublic(
-        id=new_valor.id,
-        grupo_pg=new_valor.grupo_pg,
-        grupo_cid=new_valor.grupo_cid,
-        valor=new_valor.valor,
-        data_inicio=new_valor.data_inicio,
-        data_fim=new_valor.data_fim,
-        status=calculate_status(new_valor.data_inicio, new_valor.data_fim),
+    return success_response(
+        data=DiariaValorPublic(
+            id=new_valor.id,
+            grupo_pg=new_valor.grupo_pg,
+            grupo_cid=new_valor.grupo_cid,
+            valor=new_valor.valor,
+            data_inicio=new_valor.data_inicio,
+            data_fim=new_valor.data_fim,
+            status=calculate_status(new_valor.data_inicio, new_valor.data_fim),
+        ),
+        message='Valor de diária criado com sucesso',
     )
 
 
-@router.put('/valores/{valor_id}', response_model=DiariaValorPublic)
+@router.put(
+    '/valores/{valor_id}',
+    response_model=ApiResponse[DiariaValorPublic],
+)
 async def update_diaria_valor(
     valor_id: int, data: DiariaValorUpdate, session: Session
 ):
@@ -180,18 +195,21 @@ async def update_diaria_valor(
     await session.commit()
     await session.refresh(db_valor)
 
-    return DiariaValorPublic(
-        id=db_valor.id,
-        grupo_pg=db_valor.grupo_pg,
-        grupo_cid=db_valor.grupo_cid,
-        valor=db_valor.valor,
-        data_inicio=db_valor.data_inicio,
-        data_fim=db_valor.data_fim,
-        status=calculate_status(db_valor.data_inicio, db_valor.data_fim),
+    return success_response(
+        data=DiariaValorPublic(
+            id=db_valor.id,
+            grupo_pg=db_valor.grupo_pg,
+            grupo_cid=db_valor.grupo_cid,
+            valor=db_valor.valor,
+            data_inicio=db_valor.data_inicio,
+            data_fim=db_valor.data_fim,
+            status=calculate_status(db_valor.data_inicio, db_valor.data_fim),
+        ),
+        message='Valor de diária atualizado com sucesso',
     )
 
 
-@router.delete('/valores/{valor_id}')
+@router.delete('/valores/{valor_id}', response_model=ApiResponse[None])
 async def delete_diaria_valor(valor_id: int, session: Session):
     """Deleta um valor de diária"""
     db_valor = await session.scalar(
@@ -207,10 +225,13 @@ async def delete_diaria_valor(valor_id: int, session: Session):
     await session.delete(db_valor)
     await session.commit()
 
-    return {'detail': 'Valor de diária deletado com sucesso'}
+    return success_response(message='Valor de diária deletado com sucesso')
 
 
-@router.get('/grupos-cidade/', response_model=list[GrupoCidadePublic])
+@router.get(
+    '/grupos-cidade/',
+    response_model=ApiResponse[list[GrupoCidadePublic]],
+)
 async def list_grupos_cidade(session: Session):
     """Lista todos os grupos de cidade com cidades associadas"""
     query = (
@@ -222,24 +243,26 @@ async def list_grupos_cidade(session: Session):
     result = await session.execute(query)
     rows = result.all()
 
-    return [
-        GrupoCidadePublic(
-            id=gc.id,
-            grupo=gc.grupo,
-            cidade_id=gc.cidade_id,
-            cidade={
-                'codigo': cidade.codigo,
-                'nome': cidade.nome,
-                'uf': cidade.uf,
-            }
-            if cidade
-            else None,
-        )
-        for gc, cidade in rows
-    ]
+    return success_response(
+        data=[
+            GrupoCidadePublic(
+                id=gc.id,
+                grupo=gc.grupo,
+                cidade_id=gc.cidade_id,
+                cidade={
+                    'codigo': cidade.codigo,
+                    'nome': cidade.nome,
+                    'uf': cidade.uf,
+                }
+                if cidade
+                else None,
+            )
+            for gc, cidade in rows
+        ]
+    )
 
 
-@router.get('/grupos-pg/', response_model=list[GrupoPgPublic])
+@router.get('/grupos-pg/', response_model=ApiResponse[list[GrupoPgPublic]])
 async def list_grupos_pg(session: Session):
     """Lista todos os grupos de posto/graduação"""
     query = (
@@ -251,14 +274,16 @@ async def list_grupos_pg(session: Session):
     result = await session.execute(query)
     rows = result.all()
 
-    return [
-        GrupoPgPublic(
-            id=gpg.id,
-            grupo=gpg.grupo,
-            pg_short=gpg.pg_short,
-            pg_mid=pg.mid if pg else None,
-            pg_long=pg.long if pg else None,
-            circulo=pg.circulo if pg else None,
-        )
-        for gpg, pg in rows
-    ]
+    return success_response(
+        data=[
+            GrupoPgPublic(
+                id=gpg.id,
+                grupo=gpg.grupo,
+                pg_short=gpg.pg_short,
+                pg_mid=pg.mid if pg else None,
+                pg_long=pg.long if pg else None,
+                circulo=pg.circulo if pg else None,
+            )
+            for gpg, pg in rows
+        ]
+    )

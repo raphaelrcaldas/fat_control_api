@@ -154,15 +154,22 @@ async def adicionar_missao(
         session.add(missao)
         await session.flush()
 
-    # Processar etiquetas
+    # Processar etiquetas via tabela de associacao
+    # Evita lazy load que causa MissingGreenlet em contexto async
     if payload.etiquetas:
         etiqueta_ids = [e.id for e in payload.etiquetas if e.id]
         if etiqueta_ids:
+            # Verifica se etiquetas existem
             db_etiquetas = (
                 await session.scalars(
                     select(Etiqueta).where(Etiqueta.id.in_(etiqueta_ids))
                 )
             ).all()
-            missao.etiquetas = list(db_etiquetas)
+            # Insere diretamente na tabela de associacao
+            for etiqueta in db_etiquetas:
+                session.add(FragEtiqueta(
+                    frag_id=missao.id,
+                    etiqueta_id=etiqueta.id,
+                ))
 
     return missao

@@ -9,14 +9,16 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.missoes import FragMisSchema, UserFragMis
+from fcontrol_api.schemas.response import ApiPaginatedResponse
 from fcontrol_api.utils.financeiro import custo_missao
+from fcontrol_api.utils.responses import paginated_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/financeiro', tags=['CEGEP'])
 
 
-@router.get('/pgts')
+@router.get('/pgts', response_model=ApiPaginatedResponse[dict])
 async def get_pgto(
     session: Session,
     tipo_doc: list[str] = Query(None, description='Tipos de documento'),
@@ -128,12 +130,9 @@ async def get_pgto(
             'missao': mis,
         })
 
-    total_pages = (total + limit - 1) // limit if total > 0 else 1
-
-    return {
-        'items': items,
-        'total': total,
-        'page': page,
-        'limit': limit,
-        'total_pages': total_pages,
-    }
+    return paginated_response(
+        items=items,
+        total=total,
+        page=page,
+        per_page=limit,
+    )

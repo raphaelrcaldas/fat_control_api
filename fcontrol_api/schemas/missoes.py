@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -85,7 +85,7 @@ class UserFragMis(BaseModel):
     frag_id: Optional[int] = None
     user_id: int
     p_g: PostoGradEnum
-    sit: str
+    sit: Literal['c', 'd', 'g']
     user: UserPublic
 
     model_config = ConfigDict(from_attributes=True)
@@ -94,14 +94,14 @@ class UserFragMis(BaseModel):
 class FragMisSchema(BaseModel):
     id: Optional[int] = None
     n_doc: int
-    tipo_doc: str
+    tipo_doc: Literal['os', 'om']
     indenizavel: bool
     acrec_desloc: bool
     afast: datetime
     regres: datetime
     desc: str
     obs: str
-    tipo: str
+    tipo: Literal['adm', 'tal', 'opr']
     pernoites: list[PernoiteFragMis]
     users: list[UserFragMis]
     etiquetas: list[EtiquetaSchema] = []

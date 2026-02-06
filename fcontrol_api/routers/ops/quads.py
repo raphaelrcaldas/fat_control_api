@@ -20,8 +20,10 @@ from fcontrol_api.schemas.quads import (
     QuadsGroupSchema,
     QuadUpdate,
 )
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.tripulantes import uaes
 from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.utils.responses import success_response
 
 router = APIRouter()
 
@@ -30,7 +32,9 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/quads', tags=['quads'])
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
+@router.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[None]
+)
 async def create_quad(quads: list[QuadSchema], session: Session):
     insert_quads = []
     for quad in quads:
@@ -61,13 +65,13 @@ async def create_quad(quads: list[QuadSchema], session: Session):
     session.add_all(insert_quads)
     await session.commit()
 
-    return {'detail': 'Quadrinho inserido com sucesso'}
+    return success_response(message='Quadrinho inserido com sucesso')
 
 
 @router.get(
     '/trip/{trip_id}',
     status_code=HTTPStatus.OK,
-    response_model=list[QuadPublic],
+    response_model=ApiResponse[list[QuadPublic]],
 )
 async def quads_by_trip(trip_id: int, type_id: int, session: Session):
     query = (
@@ -81,10 +85,10 @@ async def quads_by_trip(trip_id: int, type_id: int, session: Session):
     result = await session.scalars(query)
     quads = result.all()
 
-    return quads
+    return success_response(data=[QuadPublic.model_validate(q) for q in quads])
 
 
-@router.get('/', status_code=HTTPStatus.OK)
+@router.get('/', status_code=HTTPStatus.OK, response_model=ApiResponse[list])
 async def list_quads(
     session: Session,
     tipo_quad: int = 1,  # sobr preto
@@ -138,7 +142,7 @@ async def list_quads(
     )  # Retorna tuplas (Tripulante, total_quads)
 
     if not trip_data:
-        return []
+        return success_response(data=[])
 
     # Extrai os IDs e o min_length dos resultados
     trip_ids = [trip.id for trip, _ in trip_data]
@@ -204,10 +208,10 @@ async def list_quads(
             'quads_len': total_quads if total_quads is not None else 0,
         })
 
-    return response
+    return success_response(data=response)
 
 
-@router.delete('/{id}')
+@router.delete('/{id}', response_model=ApiResponse[None])
 async def delete_quad(id: int, session: Session):
     quad = await session.scalar(select(Quad).where(Quad.id == id))
 
@@ -219,10 +223,10 @@ async def delete_quad(id: int, session: Session):
     await session.delete(quad)
     await session.commit()
 
-    return {'detail': 'Quadrinho deletado'}
+    return success_response(message='Quadrinho deletado')
 
 
-@router.put('/{id}')
+@router.put('/{id}', response_model=ApiResponse[None])
 async def update_quad(id: int, quad: QuadUpdate, session: Session):
     db_quad = await session.scalar(select(Quad).where(Quad.id == id))
 
@@ -252,10 +256,10 @@ async def update_quad(id: int, quad: QuadUpdate, session: Session):
 
     await session.commit()
 
-    return {'detail': 'Quadrinho atualizado'}
+    return success_response(message='Quadrinho atualizado')
 
 
-@router.get('/types', response_model=list[QuadsGroupSchema])
+@router.get('/types', response_model=ApiResponse[list[QuadsGroupSchema]])
 async def get_quads_type(uae: str, session: Session):
     quads = await session.scalars(
         select(QuadsGroup)
@@ -271,4 +275,4 @@ async def get_quads_type(uae: str, session: Session):
             funcs = [e.func for e in type_quad.funcs]
             setattr(type_quad, 'funcs_list', funcs)
 
-    return quads
+    return success_response(data=list(quads))

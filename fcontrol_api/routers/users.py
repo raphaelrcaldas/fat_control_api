@@ -10,11 +10,12 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.users import User
+from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.users import (
     PwdSchema,
     UserFull,
     UserProfile,
-    UserPublicPaginated,
+    UserPublic,
     UserSchema,
     UserUpdate,
 )
@@ -27,13 +28,14 @@ from fcontrol_api.services.auth import get_user_roles
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.users import check_user_conflicts
 from fcontrol_api.settings import Settings
+from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/users', tags=['users'])
 
 
-@router.get('/me', response_model=UserProfile)
+@router.get('/me', response_model=ApiResponse[UserProfile])
 async def read_users_me(
     session: Session, current_user: Annotated[User, Depends(get_current_user)]
 ):
@@ -47,10 +49,10 @@ async def read_users_me(
         permissions=permissions.get('perms', []),
     )
 
-    return profile
+    return success_response(data=profile)
 
 
-@router.post('/change-pwd')
+@router.post('/change-pwd', response_model=ApiResponse[None])
 async def change_pwd(
     pwd_schema: PwdSchema,
     session: Session,
@@ -71,10 +73,10 @@ async def change_pwd(
 
     await session.commit()
 
-    return {'detail': 'Senha alterada com sucesso!'}
+    return success_response(message='Senha alterada com sucesso')
 
 
-@router.post('/reset-pwd')
+@router.post('/reset-pwd', response_model=ApiResponse[None])
 async def reset_pwd(
     user_id: int,
     session: Session,
@@ -84,7 +86,7 @@ async def reset_pwd(
     if not db_user:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='User not found',
+            detail='Usuario nao encontrado',
         )
 
     hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)  # type: ignore
@@ -103,10 +105,14 @@ async def reset_pwd(
 
     await session.commit()
 
-    return {'detail': 'Senha resetada com sucesso!'}
+    return success_response(message='Senha resetada com sucesso')
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
+@router.post(
+    '/',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[UserPublic],
+)
 async def create_user(
     payload: UserSchema,
     session: Session,
@@ -155,11 +161,15 @@ async def create_user(
         after=None,
     )
     await session.commit()
+    await session.refresh(db_user, ['posto'])
 
-    return {'detail': 'Usuário Adicionado com sucesso'}
+    return success_response(
+        data=UserPublic.model_validate(db_user),
+        message='Usuario adicionado com sucesso',
+    )
 
 
-@router.get('/', response_model=UserPublicPaginated)
+@router.get('/', response_model=ApiPaginatedResponse[UserPublic])
 async def read_users(
     session: Session,
     search: str | None = None,
@@ -224,32 +234,28 @@ async def read_users(
     )
     users = users_result.all()
 
-    # Calcula número de páginas
-    pages = (total + per_page - 1) // per_page if total > 0 else 1
-
-    return UserPublicPaginated(
-        items=users,
+    return paginated_response(
+        items=[UserPublic.model_validate(u) for u in users],
         total=total,
         page=page,
         per_page=per_page,
-        pages=pages,
     )
 
 
-@router.get('/{user_id}', response_model=UserFull)
+@router.get('/{user_id}', response_model=ApiResponse[UserFull])
 async def get_user(user_id: int, session: Session):
     query = select(User).where(User.id == user_id)
     db_user = await session.scalar(query)
 
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
 
-    return db_user
+    return success_response(data=UserFull.model_validate(db_user))
 
 
-@router.put('/{user_id}')
+@router.put('/{user_id}', response_model=ApiResponse[UserFull])
 async def update_user(
     user_id: int,
     user_patch: UserUpdate,
@@ -260,7 +266,7 @@ async def update_user(
 
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
 
     patch = user_patch.model_dump(exclude_unset=True)
@@ -309,8 +315,12 @@ async def update_user(
     )
 
     await session.commit()
+    await session.refresh(db_user, ['posto'])
 
-    return {'detail': 'Usuário atualizado com sucesso'}
+    return success_response(
+        data=UserFull.model_validate(db_user),
+        message='Usuario atualizado com sucesso',
+    )
 
 
 # @router.delete('/{user_id}')
