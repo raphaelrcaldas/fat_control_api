@@ -9,8 +9,15 @@ import factory
 import factory.fuzzy
 
 from fcontrol_api.enums.indisp import IndispEnum
+from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.dados_bancarios import DadosBancarios
 from fcontrol_api.models.cegep.diarias import DiariaValor, GrupoCidade, GrupoPg
+from fcontrol_api.models.cegep.missoes import (
+    Etiqueta,
+    FragMis,
+    PernoiteFrag,
+    UserFrag,
+)
 from fcontrol_api.models.nav.aerodromos import Aerodromo
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.indisp import Indisp
@@ -109,8 +116,10 @@ class TripFactory(factory.Factory):
 
     user_id: int
     trig = factory.Sequence(
-        lambda n: f'{chr(97 + n % 26)}{chr(97 + (n // 26) % 26)}'
-        f'{chr(97 + (n // 676) % 26)}'
+        lambda n: (
+            f'{chr(97 + n % 26)}{chr(97 + (n // 26) % 26)}'
+            f'{chr(97 + (n // 676) % 26)}'
+        )
     )
     active = True  # Padrão ativo (mais comum em testes)
     uae = factory.fuzzy.FuzzyChoice(typing.get_args(uaes))
@@ -225,11 +234,13 @@ class OrdemMissaoFactory(factory.Factory):
 
     numero = factory.Sequence(lambda n: f'OM-{n:04d}/2025')
     matricula_anv = factory.fuzzy.FuzzyInteger(2800, 2899)
-    tipo = factory.fuzzy.FuzzyChoice(
-        ['instrucao', 'operacional', 'transporte']
-    )
+    tipo = factory.fuzzy.FuzzyChoice([
+        'instrucao',
+        'operacional',
+        'transporte',
+    ])
     created_by: int
-    projeto = factory.fuzzy.FuzzyChoice(['ABAFA', 'ACAO', 'INST'])
+    projeto = factory.fuzzy.FuzzyChoice(['KC-390'])
     status = 'aprovada'
     campos_especiais = []
     uae = factory.fuzzy.FuzzyChoice(['1/1 GT', '2/1 GT', '3/1 GT'])
@@ -437,3 +448,170 @@ class AerodromoFactory(factory.Factory):
     base_aerea = None
     codigo_cidade = None
     cidade_manual = None
+
+
+class ComissFactory(factory.Factory):
+    """
+    Factory para criar comissionamentos de teste.
+
+    IMPORTANTE: Requer user_id ao criar.
+
+    Uso:
+        comiss = ComissFactory(user_id=user.id)
+        comiss_fechado = ComissFactory(
+            user_id=user.id,
+            status='fechado'
+        )
+    """
+
+    class Meta:
+        model = Comissionamento
+
+    user_id: int
+    status = 'aberto'
+    dep = False
+
+    data_ab = factory.LazyFunction(datetime.date.today)
+    qtd_aj_ab = 30.0
+    valor_aj_ab = 5000.00
+
+    data_fc = factory.LazyAttribute(
+        lambda obj: obj.data_ab + datetime.timedelta(days=90)
+    )
+    qtd_aj_fc = 30.0
+    valor_aj_fc = 5000.00
+
+    dias_cumprir = 60
+
+    doc_prop = factory.Sequence(lambda n: f'PROP-{n:04d}/2025')
+    doc_aut = factory.Sequence(lambda n: f'AUT-{n:04d}/2025')
+    doc_enc = None
+
+
+class FragMisFactory(factory.Factory):
+    """
+    Factory para criar missoes (FragMis) de teste.
+
+    Uso:
+        missao = FragMisFactory()
+        missao_custom = FragMisFactory(
+            desc='Missao de transporte',
+            tipo='transporte'
+        )
+    """
+
+    class Meta:
+        model = FragMis
+
+    tipo_doc = factory.fuzzy.FuzzyChoice(['om', 'os'])
+    n_doc = factory.Sequence(lambda n: 1000 + n)
+    desc = factory.Sequence(lambda n: f'Missao de teste {n}')
+    tipo = factory.fuzzy.FuzzyChoice(['adm', 'tal', 'opr'])
+    afast = factory.LazyFunction(datetime.datetime.now)
+    regres = factory.LazyAttribute(
+        lambda obj: obj.afast + datetime.timedelta(days=3)
+    )
+    acrec_desloc = factory.fuzzy.FuzzyChoice([True, False])
+    obs = 'detail teste'
+    indenizavel = factory.fuzzy.FuzzyChoice([True, False])
+
+
+class UserFragFactory(factory.Factory):
+    """
+    Factory para criar relacao usuario-missao (UserFrag) de teste.
+
+    IMPORTANTE: Requer frag_id e user_id ao criar.
+
+    Situacoes (sit):
+        - 'c': Comissionado
+        - 'd': Diaria
+        - 'g': Grat Rep (Gratificacao por Representacao)
+
+    Uso:
+        # Comissionado (padrao)
+        user_frag = UserFragFactory(frag_id=missao.id, user_id=user.id)
+        user_frag_comiss = UserFragFactory(
+            frag_id=missao.id,
+            user_id=user.id,
+            sit='c',
+            p_g='cb'
+        )
+
+        # Diaria
+        user_frag_diaria = UserFragFactory(
+            frag_id=missao.id,
+            user_id=user.id,
+            sit='d',
+            p_g='2s'
+        )
+
+        # Gratificacao por Representacao
+        user_frag_grat = UserFragFactory(
+            frag_id=missao.id,
+            user_id=user.id,
+            sit='g',
+            p_g='1t'
+        )
+    """
+
+    class Meta:
+        model = UserFrag
+
+    frag_id: int
+    user_id: int
+    sit = 'c'  # comissionado (padrao)
+    p_g = 'cb'  # posto/graduacao
+
+
+class PernoiteFragFactory(factory.Factory):
+    """
+    Factory para criar pernoites de missao (PernoiteFrag) de teste.
+
+    IMPORTANTE: Requer frag_id e cidade_id ao criar.
+    O cidade_id deve ser codigo valido (ex: 3550308 para SP).
+
+    Uso:
+        pernoite = PernoiteFragFactory(
+            frag_id=missao.id,
+            cidade_id=3550308
+        )
+        pernoite_meia = PernoiteFragFactory(
+            frag_id=missao.id,
+            cidade_id=3550308,
+            meia_diaria=True
+        )
+    """
+
+    class Meta:
+        model = PernoiteFrag
+
+    frag_id: int
+    cidade_id = 3550308  # SP do seed
+    acrec_desloc = False
+    data_ini = factory.LazyFunction(datetime.date.today)
+    data_fim = factory.LazyAttribute(
+        lambda obj: obj.data_ini + datetime.timedelta(days=3)
+    )
+    meia_diaria = False
+    obs = ''
+
+
+class EtiquetaFactory(factory.Factory):
+    """
+    Factory para criar etiquetas de missao (Etiqueta) de teste.
+
+    Uso:
+        etiqueta = EtiquetaFactory()
+        etiqueta_custom = EtiquetaFactory(
+            nome='Urgente',
+            cor='#FF0000',
+            descricao='Missoes urgentes'
+        )
+    """
+
+    class Meta:
+        model = Etiqueta
+
+    nome = factory.Sequence(lambda n: f'Etiqueta {n}')
+    cor = factory.fuzzy.FuzzyChoice(['#FF0000', '#00FF00', '#0000FF'])
+    descricao = factory.Sequence(lambda n: f'Descricao etiqueta {n}')

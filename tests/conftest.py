@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import Session
 from testcontainers.postgres import PostgresContainer
 
-from tests.seed import ALL_SEED_OBJECTS
+from tests.seed import SEED_GROUPS
 
 # Configure testcontainers to use Podman
 os.environ['DOCKER_HOST'] = (
@@ -76,8 +76,11 @@ def seed_data(database_url, run_migrations):
     engine = create_engine(database_url)
 
     with Session(engine) as session:
-        # Adiciona todos os objetos de seed centralizados
-        session.add_all(ALL_SEED_OBJECTS)
+        # Insere seeds em grupos para respeitar dependencias de FK
+        for i, group in enumerate(SEED_GROUPS, 1):
+            session.add_all(group)
+            session.flush()
+            print(f'[TEST] Seed group {i} flushed ({len(group)} objects)')
         session.commit()
 
     engine.dispose()
