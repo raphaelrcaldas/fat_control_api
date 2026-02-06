@@ -5,9 +5,11 @@ import sys
 import time
 from datetime import datetime
 
-from fastapi import Request, Response
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from jwt import PyJWTError, decode
 
+from fcontrol_api.schemas.response import ApiErrorResponse
 from fcontrol_api.settings import Settings
 
 settings = Settings()
@@ -39,11 +41,13 @@ async def validate_token(request: Request, call_next):
             f'IP: {request.client.host} | '
             f'User-Agent: {request.headers.get("user-agent", "unknown")}'
         )
-        response = Response(
-            content='Token não fornecido',
+        return JSONResponse(
             status_code=401,
+            content=ApiErrorResponse(
+                message='Token nao fornecido',
+                path=str(request.url.path),
+            ).model_dump(),
         )
-        return response
 
     # 3. DECODIFICAR TOKEN
     try:
@@ -67,10 +71,13 @@ async def validate_token(request: Request, call_next):
             f'Path: {request.url.path} | '
             f'IP: {request.client.host}'
         )
-        response = Response(
-            content='Token inválido ou expirado.', status_code=401
+        return JSONResponse(
+            status_code=401,
+            content=ApiErrorResponse(
+                message='Token invalido ou expirado',
+                path=str(request.url.path),
+            ).model_dump(),
         )
-        return response
 
     # IMPLEMENTAR BLACKLIST
 
