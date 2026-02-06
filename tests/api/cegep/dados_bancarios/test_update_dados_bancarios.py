@@ -30,7 +30,7 @@ async def test_update_dados_bancarios_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert 'atualizados com sucesso' in response.json()['detail']
+    assert 'atualizados com sucesso' in response.json()['message']
 
     # Verifica no banco
     await session.refresh(dados_bancarios)
@@ -77,7 +77,7 @@ async def test_update_dados_bancarios_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Dados bancários não encontrados' in response.json()['detail']
+    assert 'Dados bancários não encontrados' in response.json()['message']
 
 
 async def test_update_dados_bancarios_without_token(client, dados_bancarios):

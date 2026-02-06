@@ -27,12 +27,16 @@ async def test_read_users_returns_list(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert 'items' in data
-    assert isinstance(data['items'], list)
+    # Verifica wrapper
+    assert resp['status'] == 'success'
+    assert 'timestamp' in resp
+
+    data = resp['data']
+    assert isinstance(data, list)
     # Deve ter pelo menos os 2 usuários criados pela fixture
-    assert len(data['items']) >= MIN_USERS_FROM_FIXTURE
+    assert len(data) >= MIN_USERS_FROM_FIXTURE
 
 
 async def test_read_users_returns_correct_fields(client, users, token):
@@ -45,10 +49,10 @@ async def test_read_users_returns_correct_fields(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
-    if len(data['items']) > 0:
-        user = data['items'][0]
+    if len(data) > 0:
+        user = data[0]
         # Campos obrigatórios de UserPublic
         assert 'id' in user
         assert 'p_g' in user
@@ -73,10 +77,10 @@ async def test_read_users_ordered_by_posto_and_antiguidade(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Verifica que retornou usuários
-    assert len(data['items']) > 0
+    assert len(data) > 0
 
 
 async def test_read_users_with_search_returns_filtered_results(
@@ -95,12 +99,12 @@ async def test_read_users_with_search_returns_filtered_results(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Deve retornar pelo menos o usuário buscado
-    assert len(data['items']) >= 1
+    assert len(data) >= 1
     # Verifica que o usuário buscado está nos resultados
-    found = any(u['id'] == user.id for u in data['items'])
+    found = any(u['id'] == user.id for u in data)
     assert found
 
 
@@ -118,10 +122,10 @@ async def test_read_users_with_search_case_insensitive(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Deve encontrar o usuário
-    found = any(u['id'] == user.id for u in data['items'])
+    found = any(u['id'] == user.id for u in data)
     assert found
 
 
@@ -139,10 +143,10 @@ async def test_read_users_with_search_limits_to_10_results(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Deve retornar no máximo 10 resultados
-    assert len(data['items']) <= MAX_SEARCH_RESULTS
+    assert len(data) <= MAX_SEARCH_RESULTS
 
 
 async def test_read_users_with_search_no_match_returns_empty(client, token):
@@ -156,10 +160,10 @@ async def test_read_users_with_search_no_match_returns_empty(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
-    assert isinstance(data['items'], list)
-    assert len(data['items']) == 0
+    assert isinstance(data, list)
+    assert len(data) == 0
 
 
 async def test_read_users_without_authentication_fails(client):
@@ -189,12 +193,12 @@ async def test_read_users_filter_by_single_pg(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Todos os usuários retornados devem ter p_g = '2s'
-    assert all(u['p_g'] == '2s' for u in data['items'])
+    assert all(u['p_g'] == '2s' for u in data)
     # Deve ter pelo menos o usuário criado
-    assert len(data['items']) >= 1
+    assert len(data) >= 1
 
 
 async def test_read_users_filter_by_multiple_pg(client, session, token):
@@ -216,12 +220,12 @@ async def test_read_users_filter_by_multiple_pg(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Todos os usuários devem ter p_g '2s' ou '3s'
-    assert all(u['p_g'] in {'2s', '3s'} for u in data['items'])
+    assert all(u['p_g'] in {'2s', '3s'} for u in data)
     # Não deve incluir 'cb'
-    assert not any(u['p_g'] == 'cb' for u in data['items'])
+    assert not any(u['p_g'] == 'cb' for u in data)
 
 
 async def test_read_users_filter_by_active_true(client, session, token):
@@ -243,12 +247,12 @@ async def test_read_users_filter_by_active_true(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Todos os usuários retornados devem estar ativos
-    assert all(u['active'] is True for u in data['items'])
+    assert all(u['active'] is True for u in data)
     # Usuário inativo não deve aparecer
-    assert not any(u['id'] == inactive_user.id for u in data['items'])
+    assert not any(u['id'] == inactive_user.id for u in data)
 
 
 async def test_read_users_filter_by_active_false(client, session, token):
@@ -270,12 +274,12 @@ async def test_read_users_filter_by_active_false(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Todos os usuários retornados devem estar inativos
-    assert all(u['active'] is False for u in data['items'])
+    assert all(u['active'] is False for u in data)
     # Usuário inativo criado deve aparecer
-    assert any(u['id'] == inactive_user.id for u in data['items'])
+    assert any(u['id'] == inactive_user.id for u in data)
 
 
 async def test_read_users_filter_pg_and_active(client, session, token):
@@ -302,9 +306,9 @@ async def test_read_users_filter_pg_and_active(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Todos devem ser p_g='2s' E ativos
-    assert all(u['p_g'] == '2s' and u['active'] is True for u in data['items'])
+    assert all(u['p_g'] == '2s' and u['active'] is True for u in data)
     # Usuário inativo com p_g='2s' não deve aparecer
-    assert not any(u['id'] == inactive_2s.id for u in data['items'])
+    assert not any(u['id'] == inactive_2s.id for u in data)

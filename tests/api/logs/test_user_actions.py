@@ -25,7 +25,9 @@ async def test_list_user_actions_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 1
 
@@ -51,7 +53,9 @@ async def test_list_user_actions_filter_by_user_id(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os logs devem ser do usuario filtrado
     for log in data:
@@ -68,7 +72,9 @@ async def test_list_user_actions_filter_by_resource(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os logs devem ser do resource filtrado
     for log in data:
@@ -85,7 +91,9 @@ async def test_list_user_actions_filter_by_action(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os logs devem ser da action filtrada
     for log in data:
@@ -102,7 +110,9 @@ async def test_list_user_actions_filter_by_resource_id(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os logs devem ser do resource_id filtrado
     for log in data:
@@ -134,7 +144,9 @@ async def test_list_user_actions_filter_by_start_date(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que todos os logs retornados sao >= start
     for log in data:
@@ -169,7 +181,9 @@ async def test_list_user_actions_filter_by_end_date(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que todos os logs retornados sao <= end
     for log in data:
@@ -203,7 +217,9 @@ async def test_list_user_actions_filter_by_date_range(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que todos os logs retornados estao no intervalo
     for log in data:
@@ -236,7 +252,9 @@ async def test_list_user_actions_limit_25(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Deve retornar no maximo 25 logs
     assert len(data) <= 25
@@ -252,7 +270,9 @@ async def test_list_user_actions_ordered_by_timestamp_desc(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica ordenacao decrescente
     timestamps = [
@@ -276,7 +296,9 @@ async def test_list_user_actions_combined_filters(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os logs devem atender ambos os filtros
     for log in data:
@@ -292,8 +314,9 @@ async def test_list_user_actions_no_results(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
-    assert data == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_list_user_actions_without_token(client):

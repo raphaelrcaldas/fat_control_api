@@ -28,7 +28,9 @@ async def test_list_diaria_valores_success(client, token, diaria_valores):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 4
 
@@ -51,7 +53,9 @@ async def test_list_diaria_valores_filter_by_grupo_cid(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os valores devem ser do grupo_cid filtrado
     for valor in data:
@@ -68,7 +72,9 @@ async def test_list_diaria_valores_filter_by_grupo_pg(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os valores devem ser do grupo_pg filtrado
     for valor in data:
@@ -85,7 +91,9 @@ async def test_list_diaria_valores_filter_active_only(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os valores devem ter status 'vigente'
     for valor in data:
@@ -102,7 +110,9 @@ async def test_list_diaria_valores_status_calculated(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que existem diferentes status
     statuses = {v['status'] for v in data}
@@ -122,7 +132,9 @@ async def test_list_diaria_valores_filter_combined(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     for valor in data:
         assert valor['grupo_pg'] == 1
@@ -151,7 +163,9 @@ async def test_get_diaria_valor_by_id_success(client, token, diaria_valores):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['id'] == valor.id
     assert data['valor'] == valor.valor
     assert 'status' in data
@@ -165,7 +179,7 @@ async def test_get_diaria_valor_by_id_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrado' in response.json()['detail']
+    assert 'não encontrado' in response.json()['message']
 
 
 async def test_get_diaria_valor_by_id_without_token(client, diaria_valores):
@@ -190,7 +204,9 @@ async def test_list_grupos_cidade_success(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 3  # Conftest cria 3 grupos
 
@@ -211,7 +227,9 @@ async def test_list_grupos_cidade_includes_cidade_info(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     for grupo in data:
         cidade = grupo['cidade']
@@ -240,7 +258,9 @@ async def test_list_grupos_pg_success(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 5  # Conftest cria 5 grupos
 
@@ -261,7 +281,9 @@ async def test_list_grupos_pg_includes_posto_info(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     for grupo in data:
         # pg_mid e circulo vem do join com PostoGrad

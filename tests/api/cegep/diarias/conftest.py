@@ -1,60 +1,15 @@
 """
 Fixtures para testes de Diarias.
+
+Os dados de seed (estados, cidades, grupos_cidade, grupos_pg) estao
+centralizados em tests/seed/ e sao carregados automaticamente.
 """
 
 from datetime import date, timedelta
 
 import pytest
 
-from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
-from fcontrol_api.models.public.estados_cidades import Cidade, Estado
 from tests.factories import DiariaValorFactory
-
-
-@pytest.fixture(autouse=True)
-async def seed_diarias_data(session):
-    """
-    Insere dados necessarios para testes de diarias.
-
-    Inclui estados, cidades, grupos de cidade e grupos de P/G.
-    """
-    # Estados
-    estados = [
-        Estado(codigo_uf=35, nome='São Paulo', uf='SP'),
-        Estado(codigo_uf=33, nome='Rio de Janeiro', uf='RJ'),
-        Estado(codigo_uf=53, nome='Distrito Federal', uf='DF'),
-    ]
-    session.add_all(estados)
-    await session.flush()
-
-    # Cidades
-    cidades = [
-        Cidade(codigo=3550308, nome='São Paulo', uf='SP'),
-        Cidade(codigo=3304557, nome='Rio de Janeiro', uf='RJ'),
-        Cidade(codigo=5300108, nome='Brasília', uf='DF'),
-    ]
-    session.add_all(cidades)
-    await session.flush()
-
-    # Grupos de Cidade (1=Capital, 2=Interior)
-    grupos_cidade = [
-        GrupoCidade(grupo=1, cidade_id=3550308),  # SP - Capital
-        GrupoCidade(grupo=1, cidade_id=3304557),  # RJ - Capital
-        GrupoCidade(grupo=1, cidade_id=5300108),  # BSB - Capital
-    ]
-    session.add_all(grupos_cidade)
-    await session.flush()
-
-    # Grupos de P/G (1=Oficiais, 2=Graduados, 3=Pracas)
-    grupos_pg = [
-        GrupoPg(grupo=1, pg_short='1t'),  # Oficiais
-        GrupoPg(grupo=1, pg_short='cp'),  # Oficiais
-        GrupoPg(grupo=2, pg_short='2s'),  # Graduados
-        GrupoPg(grupo=2, pg_short='3s'),  # Graduados
-        GrupoPg(grupo=3, pg_short='cb'),  # Pracas
-    ]
-    session.add_all(grupos_pg)
-    await session.flush()
 
 
 @pytest.fixture

@@ -1,29 +1,13 @@
 """
 Fixtures para testes de Aerodromos.
+
+Os dados de seed (estados, cidades) estao centralizados em
+tests/seed/ e sao carregados automaticamente.
 """
 
 import pytest
 
-from fcontrol_api.models.public.estados_cidades import Cidade, Estado
 from tests.factories import AerodromoFactory
-
-
-@pytest.fixture(autouse=True)
-async def seed_estados_cidades(session):
-    """Insere estados e cidades para testes com codigo_cidade."""
-    estados = [
-        Estado(codigo_uf=35, nome='São Paulo', uf='SP'),
-        Estado(codigo_uf=53, nome='Distrito Federal', uf='DF'),
-    ]
-    session.add_all(estados)
-    await session.flush()
-
-    cidades = [
-        Cidade(codigo=3550308, nome='São Paulo', uf='SP'),
-        Cidade(codigo=5300108, nome='Brasília', uf='DF'),
-    ]
-    session.add_all(cidades)
-    await session.flush()
 
 
 @pytest.fixture

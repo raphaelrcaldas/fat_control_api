@@ -35,14 +35,13 @@ async def test_create_dados_bancarios_success(client, session, users, token):
 
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()
-    assert data['detail'] == 'Dados bancários criados com sucesso'
-    assert 'id' in data
+    assert data['status'] == 'success'
+    assert data['message'] == 'Dados bancários criados com sucesso'
+    assert 'id' in data['data']
 
     # Verifica no banco
     db_dados = await session.scalar(
-        select(DadosBancarios).where(
-            DadosBancarios.user_id == other_user.id
-        )
+        select(DadosBancarios).where(DadosBancarios.user_id == other_user.id)
     )
     assert db_dados is not None
     assert db_dados.banco == 'Banco do Brasil'
@@ -68,7 +67,7 @@ async def test_create_dados_bancarios_user_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Usuário não encontrado' in response.json()['detail']
+    assert 'Usuário não encontrado' in response.json()['message']
 
 
 async def test_create_dados_bancarios_duplicate_user(
@@ -93,7 +92,7 @@ async def test_create_dados_bancarios_duplicate_user(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Já existem dados bancários' in response.json()['detail']
+    assert 'Já existem dados bancários' in response.json()['message']
 
 
 async def test_create_dados_bancarios_without_token(client, users):

@@ -40,7 +40,9 @@ async def test_read_quads_by_trip_success(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 2
 
 
@@ -61,7 +63,9 @@ async def test_read_quads_by_trip_filters_by_type(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['type_id'] == 1
 
@@ -74,7 +78,9 @@ async def test_read_quads_by_trip_empty_result(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_read_quads_by_trip_ordered_by_value_desc(
@@ -94,7 +100,9 @@ async def test_read_quads_by_trip_ordered_by_value_desc(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Deve estar em ordem DESC: 2024-06-15, 2024-03-10, 2024-01-01
     assert data[0]['value'] == '2024-06-15'
@@ -118,7 +126,9 @@ async def test_read_quads_by_trip_nulls_last(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 2
     # O primeiro tem valor, o último é NULL
     assert data[0]['value'] == '2024-05-01'
@@ -145,7 +155,9 @@ async def test_read_quads_by_trip_only_returns_own_quads(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
 
 
@@ -180,7 +192,9 @@ async def test_read_quads_by_trip_response_format(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
 
     quad_response = data[0]

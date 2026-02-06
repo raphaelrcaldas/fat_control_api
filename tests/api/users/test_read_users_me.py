@@ -22,7 +22,14 @@ async def test_read_users_me_success(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+
+    # Verifica wrapper de resposta
+    assert resp['status'] == 'success'
+    assert 'timestamp' in resp
+    assert 'data' in resp
+
+    data = resp['data']
 
     # Verifica campos obrigatórios
     assert 'id' in data
@@ -80,8 +87,8 @@ async def test_read_users_me_with_different_users(client, users, make_token):
     assert response1.status_code == HTTPStatus.OK
     assert response2.status_code == HTTPStatus.OK
 
-    data1 = response1.json()
-    data2 = response2.json()
+    data1 = response1.json()['data']
+    data2 = response2.json()['data']
 
     # Verifica que são usuários diferentes
     assert data1['id'] != data2['id']
@@ -108,7 +115,7 @@ async def test_read_users_me_without_role_returns_none(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # Verifica que role é None e permissions é lista vazia
     assert data['role'] is None

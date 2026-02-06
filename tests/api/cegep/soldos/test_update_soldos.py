@@ -28,7 +28,9 @@ async def test_update_soldo_success(client, session, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['valor'] == 5500.00
 
     # Verifica no banco
@@ -74,7 +76,9 @@ async def test_update_soldo_change_posto(client, session, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['pg'] == '3s'
 
 
@@ -93,7 +97,7 @@ async def test_update_soldo_invalid_posto(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Posto/Graduacao invalido' in response.json()['detail']
+    assert 'Posto/Graduacao invalido' in response.json()['message']
 
 
 async def test_update_soldo_data_fim_before_data_inicio(client, token, soldos):
@@ -111,7 +115,7 @@ async def test_update_soldo_data_fim_before_data_inicio(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_update_soldo_data_inicio_after_existing_data_fim(
@@ -132,7 +136,7 @@ async def test_update_soldo_data_inicio_after_existing_data_fim(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_update_soldo_not_found(client, token):
@@ -148,7 +152,7 @@ async def test_update_soldo_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['detail']
+    assert 'Soldo nao encontrado' in response.json()['message']
 
 
 async def test_update_soldo_without_token(client, soldos):

@@ -27,7 +27,9 @@ async def test_update_aerodromo_success(client, session, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['nome'] == 'Aeroporto de Congonhas - Atualizado'
 
     # Verifica no banco
@@ -75,7 +77,9 @@ async def test_update_aerodromo_change_icao(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['codigo_icao'] == 'SBRF'
 
 
@@ -96,7 +100,9 @@ async def test_update_aerodromo_duplicate_icao_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'ICAO já cadastrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'ICAO já cadastrado' in resp['message']
 
 
 async def test_update_aerodromo_same_icao_success(
@@ -117,7 +123,9 @@ async def test_update_aerodromo_same_icao_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['codigo_icao'] == 'SBSP'
     assert data['nome'] == 'Nome Atualizado'
 
@@ -142,7 +150,9 @@ async def test_update_aerodromo_add_base_aerea(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['base_aerea'] is not None
     assert data['base_aerea']['sigla'] == 'BASP'
 
@@ -160,7 +170,9 @@ async def test_update_aerodromo_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'não encontrado' in resp['message']
 
 
 async def test_update_aerodromo_without_token(client, aerodromos):
@@ -179,9 +191,7 @@ async def test_update_aerodromo_without_token(client, aerodromos):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_update_aerodromo_empty_body(
-    client, session, token, aerodromos
-):
+async def test_update_aerodromo_empty_body(client, session, token, aerodromos):
     """Testa atualizacao com body vazio nao altera nada."""
     aerodromo = aerodromos[0]
     original_nome = aerodromo.nome

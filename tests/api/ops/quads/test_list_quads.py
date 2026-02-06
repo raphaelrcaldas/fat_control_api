@@ -103,7 +103,9 @@ async def test_list_quads_success(client, session, trip_with_func, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) >= 1
 
     # Verifica estrutura da resposta
@@ -127,7 +129,9 @@ async def test_list_quads_empty_result(client, session, trip_with_func, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Pode retornar tripulantes sem quads ou lista vazia
     if len(data) > 0:
@@ -175,7 +179,9 @@ async def test_list_quads_filters_by_uae(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que apenas tripulantes do 11gt são retornados
     trip_ids = [item['trip']['id'] for item in data]
@@ -221,7 +227,9 @@ async def test_list_quads_filters_by_funcao(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_ids = [item['trip']['id'] for item in data]
     assert trip_mc.id in trip_ids
@@ -266,7 +274,9 @@ async def test_list_quads_filters_by_proj(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_ids = [item['trip']['id'] for item in data]
     assert trip_kc.id in trip_ids
@@ -315,7 +325,9 @@ async def test_list_quads_excludes_inactive_trips(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_ids = [item['trip']['id'] for item in data]
     assert trip_active.id in trip_ids
@@ -360,7 +372,9 @@ async def test_list_quads_excludes_aluno_oper(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_ids = [item['trip']['id'] for item in data]
     assert trip_oper.id in trip_ids
@@ -407,7 +421,9 @@ async def test_list_quads_excludes_without_data_op(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_ids = [item['trip']['id'] for item in data]
     assert trip_with_data_op.id in trip_ids
@@ -443,7 +459,9 @@ async def test_list_quads_returns_quads_len(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_data = next(
         (item for item in data if item['trip']['id'] == trip.id), None
@@ -493,7 +511,9 @@ async def test_list_quads_response_structure(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     trip_data = next(
         (item for item in data if item['trip']['id'] == trip.id), None
@@ -561,7 +581,9 @@ async def test_list_quads_no_trips_with_matching_funcao_returns_empty(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_list_quads_no_trips_with_matching_proj_returns_empty(
@@ -602,4 +624,6 @@ async def test_list_quads_no_trips_with_matching_proj_returns_empty(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []

@@ -32,7 +32,9 @@ async def test_create_diaria_valor_success(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['grupo_pg'] == 1
     assert data['grupo_cid'] == 1
     assert data['valor'] == 320.00
@@ -65,7 +67,9 @@ async def test_create_diaria_valor_with_data_fim(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['data_fim'] == (today + timedelta(days=365)).isoformat()
 
 
@@ -86,7 +90,9 @@ async def test_create_diaria_valor_future_start_date(client, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['status'] == 'proximo'
 
 
@@ -108,7 +114,7 @@ async def test_create_diaria_valor_data_fim_before_data_inicio(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_create_diaria_valor_data_fim_equal_data_inicio(client, token):
@@ -129,7 +135,7 @@ async def test_create_diaria_valor_data_fim_equal_data_inicio(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_create_diaria_valor_without_token(client):

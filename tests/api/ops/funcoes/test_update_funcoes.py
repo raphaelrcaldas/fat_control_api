@@ -27,10 +27,11 @@ async def test_update_funcao_success(client, funcao, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert 'detail' in data
-    assert data['detail'] == 'Função atualizada com sucesso'
+    assert resp['status'] == 'success'
+    assert 'message' in resp
+    assert resp['message'] == 'Função atualizada com sucesso'
 
 
 async def test_update_funcao_change_oper(client, funcao, token):
@@ -95,8 +96,9 @@ async def test_update_funcao_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    data = response.json()
-    assert data['detail'] == 'Função não encontrada'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Função não encontrada'
 
 
 async def test_update_funcao_invalid_oper_fails(client, funcao, token):

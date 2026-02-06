@@ -37,9 +37,9 @@ async def test_create_indisp_success(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    assert response.json() == {
-        'detail': 'Indisponibilidade adicionada com sucesso'
-    }
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Indisponibilidade adicionada com sucesso'
 
     # Verifica no banco
     db_indisp = await session.scalar(
@@ -97,7 +97,9 @@ async def test_create_indisp_date_end_before_date_start_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data Fim deve ser maior ou igual' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'Data Fim deve ser maior ou igual' in resp['message']
 
 
 async def test_create_indisp_same_dates_success(client, session, users, token):
@@ -154,7 +156,9 @@ async def test_create_indisp_duplicate_fails(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'já registrada' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'já registrada' in resp['message']
 
 
 async def test_create_indisp_same_dates_different_mtv_success(

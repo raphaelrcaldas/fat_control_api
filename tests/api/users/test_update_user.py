@@ -37,7 +37,10 @@ async def test_update_user_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Usuário atualizado com sucesso'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Usuario atualizado com sucesso'
+    assert resp['data'] is not None
 
     # Verifica que os dados foram atualizados no banco
     await session.refresh(other_user)
@@ -113,7 +116,9 @@ async def test_update_user_not_found(
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'nao encontrado' in resp['message'].lower()
 
 
 async def test_update_user_duplicate_saram_fails(
@@ -135,7 +140,9 @@ async def test_update_user_duplicate_saram_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'saram' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'saram' in resp['message'].lower()
 
 
 async def test_update_user_duplicate_cpf_fails(
@@ -157,7 +164,9 @@ async def test_update_user_duplicate_cpf_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'cpf' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'cpf' in resp['message'].lower()
 
 
 async def test_update_user_duplicate_id_fab_fails(
@@ -179,7 +188,9 @@ async def test_update_user_duplicate_id_fab_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'id fab' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'id fab' in resp['message'].lower()
 
 
 async def test_update_user_duplicate_zimbra_fails(
@@ -201,7 +212,9 @@ async def test_update_user_duplicate_zimbra_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'zimbra' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'zimbra' in resp['message'].lower()
 
 
 async def test_update_user_duplicate_email_pessoal_fails(
@@ -223,7 +236,9 @@ async def test_update_user_duplicate_email_pessoal_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'email pessoal' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'email pessoal' in resp['message'].lower()
 
 
 async def test_update_user_without_token_fails(client, users):
@@ -295,7 +310,9 @@ async def test_update_user_with_date_field(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Usuário atualizado com sucesso'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Usuario atualizado com sucesso'
 
     # Verifica que a data foi atualizada no banco
     await session.refresh(other_user)

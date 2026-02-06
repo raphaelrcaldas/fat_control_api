@@ -30,10 +30,11 @@ async def test_create_funcao_success(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
 
-    assert 'detail' in data
-    assert data['detail'] == 'Função cadastrada com sucesso'
+    assert resp['status'] == 'success'
+    assert 'message' in resp
+    assert resp['message'] == 'Função cadastrada com sucesso'
 
 
 async def test_create_funcao_without_data_op(client, trip, token):
@@ -53,9 +54,10 @@ async def test_create_funcao_without_data_op(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
 
-    assert data['detail'] == 'Função cadastrada com sucesso'
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Função cadastrada com sucesso'
 
 
 async def test_create_funcao_trip_not_found(client, token):
@@ -75,8 +77,9 @@ async def test_create_funcao_trip_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    data = response.json()
-    assert data['detail'] == 'Crew member not found'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Crew member not found'
 
 
 async def test_create_funcao_duplicate_fails(client, session, trip, token):
@@ -102,8 +105,9 @@ async def test_create_funcao_duplicate_fails(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    data = response.json()
-    assert data['detail'] == 'Função já registrada para esse tripulante'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Função já registrada para esse tripulante'
 
 
 async def test_create_funcao_different_func_allowed(

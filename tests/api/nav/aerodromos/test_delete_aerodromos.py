@@ -26,7 +26,9 @@ async def test_delete_aerodromo_success(client, session, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert 'deletado com sucesso' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert 'deletado com sucesso' in resp['message']
 
     # Verifica no banco
     db_aerodromo = await session.scalar(
@@ -43,7 +45,9 @@ async def test_delete_aerodromo_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'não encontrado' in resp['message']
 
 
 async def test_delete_aerodromo_without_token(client, aerodromos):

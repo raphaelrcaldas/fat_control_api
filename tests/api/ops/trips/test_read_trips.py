@@ -32,15 +32,16 @@ async def test_list_trips_returns_paginated_list(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert 'items' in data
-    assert 'total' in data
-    assert 'page' in data
-    assert 'per_page' in data
-    assert 'pages' in data
-    assert isinstance(data['items'], list)
-    assert len(data['items']) >= MIN_TRIPS_FROM_FIXTURE
+    assert resp['status'] == 'success'
+    assert 'data' in resp
+    assert 'total' in resp
+    assert 'page' in resp
+    assert 'per_page' in resp
+    assert 'pages' in resp
+    assert isinstance(resp['data'], list)
+    assert len(resp['data']) >= MIN_TRIPS_FROM_FIXTURE
 
 
 async def test_list_trips_returns_correct_fields(client, trips, token):
@@ -51,10 +52,10 @@ async def test_list_trips_returns_correct_fields(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    if len(data['items']) > 0:
-        trip = data['items'][0]
+    if len(resp['data']) > 0:
+        trip = resp['data'][0]
         # Campos de TripWithFuncs
         assert 'id' in trip
         assert 'trig' in trip
@@ -79,10 +80,10 @@ async def test_list_trips_with_search_by_trig(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert len(data['items']) >= 1
-    found = any(t['trig'] == trip.trig for t in data['items'])
+    assert len(resp['data']) >= 1
+    found = any(t['trig'] == trip.trig for t in resp['data'])
     assert found
 
 
@@ -100,11 +101,11 @@ async def test_list_trips_with_search_by_nome_guerra(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert len(data['items']) >= 1
+    assert len(resp['data']) >= 1
     found = any(
-        t['user']['nome_guerra'] == user.nome_guerra for t in data['items']
+        t['user']['nome_guerra'] == user.nome_guerra for t in resp['data']
     )
     assert found
 
@@ -120,9 +121,9 @@ async def test_list_trips_search_case_insensitive(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    found = any(t['trig'] == trip.trig for t in data['items'])
+    found = any(t['trig'] == trip.trig for t in resp['data'])
     assert found
 
 
@@ -135,10 +136,10 @@ async def test_list_trips_search_no_match_returns_empty(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert isinstance(data['items'], list)
-    assert len(data['items']) == 0
+    assert isinstance(resp['data'], list)
+    assert len(resp['data']) == 0
 
 
 async def test_list_trips_filter_by_active_true(client, session, users, token):
@@ -160,12 +161,12 @@ async def test_list_trips_filter_by_active_true(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
     # Todos os tripulantes retornados devem estar ativos
-    assert all(t['active'] is True for t in data['items'])
+    assert all(t['active'] is True for t in resp['data'])
     # Tripulante inativo não deve aparecer
-    assert not any(t['id'] == inactive_trip.id for t in data['items'])
+    assert not any(t['id'] == inactive_trip.id for t in resp['data'])
 
 
 async def test_list_trips_filter_by_active_false(
@@ -188,12 +189,12 @@ async def test_list_trips_filter_by_active_false(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
     # Todos os tripulantes retornados devem estar inativos
-    assert all(t['active'] is False for t in data['items'])
+    assert all(t['active'] is False for t in resp['data'])
     # Tripulante inativo criado deve aparecer
-    assert any(t['id'] == inactive_trip.id for t in data['items'])
+    assert any(t['id'] == inactive_trip.id for t in resp['data'])
 
 
 async def test_list_trips_filter_by_single_pg(client, session, token):
@@ -219,10 +220,10 @@ async def test_list_trips_filter_by_single_pg(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
     # Todos os tripulantes retornados devem ter p_g = '2s'
-    assert all(t['user']['p_g'] == '2s' for t in data['items'])
+    assert all(t['user']['p_g'] == '2s' for t in resp['data'])
 
 
 async def test_list_trips_filter_by_multiple_pg(client, session, token):
@@ -251,12 +252,12 @@ async def test_list_trips_filter_by_multiple_pg(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
     # Todos devem ter p_g '2s' ou '3s'
-    assert all(t['user']['p_g'] in {'2s', '3s'} for t in data['items'])
+    assert all(t['user']['p_g'] in {'2s', '3s'} for t in resp['data'])
     # Não deve incluir 'cb'
-    assert not any(t['user']['p_g'] == 'cb' for t in data['items'])
+    assert not any(t['user']['p_g'] == 'cb' for t in resp['data'])
 
 
 async def test_list_trips_filter_by_func(client, session, users, token):
@@ -284,10 +285,10 @@ async def test_list_trips_filter_by_func(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
     # Deve encontrar apenas o tripulante com função 'pil'
-    assert any(t['id'] == trip_pil.id for t in data['items'])
+    assert any(t['id'] == trip_pil.id for t in resp['data'])
 
 
 async def test_list_trips_filter_by_oper(client, session, users, token):
@@ -315,10 +316,10 @@ async def test_list_trips_filter_by_oper(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
     # Deve encontrar o tripulante com oper='op'
-    assert any(t['id'] == trip_op.id for t in data['items'])
+    assert any(t['id'] == trip_op.id for t in resp['data'])
 
 
 async def test_list_trips_pagination_page_1(client, trips, token):
@@ -330,11 +331,11 @@ async def test_list_trips_pagination_page_1(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert data['page'] == 1
-    assert data['per_page'] == 1
-    assert len(data['items']) <= 1
+    assert resp['page'] == 1
+    assert resp['per_page'] == 1
+    assert len(resp['data']) <= 1
 
 
 async def test_list_trips_pagination_respects_per_page(client, trips, token):
@@ -346,10 +347,10 @@ async def test_list_trips_pagination_respects_per_page(client, trips, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert data['per_page'] == 5
-    assert len(data['items']) <= 5
+    assert resp['per_page'] == 5
+    assert len(resp['data']) <= 5
 
 
 async def test_list_trips_without_authentication_fails(client):
@@ -370,8 +371,10 @@ async def test_get_trip_returns_trip(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['id'] == trip.id
     assert data['trig'] == trip.trig
     assert data['uae'] == trip.uae
@@ -386,8 +389,10 @@ async def test_get_trip_returns_correct_fields(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
+    assert resp['status'] == 'success'
+    data = resp['data']
     # Campos de TripWithFuncs
     assert 'id' in data
     assert 'trig' in data
@@ -436,8 +441,10 @@ async def test_get_my_trip_returns_current_user_trip(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['id'] == my_trip.id
     assert data['user']['id'] == user.id
 

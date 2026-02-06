@@ -22,7 +22,9 @@ async def test_example_authenticated_request(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert 'id' in data
     assert 'nome_guerra' in data
 
@@ -103,7 +105,7 @@ async def test_example_with_different_users(client, users, make_token):
     assert response2.status_code == HTTPStatus.OK
 
     # Verifica que são usuários diferentes
-    assert response1.json()['id'] != response2.json()['id']
+    assert response1.json()['data']['id'] != response2.json()['data']['id']
 
 
 async def test_token_without_user_id_fails(client, users):
@@ -129,7 +131,9 @@ async def test_token_without_user_id_fails(client, users):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.text == 'Token inválido ou expirado.'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'invalido' in resp['message'].lower()
 
 
 async def test_token_without_app_client_fails(client, users):
@@ -155,4 +159,6 @@ async def test_token_without_app_client_fails(client, users):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.text == 'Token inválido ou expirado.'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'invalido' in resp['message'].lower()

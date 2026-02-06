@@ -34,12 +34,12 @@ async def test_create_quad_success(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    assert response.json() == {'detail': 'Quadrinho inserido com sucesso'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Quadrinho inserido com sucesso'
 
     # Verifica no banco
-    db_quad = await session.scalar(
-        select(Quad).where(Quad.trip_id == trip.id)
-    )
+    db_quad = await session.scalar(select(Quad).where(Quad.trip_id == trip.id))
     assert db_quad is not None
     assert db_quad.description == 'Primeiro quadrinho'
     assert db_quad.type_id == 1
@@ -77,9 +77,7 @@ async def test_create_multiple_quads_success(client, session, trip, token):
     assert response.status_code == HTTPStatus.CREATED
 
     # Verifica no banco
-    result = await session.scalars(
-        select(Quad).where(Quad.trip_id == trip.id)
-    )
+    result = await session.scalars(select(Quad).where(Quad.trip_id == trip.id))
     quads = result.all()
     assert len(quads) == 3
 
@@ -105,9 +103,7 @@ async def test_create_quad_with_null_value_success(
 
     assert response.status_code == HTTPStatus.CREATED
 
-    db_quad = await session.scalar(
-        select(Quad).where(Quad.trip_id == trip.id)
-    )
+    db_quad = await session.scalar(select(Quad).where(Quad.trip_id == trip.id))
     assert db_quad is not None
     assert db_quad.value is None
 
@@ -133,9 +129,7 @@ async def test_create_quad_with_null_description_success(
 
     assert response.status_code == HTTPStatus.CREATED
 
-    db_quad = await session.scalar(
-        select(Quad).where(Quad.trip_id == trip.id)
-    )
+    db_quad = await session.scalar(select(Quad).where(Quad.trip_id == trip.id))
     assert db_quad is not None
     assert db_quad.description is None
 
@@ -174,7 +168,9 @@ async def test_create_quad_duplicate_fails(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'já registrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'já registrado' in resp['message']
 
 
 async def test_create_quad_same_value_different_type_success(
@@ -215,9 +211,7 @@ async def test_create_quad_same_value_different_type_success(
 
     assert response.status_code == HTTPStatus.CREATED
 
-    result = await session.scalars(
-        select(Quad).where(Quad.trip_id == trip.id)
-    )
+    result = await session.scalars(select(Quad).where(Quad.trip_id == trip.id))
     quads = result.all()
     assert len(quads) == 2
 
@@ -341,9 +335,7 @@ async def test_create_multiple_quads_with_null_values_no_duplicate(
     # Com value=None, a verificação de duplicidade é pulada
     assert response.status_code == HTTPStatus.CREATED
 
-    result = await session.scalars(
-        select(Quad).where(Quad.trip_id == trip.id)
-    )
+    result = await session.scalars(select(Quad).where(Quad.trip_id == trip.id))
     quads = result.all()
     assert len(quads) == 2
 

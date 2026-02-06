@@ -37,7 +37,8 @@ async def test_create_trip_success(client, session, token):
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()
 
-    assert 'detail' in data
+    assert data['status'] == 'success'
+    assert 'message' in data
     assert 'data' in data
     assert data['data']['trig'] == 'abc'
     assert data['data']['uae'] == '11gt'
@@ -67,7 +68,8 @@ async def test_create_trip_returns_correct_message(client, session, token):
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()
 
-    assert data['detail'] == 'Tripulante adicionado com sucesso'
+    assert data['status'] == 'success'
+    assert data['message'] == 'Tripulante adicionado com sucesso'
 
 
 async def test_create_trip_duplicate_trig_same_uae_fails(
@@ -97,7 +99,8 @@ async def test_create_trip_duplicate_trig_same_uae_fails(
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
     data = response.json()
-    assert data['detail'] == 'Trigrama já registrado'
+    assert data['status'] == 'error'
+    assert data['message'] == 'Trigrama já registrado'
 
 
 async def test_create_trip_duplicate_user_same_uae_fails(
@@ -127,7 +130,8 @@ async def test_create_trip_duplicate_user_same_uae_fails(
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
     data = response.json()
-    assert data['detail'] == 'Tripulante já registrado'
+    assert data['status'] == 'error'
+    assert data['message'] == 'Tripulante já registrado'
 
 
 async def test_create_trip_trig_too_short_fails(client, session, token):
@@ -260,6 +264,7 @@ async def test_create_trip_with_active_false(client, session, token):
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()
 
+    assert data['status'] == 'success'
     assert data['data']['active'] is False
 
 

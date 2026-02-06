@@ -50,7 +50,9 @@ async def test_authorize_fatbird_with_active_tripulante_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert 'code' in data
     assert isinstance(data['code'], str)
     assert len(data['code']) > 0
@@ -86,9 +88,11 @@ async def test_authorize_fatbird_without_tripulante_fails(
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
+    resp = response.json()
+    assert resp['status'] == 'error'
     assert (
         'apenas tripulantes ativos podem acessar o fatbird'
-        in response.json()['detail'].lower()
+        in resp['message'].lower()
     )
 
 
@@ -127,7 +131,9 @@ async def test_authorize_fatbird_with_inactive_tripulante_fails(
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
+    resp = response.json()
+    assert resp['status'] == 'error'
     assert (
         'apenas tripulantes ativos podem acessar o fatbird'
-        in response.json()['detail'].lower()
+        in resp['message'].lower()
     )

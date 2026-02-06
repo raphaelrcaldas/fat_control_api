@@ -26,7 +26,9 @@ async def test_list_aerodromos_success(client, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 3
 
@@ -47,7 +49,9 @@ async def test_list_aerodromos_includes_cidade(client, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Aerodromos com codigo_cidade devem ter cidade populada
     aerodromos_com_cidade = [a for a in data if a['codigo_cidade'] is not None]
@@ -66,7 +70,9 @@ async def test_list_aerodromos_includes_base_aerea(client, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Encontra o aerodromo com base aerea (SBBR)
     brasilia = next((a for a in data if a['codigo_icao'] == 'SBBR'), None)
@@ -84,7 +90,9 @@ async def test_list_aerodromos_empty(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data == []
 
 
@@ -110,7 +118,9 @@ async def test_get_aerodromo_by_id_success(client, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['id'] == aerodromo.id
     assert data['nome'] == aerodromo.nome
     assert data['codigo_icao'] == aerodromo.codigo_icao
@@ -127,7 +137,9 @@ async def test_get_aerodromo_by_id_includes_cidade(client, token, aerodromos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['cidade'] is not None
     assert data['cidade']['nome'] == 'São Paulo'
 
@@ -140,7 +152,9 @@ async def test_get_aerodromo_by_id_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'não encontrado' in resp['message']
 
 
 async def test_get_aerodromo_by_id_without_token(client, aerodromos):

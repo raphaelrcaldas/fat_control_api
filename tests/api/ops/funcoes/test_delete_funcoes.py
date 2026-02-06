@@ -23,10 +23,11 @@ async def test_delete_funcao_success(client, funcao, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert 'detail' in data
-    assert data['detail'] == 'Função deletada'
+    assert resp['status'] == 'success'
+    assert 'message' in resp
+    assert resp['message'] == 'Função deletada'
 
 
 async def test_delete_funcao_not_found(client, token):
@@ -37,8 +38,9 @@ async def test_delete_funcao_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    data = response.json()
-    assert data['detail'] == 'Função não encontrada'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Função não encontrada'
 
 
 async def test_delete_funcao_removes_from_database(

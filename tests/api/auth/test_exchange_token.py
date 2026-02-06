@@ -27,7 +27,9 @@ async def test_exchange_code_success(client, auth_code_data):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert 'access_token' in data
     assert data['token_type'] == 'bearer'
     assert 'first_login' in data
@@ -49,7 +51,9 @@ async def test_exchange_code_invalid_grant_type(client, auth_code_data):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Unsupported grant_type'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Unsupported grant_type'
 
 
 async def test_exchange_code_missing_pkce_cookie(client, auth_code_data):
@@ -66,9 +70,9 @@ async def test_exchange_code_missing_pkce_cookie(client, auth_code_data):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {
-        'detail': 'PKCE code verifier cookie not found.'
-    }
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'PKCE' in resp['message']
 
 
 async def test_exchange_code_invalid_code(client, oauth_client):
@@ -87,7 +91,9 @@ async def test_exchange_code_invalid_code(client, oauth_client):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Invalid authorization code'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Invalid authorization code'
 
 
 async def test_exchange_code_client_id_mismatch(
@@ -114,7 +120,9 @@ async def test_exchange_code_client_id_mismatch(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Client ID mismatch'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Client ID mismatch'
 
 
 async def test_exchange_code_redirect_uri_mismatch(client, auth_code_data):
@@ -131,7 +139,9 @@ async def test_exchange_code_redirect_uri_mismatch(client, auth_code_data):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Redirect URI mismatch'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Redirect URI mismatch'
 
 
 async def test_exchange_code_expired(client, users, oauth_client, session):
@@ -172,7 +182,9 @@ async def test_exchange_code_expired(client, users, oauth_client, session):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Authorization code expired'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Authorization code expired'
 
 
 async def test_exchange_code_invalid_pkce_verifier(client, auth_code_data):
@@ -192,7 +204,9 @@ async def test_exchange_code_invalid_pkce_verifier(client, auth_code_data):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Invalid code_verifier'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Invalid code_verifier'
 
 
 async def test_exchange_code_invalidates_code(client, auth_code_data, session):
@@ -249,4 +263,6 @@ async def test_exchange_code_cannot_reuse_code(client, auth_code_data):
     )
 
     assert response2.status_code == HTTPStatus.BAD_REQUEST
-    assert response2.json() == {'detail': 'Invalid authorization code'}
+    resp = response2.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Invalid authorization code'

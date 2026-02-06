@@ -40,7 +40,9 @@ async def test_get_crew_indisp_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['trip']['id'] == trip.id
 
@@ -66,7 +68,9 @@ async def test_get_crew_indisp_response_structure(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
 
     item = data[0]
@@ -95,7 +99,9 @@ async def test_get_crew_indisp_no_trips_returns_empty(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_get_crew_indisp_excludes_inactive_users(
@@ -124,7 +130,9 @@ async def test_get_crew_indisp_excludes_inactive_users(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_get_crew_indisp_excludes_inactive_trips(
@@ -149,7 +157,9 @@ async def test_get_crew_indisp_excludes_inactive_trips(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_get_crew_indisp_filters_old_indisps(
@@ -184,7 +194,9 @@ async def test_get_crew_indisp_filters_old_indisps(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
 
     indisps = data[0]['indisps']
@@ -208,7 +220,9 @@ async def test_get_crew_indisp_trip_without_indisps(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['indisps'] == []
 
@@ -246,7 +260,9 @@ async def test_get_crew_indisp_groups_indisps_by_user(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1  # Apenas um tripulante
 
     indisps = data[0]['indisps']
@@ -283,7 +299,9 @@ async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     indisps = data[0]['indisps']
     # Mais recente primeiro
@@ -325,7 +343,9 @@ async def test_get_crew_indisp_filters_by_funcao(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['trip']['id'] == trip_pil.id
 
@@ -351,7 +371,9 @@ async def test_get_crew_indisp_filters_by_uae(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['trip']['id'] == trip_11gt.id
 
@@ -369,7 +391,9 @@ async def test_get_crew_indisp_func_in_response(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
 
     func_data = data[0]['trip']['func']

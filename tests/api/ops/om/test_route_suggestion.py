@@ -55,7 +55,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        data = response.json()
+        resp = response.json()
+        assert resp['status'] == 'success'
+        data = resp['data']
 
         # Verifica dados da rota completa
         assert data['has_route_data'] is True
@@ -105,7 +107,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        data = response.json()
+        resp = response.json()
+        assert resp['status'] == 'success'
+        data = resp['data']
 
         # Dados da rota completa NÃO disponíveis
         assert data['has_route_data'] is False
@@ -150,7 +154,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        assert response.json() is None
+        resp = response.json()
+        assert resp['status'] == 'success'
+        assert resp['data'] is None
 
     async def test_route_suggestion_ignores_rascunho(
         self, client, session, users, token
@@ -183,7 +189,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        assert response.json() is None
+        resp = response.json()
+        assert resp['status'] == 'success'
+        assert resp['data'] is None
 
     async def test_route_suggestion_invalid_icao(self, client, token):
         """
@@ -197,7 +205,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        assert response.json() is None
+        resp = response.json()
+        assert resp['status'] == 'success'
+        assert resp['data'] is None
 
         # ICAO com mais de 4 caracteres
         response = await client.get(
@@ -207,7 +217,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        assert response.json() is None
+        resp = response.json()
+        assert resp['status'] == 'success'
+        assert resp['data'] is None
 
     async def test_route_suggestion_case_insensitive(
         self, client, session, users, token
@@ -240,7 +252,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        data = response.json()
+        resp = response.json()
+        assert resp['status'] == 'success'
+        data = resp['data']
         assert data is not None
         assert data['has_route_data'] is True
         assert data['has_destination_data'] is True
@@ -300,7 +314,9 @@ class TestRouteSuggestionEndpoint:
         )
 
         assert response.status_code == HTTPStatus.OK
-        data = response.json()
+        resp = response.json()
+        assert resp['status'] == 'success'
+        data = resp['data']
 
         # Verifica que retornou dados da ordem mais recente
         assert data['alternativa'] == 'SBCF'

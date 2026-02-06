@@ -25,11 +25,12 @@ async def test_update_trip_success(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert 'detail' in data
-    assert 'data' in data
-    assert data['data']['trig'] == 'new'
+    assert resp['status'] == 'success'
+    assert 'message' in resp
+    assert 'data' in resp
+    assert resp['data']['trig'] == 'new'
 
 
 async def test_update_trip_returns_correct_message(client, trip, token):
@@ -46,9 +47,10 @@ async def test_update_trip_returns_correct_message(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert data['detail'] == 'Tripulante atualizado com sucesso'
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Tripulante atualizado com sucesso'
 
 
 async def test_update_trip_change_trig(client, trip, token):
@@ -67,10 +69,11 @@ async def test_update_trip_change_trig(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert data['data']['trig'] == 'xyz'
-    assert data['data']['trig'] != original_trig
+    assert resp['status'] == 'success'
+    assert resp['data']['trig'] == 'xyz'
+    assert resp['data']['trig'] != original_trig
 
 
 async def test_update_trip_change_active(client, trip, token):
@@ -87,9 +90,10 @@ async def test_update_trip_change_active(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert data['data']['active'] is False
+    assert resp['status'] == 'success'
+    assert resp['data']['active'] is False
 
 
 async def test_update_trip_not_found(client, token):
@@ -106,8 +110,9 @@ async def test_update_trip_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    data = response.json()
-    assert data['detail'] == 'Crew member not found'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Crew member not found'
 
 
 async def test_update_trip_duplicate_trig_same_uae_fails(
@@ -129,8 +134,9 @@ async def test_update_trip_duplicate_trig_same_uae_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    data = response.json()
-    assert data['detail'] == 'Trigrama já registrado'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Trigrama já registrado'
 
 
 async def test_update_trip_same_trig_allowed(client, trip, token):
@@ -147,10 +153,11 @@ async def test_update_trip_same_trig_allowed(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
 
-    assert data['data']['trig'] == trip.trig
-    assert data['data']['active'] is False
+    assert resp['status'] == 'success'
+    assert resp['data']['trig'] == trip.trig
+    assert resp['data']['active'] is False
 
 
 async def test_update_trip_trig_too_short_fails(client, trip, token):

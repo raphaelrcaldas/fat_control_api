@@ -363,7 +363,16 @@ class TestPwdSchemaValidation:
     def test_senha_com_caracteres_especiais_diversos(self):
         """Senha com diferentes caracteres especiais deve ser aceita."""
         caracteres_especiais = [
-            '!', '@', '#', '$', '%', '^', '&', '*', '_', '-',
+            '!',
+            '@',
+            '#',
+            '$',
+            '%',
+            '^',
+            '&',
+            '*',
+            '_',
+            '-',
         ]
         for char in caracteres_especiais:
             pwd = PwdSchema(new_pwd=f'Senha{char}123')

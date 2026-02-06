@@ -7,6 +7,7 @@ Endpoints testados:
 - GET /cegep/soldos/stats - Estatisticas
 """
 
+from datetime import date
 from http import HTTPStatus
 
 import pytest
@@ -27,7 +28,9 @@ async def test_list_soldos_success(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 3
 
@@ -41,7 +44,9 @@ async def test_list_soldos_filter_by_circulo(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Todos os soldos retornados devem ser do circulo praca
     for soldo in data:
@@ -56,11 +61,16 @@ async def test_list_soldos_filter_active_only(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
-    # Deve excluir o soldo expirado (1t)
-    pgs = [s['pg'] for s in data]
-    assert '1t' not in pgs  # 1t esta expirado na fixture
+    # Nenhum soldo retornado deve estar expirado
+    today = date.today()
+    for soldo in data:
+        data_fim = soldo.get('data_fim')
+        if data_fim:
+            assert date.fromisoformat(data_fim) >= today
 
 
 async def test_list_soldos_filter_combined(client, token, soldos):
@@ -71,7 +81,9 @@ async def test_list_soldos_filter_combined(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # 2s e grad e vigente
     for soldo in data:
@@ -86,7 +98,9 @@ async def test_list_soldos_ordered_by_data_inicio_desc(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica ordenacao decrescente por data_inicio
     datas = [s['data_inicio'] for s in data]
@@ -115,7 +129,9 @@ async def test_get_soldo_by_id_success(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['id'] == soldo.id
     assert data['pg'] == soldo.pg
     assert data['valor'] == soldo.valor
@@ -129,7 +145,7 @@ async def test_get_soldo_by_id_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['detail']
+    assert 'Soldo nao encontrado' in response.json()['message']
 
 
 async def test_get_soldo_by_id_without_token(client, soldos):
@@ -154,7 +170,9 @@ async def test_get_soldo_stats_success(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert 'total' in data
     assert 'min_valor' in data
     assert 'max_valor' in data
@@ -169,7 +187,9 @@ async def test_get_soldo_stats_filter_by_circulo(client, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     # Apenas 2s (grad) deve ser contado
     assert data['total'] >= 1
 
@@ -183,7 +203,9 @@ async def test_get_soldo_stats_empty(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['total'] == 0
     assert data['min_valor'] is None
     assert data['max_valor'] is None

@@ -30,7 +30,9 @@ async def test_reset_pwd_success(client, token, users, session):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Senha resetada com sucesso!'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Senha resetada com sucesso'
 
     # Verifica que a senha foi resetada para a senha padrão
     await session.refresh(other_user)
@@ -76,7 +78,9 @@ async def test_reset_pwd_user_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'User not found'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'nao encontrado' in resp['message'].lower()
 
 
 async def test_reset_pwd_without_token_fails(client, users):

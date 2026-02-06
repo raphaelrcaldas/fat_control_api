@@ -23,7 +23,13 @@ async def test_get_user_success(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+
+    # Verifica wrapper
+    assert resp['status'] == 'success'
+    assert 'timestamp' in resp
+
+    data = resp['data']
 
     # Verifica que retornou o usuário correto
     assert data['nome_guerra'] == user.nome_guerra
@@ -54,7 +60,7 @@ async def test_get_user_returns_full_details(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    data = response.json()['data']
 
     # UserFull deve incluir todos os campos de UserSchema + posto
     assert 'posto' in data
@@ -72,7 +78,9 @@ async def test_get_user_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'nao encontrado' in resp['message'].lower()
 
 
 async def test_get_user_with_different_users(client, users, token):
@@ -93,8 +101,8 @@ async def test_get_user_with_different_users(client, users, token):
     assert response1.status_code == HTTPStatus.OK
     assert response2.status_code == HTTPStatus.OK
 
-    data1 = response1.json()
-    data2 = response2.json()
+    data1 = response1.json()['data']
+    data2 = response2.json()['data']
 
     # Verifica que são usuários diferentes
     assert data1['nome_guerra'] != data2['nome_guerra']

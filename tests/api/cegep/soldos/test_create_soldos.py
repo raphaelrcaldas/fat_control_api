@@ -31,7 +31,9 @@ async def test_create_soldo_success(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['pg'] == 'cb'
     assert data['valor'] == 4500.00
     assert 'id' in data
@@ -61,7 +63,9 @@ async def test_create_soldo_with_data_fim(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['data_fim'] == (today + timedelta(days=365)).isoformat()
 
 
@@ -80,7 +84,7 @@ async def test_create_soldo_invalid_posto(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Posto/Graduacao invalido' in response.json()['detail']
+    assert 'Posto/Graduacao invalido' in response.json()['message']
 
 
 async def test_create_soldo_data_fim_before_data_inicio(client, token):
@@ -100,7 +104,7 @@ async def test_create_soldo_data_fim_before_data_inicio(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_create_soldo_data_fim_equal_data_inicio(client, token):
@@ -120,7 +124,7 @@ async def test_create_soldo_data_fim_equal_data_inicio(client, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_create_soldo_without_token(client):

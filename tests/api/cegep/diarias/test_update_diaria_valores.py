@@ -30,7 +30,9 @@ async def test_update_diaria_valor_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['valor'] == 380.00
 
     # Verifica no banco
@@ -80,7 +82,7 @@ async def test_update_diaria_valor_data_fim_before_data_inicio(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_update_diaria_valor_data_inicio_after_existing_data_fim(
@@ -101,7 +103,7 @@ async def test_update_diaria_valor_data_inicio_after_existing_data_fim(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Data fim deve ser maior' in response.json()['detail']
+    assert 'Data fim deve ser maior' in response.json()['message']
 
 
 async def test_update_diaria_valor_not_found(client, token):
@@ -117,7 +119,7 @@ async def test_update_diaria_valor_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrado' in response.json()['detail']
+    assert 'não encontrado' in response.json()['message']
 
 
 async def test_update_diaria_valor_without_token(client, diaria_valores):

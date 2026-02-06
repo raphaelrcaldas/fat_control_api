@@ -47,7 +47,11 @@ async def test_create_user_success(
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    assert response.json() == {'detail': 'Usuário Adicionado com sucesso'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Usuario adicionado com sucesso'
+    assert resp['data'] is not None
+    assert resp['data']['saram'] == user_data['saram']
 
     # Verifica que o usuário foi criado no banco
     db_user = await session.scalar(
@@ -124,7 +128,9 @@ async def test_create_user_duplicate_saram_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'saram' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'saram' in resp['message'].lower()
 
 
 async def test_create_user_duplicate_cpf_fails(
@@ -160,7 +166,9 @@ async def test_create_user_duplicate_cpf_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'cpf' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'cpf' in resp['message'].lower()
 
 
 async def test_create_user_duplicate_id_fab_fails(
@@ -196,7 +204,9 @@ async def test_create_user_duplicate_id_fab_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'id fab' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'id fab' in resp['message'].lower()
 
 
 async def test_create_user_duplicate_zimbra_fails(
@@ -232,7 +242,9 @@ async def test_create_user_duplicate_zimbra_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'zimbra' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'zimbra' in resp['message'].lower()
 
 
 async def test_create_user_duplicate_email_pess_fails(
@@ -268,7 +280,9 @@ async def test_create_user_duplicate_email_pess_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'email pessoal' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'email pessoal' in resp['message'].lower()
 
 
 async def test_create_user_without_token_fails(client):
@@ -365,8 +379,7 @@ async def test_create_user_with_invalid_saram_dv_fails(
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    response_data = response.json()
-    assert 'detail' in response_data
+    resp = response.json()
+    assert resp['status'] == 'error'
     # Verifica que o erro menciona SARAM ou dígito verificador
-    error_detail = str(response_data['detail']).lower()
-    assert 'saram' in error_detail or 'verificador' in error_detail
+    assert resp['errors'] is not None

@@ -31,7 +31,9 @@ async def test_list_dados_bancarios_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert isinstance(data, list)
     assert len(data) >= 1
 
@@ -55,7 +57,8 @@ async def test_list_dados_bancarios_filter_by_user_id(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['user_id'] == user.id
 
@@ -72,7 +75,8 @@ async def test_list_dados_bancarios_filter_by_search(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
     assert len(data) >= 1
     assert any(d['user_id'] == user.id for d in data)
 
@@ -87,7 +91,8 @@ async def test_list_dados_bancarios_filter_no_results(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
     assert data == []
 
 
@@ -113,7 +118,8 @@ async def test_get_dados_bancarios_by_id_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
     assert data['id'] == dados_bancarios.id
     assert data['banco'] == dados_bancarios.banco
     assert 'user' in data
@@ -127,16 +133,14 @@ async def test_get_dados_bancarios_by_id_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Dados bancários não encontrados' in response.json()['detail']
+    assert 'Dados bancários não encontrados' in response.json()['message']
 
 
 async def test_get_dados_bancarios_by_id_without_token(
     client, dados_bancarios
 ):
     """Testa que requisicao sem token falha."""
-    response = await client.get(
-        f'/cegep/dados-bancarios/{dados_bancarios.id}'
-    )
+    response = await client.get(f'/cegep/dados-bancarios/{dados_bancarios.id}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
@@ -158,7 +162,8 @@ async def test_get_dados_bancarios_by_user_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
     assert data['user_id'] == user.id
     assert data['banco'] == dados_bancarios.banco
 
@@ -173,7 +178,7 @@ async def test_get_dados_bancarios_by_user_not_found(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrados para este usuário' in response.json()['detail']
+    assert 'não encontrados para este usuário' in response.json()['message']
 
 
 async def test_get_dados_bancarios_by_user_without_token(client, users):
@@ -210,7 +215,8 @@ async def test_list_multiple_dados_bancarios(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
     assert len(data) == 2
 
     bancos = [d['banco'] for d in data]

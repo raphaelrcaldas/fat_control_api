@@ -20,7 +20,9 @@ async def test_get_quads_types_success(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que retorna lista de grupos
     assert isinstance(data, list)
@@ -34,7 +36,9 @@ async def test_get_quads_types_returns_groups(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica que há grupos (seed data)
     assert len(data) > 0
@@ -55,7 +59,9 @@ async def test_get_quads_types_group_contains_types(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Encontra um grupo com tipos
     group_with_types = next((g for g in data if len(g['types']) > 0), None)
@@ -77,7 +83,9 @@ async def test_get_quads_types_type_has_funcs_list(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Encontra um tipo com funções
     for group in data:
@@ -108,11 +116,14 @@ async def test_get_quads_types_filters_by_uae(client, token):
 
     # Verifica que os resultados são diferentes
     # (ou vazios para UAEs sem dados)
-    data_11gt = response_11gt.json()
-    _ = response_other.json()  # Verificar que a resposta é válida
+    resp_11gt = response_11gt.json()
+    resp_other = response_other.json()
+
+    assert resp_11gt['status'] == 'success'
+    assert resp_other['status'] == 'success'
 
     # 11gt tem dados do seed
-    assert len(data_11gt) > 0
+    assert len(resp_11gt['data']) > 0
 
     # Outra UAE pode não ter dados
     # (depende do seed)
@@ -136,7 +147,9 @@ async def test_get_quads_types_types_ordered_by_id(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     for group in data:
         types = group['types']
@@ -154,7 +167,9 @@ async def test_get_quads_types_response_schema(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     for group in data:
         # QuadsGroupSchema
@@ -179,7 +194,9 @@ async def test_get_quads_types_known_groups_exist(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Verifica grupos do seed
     group_shorts = [g['short'] for g in data]
@@ -202,7 +219,9 @@ async def test_get_quads_types_known_types_exist(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Coleta todos os shorts de tipos
     type_shorts = []
@@ -227,7 +246,9 @@ async def test_get_quads_types_known_funcs_exist(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
 
     # Coleta todas as funções
     all_funcs = set()

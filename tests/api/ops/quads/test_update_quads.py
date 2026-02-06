@@ -41,7 +41,9 @@ async def test_update_quad_success(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Quadrinho atualizado'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Quadrinho atualizado'
 
     # Verifica no banco
     await session.refresh(quad)
@@ -162,7 +164,9 @@ async def test_update_quad_not_found(client, trip, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json()['detail'] == 'Quad not found'
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Quad not found'
 
 
 async def test_update_quad_duplicate_fails(client, session, trip, token):
@@ -201,7 +205,9 @@ async def test_update_quad_duplicate_fails(client, session, trip, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'já registrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'já registrado' in resp['message']
 
 
 async def test_update_quad_same_value_allowed(client, session, trip, token):

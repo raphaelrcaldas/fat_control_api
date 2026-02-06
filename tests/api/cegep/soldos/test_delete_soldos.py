@@ -26,12 +26,10 @@ async def test_delete_soldo_success(client, session, token, soldos):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert 'deletado com sucesso' in response.json()['detail']
+    assert 'deletado com sucesso' in response.json()['message']
 
     # Verifica no banco
-    db_soldo = await session.scalar(
-        select(Soldo).where(Soldo.id == soldo_id)
-    )
+    db_soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
     assert db_soldo is None
 
 
@@ -43,7 +41,7 @@ async def test_delete_soldo_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['detail']
+    assert 'Soldo nao encontrado' in response.json()['message']
 
 
 async def test_delete_soldo_without_token(client, soldos):

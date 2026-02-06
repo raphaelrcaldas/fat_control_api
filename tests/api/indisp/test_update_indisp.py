@@ -30,7 +30,9 @@ async def test_update_indisp_success(client, session, indisp, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Indisponibilidade atualizada'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Indisponibilidade atualizada'
 
     # Verifica no banco
     await session.refresh(indisp)
@@ -99,7 +101,9 @@ async def test_update_indisp_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'not found' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'not found' in resp['message']
 
 
 async def test_update_indisp_without_token_fails(client, indisp):
@@ -153,7 +157,9 @@ async def test_update_indisp_duplicate_fails(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'já registrada' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'já registrada' in resp['message']
 
 
 async def test_update_indisp_excludes_self_from_duplicate_check(

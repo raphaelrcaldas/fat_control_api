@@ -28,7 +28,7 @@ async def test_delete_diaria_valor_success(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert 'deletado com sucesso' in response.json()['detail']
+    assert 'deletado com sucesso' in response.json()['message']
 
     # Verifica no banco
     db_valor = await session.scalar(
@@ -45,7 +45,7 @@ async def test_delete_diaria_valor_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'não encontrado' in response.json()['detail']
+    assert 'não encontrado' in response.json()['message']
 
 
 async def test_delete_diaria_valor_without_token(client, diaria_valores):

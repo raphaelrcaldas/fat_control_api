@@ -20,7 +20,8 @@ async def test_get_cities_success(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
 
     assert isinstance(data, list)
     assert len(data) > 0
@@ -34,7 +35,8 @@ async def test_get_cities_returns_matching_cities(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
 
     # Deve encontrar Rio de Janeiro
     nomes = [c['nome'] for c in data]
@@ -55,8 +57,8 @@ async def test_get_cities_case_insensitive(client, token):
     assert response_lower.status_code == HTTPStatus.OK
     assert response_upper.status_code == HTTPStatus.OK
 
-    data_lower = response_lower.json()
-    data_upper = response_upper.json()
+    data_lower = response_lower.json()['data']
+    data_upper = response_upper.json()['data']
 
     assert len(data_lower) == len(data_upper)
 
@@ -69,7 +71,8 @@ async def test_get_cities_no_results(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
 
     assert isinstance(data, list)
     assert len(data) == 0
@@ -83,7 +86,8 @@ async def test_get_cities_response_schema(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
 
     assert len(data) > 0
     cidade = data[0]
@@ -102,7 +106,8 @@ async def test_get_cities_limit_20(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    data = resp['data']
 
     assert len(data) <= 20
 

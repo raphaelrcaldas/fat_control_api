@@ -23,7 +23,9 @@ async def test_delete_indisp_success(client, session, indisp, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Indisponibilidade deletada'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Indisponibilidade deletada'
 
 
 async def test_delete_indisp_sets_deleted_at(client, session, indisp, token):
@@ -50,7 +52,9 @@ async def test_delete_indisp_not_found(client, token):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'not found' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'not found' in resp['message']
 
 
 async def test_delete_indisp_without_token_fails(client, indisp):

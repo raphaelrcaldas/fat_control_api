@@ -26,7 +26,9 @@ async def test_get_indisp_user_success(client, users, indisp, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['id'] == indisp.id
 
@@ -41,7 +43,9 @@ async def test_get_indisp_user_no_indisps_returns_empty(client, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_get_indisp_user_ordered_by_date_end_desc(
@@ -75,7 +79,9 @@ async def test_get_indisp_user_ordered_by_date_end_desc(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 2
     # Mais recente primeiro
     assert data[0]['id'] == new_indisp.id
@@ -113,7 +119,9 @@ async def test_get_indisp_user_filter_date_from(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['id'] == new_indisp.id
 
@@ -149,7 +157,9 @@ async def test_get_indisp_user_filter_date_to(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['id'] == old_indisp.id
 
@@ -195,7 +205,9 @@ async def test_get_indisp_user_filter_date_range(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['id'] == in_range.id
 
@@ -229,7 +241,9 @@ async def test_get_indisp_user_filter_mtv(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['id'] == ferias.id
     assert data[0]['mtv'] == 'fer'
@@ -278,7 +292,9 @@ async def test_get_indisp_user_combined_filters(client, session, users, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
     assert data[0]['id'] == match.id
 
@@ -308,7 +324,9 @@ async def test_get_indisp_user_includes_response_fields(
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert len(data) == 1
 
     item = data[0]
@@ -329,7 +347,9 @@ async def test_get_indisp_user_invalid_user_returns_empty(client, token):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == []
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['data'] == []
 
 
 async def test_get_indisp_user_without_token_fails(client, users):

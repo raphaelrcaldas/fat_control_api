@@ -35,7 +35,9 @@ async def test_create_aerodromo_success(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['nome'] == 'Aeroporto de Guarulhos'
     assert data['codigo_icao'] == 'SBGR'
     assert data['codigo_iata'] == 'GRU'
@@ -67,7 +69,9 @@ async def test_create_aerodromo_without_iata(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['codigo_iata'] is None
 
 
@@ -94,7 +98,9 @@ async def test_create_aerodromo_with_base_aerea(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['base_aerea'] is not None
     assert data['base_aerea']['nome'] == 'Base Aérea de Anápolis'
     assert data['base_aerea']['sigla'] == 'BAAN'
@@ -120,7 +126,9 @@ async def test_create_aerodromo_with_codigo_cidade(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['codigo_cidade'] == 3550308
     assert data['cidade'] is not None
     assert data['cidade']['nome'] == 'São Paulo'
@@ -147,7 +155,9 @@ async def test_create_aerodromo_with_cidade_manual(client, session, token):
     )
 
     assert response.status_code == HTTPStatus.CREATED
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    data = resp['data']
     assert data['cidade_manual'] == 'New York'
 
 
@@ -173,7 +183,9 @@ async def test_create_aerodromo_duplicate_icao_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'ICAO já cadastrado' in response.json()['detail']
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'ICAO já cadastrado' in resp['message']
 
 
 async def test_create_aerodromo_duplicate_iata_fails(
@@ -199,8 +211,10 @@ async def test_create_aerodromo_duplicate_iata_fails(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
+    resp = response.json()
+    assert resp['status'] == 'error'
     # Nota: O erro diz ICAO mas e para IATA (bug no codigo original)
-    assert 'já cadastrado' in response.json()['detail']
+    assert 'já cadastrado' in resp['message']
 
 
 async def test_create_aerodromo_without_token(client):

@@ -34,7 +34,10 @@ async def test_authorize_success(client, users, oauth_client, session):
     )
 
     assert response.status_code == HTTPStatus.OK
-    data = response.json()
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert 'data' in resp
+    data = resp['data']
     assert 'code' in data
     assert isinstance(data['code'], str)
     assert len(data['code']) > 0
@@ -59,7 +62,9 @@ async def test_authorize_invalid_response_type(client, users, oauth_client):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Invalid response_type'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Invalid response_type'
 
 
 async def test_authorize_invalid_code_challenge_method(
@@ -83,7 +88,9 @@ async def test_authorize_invalid_code_challenge_method(
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'code_challenge_method must be S256'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'code_challenge_method must be S256'
 
 
 async def test_authorize_invalid_client_id(client, users, oauth_client):
@@ -105,7 +112,9 @@ async def test_authorize_invalid_client_id(client, users, oauth_client):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Invalid client or redirect_uri'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Invalid client or redirect_uri'
 
 
 async def test_authorize_invalid_redirect_uri(client, users, oauth_client):
@@ -127,7 +136,9 @@ async def test_authorize_invalid_redirect_uri(client, users, oauth_client):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Invalid client or redirect_uri'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert resp['message'] == 'Invalid client or redirect_uri'
 
 
 async def test_authorize_invalid_credentials(client, users, oauth_client):
@@ -149,7 +160,9 @@ async def test_authorize_invalid_credentials(client, users, oauth_client):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Credenciais inválidas'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'Credenciais' in resp['message']
 
 
 async def test_authorize_user_not_found(client, oauth_client):
@@ -170,7 +183,9 @@ async def test_authorize_user_not_found(client, oauth_client):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Credenciais inválidas'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'Credenciais' in resp['message']
 
 
 async def test_authorize_inactive_user(client, users, oauth_client, session):
@@ -196,7 +211,9 @@ async def test_authorize_inactive_user(client, users, oauth_client, session):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Conta inativa. Contate o suporte'}
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'inativa' in resp['message'].lower()
 
 
 async def test_authorize_user_without_required_permissions(
@@ -223,7 +240,9 @@ async def test_authorize_user_without_required_permissions(
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert 'sem permissões cadastradas' in response.json()['detail'].lower()
+    resp = response.json()
+    assert resp['status'] == 'error'
+    assert 'sem permissões cadastradas' in resp['message'].lower()
 
 
 async def test_authorize_creates_valid_auth_code(
@@ -253,7 +272,7 @@ async def test_authorize_creates_valid_auth_code(
     )
 
     assert response.status_code == HTTPStatus.OK
-    auth_code = response.json()['code']
+    auth_code = response.json()['data']['code']
 
     # Verifica se o código foi salvo no banco
 

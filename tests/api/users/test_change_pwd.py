@@ -28,7 +28,9 @@ async def test_change_pwd_success(client, token, users, session):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'detail': 'Senha alterada com sucesso!'}
+    resp = response.json()
+    assert resp['status'] == 'success'
+    assert resp['message'] == 'Senha alterada com sucesso'
 
     # Verifica que a senha foi alterada no banco
     await session.refresh(user)
