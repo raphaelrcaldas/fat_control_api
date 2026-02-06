@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from typing import Annotated
 
@@ -183,8 +184,6 @@ class PwdSchema(BaseModel):
         - Pelo menos 1 dígito
         - Pelo menos 1 caractere especial
         """
-        import re  # noqa: PLC0415
-
         errors = []
 
         if not re.search(r'[A-Z]', v):

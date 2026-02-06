@@ -19,18 +19,18 @@ from fcontrol_api.models.cegep.missoes import (
 )
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.custos import (
+from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
     CustoPernoiteInput,
     CustoUserFragInput,
 )
-from fcontrol_api.schemas.etiquetas import EtiquetaInput, EtiquetaSchema
-from fcontrol_api.schemas.missoes import (
+from fcontrol_api.schemas.cegep.missoes import (
     FragMisSchema,
     MissoesFilterParams,
     PernoiteFragMis,
     UserFragMis,
 )
+from fcontrol_api.schemas.etiquetas import EtiquetaInput, EtiquetaSchema
 from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
@@ -158,31 +158,21 @@ async def get_fragmentos(
         )
 
     # Filtro por etiquetas (multi-select)
-    # Parsing seguro com tratamento de erro e validação
     if params.etiqueta_ids:
-        try:
-            # Pydantic já validou o padrão regex,
-            # mas fazemos parsing defensivo
-            ids = [
-                int(id.strip())
-                for id in params.etiqueta_ids.split(',')
-                if id.strip().isdigit()
-            ]
+        ids = [
+            int(id.strip())
+            for id in params.etiqueta_ids.split(',')
+            if id.strip().isdigit()
+        ]
 
-            # Só aplica filtro se houver IDs válidos
-            if ids:
-                base_query = base_query.join(
-                    FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
-                ).where(FragEtiqueta.etiqueta_id.in_(ids))
+        if ids:
+            base_query = base_query.join(
+                FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
+            ).where(FragEtiqueta.etiqueta_id.in_(ids))
 
-                count_query = count_query.join(
-                    FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
-                ).where(FragEtiqueta.etiqueta_id.in_(ids))
-
-        except (ValueError, AttributeError):
-            # Se parsing falhar (não deveria devido validação Pydantic),
-            # ignora filtro de etiquetas silenciosamente
-            pass
+            count_query = count_query.join(
+                FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
+            ).where(FragEtiqueta.etiqueta_id.in_(ids))
 
     # Executa count e fetch
     total = await session.scalar(count_query) or 0

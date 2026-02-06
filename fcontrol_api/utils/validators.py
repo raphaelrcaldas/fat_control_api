@@ -105,7 +105,4 @@ def validar_zimbra(email: str) -> bool:
     Returns:
         True se o email termina com fab.mil.br, False caso contrário
     """
-    if not email:
-        return False
-
     return email.lower().endswith('@fab.mil.br')

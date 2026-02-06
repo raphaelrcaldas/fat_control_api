@@ -32,6 +32,7 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.auth import validate_user_client_access
 from fcontrol_api.services.logs import log_user_action
+from fcontrol_api.settings import Settings
 from fcontrol_api.utils.responses import success_response
 
 router = APIRouter(prefix='/auth', tags=['auth'])
@@ -234,8 +235,6 @@ async def dev_login(
     - Somente o usuário com id=1 pode usar
     - Token expira em 7 dias
     """
-    from fcontrol_api.settings import Settings  # noqa: PLC0415
-
     settings = Settings()
 
     # Bloquear em produção
