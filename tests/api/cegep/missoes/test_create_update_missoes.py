@@ -18,6 +18,7 @@ from fcontrol_api.models.cegep.missoes import (
     UserFrag,
 )
 from tests.factories import (
+    ComissFactory,
     EtiquetaFactory,
     FragMisFactory,
     PernoiteFragFactory,
@@ -793,6 +794,69 @@ async def test_create_missao_multiple_users(client, session, token, users):
     assert len(users_frag_list) == 2
 
 
+async def test_create_missao_no_pernoite_on_regres_date(
+    client, session, token, users
+):
+    """Cobre branch IndexError em verificar_conflitos.
+
+    Quando nenhum pernoite tem data_fim == regres.date(),
+    check_md_ult_pnt recebe False e a missao e criada normalmente.
+    """
+    user, _ = users
+    today = date.today()
+
+    # Pernoites terminam ANTES do regres_date
+    afast_date = today + timedelta(days=110)
+    mid_date = today + timedelta(days=113)
+    regres_date = today + timedelta(days=115)
+
+    payload = {
+        'n_doc': 9010,
+        'tipo_doc': 'om',
+        'indenizavel': True,
+        'acrec_desloc': False,
+        'afast': datetime.combine(
+            afast_date, time(8, 0)
+        ).isoformat(),
+        'regres': datetime.combine(
+            regres_date, time(18, 0)
+        ).isoformat(),
+        'desc': 'Missao sem pernoite no regres',
+        'obs': '',
+        'tipo': 'adm',
+        'pernoites': [
+            {
+                'acrec_desloc': False,
+                'data_ini': afast_date.isoformat(),
+                'data_fim': mid_date.isoformat(),
+                'meia_diaria': False,
+                'obs': '',
+                'cidade_id': 3550308,
+                'cidade': {
+                    'codigo': 3550308,
+                    'nome': 'Sao Paulo',
+                    'uf': 'SP',
+                },
+            },
+        ],
+        'users': [_build_user_payload(user, 'd')],
+        'etiquetas': [],
+    }
+
+    response = await client.post(
+        '/cegep/missoes/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=payload,
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    db_missao = await session.scalar(
+        select(FragMis).where(FragMis.n_doc == 9010)
+    )
+    assert db_missao is not None
+
+
 async def test_update_missao_recalcula_comiss(
     client, session, token, user_with_comiss
 ):
@@ -918,3 +982,77 @@ async def test_create_missao_invalid_sit(client, token, missao_base_payload):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_comiss_completude_by_valor_when_no_dias_cumprir(
+    client, session, token, users
+):
+    """Cobre branch else em recalcular_cache_comiss.
+
+    Quando dias_cumprir e None, completude e calculada
+    por vals_comp / (valor_aj_ab + valor_aj_fc).
+    """
+    user, _ = users
+    today = date.today()
+
+    comiss = ComissFactory(
+        user_id=user.id,
+        status='aberto',
+        data_ab=today - timedelta(days=30),
+        data_fc=today + timedelta(days=60),
+        dias_cumprir=None,
+        valor_aj_ab=5000.00,
+        valor_aj_fc=5000.00,
+    )
+    session.add(comiss)
+    await session.commit()
+    await session.refresh(comiss)
+
+    afast_date = today + timedelta(days=5)
+    regres_date = today + timedelta(days=10)
+
+    payload = {
+        'n_doc': 9020,
+        'tipo_doc': 'om',
+        'indenizavel': True,
+        'acrec_desloc': False,
+        'afast': datetime.combine(
+            afast_date, time(8, 0)
+        ).isoformat(),
+        'regres': datetime.combine(
+            regres_date, time(18, 0)
+        ).isoformat(),
+        'desc': 'Missao completude por valor',
+        'obs': '',
+        'tipo': 'adm',
+        'pernoites': [
+            {
+                'acrec_desloc': False,
+                'data_ini': afast_date.isoformat(),
+                'data_fim': regres_date.isoformat(),
+                'meia_diaria': False,
+                'obs': '',
+                'cidade_id': 3550308,
+                'cidade': {
+                    'codigo': 3550308,
+                    'nome': 'Sao Paulo',
+                    'uf': 'SP',
+                },
+            }
+        ],
+        'users': [_build_user_payload(user, 'c')],
+        'etiquetas': [],
+    }
+
+    response = await client.post(
+        '/cegep/missoes/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=payload,
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    await session.refresh(comiss)
+    assert comiss.cache_calc is not None
+    assert 'completude' in comiss.cache_calc
+    assert comiss.cache_calc['completude'] >= 0
