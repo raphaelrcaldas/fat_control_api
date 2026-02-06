@@ -3,7 +3,7 @@
 from datetime import date
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
-from fcontrol_api.schemas.custos import (
+from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
     CustoPernoiteInput,
     CustoUserFragInput,

@@ -24,7 +24,7 @@ from fcontrol_api.schemas.etiquetas import (
     EtiquetaSchema,
     EtiquetaUpdate,
 )
-from fcontrol_api.schemas.om import (
+from fcontrol_api.schemas.ops.om import (
     ICAO_CODE_LENGTH,
     OrdemMissaoCreate,
     OrdemMissaoList,

@@ -11,7 +11,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.diarias import DiariaValor, GrupoCidade, GrupoPg
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.posto_grad import PostoGrad
-from fcontrol_api.schemas.diaria import (
+from fcontrol_api.schemas.cegep.diaria import (
     DiariaValorCreate,
     DiariaValorPublic,
     DiariaValorUpdate,

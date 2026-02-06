@@ -10,8 +10,8 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.comiss import ComissSchema
-from fcontrol_api.schemas.missoes import FragMisSchema
+from fcontrol_api.schemas.cegep.comiss import ComissSchema
+from fcontrol_api.schemas.cegep.missoes import FragMisSchema
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.services.comis import verificar_conflito_comiss

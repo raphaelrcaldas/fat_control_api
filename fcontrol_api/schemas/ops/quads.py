@@ -5,7 +5,7 @@ from fastapi import Body
 from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.schemas.funcoes import FuncPublic
-from fcontrol_api.schemas.tripulantes import TripWithFuncs
+from fcontrol_api.schemas.ops.tripulantes import TripWithFuncs
 
 
 class BaseQuad(BaseModel):

@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from fcontrol_api.schemas.missoes import FragMisSchema
+from fcontrol_api.schemas.cegep.missoes import FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
 
 

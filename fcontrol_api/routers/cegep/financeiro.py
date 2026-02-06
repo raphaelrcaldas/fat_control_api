@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.missoes import FragMisSchema, UserFragMis
+from fcontrol_api.schemas.cegep.missoes import FragMisSchema, UserFragMis
 from fcontrol_api.schemas.response import ApiPaginatedResponse
 from fcontrol_api.utils.financeiro import custo_missao
 from fcontrol_api.utils.responses import paginated_response

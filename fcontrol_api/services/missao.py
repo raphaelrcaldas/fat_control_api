@@ -13,7 +13,7 @@ from fcontrol_api.models.cegep.missoes import (
     PernoiteFrag,
     UserFrag,
 )
-from fcontrol_api.schemas.missoes import FragMisSchema
+from fcontrol_api.schemas.cegep.missoes import FragMisSchema
 
 
 async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):

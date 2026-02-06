@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import FragMis
-from fcontrol_api.schemas.custos import (
+from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
     CustoPernoiteInput,
     CustoUserFragInput,

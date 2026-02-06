@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.etiquetas import EtiquetaSchema
-from fcontrol_api.schemas.tripulantes import TripBasicInfo
+from fcontrol_api.schemas.ops.tripulantes import TripBasicInfo
 
 # Constantes de validação
 TVOO_MINIMO = 5  # Tempo mínimo de voo em minutos

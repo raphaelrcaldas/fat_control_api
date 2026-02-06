@@ -29,7 +29,7 @@ from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
-from fcontrol_api.schemas.tripulantes import uaes
+from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.utils.validators import calcular_dv_saram
 
 

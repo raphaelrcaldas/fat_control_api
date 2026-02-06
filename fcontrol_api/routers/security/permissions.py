@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 from fcontrol_api.database import get_session
 from fcontrol_api.models.security.resources import Permissions, Resources
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.schemas.security import PermissionDetailSchema
+from fcontrol_api.schemas.security.security import PermissionDetailSchema
 from fcontrol_api.utils.responses import success_response
 
 router = APIRouter(prefix='/permissions')

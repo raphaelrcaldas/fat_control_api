@@ -14,14 +14,14 @@ from fcontrol_api.models.public.quads import Quad, QuadsGroup, QuadsType
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
-from fcontrol_api.schemas.quads import (
+from fcontrol_api.schemas.ops.quads import (
     QuadPublic,
     QuadSchema,
     QuadsGroupSchema,
     QuadUpdate,
 )
+from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.schemas.tripulantes import uaes
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.utils.responses import success_response
 

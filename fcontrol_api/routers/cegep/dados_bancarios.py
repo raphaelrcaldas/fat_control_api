@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.dados_bancarios import DadosBancarios
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.dados_bancarios import (
+from fcontrol_api.schemas.cegep.dados_bancarios import (
     DadosBancariosCreate,
     DadosBancariosPublic,
     DadosBancariosUpdate,

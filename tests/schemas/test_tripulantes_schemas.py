@@ -8,7 +8,7 @@ Testa as validacoes de:
 import pytest
 from pydantic import ValidationError
 
-from fcontrol_api.schemas.tripulantes import BaseTrip, TripSchema
+from fcontrol_api.schemas.ops.tripulantes import BaseTrip, TripSchema
 
 
 def test_trig_valido_aceito():

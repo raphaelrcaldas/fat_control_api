@@ -11,12 +11,12 @@ from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
-from fcontrol_api.schemas.tripulantes import (
+from fcontrol_api.schemas.ops.tripulantes import (
     BaseTrip,
     TripSchema,
     TripWithFuncs,
 )
+from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.security import get_current_user
 from fcontrol_api.utils.responses import paginated_response, success_response
 

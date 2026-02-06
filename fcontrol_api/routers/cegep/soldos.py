@@ -9,13 +9,13 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.posto_grad import PostoGrad, Soldo
-from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.schemas.soldo import (
+from fcontrol_api.schemas.cegep.soldo import (
     SoldoCreate,
     SoldoPublic,
     SoldoStats,
     SoldoUpdate,
 )
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]

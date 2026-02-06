@@ -15,7 +15,7 @@ from fcontrol_api.models.security.resources import (
     UserRole,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.schemas.security import (
+from fcontrol_api.schemas.security.security import (
     PermissionDetailSchema,
     RoleDetailSchema,
     UserRoleSchema,
