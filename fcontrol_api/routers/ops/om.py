@@ -374,6 +374,43 @@ async def update_ordem(
             detail='Ordem de missão não encontrada',
         )
 
+    # Impedir edição de ordem cancelada
+    if ordem.status == 'cancelada':
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Ordem cancelada não pode ser editada',
+        )
+
+    # Validar transição para cancelada (somente aprovada -> cancelada)
+    if ordem_data.status == 'cancelada':
+        if ordem.status != 'aprovada':
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=(
+                    'Somente ordens aprovadas podem ser canceladas'
+                ),
+            )
+        # Cancelamento: atualizar apenas o status
+        ordem.status = 'cancelada'
+        await session.commit()
+
+        ordem_atualizada = await session.scalar(
+            select(OrdemMissao)
+            .where(OrdemMissao.id == id)
+            .options(
+                selectinload(OrdemMissao.tripulacao).selectinload(
+                    OrdemTripulacao.tripulante
+                )
+            )
+        )
+
+        return success_response(
+            data=OrdemMissaoOut.model_validate(
+                ordem_atualizada, from_attributes=True
+            ),
+            message='Ordem de missão cancelada com sucesso',
+        )
+
     # Identificar transição para aprovada para gerar número
     if (
         ordem_data.status == 'aprovada'
