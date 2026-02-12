@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy.future import select
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
+from tests.factories import DiariaValorFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -204,3 +205,114 @@ async def test_create_diaria_valor_negative_fails(client, token):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_create_diaria_valor_auto_close_previous(
+    client, session, token
+):
+    """Testa que criar novo valor fecha o anterior."""
+    today = date.today()
+
+    # grupo_cid=4 nao existe no seed (seed usa 1,2,3)
+    valor_anterior = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=300.00,
+        data_inicio=today - timedelta(days=60),
+        data_fim=None,
+    )
+    session.add(valor_anterior)
+    await session.commit()
+    await session.refresh(valor_anterior)
+
+    novo_data = {
+        'grupo_pg': 1,
+        'grupo_cid': 4,
+        'valor': 350.00,
+        'data_inicio': today.isoformat(),
+    }
+
+    response = await client.post(
+        '/cegep/diarias/valores/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+    await session.refresh(valor_anterior)
+    assert valor_anterior.data_fim == today - timedelta(days=1)
+
+
+async def test_create_diaria_valor_auto_close_validation_error(
+    client, session, token
+):
+    """Testa erro quando novo valor comeca antes do vigente."""
+    today = date.today()
+
+    valor_anterior = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=300.00,
+        data_inicio=today,
+        data_fim=None,
+    )
+    session.add(valor_anterior)
+    await session.commit()
+
+    novo_data = {
+        'grupo_pg': 1,
+        'grupo_cid': 4,
+        'valor': 350.00,
+        'data_inicio': (
+            today - timedelta(days=5)
+        ).isoformat(),
+    }
+
+    response = await client.post(
+        '/cegep/diarias/valores/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    msg = response.json()['message']
+    assert 'antes do valor vigente' in msg
+
+
+async def test_create_diaria_valor_no_auto_close_different_group(
+    client, session, token
+):
+    """Testa que auto-close nao afeta grupos diferentes."""
+    today = date.today()
+
+    # grupo_cid=4 nao existe no seed
+    valor_existente = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=300.00,
+        data_inicio=today - timedelta(days=60),
+        data_fim=None,
+    )
+    session.add(valor_existente)
+    await session.commit()
+    await session.refresh(valor_existente)
+
+    # grupo_pg diferente (2 vs 1), mesmo grupo_cid=4
+    novo_data = {
+        'grupo_pg': 2,
+        'grupo_cid': 4,
+        'valor': 400.00,
+        'data_inicio': today.isoformat(),
+    }
+
+    response = await client.post(
+        '/cegep/diarias/valores/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+    await session.refresh(valor_existente)
+    assert valor_existente.data_fim is None

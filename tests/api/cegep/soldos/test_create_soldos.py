@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from http import HTTPStatus
 
 import pytest
+from sqlalchemy import and_
 from sqlalchemy.future import select
 
 from fcontrol_api.models.public.posto_grad import Soldo
@@ -189,3 +190,97 @@ async def test_create_soldo_valor_negative_fails(client, token):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_create_soldo_auto_close_previous(
+    client, session, token
+):
+    """Testa que criar novo soldo fecha o anterior."""
+    today = date.today()
+
+    novo_data = {
+        'pg': 'cb',
+        'valor': 3200.00,
+        'data_inicio': (
+            today + timedelta(days=30)
+        ).isoformat(),
+    }
+
+    response = await client.post(
+        '/cegep/soldos/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+    anterior = await session.scalar(
+        select(Soldo).where(
+            and_(
+                Soldo.pg == 'cb',
+                Soldo.valor == 2869.00,
+            )
+        )
+    )
+    assert anterior is not None
+    expected_fim = (
+        today + timedelta(days=30) - timedelta(days=1)
+    )
+    assert anterior.data_fim == expected_fim
+
+
+async def test_create_soldo_auto_close_validation_error(
+    client, session, token
+):
+    """Testa erro quando novo soldo comeca antes do vigente."""
+    novo_data = {
+        'pg': 'cb',
+        'valor': 3200.00,
+        'data_inicio': '2025-12-31',
+    }
+
+    response = await client.post(
+        '/cegep/soldos/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    msg = response.json()['message']
+    assert 'antes do soldo vigente' in msg
+
+
+async def test_create_soldo_no_auto_close_different_pg(
+    client, session, token
+):
+    """Testa que auto-close nao afeta PGs diferentes."""
+    today = date.today()
+
+    soldo_cb = await session.scalar(
+        select(Soldo).where(
+            and_(
+                Soldo.pg == 'cb',
+                Soldo.data_fim.is_(None),
+            )
+        )
+    )
+    assert soldo_cb is not None
+
+    novo_data = {
+        'pg': '2s',
+        'valor': 5500.00,
+        'data_inicio': (
+            today + timedelta(days=30)
+        ).isoformat(),
+    }
+
+    response = await client.post(
+        '/cegep/soldos/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+    await session.refresh(soldo_cb)
+    assert soldo_cb.data_fim is None

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from http import HTTPStatus
 from typing import Annotated
 
@@ -9,6 +9,7 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.diarias import DiariaValor, GrupoCidade, GrupoPg
+from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.schemas.cegep.diaria import (
@@ -19,6 +20,7 @@ from fcontrol_api.schemas.cegep.diaria import (
     GrupoPgPublic,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.services.missao import recalcular_custos_missoes
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -134,6 +136,29 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
             detail='Data fim deve ser maior que data início',
         )
 
+    # Auto-fechar periodo anterior ativo (mesmo grupo_pg + grupo_cid)
+    anterior = await session.scalar(
+        select(DiariaValor).where(
+            and_(
+                DiariaValor.grupo_pg == data.grupo_pg,
+                DiariaValor.grupo_cid == data.grupo_cid,
+                DiariaValor.data_fim.is_(None),
+            )
+        )
+    )
+
+    if anterior:
+        nova_data_fim = data.data_inicio - timedelta(days=1)
+        if nova_data_fim < anterior.data_inicio:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=(
+                    'Novo valor começa antes do valor vigente '
+                    f'(início: {anterior.data_inicio})'
+                ),
+            )
+        anterior.data_fim = nova_data_fim
+
     new_valor = DiariaValor(
         grupo_pg=data.grupo_pg,
         grupo_cid=data.grupo_cid,
@@ -143,6 +168,12 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
     )
 
     session.add(new_valor)
+    await session.flush()
+
+    await recalcular_custos_missoes(
+        data.data_inicio, data.data_fim, session
+    )
+
     await session.commit()
     await session.refresh(new_valor)
 
@@ -154,7 +185,9 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
             valor=new_valor.valor,
             data_inicio=new_valor.data_inicio,
             data_fim=new_valor.data_fim,
-            status=calculate_status(new_valor.data_inicio, new_valor.data_fim),
+            status=calculate_status(
+                new_valor.data_inicio, new_valor.data_fim
+            ),
         ),
         message='Valor de diária criado com sucesso',
     )
@@ -178,6 +211,10 @@ async def update_diaria_valor(
             detail='Valor de diária não encontrado',
         )
 
+    # Guardar datas originais para recalculo
+    old_inicio = db_valor.data_inicio
+    old_fim = db_valor.data_fim
+
     update_data = data.model_dump(exclude_unset=True)
 
     # Valida datas
@@ -192,6 +229,15 @@ async def update_diaria_valor(
     for key, value in update_data.items():
         setattr(db_valor, key, value)
 
+    await session.flush()
+
+    # Recalcular com uniao dos periodos (antigo + novo)
+    inicio_min = min(old_inicio, data_inicio)
+    fins = [f for f in (old_fim, data_fim) if f is not None]
+    fim_max = max(fins) if fins else None
+
+    await recalcular_custos_missoes(inicio_min, fim_max, session)
+
     await session.commit()
     await session.refresh(db_valor)
 
@@ -203,7 +249,9 @@ async def update_diaria_valor(
             valor=db_valor.valor,
             data_inicio=db_valor.data_inicio,
             data_fim=db_valor.data_fim,
-            status=calculate_status(db_valor.data_inicio, db_valor.data_fim),
+            status=calculate_status(
+                db_valor.data_inicio, db_valor.data_fim
+            ),
         ),
         message='Valor de diária atualizado com sucesso',
     )
@@ -222,7 +270,40 @@ async def delete_diaria_valor(valor_id: int, session: Session):
             detail='Valor de diária não encontrado',
         )
 
+    # Verificar se ha missoes com UserFrag sit='c' ou 'd' no periodo
+    query_check = (
+        select(UserFrag.id)
+        .join(FragMis, FragMis.id == UserFrag.frag_id)
+        .join(PernoiteFrag, PernoiteFrag.frag_id == FragMis.id)
+        .where(
+            UserFrag.sit.in_(['c', 'd']),
+            PernoiteFrag.data_fim >= db_valor.data_inicio,
+        )
+    )
+    if db_valor.data_fim is not None:
+        query_check = query_check.where(
+            PernoiteFrag.data_ini <= db_valor.data_fim
+        )
+
+    missao_vinculada = await session.scalar(query_check.limit(1))
+    if missao_vinculada:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Não é possível deletar: existem missões com '
+                'diárias no período deste valor'
+            ),
+        )
+
+    # Guardar datas antes de deletar
+    del_inicio = db_valor.data_inicio
+    del_fim = db_valor.data_fim
+
     await session.delete(db_valor)
+    await session.flush()
+
+    await recalcular_custos_missoes(del_inicio, del_fim, session)
+
     await session.commit()
 
     return success_response(message='Valor de diária deletado com sucesso')

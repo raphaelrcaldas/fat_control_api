@@ -1,3 +1,4 @@
+from datetime import date
 from http import HTTPStatus
 
 from fastapi import HTTPException
@@ -6,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
+from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import (
     Etiqueta,
     FragEtiqueta,
@@ -13,7 +15,18 @@ from fcontrol_api.models.cegep.missoes import (
     PernoiteFrag,
     UserFrag,
 )
+from fcontrol_api.schemas.cegep.custos import (
+    CustoFragMisInput,
+    CustoPernoiteInput,
+    CustoUserFragInput,
+)
 from fcontrol_api.schemas.cegep.missoes import FragMisSchema
+from fcontrol_api.services.comis import (
+    localizar_comiss_por_missao,
+    recalcular_cache_comiss,
+)
+from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
+from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
 
 
 async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
@@ -173,3 +186,125 @@ async def adicionar_missao(
                 ))
 
     return missao
+
+
+async def recalcular_custos_missoes(
+    data_inicio: date,
+    data_fim: date | None,
+    session: AsyncSession,
+) -> dict:
+    """
+    Recalcula custos de missoes com pernoites no periodo.
+    Depois recalcula comissionamentos afetados (apenas sit='c').
+    Retorna contagem de missoes e comissionamentos recalculados.
+    """
+    # 1. Buscar missoes afetadas via pernoites no periodo
+    query = (
+        select(FragMis)
+        .join(PernoiteFrag, PernoiteFrag.frag_id == FragMis.id)
+        .where(PernoiteFrag.data_fim >= data_inicio)
+    )
+    if data_fim is not None:
+        query = query.where(PernoiteFrag.data_ini <= data_fim)
+
+    query = query.distinct()
+
+    result = await session.scalars(query)
+    missoes: list[FragMis] = list(result.all())
+
+    if not missoes:
+        return {'missoes': 0, 'comissionamentos': 0}
+
+    # 2. Carregar caches de referencia (1x so)
+    valores_cache = await cache_diarias(session)
+    soldos_cache = await cache_soldos(session)
+
+    grupos_pg = dict(
+        (
+            await session.execute(
+                select(GrupoPg.pg_short, GrupoPg.grupo)
+            )
+        ).all()
+    )
+    grupos_cidade = dict(
+        (
+            await session.execute(
+                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
+            )
+        ).all()
+    )
+
+    # 3. Set para coletar comissionamentos afetados
+    comiss_ids: set[int] = set()
+
+    for missao in missoes:
+        # Carregar users (lazy='noload', precisa query explicita)
+        users_result = await session.scalars(
+            select(UserFrag).where(UserFrag.frag_id == missao.id)
+        )
+        users_frag = list(users_result.all())
+
+        # Pernoites ja vem via selectin
+        pernoites = missao.pernoites
+
+        # Montar inputs validados
+        pernoites_input = [
+            CustoPernoiteInput(
+                id=pnt.id,
+                data_ini=pnt.data_ini,
+                data_fim=pnt.data_fim,
+                meia_diaria=pnt.meia_diaria,
+                acrec_desloc=pnt.acrec_desloc,
+                cidade_codigo=pnt.cidade_id,
+            )
+            for pnt in pernoites
+        ]
+
+        users_input = [
+            CustoUserFragInput(p_g=uf.p_g, sit=uf.sit)
+            for uf in users_frag
+        ]
+
+        if not users_input or not pernoites_input:
+            continue
+
+        frag_mis_input = CustoFragMisInput(
+            acrec_desloc=missao.acrec_desloc,
+        )
+
+        # Calcular custos
+        custos = calcular_custos_frag_mis(
+            frag_mis_input,
+            users_input,
+            pernoites_input,
+            grupos_pg,
+            grupos_cidade,
+            valores_cache,
+            soldos_cache,
+        )
+
+        missao.custos = custos
+
+        # Coletar comissionamentos afetados
+        afast_date = missao.afast.date()
+        regres_date = missao.regres.date()
+        for uf in users_frag:
+            if uf.sit == 'c':
+                ids = await localizar_comiss_por_missao(
+                    uf.user_id,
+                    afast_date,
+                    regres_date,
+                    session,
+                )
+                comiss_ids.update(ids)
+
+    # 4. Recalcular comissionamentos afetados
+    for comiss_id in comiss_ids:
+        await recalcular_cache_comiss(comiss_id, session)
+
+    await session.flush()
+
+    return {
+        'missoes': len(missoes),
+        'comissionamentos': len(comiss_ids),
+    }

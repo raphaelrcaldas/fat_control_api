@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from http import HTTPStatus
 from typing import Annotated
 
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
 from fcontrol_api.models.public.posto_grad import PostoGrad, Soldo
 from fcontrol_api.schemas.cegep.soldo import (
     SoldoCreate,
@@ -16,6 +17,7 @@ from fcontrol_api.schemas.cegep.soldo import (
     SoldoUpdate,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.services.missao import recalcular_custos_missoes
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -114,6 +116,28 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
             detail='Posto/Graduacao invalido',
         )
 
+    # Auto-fechar periodo anterior ativo (mesmo pg)
+    anterior = await session.scalar(
+        select(Soldo).where(
+            and_(
+                Soldo.pg == soldo.pg,
+                Soldo.data_fim.is_(None),
+            )
+        )
+    )
+
+    if anterior:
+        nova_data_fim = soldo.data_inicio - timedelta(days=1)
+        if nova_data_fim < anterior.data_inicio:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=(
+                    'Novo soldo comeca antes do soldo vigente '
+                    f'(inicio: {anterior.data_inicio})'
+                ),
+            )
+        anterior.data_fim = nova_data_fim
+
     new_soldo = Soldo(
         pg=soldo.pg,
         data_inicio=soldo.data_inicio,
@@ -122,6 +146,12 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
     )
 
     session.add(new_soldo)
+    await session.flush()
+
+    await recalcular_custos_missoes(
+        soldo.data_inicio, soldo.data_fim, session
+    )
+
     await session.commit()
     await session.refresh(new_soldo)
 
@@ -142,6 +172,10 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
             detail='Soldo nao encontrado',
         )
 
+    # Guardar datas originais para recalculo
+    old_inicio = db_soldo.data_inicio
+    old_fim = db_soldo.data_fim
+
     update_data = soldo.model_dump(exclude_unset=True)
 
     # Valida datas
@@ -155,7 +189,9 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
 
     if 'pg' in update_data:
         posto = await session.scalar(
-            select(PostoGrad).where(PostoGrad.short == update_data['pg'])
+            select(PostoGrad).where(
+                PostoGrad.short == update_data['pg']
+            )
         )
         if not posto:
             raise HTTPException(
@@ -165,6 +201,15 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
 
     for key, value in update_data.items():
         setattr(db_soldo, key, value)
+
+    await session.flush()
+
+    # Recalcular com uniao dos periodos (antigo + novo)
+    inicio_min = min(old_inicio, data_inicio)
+    fins = [f for f in (old_fim, data_fim) if f is not None]
+    fim_max = max(fins) if fins else None
+
+    await recalcular_custos_missoes(inicio_min, fim_max, session)
 
     await session.commit()
     await session.refresh(db_soldo)
@@ -186,7 +231,41 @@ async def delete_soldo(soldo_id: int, session: Session):
             detail='Soldo nao encontrado',
         )
 
+    # Verificar se ha missoes com UserFrag sit='g' no periodo
+    query_check = (
+        select(UserFrag.id)
+        .join(FragMis, FragMis.id == UserFrag.frag_id)
+        .join(PernoiteFrag, PernoiteFrag.frag_id == FragMis.id)
+        .where(
+            UserFrag.sit == 'g',
+            PernoiteFrag.data_fim >= db_soldo.data_inicio,
+        )
+    )
+    if db_soldo.data_fim is not None:
+        query_check = query_check.where(
+            PernoiteFrag.data_ini <= db_soldo.data_fim
+        )
+
+    missao_vinculada = await session.scalar(query_check.limit(1))
+    if missao_vinculada:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Não é possível deletar: existem missões com '
+                'gratificação de representação no período '
+                'deste soldo'
+            ),
+        )
+
+    # Guardar datas antes de deletar
+    del_inicio = db_soldo.data_inicio
+    del_fim = db_soldo.data_fim
+
     await session.delete(db_soldo)
+    await session.flush()
+
+    await recalcular_custos_missoes(del_inicio, del_fim, session)
+
     await session.commit()
 
     return success_response(message='Soldo deletado com sucesso')
