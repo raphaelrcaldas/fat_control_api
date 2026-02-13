@@ -386,9 +386,7 @@ async def update_ordem(
         if ordem.status != 'aprovada':
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail=(
-                    'Somente ordens aprovadas podem ser canceladas'
-                ),
+                detail=('Somente ordens aprovadas podem ser canceladas'),
             )
         # Cancelamento: atualizar apenas o status
         ordem.status = 'cancelada'
@@ -487,7 +485,11 @@ async def update_ordem(
         del update_data['numero']
 
     # Validação de edição manual de número (somente para ordens aprovadas)
-    if ordem_data.numero and ordem_data.numero != ordem.numero:
+    if (
+        ordem_data.numero
+        and ordem_data.numero != 'auto'
+        and ordem_data.numero != ordem.numero
+    ):
         # Só permite editar número em ordens aprovadas
         # (em rascunho, o número é gerado automaticamente na aprovação)
         status_atual = ordem_data.status or ordem.status
