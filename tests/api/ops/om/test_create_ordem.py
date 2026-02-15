@@ -41,7 +41,7 @@ def _make_etapa(
 def _make_ordem_payload(etapas=None, etiquetas_ids=None):
     """Helper para criar payload de ordem."""
     payload = {
-        'matricula_anv': 2850,
+        'matricula_anv': '2850',
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
@@ -71,7 +71,7 @@ async def test_create_ordem_success(client, session, token):
     data = resp['data']
     assert data['numero'] == 'auto'
     assert data['status'] == 'rascunho'
-    assert data['matricula_anv'] == 2850
+    assert data['matricula_anv'] == '2850'
     assert data['tipo'] == 'instrucao'
     assert data['projeto'] == 'KC-390'
     assert data['uae'] == '1/1 GT'

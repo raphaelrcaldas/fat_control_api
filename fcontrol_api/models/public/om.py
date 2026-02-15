@@ -66,7 +66,9 @@ class OrdemMissao(Base):
     numero: Mapped[str] = mapped_column(
         String(50), nullable=False, unique=False
     )
-    matricula_anv: Mapped[int] = mapped_column(nullable=False)
+    matricula_anv: Mapped[str] = mapped_column(
+        ForeignKey('aeronaves.matricula'), nullable=False
+    )
     tipo: Mapped[str] = mapped_column(String(100), nullable=False)
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     projeto: Mapped[str] = mapped_column(String(20))

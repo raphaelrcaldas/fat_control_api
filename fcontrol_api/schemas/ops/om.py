@@ -115,7 +115,7 @@ class TripulacaoAgrupada(BaseModel):
 class OrdemMissaoCore(BaseModel):
     """Campos essenciais de uma Ordem de Missão"""
 
-    matricula_anv: int
+    matricula_anv: str
     tipo: str
     projeto: str
     status: str
@@ -139,7 +139,7 @@ class OrdemMissaoUpdate(BaseModel):
     """Atualização parcial de OM - todos campos opcionais"""
 
     numero: str | None = None
-    matricula_anv: int | None = None
+    matricula_anv: str | None = None
     tipo: str | None = None
     projeto: str | None = None
     status: str | None = None

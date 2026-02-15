@@ -59,7 +59,7 @@ async def test_get_ordem_includes_etapas(
         'esf_aer': 'normal',
     }
     payload = {
-        'matricula_anv': 2850,
+        'matricula_anv': '2850',
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
@@ -103,7 +103,7 @@ async def test_get_ordem_includes_etiquetas(
     await session.refresh(etiqueta)
 
     payload = {
-        'matricula_anv': 2850,
+        'matricula_anv': '2850',
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',

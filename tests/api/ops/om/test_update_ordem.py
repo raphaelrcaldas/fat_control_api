@@ -214,7 +214,7 @@ async def test_update_replaces_etapas(
         origem='SBRF', dest='SBSV',
     )
     create_payload = {
-        'matricula_anv': 2850,
+        'matricula_anv': '2850',
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
