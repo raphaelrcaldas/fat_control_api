@@ -18,6 +18,7 @@ from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.security.security import (
     PermissionDetailSchema,
     RoleDetailSchema,
+    RolePermissionAction,
     UserRoleSchema,
     UserWithRole,
 )
@@ -167,3 +168,80 @@ async def delete_user_role(role_body: UserRoleSchema, session: Session):
     await session.commit()
 
     return success_response(message='Perfil deletado com sucesso')
+
+
+@router.post(
+    '/{role_id}/permissions/',
+    response_model=ApiResponse[None],
+    status_code=HTTPStatus.CREATED,
+)
+async def add_permission_to_role(
+    role_id: int, body: RolePermissionAction, session: Session
+):
+    role = await session.get(Roles, role_id)
+    if not role:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Role nao encontrado',
+        )
+
+    permission = await session.get(Permissions, body.permission_id)
+    if not permission:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Permissao nao encontrada',
+        )
+
+    existing = await session.scalar(
+        select(RolePermissions).where(
+            (RolePermissions.role_id == role_id)
+            & (
+                RolePermissions.permission_id
+                == body.permission_id
+            )
+        )
+    )
+    if existing:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail='Role ja possui esta permissao',
+        )
+
+    rp = RolePermissions(
+        role_id=role_id,
+        permission_id=body.permission_id,
+    )
+    session.add(rp)
+    await session.commit()
+
+    return success_response(
+        message='Permissao adicionada ao role com sucesso'
+    )
+
+
+@router.delete(
+    '/{role_id}/permissions/{permission_id}',
+    response_model=ApiResponse[None],
+)
+async def remove_permission_from_role(
+    role_id: int, permission_id: int, session: Session
+):
+    result = await session.scalar(
+        select(RolePermissions).where(
+            (RolePermissions.role_id == role_id)
+            & (RolePermissions.permission_id == permission_id)
+        )
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Role nao possui esta permissao',
+        )
+
+    await session.delete(result)
+    await session.commit()
+
+    return success_response(
+        message='Permissao removida do role com sucesso'
+    )

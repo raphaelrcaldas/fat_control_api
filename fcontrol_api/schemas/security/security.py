@@ -56,3 +56,29 @@ class UserRoleSchema(BaseModel):
 class UserWithRole(BaseModel):
     role: RoleSchema
     user: UserPublic
+
+
+# Create/Update schemas
+class ResourceCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
+
+
+class ResourceUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class PermissionCreate(BaseModel):
+    resource_id: int
+    name: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
+
+
+class PermissionUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class RolePermissionAction(BaseModel):
+    permission_id: int
