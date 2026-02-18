@@ -53,7 +53,6 @@ async def create_aeronave(
         active=aeronave.active,
         sit=aeronave.sit,
         obs=aeronave.obs,
-        prox_insp=aeronave.prox_insp,
     )
 
     session.add(new_aeronave)

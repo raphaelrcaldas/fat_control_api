@@ -12,21 +12,21 @@ async def seed_aeronaves(session):
             active=True,
             sit='DI',
             obs=None,
-            prox_insp=None,
+
         ),
         Aeronave(
             matricula='2851',
             active=True,
             sit='DI',
             obs=None,
-            prox_insp=None,
+
         ),
         Aeronave(
             matricula='2852',
             active=True,
             sit='DI',
             obs=None,
-            prox_insp=None,
+
         ),
     ]
     session.add_all(aeros)

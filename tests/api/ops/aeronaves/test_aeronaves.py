@@ -34,7 +34,7 @@ async def test_create_aeronave_success(client, token):
     assert data['data']['sit'] == 'DI'
 
 
-async def test_create_aeronave_with_obs_and_prox_insp(
+async def test_create_aeronave_with_obs(
     client, token
 ):
     response = await client.post(
@@ -45,7 +45,6 @@ async def test_create_aeronave_with_obs_and_prox_insp(
             'active': True,
             'sit': 'DO',
             'obs': 'Restrição no radar',
-            'prox_insp': '2026-06-15',
         },
     )
 
@@ -53,7 +52,6 @@ async def test_create_aeronave_with_obs_and_prox_insp(
     data = response.json()
 
     assert data['data']['obs'] == 'Restrição no radar'
-    assert data['data']['prox_insp'] == '2026-06-15'
 
 
 async def test_create_aeronave_duplicate_matricula_fails(

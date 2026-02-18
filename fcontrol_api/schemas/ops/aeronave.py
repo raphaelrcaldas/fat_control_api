@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,7 +10,6 @@ class AeronaveCreate(BaseModel):
     active: bool = True
     sit: str = Field(min_length=2, max_length=2)
     obs: str | None = None
-    prox_insp: date | None = None
 
 
 class AeronaveUpdate(BaseModel):
@@ -19,7 +18,6 @@ class AeronaveUpdate(BaseModel):
         None, min_length=2, max_length=2
     )
     obs: str | None = None
-    prox_insp: date | None = None
 
 
 class AeronavePublic(BaseModel):
@@ -27,7 +25,6 @@ class AeronavePublic(BaseModel):
     active: bool
     sit: str
     obs: str | None
-    prox_insp: date | None
     updated_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)

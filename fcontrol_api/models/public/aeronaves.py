@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -15,7 +15,6 @@ class Aeronave(Base):
     active: Mapped[bool]
     sit: Mapped[str] = mapped_column(String(2))
     obs: Mapped[str | None]
-    prox_insp: Mapped[date | None]
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         init=False,
