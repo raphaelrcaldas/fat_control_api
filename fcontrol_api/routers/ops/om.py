@@ -487,8 +487,7 @@ async def update_ordem(
     # Validação de edição manual de número (somente para ordens aprovadas)
     if (
         ordem_data.numero
-        and ordem_data.numero != 'auto'
-        and ordem_data.numero != ordem.numero
+        and ordem_data.numero not in {'auto', ordem.numero}
     ):
         # Só permite editar número em ordens aprovadas
         # (em rascunho, o número é gerado automaticamente na aprovação)

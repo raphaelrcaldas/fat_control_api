@@ -314,10 +314,16 @@ def calcular_custos_frag_mis(
         total_dias_missao += dias_pernoite
         total_diarias_missao += diarias_pernoite
 
-    # 5. Adicionar totais ao JSONB
+    # 5. Somar acréscimo de deslocamento da missão aos totais
+    acrec_desloc_missao = 95 if frag_mis.acrec_desloc else 0
+    if acrec_desloc_missao:
+        for totais in totais_pg_sit.values():
+            totais['total_valor'] += acrec_desloc_missao
+
+    # 6. Adicionar totais ao JSONB
     custos_jsonb['totais_pg_sit'] = totais_pg_sit
     custos_jsonb['total_dias'] = total_dias_missao
     custos_jsonb['total_diarias'] = total_diarias_missao
-    custos_jsonb['acrec_desloc_missao'] = 95 if frag_mis.acrec_desloc else 0
+    custos_jsonb['acrec_desloc_missao'] = acrec_desloc_missao
 
     return custos_jsonb

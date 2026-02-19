@@ -28,21 +28,21 @@ async def aeronaves(session):
             active=True,
             sit='DI',
             obs=None,
-    
+
         ),
         Aeronave(
             matricula='2851',
             active=True,
             sit='DO',
             obs='Motor direito em observação',
-    
+
         ),
         Aeronave(
             matricula='2852',
             active=False,
             sit='IN',
             obs='Em manutenção corretiva',
-    
+
         ),
     ]
     session.add_all(aeros)
