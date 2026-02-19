@@ -226,7 +226,14 @@ async def update_indisp(
 
     if not db_indisp:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Indisp not found'
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Indisponibilidade não encontrada',
+        )
+
+    if db_indisp.deleted_at is not None:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Impossível atualizar, indisponibilidade excluída',
         )
 
     # Usa valores do payload ou mantém os existentes
