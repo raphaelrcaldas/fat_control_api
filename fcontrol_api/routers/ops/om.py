@@ -5,7 +5,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import extract, func
+from sqlalchemy import Date, cast, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -109,11 +109,22 @@ async def list_ordens(
             | (OrdemMissao.id.in_(tripulacao_subquery))
         )
 
-    # Filtro por data (usa data_saida que é a data da primeira etapa)
-    if data_inicio:
-        query = query.where(OrdemMissao.data_saida >= data_inicio)
-    if data_fim:
-        query = query.where(OrdemMissao.data_saida <= data_fim)
+    # Filtro por data: busca missões que tenham etapas no período
+    if data_inicio or data_fim:
+        etapas_date_sub = (
+            select(OrdemEtapa.ordem_id).distinct()
+        )
+        if data_inicio:
+            etapas_date_sub = etapas_date_sub.where(
+                cast(OrdemEtapa.dt_dep, Date) >= data_inicio
+            )
+        if data_fim:
+            etapas_date_sub = etapas_date_sub.where(
+                cast(OrdemEtapa.dt_dep, Date) <= data_fim
+            )
+        query = query.where(
+            OrdemMissao.id.in_(etapas_date_sub)
+        )
 
     # Filtro por etiquetas
     if etiquetas_ids:
