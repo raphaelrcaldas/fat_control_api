@@ -379,9 +379,7 @@ def test_dois_usuarios_consulta_separada():
     }
     resultado_cp = custo_missao('cp', 'c', mis_cp)
     assert resultado_cp['valor_total'] == 670.00
-    assert (
-        resultado_cp['pernoites'][0]['custo']['subtotal'] == 670.00
-    )
+    assert resultado_cp['pernoites'][0]['custo']['subtotal'] == 670.00
 
     mis_cb = {
         'custos': custos_jsonb,
@@ -389,9 +387,7 @@ def test_dois_usuarios_consulta_separada():
     }
     resultado_cb = custo_missao('cb', 'c', mis_cb)
     assert resultado_cb['valor_total'] == 560.00
-    assert (
-        resultado_cb['pernoites'][0]['custo']['subtotal'] == 560.00
-    )
+    assert resultado_cb['pernoites'][0]['custo']['subtotal'] == 560.00
 
 
 def test_missao_diarias_fracionadas():

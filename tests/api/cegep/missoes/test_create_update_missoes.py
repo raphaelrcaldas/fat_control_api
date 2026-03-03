@@ -32,24 +32,39 @@ def _get_posto_for_pg(p_g: str) -> dict:
     """Retorna o dict do posto/graduacao para uso em payloads."""
     postos = {
         'cb': {
-            'ant': 15, 'short': 'cb', 'mid': 'cabo',
-            'long': 'cabo', 'circulo': 'praça',
+            'ant': 15,
+            'short': 'cb',
+            'mid': 'cabo',
+            'long': 'cabo',
+            'circulo': 'praça',
         },
         '2s': {
-            'ant': 13, 'short': '2s', 'mid': '2º sgt',
-            'long': 'segundo sargento', 'circulo': 'grad',
+            'ant': 13,
+            'short': '2s',
+            'mid': '2º sgt',
+            'long': 'segundo sargento',
+            'circulo': 'grad',
         },
         '3s': {
-            'ant': 14, 'short': '3s', 'mid': '3º sgt',
-            'long': 'terceiro sargento', 'circulo': 'grad',
+            'ant': 14,
+            'short': '3s',
+            'mid': '3º sgt',
+            'long': 'terceiro sargento',
+            'circulo': 'grad',
         },
         '1t': {
-            'ant': 8, 'short': '1t', 'mid': '1º ten',
-            'long': 'primeiro tenente', 'circulo': 'of_sub',
+            'ant': 8,
+            'short': '1t',
+            'mid': '1º ten',
+            'long': 'primeiro tenente',
+            'circulo': 'of_sub',
         },
         'cp': {
-            'ant': 7, 'short': 'cp', 'mid': 'cap',
-            'long': 'capitão', 'circulo': 'of_int',
+            'ant': 7,
+            'short': 'cp',
+            'mid': 'cap',
+            'long': 'capitão',
+            'circulo': 'of_int',
         },
     }
     return postos.get(p_g, postos['cb'])
@@ -662,9 +677,7 @@ async def test_create_missao_acrec_desloc_adds_value(
     assert 'acrec_desloc_missao' in db_missao.custos
 
 
-async def test_create_missao_multiple_pernoites(
-    client, session, token, users
-):
+async def test_create_missao_multiple_pernoites(client, session, token, users):
     """Testa criacao de missao com multiplos pernoites."""
     user, _ = users
     today = date.today()
@@ -815,12 +828,8 @@ async def test_create_missao_no_pernoite_on_regres_date(
         'tipo_doc': 'om',
         'indenizavel': True,
         'acrec_desloc': False,
-        'afast': datetime.combine(
-            afast_date, time(8, 0)
-        ).isoformat(),
-        'regres': datetime.combine(
-            regres_date, time(18, 0)
-        ).isoformat(),
+        'afast': datetime.combine(afast_date, time(8, 0)).isoformat(),
+        'regres': datetime.combine(regres_date, time(18, 0)).isoformat(),
         'desc': 'Missao sem pernoite no regres',
         'obs': '',
         'tipo': 'adm',
@@ -899,7 +908,8 @@ async def test_update_missao_recalcula_comiss(
         'acrec_desloc': False,
         'afast': datetime.combine(afast_date, time(8, 0)).isoformat(),
         'regres': datetime.combine(
-            regres_date + timedelta(days=2), time(18, 0)  # Alterado
+            regres_date + timedelta(days=2),
+            time(18, 0),  # Alterado
         ).isoformat(),
         'desc': 'Missao recalculo comiss',
         'obs': '',
@@ -1016,12 +1026,8 @@ async def test_comiss_completude_by_valor_when_no_dias_cumprir(
         'tipo_doc': 'om',
         'indenizavel': True,
         'acrec_desloc': False,
-        'afast': datetime.combine(
-            afast_date, time(8, 0)
-        ).isoformat(),
-        'regres': datetime.combine(
-            regres_date, time(18, 0)
-        ).isoformat(),
+        'afast': datetime.combine(afast_date, time(8, 0)).isoformat(),
+        'regres': datetime.combine(regres_date, time(18, 0)).isoformat(),
         'desc': 'Missao completude por valor',
         'obs': '',
         'tipo': 'adm',

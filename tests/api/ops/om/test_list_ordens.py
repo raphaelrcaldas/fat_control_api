@@ -32,9 +32,7 @@ async def test_list_ordens_empty(client, session, token):
     assert resp['page'] == 1
 
 
-async def test_list_ordens_returns_items(
-    client, session, users, token
-):
+async def test_list_ordens_returns_items(client, session, users, token):
     """Listagem retorna ordens existentes."""
     user, _ = users
 
@@ -56,9 +54,7 @@ async def test_list_ordens_returns_items(
     assert resp['data'][0]['id'] == ordem.id
 
 
-async def test_list_ordens_excludes_deleted(
-    client, session, users, token
-):
+async def test_list_ordens_excludes_deleted(client, session, users, token):
     """Ordens deletadas (soft delete) nao aparecem na listagem."""
     user, _ = users
 
@@ -81,9 +77,7 @@ async def test_list_ordens_excludes_deleted(
     assert resp['data'] == []
 
 
-async def test_list_ordens_pagination(
-    client, session, users, token
-):
+async def test_list_ordens_pagination(client, session, users, token):
     """Paginacao retorna itens corretos por pagina."""
     user, _ = users
 
@@ -106,9 +100,7 @@ async def test_list_ordens_pagination(
     assert resp['pages'] == 3
 
 
-async def test_list_ordens_pagination_last_page(
-    client, session, users, token
-):
+async def test_list_ordens_pagination_last_page(client, session, users, token):
     """Ultima pagina retorna itens restantes."""
     user, _ = users
 
@@ -129,27 +121,13 @@ async def test_list_ordens_pagination_last_page(
     assert resp['page'] == 3
 
 
-async def test_list_ordens_filter_status(
-    client, session, users, token
-):
+async def test_list_ordens_filter_status(client, session, users, token):
     """Filtro por status retorna apenas ordens com status especifico."""
     user, _ = users
 
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='rascunho'
-        )
-    )
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='aprovada'
-        )
-    )
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='aprovada'
-        )
-    )
+    session.add(OrdemMissaoFactory(created_by=user.id, status='rascunho'))
+    session.add(OrdemMissaoFactory(created_by=user.id, status='aprovada'))
+    session.add(OrdemMissaoFactory(created_by=user.id, status='aprovada'))
     await session.commit()
 
     response = await client.get(
@@ -171,21 +149,9 @@ async def test_list_ordens_filter_multiple_status(
     """Filtro com multiplos status retorna ordens de ambos."""
     user, _ = users
 
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='rascunho'
-        )
-    )
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='aprovada'
-        )
-    )
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='cancelada'
-        )
-    )
+    session.add(OrdemMissaoFactory(created_by=user.id, status='rascunho'))
+    session.add(OrdemMissaoFactory(created_by=user.id, status='aprovada'))
+    session.add(OrdemMissaoFactory(created_by=user.id, status='cancelada'))
     await session.commit()
 
     response = await client.get(
@@ -202,22 +168,12 @@ async def test_list_ordens_filter_multiple_status(
     assert resp['total'] == 2
 
 
-async def test_list_ordens_filter_status_ne(
-    client, session, users, token
-):
+async def test_list_ordens_filter_status_ne(client, session, users, token):
     """Filtro status_ne exclui ordens com status especifico."""
     user, _ = users
 
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='rascunho'
-        )
-    )
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, status='aprovada'
-        )
-    )
+    session.add(OrdemMissaoFactory(created_by=user.id, status='rascunho'))
+    session.add(OrdemMissaoFactory(created_by=user.id, status='aprovada'))
     await session.commit()
 
     response = await client.get(
@@ -239,9 +195,7 @@ async def test_list_ordens_filter_data_inicio_fim(
     user, _ = users
 
     today = date.today()
-    ordem_hoje = OrdemMissaoFactory(
-        created_by=user.id, data_saida=today
-    )
+    ordem_hoje = OrdemMissaoFactory(created_by=user.id, data_saida=today)
     ordem_passado = OrdemMissaoFactory(
         created_by=user.id,
         data_saida=today - timedelta(days=30),
@@ -263,15 +217,11 @@ async def test_list_ordens_filter_data_inicio_fim(
     assert resp['total'] == 1
 
 
-async def test_list_ordens_busca_by_numero(
-    client, session, users, token
-):
+async def test_list_ordens_busca_by_numero(client, session, users, token):
     """Busca por numero da ordem retorna resultado correto."""
     user, _ = users
 
-    ordem = OrdemMissaoFactory(
-        created_by=user.id, numero='OM-UNICO-123'
-    )
+    ordem = OrdemMissaoFactory(created_by=user.id, numero='OM-UNICO-123')
     session.add(ordem)
     session.add(OrdemMissaoFactory(created_by=user.id))
     await session.commit()
@@ -288,21 +238,13 @@ async def test_list_ordens_busca_by_numero(
     assert resp['data'][0]['numero'] == 'OM-UNICO-123'
 
 
-async def test_list_ordens_busca_by_tipo(
-    client, session, users, token
-):
+async def test_list_ordens_busca_by_tipo(client, session, users, token):
     """Busca por tipo da ordem retorna resultado correto."""
     user, _ = users
 
-    ordem = OrdemMissaoFactory(
-        created_by=user.id, tipo='instrucao'
-    )
+    ordem = OrdemMissaoFactory(created_by=user.id, tipo='instrucao')
     session.add(ordem)
-    session.add(
-        OrdemMissaoFactory(
-            created_by=user.id, tipo='transporte'
-        )
-    )
+    session.add(OrdemMissaoFactory(created_by=user.id, tipo='transporte'))
     await session.commit()
 
     response = await client.get(
@@ -317,9 +259,7 @@ async def test_list_ordens_busca_by_tipo(
     assert resp['data'][0]['tipo'] == 'instrucao'
 
 
-async def test_list_ordens_busca_by_icao(
-    client, session, users, token
-):
+async def test_list_ordens_busca_by_icao(client, session, users, token):
     """Busca por codigo ICAO de etapa retorna a ordem."""
     user, _ = users
 
@@ -328,9 +268,7 @@ async def test_list_ordens_busca_by_icao(
     await session.commit()
     await session.refresh(ordem)
 
-    etapa = OrdemEtapaFactory(
-        ordem_id=ordem.id, origem='SBGL', dest='SBBR'
-    )
+    etapa = OrdemEtapaFactory(ordem_id=ordem.id, origem='SBGL', dest='SBBR')
     session.add(etapa)
     await session.commit()
 
@@ -347,15 +285,11 @@ async def test_list_ordens_busca_by_icao(
     assert ordem.id in ids
 
 
-async def test_list_ordens_filter_etiquetas(
-    client, session, users, token
-):
+async def test_list_ordens_filter_etiquetas(client, session, users, token):
     """Filtro por etiquetas retorna ordens vinculadas."""
     user, _ = users
 
-    etiqueta = Etiqueta(
-        nome='Urgente', cor='#FF0000', descricao='Teste'
-    )
+    etiqueta = Etiqueta(nome='Urgente', cor='#FF0000', descricao='Teste')
     session.add(etiqueta)
     await session.commit()
     await session.refresh(etiqueta)

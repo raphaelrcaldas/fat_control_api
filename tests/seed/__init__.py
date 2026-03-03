@@ -25,8 +25,4 @@ SEED_GROUPS = [
 ]
 
 # Mantido para compatibilidade (nao recomendado usar diretamente)
-ALL_SEED_OBJECTS = [
-    item
-    for group in SEED_GROUPS
-    for item in group
-]
+ALL_SEED_OBJECTS = [item for group in SEED_GROUPS for item in group]

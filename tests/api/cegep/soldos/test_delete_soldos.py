@@ -82,9 +82,7 @@ async def test_delete_soldo_blocked_by_missao_grat(
         desc='Missao grat bloqueante',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=3), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=3), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,
@@ -117,10 +115,7 @@ async def test_delete_soldo_blocked_by_missao_grat(
 
     assert response.status_code == HTTPStatus.CONFLICT
     msg = response.json()['message']
-    assert (
-        'missões' in msg.lower()
-        or 'gratificação' in msg.lower()
-    )
+    assert 'missões' in msg.lower() or 'gratificação' in msg.lower()
 
 
 async def test_delete_soldo_allowed_with_comiss_only(
@@ -145,9 +140,7 @@ async def test_delete_soldo_allowed_with_comiss_only(
         desc='Missao comiss',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=2), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,
@@ -203,9 +196,7 @@ async def test_delete_soldo_allowed_outside_period(
         desc='Missao futura',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=2), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,

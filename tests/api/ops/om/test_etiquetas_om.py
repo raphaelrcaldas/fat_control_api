@@ -36,13 +36,9 @@ async def test_list_etiquetas_empty(client, session, token):
     assert resp['data'] == []
 
 
-async def test_list_etiquetas_returns_items(
-    client, session, token
-):
+async def test_list_etiquetas_returns_items(client, session, token):
     """Listagem retorna etiquetas existentes."""
-    etq = Etiqueta(
-        nome='Tag1', cor='#FF0000', descricao='desc1'
-    )
+    etq = Etiqueta(nome='Tag1', cor='#FF0000', descricao='desc1')
     session.add(etq)
     await session.commit()
 
@@ -58,16 +54,10 @@ async def test_list_etiquetas_returns_items(
     assert resp['data'][0]['cor'] == '#FF0000'
 
 
-async def test_list_etiquetas_ordered_by_nome(
-    client, session, token
-):
+async def test_list_etiquetas_ordered_by_nome(client, session, token):
     """Etiquetas sao retornadas ordenadas por nome."""
-    session.add(
-        Etiqueta(nome='Zebra', cor='#000000')
-    )
-    session.add(
-        Etiqueta(nome='Alpha', cor='#FFFFFF')
-    )
+    session.add(Etiqueta(nome='Zebra', cor='#000000'))
+    session.add(Etiqueta(nome='Alpha', cor='#FFFFFF'))
     await session.commit()
 
     response = await client.get(
@@ -93,9 +83,7 @@ async def test_list_etiquetas_requires_auth(client):
 # ===============================================================
 
 
-async def test_create_etiqueta_success(
-    client, session, token
-):
+async def test_create_etiqueta_success(client, session, token):
     """Criacao de etiqueta com dados validos."""
     payload = {
         'nome': 'Nova Tag',
@@ -119,9 +107,7 @@ async def test_create_etiqueta_success(
     assert 'id' in data
 
 
-async def test_create_etiqueta_without_descricao(
-    client, session, token
-):
+async def test_create_etiqueta_without_descricao(client, session, token):
     """Criacao de etiqueta sem descricao (campo opcional)."""
     payload = {'nome': 'Simples', 'cor': '#0000FF'}
 
@@ -149,13 +135,9 @@ async def test_create_etiqueta_requires_auth(client):
 # ===============================================================
 
 
-async def test_update_etiqueta_success(
-    client, session, token
-):
+async def test_update_etiqueta_success(client, session, token):
     """Atualizacao parcial de etiqueta funciona."""
-    etq = Etiqueta(
-        nome='Original', cor='#FF0000', descricao='old'
-    )
+    etq = Etiqueta(nome='Original', cor='#FF0000', descricao='old')
     session.add(etq)
     await session.commit()
     await session.refresh(etq)
@@ -175,13 +157,9 @@ async def test_update_etiqueta_success(
     assert data['descricao'] == 'old'
 
 
-async def test_update_etiqueta_all_fields(
-    client, session, token
-):
+async def test_update_etiqueta_all_fields(client, session, token):
     """Atualizacao de todos os campos funciona."""
-    etq = Etiqueta(
-        nome='Original', cor='#FF0000', descricao='old'
-    )
+    etq = Etiqueta(nome='Original', cor='#FF0000', descricao='old')
     session.add(etq)
     await session.commit()
     await session.refresh(etq)
@@ -203,9 +181,7 @@ async def test_update_etiqueta_all_fields(
     assert data['descricao'] == 'new'
 
 
-async def test_update_etiqueta_not_found(
-    client, session, token
-):
+async def test_update_etiqueta_not_found(client, session, token):
     """Atualizacao de etiqueta inexistente retorna 404."""
     response = await client.put(
         f'{BASE_URL}99999',
@@ -218,9 +194,7 @@ async def test_update_etiqueta_not_found(
 
 async def test_update_etiqueta_requires_auth(client):
     """Endpoint requer autenticacao."""
-    response = await client.put(
-        f'{BASE_URL}1', json={'nome': 'Test'}
-    )
+    response = await client.put(f'{BASE_URL}1', json={'nome': 'Test'})
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
@@ -229,13 +203,9 @@ async def test_update_etiqueta_requires_auth(client):
 # ===============================================================
 
 
-async def test_delete_etiqueta_success(
-    client, session, token
-):
+async def test_delete_etiqueta_success(client, session, token):
     """Delecao de etiqueta existente funciona (hard delete)."""
-    etq = Etiqueta(
-        nome='Deletar', cor='#FF0000', descricao='bye'
-    )
+    etq = Etiqueta(nome='Deletar', cor='#FF0000', descricao='bye')
     session.add(etq)
     await session.commit()
     await session.refresh(etq)
@@ -253,9 +223,7 @@ async def test_delete_etiqueta_success(
     assert deleted is None
 
 
-async def test_delete_etiqueta_not_found(
-    client, session, token
-):
+async def test_delete_etiqueta_not_found(client, session, token):
     """Delecao de etiqueta inexistente retorna 404."""
     response = await client.delete(
         f'{BASE_URL}99999',

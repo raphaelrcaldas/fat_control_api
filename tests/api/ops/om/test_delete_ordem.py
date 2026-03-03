@@ -16,9 +16,7 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om'
 
 
-async def test_delete_ordem_success(
-    client, session, users, token
-):
+async def test_delete_ordem_success(client, session, users, token):
     """Soft delete marca deleted_at e retorna sucesso."""
     user, _ = users
 
@@ -40,9 +38,7 @@ async def test_delete_ordem_success(
     assert ordem.deleted_at is not None
 
 
-async def test_delete_ordem_not_found(
-    client, session, token
-):
+async def test_delete_ordem_not_found(client, session, token):
     """Deletar ordem inexistente retorna 404."""
     response = await client.delete(
         f'{BASE_URL}/99999',
@@ -52,9 +48,7 @@ async def test_delete_ordem_not_found(
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_ordem_already_deleted(
-    client, session, users, token
-):
+async def test_delete_ordem_already_deleted(client, session, users, token):
     """Deletar ordem ja deletada retorna 404."""
     user, _ = users
 
@@ -74,9 +68,7 @@ async def test_delete_ordem_already_deleted(
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_deleted_ordem_not_in_list(
-    client, session, users, token
-):
+async def test_deleted_ordem_not_in_list(client, session, users, token):
     """Ordem deletada nao aparece na listagem."""
     user, _ = users
 

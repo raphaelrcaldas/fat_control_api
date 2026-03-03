@@ -234,7 +234,9 @@ class OrdemMissaoFactory(factory.Factory):
 
     numero = factory.Sequence(lambda n: f'OM-{n:04d}/2025')
     matricula_anv = factory.fuzzy.FuzzyChoice([
-        '2850', '2851', '2852',
+        '2850',
+        '2851',
+        '2852',
     ])
     tipo = factory.fuzzy.FuzzyChoice([
         'instrucao',

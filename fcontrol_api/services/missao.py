@@ -180,10 +180,12 @@ async def adicionar_missao(
             ).all()
             # Insere diretamente na tabela de associacao
             for etiqueta in db_etiquetas:
-                session.add(FragEtiqueta(
-                    frag_id=missao.id,
-                    etiqueta_id=etiqueta.id,
-                ))
+                session.add(
+                    FragEtiqueta(
+                        frag_id=missao.id,
+                        etiqueta_id=etiqueta.id,
+                    )
+                )
 
     return missao
 
@@ -220,11 +222,7 @@ async def recalcular_custos_missoes(
     soldos_cache = await cache_soldos(session)
 
     grupos_pg = dict(
-        (
-            await session.execute(
-                select(GrupoPg.pg_short, GrupoPg.grupo)
-            )
-        ).all()
+        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
     )
     grupos_cidade = dict(
         (
@@ -261,8 +259,7 @@ async def recalcular_custos_missoes(
         ]
 
         users_input = [
-            CustoUserFragInput(p_g=uf.p_g, sit=uf.sit)
-            for uf in users_frag
+            CustoUserFragInput(p_g=uf.p_g, sit=uf.sit) for uf in users_frag
         ]
 
         if not users_input or not pernoites_input:

@@ -195,10 +195,7 @@ async def add_permission_to_role(
     existing = await session.scalar(
         select(RolePermissions).where(
             (RolePermissions.role_id == role_id)
-            & (
-                RolePermissions.permission_id
-                == body.permission_id
-            )
+            & (RolePermissions.permission_id == body.permission_id)
         )
     )
     if existing:
@@ -214,9 +211,7 @@ async def add_permission_to_role(
     session.add(rp)
     await session.commit()
 
-    return success_response(
-        message='Permissao adicionada ao role com sucesso'
-    )
+    return success_response(message='Permissao adicionada ao role com sucesso')
 
 
 @router.delete(
@@ -242,6 +237,4 @@ async def remove_permission_from_role(
     await session.delete(result)
     await session.commit()
 
-    return success_response(
-        message='Permissao removida do role com sucesso'
-    )
+    return success_response(message='Permissao removida do role com sucesso')

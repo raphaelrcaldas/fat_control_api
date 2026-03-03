@@ -416,9 +416,7 @@ async def test_pagination_defaults(client, session, token, users):
     assert resp['pages'] == 2
 
 
-async def test_pagination_custom_page_and_limit(
-    client, session, token, users
-):
+async def test_pagination_custom_page_and_limit(client, session, token, users):
     """Testa paginacao com page e limit customizados."""
     user, _ = users
 
@@ -462,9 +460,7 @@ async def test_pagination_last_page(client, session, token, users):
 # ============================================================
 
 
-async def test_custo_missao_with_custos_jsonb(
-    client, session, token, users
-):
+async def test_custo_missao_with_custos_jsonb(client, session, token, users):
     """Testa que custos sao calculados corretamente a partir do JSONB."""
     user, _ = users
 
@@ -515,9 +511,7 @@ async def test_custo_missao_without_custos(client, session, token, users):
     assert missao['qtd_ac'] == 0
 
 
-async def test_custo_missao_no_acrec_desloc(
-    client, session, token, users
-):
+async def test_custo_missao_no_acrec_desloc(client, session, token, users):
     """Testa que missao sem acrescimo de deslocamento tem qtd_ac=0."""
     user, _ = users
 

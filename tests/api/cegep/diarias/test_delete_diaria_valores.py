@@ -87,9 +87,7 @@ async def test_delete_diaria_valor_blocked_by_missao_comiss(
         desc='Missao bloqueante',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=3), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=3), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,
@@ -122,10 +120,7 @@ async def test_delete_diaria_valor_blocked_by_missao_comiss(
 
     assert response.status_code == HTTPStatus.CONFLICT
     msg = response.json()['message']
-    assert (
-        'missões' in msg.lower()
-        or 'diárias' in msg.lower()
-    )
+    assert 'missões' in msg.lower() or 'diárias' in msg.lower()
 
 
 async def test_delete_diaria_valor_blocked_by_missao_diaria(
@@ -151,9 +146,7 @@ async def test_delete_diaria_valor_blocked_by_missao_diaria(
         desc='Missao diaria',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=2), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,
@@ -210,9 +203,7 @@ async def test_delete_diaria_valor_allowed_with_grat_only(
         desc='Missao grat',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=2), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,
@@ -269,9 +260,7 @@ async def test_delete_diaria_valor_allowed_outside_period(
         desc='Missao futura',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(
-            today + timedelta(days=2), time(18, 0)
-        ),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
         acrec_desloc=False,
         obs='',
         indenizavel=True,

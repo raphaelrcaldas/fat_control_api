@@ -148,9 +148,7 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
     session.add(new_soldo)
     await session.flush()
 
-    await recalcular_custos_missoes(
-        soldo.data_inicio, soldo.data_fim, session
-    )
+    await recalcular_custos_missoes(soldo.data_inicio, soldo.data_fim, session)
 
     await session.commit()
     await session.refresh(new_soldo)
@@ -189,9 +187,7 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
 
     if 'pg' in update_data:
         posto = await session.scalar(
-            select(PostoGrad).where(
-                PostoGrad.short == update_data['pg']
-            )
+            select(PostoGrad).where(PostoGrad.short == update_data['pg'])
         )
         if not posto:
             raise HTTPException(

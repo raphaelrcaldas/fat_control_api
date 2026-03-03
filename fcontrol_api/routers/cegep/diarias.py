@@ -170,9 +170,7 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
     session.add(new_valor)
     await session.flush()
 
-    await recalcular_custos_missoes(
-        data.data_inicio, data.data_fim, session
-    )
+    await recalcular_custos_missoes(data.data_inicio, data.data_fim, session)
 
     await session.commit()
     await session.refresh(new_valor)
@@ -185,9 +183,7 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
             valor=new_valor.valor,
             data_inicio=new_valor.data_inicio,
             data_fim=new_valor.data_fim,
-            status=calculate_status(
-                new_valor.data_inicio, new_valor.data_fim
-            ),
+            status=calculate_status(new_valor.data_inicio, new_valor.data_fim),
         ),
         message='Valor de diária criado com sucesso',
     )
@@ -249,9 +245,7 @@ async def update_diaria_valor(
             valor=db_valor.valor,
             data_inicio=db_valor.data_inicio,
             data_fim=db_valor.data_fim,
-            status=calculate_status(
-                db_valor.data_inicio, db_valor.data_fim
-            ),
+            status=calculate_status(db_valor.data_inicio, db_valor.data_fim),
         ),
         message='Valor de diária atualizado com sucesso',
     )

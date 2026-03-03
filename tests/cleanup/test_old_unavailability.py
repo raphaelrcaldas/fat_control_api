@@ -34,9 +34,7 @@ async def test_cleanup_removes_old_indisps(session, users):
     assert result.status == 'success'
     assert result.rows_affected == 1
 
-    remaining = await session.scalar(
-        select(Indisp).where(Indisp.id == old_id)
-    )
+    remaining = await session.scalar(select(Indisp).where(Indisp.id == old_id))
     assert remaining is None
 
 
@@ -92,13 +90,17 @@ async def test_cleanup_removes_related_logs(session, users):
     assert result.details['logs_deleted'] == 1
 
     remaining_logs = (
-        await session.execute(
-            select(UserActionLog).where(
-                UserActionLog.resource == 'indisp',
-                UserActionLog.resource_id == old_indisp.id,
+        (
+            await session.execute(
+                select(UserActionLog).where(
+                    UserActionLog.resource == 'indisp',
+                    UserActionLog.resource_id == old_indisp.id,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(remaining_logs) == 0
 
 

@@ -20,9 +20,7 @@ async def run_all_tasks(
 
     for module_info in pkgutil.iter_modules(tasks_package.__path__):
         if module_info.name not in ALLOWED_TASKS:
-            logger.warning(
-                'Modulo inesperado ignorado: %s', module_info.name
-            )
+            logger.warning('Modulo inesperado ignorado: %s', module_info.name)
             continue
 
         module = importlib.import_module(
@@ -47,10 +45,7 @@ def log_report(results: list[CleanupTaskResult]) -> None:
     """Loga relatorio consolidado das cleanup tasks."""
     separator = '=' * 60
     dash = '-' * 60
-    header = (
-        f'{"Task":<35} {"Status":<10} '
-        f'{"Rows":<8} {"Duration":<10}'
-    )
+    header = f'{"Task":<35} {"Status":<10} {"Rows":<8} {"Duration":<10}'
 
     lines = [
         '',

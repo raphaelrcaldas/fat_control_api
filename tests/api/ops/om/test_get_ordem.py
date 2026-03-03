@@ -17,9 +17,7 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om'
 
 
-async def test_get_ordem_success(
-    client, session, users, token
-):
+async def test_get_ordem_success(client, session, users, token):
     """Busca por ID retorna ordem com todos os campos."""
     user, _ = users
 
@@ -44,9 +42,7 @@ async def test_get_ordem_success(
     assert data['status'] == ordem.status
 
 
-async def test_get_ordem_includes_etapas(
-    client, session, users, token
-):
+async def test_get_ordem_includes_etapas(client, session, users, token):
     """Resposta inclui etapas da ordem (via POST)."""
     etapa_payload = {
         'dt_dep': '2025-06-15T10:00:00',
@@ -91,13 +87,9 @@ async def test_get_ordem_includes_etapas(
     assert data['etapas'][0]['dest'] == 'SBBR'
 
 
-async def test_get_ordem_includes_etiquetas(
-    client, session, users, token
-):
+async def test_get_ordem_includes_etiquetas(client, session, users, token):
     """Resposta inclui etiquetas da ordem (via POST)."""
-    etiqueta = Etiqueta(
-        nome='Tag', cor='#00FF00', descricao='desc'
-    )
+    etiqueta = Etiqueta(nome='Tag', cor='#00FF00', descricao='desc')
     session.add(etiqueta)
     await session.commit()
     await session.refresh(etiqueta)
@@ -144,9 +136,7 @@ async def test_get_ordem_not_found(client, session, token):
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_get_ordem_deleted_returns_404(
-    client, session, users, token
-):
+async def test_get_ordem_deleted_returns_404(client, session, users, token):
     """Ordem com soft delete retorna 404."""
     user, _ = users
 

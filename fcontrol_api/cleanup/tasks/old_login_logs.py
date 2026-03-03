@@ -17,9 +17,8 @@ async def run(
     """Remove logs de login antigos (action='login', resource='auth')."""
     start = time.monotonic()
     # Usar UTC naive para compatibilidade com a coluna timestamp
-    cutoff_date = (
-        datetime.now(timezone.utc).replace(tzinfo=None)
-        - timedelta(days=days_threshold)
+    cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        days=days_threshold
     )
 
     try:

@@ -34,9 +34,7 @@ async def test_create_aeronave_success(client, token):
     assert data['data']['sit'] == 'DI'
 
 
-async def test_create_aeronave_with_obs(
-    client, token
-):
+async def test_create_aeronave_with_obs(client, token):
     response = await client.post(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -70,9 +68,7 @@ async def test_create_aeronave_duplicate_matricula_fails(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_create_aeronave_invalid_sit_fails(
-    client, token
-):
+async def test_create_aeronave_invalid_sit_fails(client, token):
     response = await client.post(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -86,9 +82,7 @@ async def test_create_aeronave_invalid_sit_fails(
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_aeronave_matricula_not_4_digits_fails(
-    client, token
-):
+async def test_create_aeronave_matricula_not_4_digits_fails(client, token):
     response = await client.post(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -102,9 +96,7 @@ async def test_create_aeronave_matricula_not_4_digits_fails(
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_aeronave_matricula_non_numeric_fails(
-    client, token
-):
+async def test_create_aeronave_matricula_non_numeric_fails(client, token):
     response = await client.post(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -136,9 +128,7 @@ async def test_create_aeronave_without_auth_fails(client):
 # ========================================
 
 
-async def test_list_aeronaves_success(
-    client, token, aeronaves
-):
+async def test_list_aeronaves_success(client, token, aeronaves):
     response = await client.get(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -152,9 +142,7 @@ async def test_list_aeronaves_success(
     assert len(data['data']) == 3
 
 
-async def test_list_aeronaves_filter_by_sit(
-    client, token, aeronaves
-):
+async def test_list_aeronaves_filter_by_sit(client, token, aeronaves):
     response = await client.get(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -168,9 +156,7 @@ async def test_list_aeronaves_filter_by_sit(
     assert data['data'][0]['sit'] == 'DI'
 
 
-async def test_list_aeronaves_filter_by_active(
-    client, token, aeronaves
-):
+async def test_list_aeronaves_filter_by_active(client, token, aeronaves):
     response = await client.get(
         '/ops/aeronaves/',
         headers={'Authorization': f'Bearer {token}'},
@@ -202,9 +188,7 @@ async def test_list_aeronaves_empty(client, token):
 # ========================================
 
 
-async def test_get_aeronave_success(
-    client, token, aeronave
-):
+async def test_get_aeronave_success(client, token, aeronave):
     response = await client.get(
         f'/ops/aeronaves/{aeronave.matricula}',
         headers={'Authorization': f'Bearer {token}'},
@@ -231,9 +215,7 @@ async def test_get_aeronave_not_found(client, token):
 # ========================================
 
 
-async def test_update_aeronave_success(
-    client, token, aeronave
-):
+async def test_update_aeronave_success(client, token, aeronave):
     response = await client.put(
         f'/ops/aeronaves/{aeronave.matricula}',
         headers={'Authorization': f'Bearer {token}'},
@@ -248,9 +230,7 @@ async def test_update_aeronave_success(
     assert data['data']['obs'] == 'Entrou em inspeção'
 
 
-async def test_update_aeronave_partial(
-    client, token, aeronave
-):
+async def test_update_aeronave_partial(client, token, aeronave):
     response = await client.put(
         f'/ops/aeronaves/{aeronave.matricula}',
         headers={'Authorization': f'Bearer {token}'},

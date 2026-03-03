@@ -170,9 +170,7 @@ def test_missao_com_acrescimo_deslocamento(
     assert resultado['acrec_desloc_missao'] == 95
     assert resultado['pernoite_1']['ac_desloc'] == 95
     # 425 + 212.5 + 95 = R$ 732,50
-    assert (
-        resultado['pernoite_1']['pg_cp_sit_c']['subtotal'] == 732.50
-    )
+    assert resultado['pernoite_1']['pg_cp_sit_c']['subtotal'] == 732.50
 
 
 def test_multiplos_pernoites(
@@ -213,12 +211,8 @@ def test_multiplos_pernoites(
     )
 
     # Pernoite 1: 2 * 425 = 850
-    assert (
-        resultado['pernoite_1']['pg_cp_sit_c']['subtotal'] == 850.00
-    )
+    assert resultado['pernoite_1']['pg_cp_sit_c']['subtotal'] == 850.00
     # Pernoite 2: 2*335 + 0.5*335 = 837.50
-    assert (
-        resultado['pernoite_2']['pg_cp_sit_c']['subtotal'] == 837.50
-    )
+    assert resultado['pernoite_2']['pg_cp_sit_c']['subtotal'] == 837.50
     total = resultado['totais_pg_sit']['pg_cp_sit_c']['total_valor']
     assert total == 850.00 + 837.50

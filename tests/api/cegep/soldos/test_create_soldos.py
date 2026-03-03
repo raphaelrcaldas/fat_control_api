@@ -192,18 +192,14 @@ async def test_create_soldo_valor_negative_fails(client, token):
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_soldo_auto_close_previous(
-    client, session, token
-):
+async def test_create_soldo_auto_close_previous(client, session, token):
     """Testa que criar novo soldo fecha o anterior."""
     today = date.today()
 
     novo_data = {
         'pg': 'cb',
         'valor': 3200.00,
-        'data_inicio': (
-            today + timedelta(days=30)
-        ).isoformat(),
+        'data_inicio': (today + timedelta(days=30)).isoformat(),
     }
 
     response = await client.post(
@@ -223,9 +219,7 @@ async def test_create_soldo_auto_close_previous(
         )
     )
     assert anterior is not None
-    expected_fim = (
-        today + timedelta(days=30) - timedelta(days=1)
-    )
+    expected_fim = today + timedelta(days=30) - timedelta(days=1)
     assert anterior.data_fim == expected_fim
 
 
@@ -250,9 +244,7 @@ async def test_create_soldo_auto_close_validation_error(
     assert 'antes do soldo vigente' in msg
 
 
-async def test_create_soldo_no_auto_close_different_pg(
-    client, session, token
-):
+async def test_create_soldo_no_auto_close_different_pg(client, session, token):
     """Testa que auto-close nao afeta PGs diferentes."""
     today = date.today()
 
@@ -269,9 +261,7 @@ async def test_create_soldo_no_auto_close_different_pg(
     novo_data = {
         'pg': '2s',
         'valor': 5500.00,
-        'data_inicio': (
-            today + timedelta(days=30)
-        ).isoformat(),
+        'data_inicio': (today + timedelta(days=30)).isoformat(),
     }
 
     response = await client.post(

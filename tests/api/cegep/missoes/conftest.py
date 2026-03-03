@@ -190,24 +190,39 @@ def _get_posto_for_pg(p_g: str) -> dict:
     """
     postos = {
         'cb': {
-            'ant': 15, 'short': 'cb', 'mid': 'cabo',
-            'long': 'cabo', 'circulo': 'praça',
+            'ant': 15,
+            'short': 'cb',
+            'mid': 'cabo',
+            'long': 'cabo',
+            'circulo': 'praça',
         },
         '2s': {
-            'ant': 13, 'short': '2s', 'mid': '2º sgt',
-            'long': 'segundo sargento', 'circulo': 'grad',
+            'ant': 13,
+            'short': '2s',
+            'mid': '2º sgt',
+            'long': 'segundo sargento',
+            'circulo': 'grad',
         },
         '3s': {
-            'ant': 14, 'short': '3s', 'mid': '3º sgt',
-            'long': 'terceiro sargento', 'circulo': 'grad',
+            'ant': 14,
+            'short': '3s',
+            'mid': '3º sgt',
+            'long': 'terceiro sargento',
+            'circulo': 'grad',
         },
         '1t': {
-            'ant': 8, 'short': '1t', 'mid': '1º ten',
-            'long': 'primeiro tenente', 'circulo': 'of_sub',
+            'ant': 8,
+            'short': '1t',
+            'mid': '1º ten',
+            'long': 'primeiro tenente',
+            'circulo': 'of_sub',
         },
         'cp': {
-            'ant': 7, 'short': 'cp', 'mid': 'cap',
-            'long': 'capitão', 'circulo': 'of_int',
+            'ant': 7,
+            'short': 'cp',
+            'mid': 'cap',
+            'long': 'capitão',
+            'circulo': 'of_int',
         },
     }
     return postos.get(p_g, postos['cb'])

@@ -41,9 +41,7 @@ def _make_etapa(
     }
 
 
-async def test_update_ordem_simple_fields(
-    client, session, users, token
-):
+async def test_update_ordem_simple_fields(client, session, users, token):
     """Atualizacao de campos simples funciona."""
     user, _ = users
 
@@ -70,9 +68,7 @@ async def test_update_ordem_simple_fields(
     assert data['projeto'] == 'KC-390'
 
 
-async def test_update_ordem_not_found(
-    client, session, token
-):
+async def test_update_ordem_not_found(client, session, token):
     """Atualizacao de ordem inexistente retorna 404."""
     response = await client.put(
         f'{BASE_URL}/99999',
@@ -83,9 +79,7 @@ async def test_update_ordem_not_found(
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_update_ordem_deleted_returns_404(
-    client, session, users, token
-):
+async def test_update_ordem_deleted_returns_404(client, session, users, token):
     """Atualizacao de ordem deletada retorna 404."""
     user, _ = users
 
@@ -181,9 +175,7 @@ async def test_update_aprovada_sequential_numero(
     assert data['numero'] == '002'
 
 
-async def test_update_aprovada_requires_etapa(
-    client, session, users, token
-):
+async def test_update_aprovada_requires_etapa(client, session, users, token):
     """Transicao para aprovada sem etapas falha (400)."""
     user, _ = users
 
@@ -206,12 +198,11 @@ async def test_update_aprovada_requires_etapa(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_update_replaces_etapas(
-    client, session, users, token
-):
+async def test_update_replaces_etapas(client, session, users, token):
     """Atualizacao de etapas substitui todas as existentes."""
     old_etapa = _make_etapa(
-        origem='SBRF', dest='SBSV',
+        origem='SBRF',
+        dest='SBSV',
     )
     create_payload = {
         'matricula_anv': '2850',
@@ -255,9 +246,7 @@ async def test_update_replaces_etapas(
     assert data['etapas'][0]['dest'] == 'SBBR'
 
 
-async def test_update_etapas_updates_data_saida(
-    client, session, users, token
-):
+async def test_update_etapas_updates_data_saida(client, session, users, token):
     """Atualizacao de etapas recalcula data_saida."""
     user, _ = users
 
@@ -286,9 +275,7 @@ async def test_update_etapas_updates_data_saida(
     assert data['data_saida'] == '2025-07-20'
 
 
-async def test_update_etiquetas(
-    client, session, users, token
-):
+async def test_update_etiquetas(client, session, users, token):
     """Atualizacao de etiquetas substitui as existentes."""
     user, _ = users
 
@@ -406,7 +393,5 @@ async def test_update_manual_numero_duplicate_fails(
 
 async def test_update_ordem_requires_auth(client):
     """Endpoint requer autenticacao."""
-    response = await client.put(
-        f'{BASE_URL}/1', json={'tipo': 'transporte'}
-    )
+    response = await client.put(f'{BASE_URL}/1', json={'tipo': 'transporte'})
     assert response.status_code == HTTPStatus.UNAUTHORIZED

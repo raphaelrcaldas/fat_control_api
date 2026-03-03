@@ -207,9 +207,7 @@ async def test_create_diaria_valor_negative_fails(client, token):
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_diaria_valor_auto_close_previous(
-    client, session, token
-):
+async def test_create_diaria_valor_auto_close_previous(client, session, token):
     """Testa que criar novo valor fecha o anterior."""
     today = date.today()
 
@@ -264,9 +262,7 @@ async def test_create_diaria_valor_auto_close_validation_error(
         'grupo_pg': 1,
         'grupo_cid': 4,
         'valor': 350.00,
-        'data_inicio': (
-            today - timedelta(days=5)
-        ).isoformat(),
+        'data_inicio': (today - timedelta(days=5)).isoformat(),
     }
 
     response = await client.post(

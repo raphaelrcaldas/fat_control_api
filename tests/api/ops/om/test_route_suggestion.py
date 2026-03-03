@@ -16,9 +16,7 @@ from tests.factories import OrdemEtapaFactory, OrdemMissaoFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_route_suggestion_full_match(
-    client, session, users, token
-):
+async def test_route_suggestion_full_match(client, session, users, token):
     """Rota completa (origem + dest) retorna todos os campos."""
     user, _ = users
 
@@ -114,9 +112,7 @@ async def test_route_suggestion_partial_match_dest_only(
     assert data['tvoo_alt'] == 45
 
 
-async def test_route_suggestion_no_match(
-    client, session, users, token
-):
+async def test_route_suggestion_no_match(client, session, users, token):
     """Nem rota nem destino existem, retorna None."""
     user, _ = users
 
@@ -216,9 +212,7 @@ async def test_route_suggestion_case_insensitive(
     user, _ = users
 
     # Criar ordem com ICAO em maiúsculas
-    ordem = OrdemMissaoFactory(
-        created_by=user.id, status='aprovada'
-    )
+    ordem = OrdemMissaoFactory(created_by=user.id, status='aprovada')
     session.add(ordem)
     await session.commit()
     await session.refresh(ordem)
@@ -255,9 +249,7 @@ async def test_route_suggestion_returns_most_recent(
     user, _ = users
 
     # Criar ordem antiga
-    ordem_antiga = OrdemMissaoFactory(
-        created_by=user.id, status='aprovada'
-    )
+    ordem_antiga = OrdemMissaoFactory(created_by=user.id, status='aprovada')
     session.add(ordem_antiga)
     await session.commit()
     await session.refresh(ordem_antiga)
@@ -274,9 +266,7 @@ async def test_route_suggestion_returns_most_recent(
     await session.commit()
 
     # Criar ordem mais recente
-    ordem_recente = OrdemMissaoFactory(
-        created_by=user.id, status='aprovada'
-    )
+    ordem_recente = OrdemMissaoFactory(created_by=user.id, status='aprovada')
     session.add(ordem_recente)
     await session.commit()
     await session.refresh(ordem_recente)

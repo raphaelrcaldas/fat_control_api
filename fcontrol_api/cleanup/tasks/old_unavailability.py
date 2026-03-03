@@ -20,9 +20,7 @@ async def run(
     cutoff_date = date.today() - timedelta(days=days_threshold)
 
     try:
-        query = select(Indisp.id).where(
-            Indisp.date_end < cutoff_date
-        )
+        query = select(Indisp.id).where(Indisp.date_end < cutoff_date)
         result = await session.execute(query)
         ids_to_delete = [row[0] for row in result.all()]
 

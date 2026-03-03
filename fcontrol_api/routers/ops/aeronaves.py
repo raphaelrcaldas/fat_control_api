@@ -37,9 +37,7 @@ async def create_aeronave(
     session: Session,
 ):
     db_aeronave = await session.scalar(
-        select(Aeronave).where(
-            Aeronave.matricula == aeronave.matricula
-        )
+        select(Aeronave).where(Aeronave.matricula == aeronave.matricula)
     )
 
     if db_aeronave:
@@ -81,21 +79,13 @@ async def list_aeronaves(
     page = max(page, 1)
     offset = (page - 1) * per_page
 
-    base_query = select(Aeronave).order_by(
-        Aeronave.matricula
-    )
-    count_query = select(func.count()).select_from(
-        Aeronave
-    )
+    base_query = select(Aeronave).order_by(Aeronave.matricula)
+    count_query = select(func.count()).select_from(Aeronave)
 
     filters = []
 
     if sit:
-        sit_list = [
-            s.strip()
-            for s in sit.split(',')
-            if s.strip()
-        ]
+        sit_list = [s.strip() for s in sit.split(',') if s.strip()]
         if len(sit_list) == 1:
             filters.append(Aeronave.sit == sit_list[0])
         elif len(sit_list) > 1:
@@ -109,16 +99,11 @@ async def list_aeronaves(
         count_query = count_query.where(f)
 
     total = await session.scalar(count_query) or 0
-    result = await session.scalars(
-        base_query.offset(offset).limit(per_page)
-    )
+    result = await session.scalars(base_query.offset(offset).limit(per_page))
     aeronaves = result.all()
 
     return paginated_response(
-        items=[
-            AeronavePublic.model_validate(a)
-            for a in aeronaves
-        ],
+        items=[AeronavePublic.model_validate(a) for a in aeronaves],
         total=total,
         page=page,
         per_page=per_page,
@@ -130,13 +115,9 @@ async def list_aeronaves(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[AeronavePublic],
 )
-async def get_aeronave(
-    matricula: str, session: Session
-):
+async def get_aeronave(matricula: str, session: Session):
     db_aeronave = await session.scalar(
-        select(Aeronave).where(
-            Aeronave.matricula == matricula
-        )
+        select(Aeronave).where(Aeronave.matricula == matricula)
     )
 
     if not db_aeronave:
@@ -161,9 +142,7 @@ async def update_aeronave(
     session: Session,
 ):
     db_aeronave = await session.scalar(
-        select(Aeronave).where(
-            Aeronave.matricula == matricula
-        )
+        select(Aeronave).where(Aeronave.matricula == matricula)
     )
 
     if not db_aeronave:
@@ -172,9 +151,7 @@ async def update_aeronave(
             detail='Aeronave não encontrada',
         )
 
-    for key, value in aeronave.model_dump(
-        exclude_unset=True
-    ).items():
+    for key, value in aeronave.model_dump(exclude_unset=True).items():
         setattr(db_aeronave, key, value)
 
     await session.commit()

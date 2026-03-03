@@ -31,22 +31,21 @@ async def test_runner_returns_results_for_each_task(session, users):
         assert result.duration_seconds >= 0
 
 
-async def test_runner_skips_module_without_run_function(
-    session, users
-):
+async def test_runner_skips_module_without_run_function(session, users):
     fake_module = ModuleType('fake_task')
 
-    with patch(
-        'fcontrol_api.cleanup.runner.ALLOWED_TASKS',
-        ALLOWED_TASKS | {'fake_task'},
-    ), patch(
-        'fcontrol_api.cleanup.runner.importlib.import_module',
-        side_effect=lambda name: (
-            fake_module
-            if name.endswith('fake_task')
-            else __import__(
-                name, fromlist=[name.rsplit('.', 1)[-1]]
-            )
+    with (
+        patch(
+            'fcontrol_api.cleanup.runner.ALLOWED_TASKS',
+            ALLOWED_TASKS | {'fake_task'},
+        ),
+        patch(
+            'fcontrol_api.cleanup.runner.importlib.import_module',
+            side_effect=lambda name: (
+                fake_module
+                if name.endswith('fake_task')
+                else __import__(name, fromlist=[name.rsplit('.', 1)[-1]])
+            ),
         ),
     ):
         results = await run_all_tasks(session)

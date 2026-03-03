@@ -9,9 +9,7 @@ from .base import Base
 class Aeronave(Base):
     __tablename__ = 'aeronaves'
 
-    matricula: Mapped[str] = mapped_column(
-        String(4), primary_key=True
-    )
+    matricula: Mapped[str] = mapped_column(String(4), primary_key=True)
     active: Mapped[bool]
     sit: Mapped[str] = mapped_column(String(2))
     obs: Mapped[str | None]

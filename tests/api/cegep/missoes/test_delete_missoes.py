@@ -56,9 +56,7 @@ async def test_delete_missao_not_found(client, token):
 
 async def test_delete_missao_without_token(client, missao_existente):
     """Testa que requisicao sem token falha."""
-    response = await client.delete(
-        f'/cegep/missoes/{missao_existente.id}'
-    )
+    response = await client.delete(f'/cegep/missoes/{missao_existente.id}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 

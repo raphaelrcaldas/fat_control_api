@@ -111,9 +111,7 @@ async def list_ordens(
 
     # Filtro por data: busca missões que tenham etapas no período
     if data_inicio or data_fim:
-        etapas_date_sub = (
-            select(OrdemEtapa.ordem_id).distinct()
-        )
+        etapas_date_sub = select(OrdemEtapa.ordem_id).distinct()
         if data_inicio:
             etapas_date_sub = etapas_date_sub.where(
                 cast(OrdemEtapa.dt_dep, Date) >= data_inicio
@@ -122,9 +120,7 @@ async def list_ordens(
             etapas_date_sub = etapas_date_sub.where(
                 cast(OrdemEtapa.dt_dep, Date) <= data_fim
             )
-        query = query.where(
-            OrdemMissao.id.in_(etapas_date_sub)
-        )
+        query = query.where(OrdemMissao.id.in_(etapas_date_sub))
 
     # Filtro por etiquetas
     if etiquetas_ids:
@@ -496,10 +492,7 @@ async def update_ordem(
         del update_data['numero']
 
     # Validação de edição manual de número (somente para ordens aprovadas)
-    if (
-        ordem_data.numero
-        and ordem_data.numero not in {'auto', ordem.numero}
-    ):
+    if ordem_data.numero and ordem_data.numero not in {'auto', ordem.numero}:
         # Só permite editar número em ordens aprovadas
         # (em rascunho, o número é gerado automaticamente na aprovação)
         status_atual = ordem_data.status or ordem.status
