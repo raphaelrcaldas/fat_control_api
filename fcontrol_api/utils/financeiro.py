@@ -160,7 +160,7 @@ def verificar_modulo(missoes: list[dict]) -> bool:
     se houve um afastamento maior que 15 dias
     em alguma delas.
     """
-    DIAS_MODULO = 15
+    DIAS_MODULO = 16
 
     datas: list[date] = []
     for m in missoes:
