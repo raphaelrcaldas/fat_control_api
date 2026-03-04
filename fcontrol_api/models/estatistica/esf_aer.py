@@ -26,8 +26,7 @@ class EsforcoAereo(Base):
     aplicacao: Mapped[str | None] = mapped_column(nullable=True)
     descricao: Mapped[str] = mapped_column(
         Computed(
-            "tipo || ' ' || modelo || ' ' || grupo || ' ' || prog"
-            " || COALESCE(' ' || sub_prog, '')"
+            "grupo || ' ' || prog || COALESCE(' ' || sub_prog, '')"
             " || COALESCE(' ' || aplicacao, '')",
             persisted=True,
         ),

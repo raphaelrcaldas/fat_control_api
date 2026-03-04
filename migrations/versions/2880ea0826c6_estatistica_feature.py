@@ -29,7 +29,7 @@ def upgrade() -> None:
     sa.Column('prog', sa.String(), nullable=False),
     sa.Column('sub_prog', sa.String(), nullable=True),
     sa.Column('aplicacao', sa.String(), nullable=True),
-    sa.Column('descricao', sa.String(), sa.Computed("tipo || ' ' || modelo || ' ' || grupo || ' ' || prog || COALESCE(' ' || sub_prog, '') || COALESCE(' ' || aplicacao, '')", persisted=True), nullable=False),
+    sa.Column('descricao', sa.String(), sa.Computed("grupo || ' ' || prog || COALESCE(' ' || sub_prog, '') || COALESCE(' ' || aplicacao, '')", persisted=True), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     schema='estatistica'
     )

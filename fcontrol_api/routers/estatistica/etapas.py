@@ -77,9 +77,7 @@ async def list_etapas(
     anv: Annotated[list[str] | None, Query()] = None,
     esf_aer: Annotated[str | None, Query()] = None,
     reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
-    tipo_missao_cod: Annotated[
-        list[str] | None, Query()
-    ] = None,
+    tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -251,18 +249,14 @@ async def list_etapas(
                 Tripulante,
                 Tripulante.id == TripEtapa.trip_id,
             )
-            .where(
-                TripEtapa.etapa_id.in_(page_etapa_ids)
-            )
+            .where(TripEtapa.etapa_id.in_(page_etapa_ids))
             .order_by(TripEtapa.etapa_id, TripEtapa.id)
         )
         for row in trip_rows.all():
             eid = row.etapa_id
             if eid not in trip_data:
                 trip_data[eid] = {}
-            trip_data[eid].setdefault(
-                row.func, []
-            ).append(row.trig)
+            trip_data[eid].setdefault(row.func, []).append(row.trig)
 
     # Passo 4: objetos Missao e montagem da resposta
     missoes_result = await session.scalars(
@@ -287,9 +281,7 @@ async def list_etapas(
                 EtapaOut.model_validate(e).model_copy(
                     update={
                         **_oi_extra(e.id, oi_data),
-                        'tripulantes': trip_data.get(
-                            e.id, {}
-                        ),
+                        'tripulantes': trip_data.get(e.id, {}),
                     }
                 )
                 for e in etapas_por_missao[mid]
