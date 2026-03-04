@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, extract, func, or_, select
+from sqlalchemy import case, delete, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -12,9 +12,12 @@ from fcontrol_api.models.estatistica.esf_aer import (
 )
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa
 from fcontrol_api.schemas.estatistica.esf_aer import (
+    EsfAerDiffRow,
+    EsfAerImportResponse,
     EsfAerItem,
     EsfAerResumoItem,
     EsfAerResumoResponse,
+    EsfAerUpdateRequest,
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.utils.responses import success_response
@@ -160,5 +163,163 @@ async def get_esf_aer_resumo(
             total_voado=total_voado,
             total_saldo=total_alocado - total_voado,
             total_meses=total_meses,
+        )
+    )
+
+
+def _esf_aer_key(
+    tipo: str,
+    modelo: str,
+    grupo: str,
+    prog: str,
+    sub_prog: str | None,
+    aplicacao: str | None,
+) -> tuple[str, ...]:
+    """Chave unica para identificar um EsforcoAereo."""
+    return (
+        tipo.strip(),
+        modelo.strip(),
+        grupo.strip(),
+        prog.strip(),
+        (sub_prog or '').strip(),
+        (aplicacao or '').strip(),
+    )
+
+
+@router.put(
+    '/',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[EsfAerImportResponse],
+)
+async def update_esf_aer(
+    session: Session,
+    payload: EsfAerUpdateRequest,
+):
+    """Importa/atualiza Esforco Aereo em lote."""
+    ano_ref = payload.ano_ref
+
+    # 1. Buscar todos os EsforcoAereo existentes
+    existing_result = await session.execute(
+        select(EsforcoAereo)
+    )
+    existing_rows = existing_result.scalars().all()
+
+    # Mapa: chave -> EsforcoAereo
+    db_map: dict[tuple[str, ...], EsforcoAereo] = {
+        _esf_aer_key(
+            r.tipo, r.modelo, r.grupo,
+            r.prog, r.sub_prog, r.aplicacao,
+        ): r
+        for r in existing_rows
+    }
+
+    # 2. Buscar alocacoes existentes para o ano
+    aloc_result = await session.execute(
+        select(EsfAerAloc).where(EsfAerAloc.ano_ref == ano_ref)
+    )
+    aloc_rows = aloc_result.scalars().all()
+
+    # Mapa: esfaer_id -> EsfAerAloc
+    aloc_map: dict[int, EsfAerAloc] = {
+        a.esfaer_id: a for a in aloc_rows
+    }
+
+    # Mapa auxiliar: esfaer_id -> EsforcoAereo
+    id_to_esf = {r.id: r for r in existing_rows}
+
+    # 3. Processar cada item do payload
+    diff_rows: list[EsfAerDiffRow] = []
+    import_ids: set[int] = set()
+
+    for item in payload.items:
+        key = _esf_aer_key(
+            item.tipo, item.modelo, item.grupo,
+            item.programa, item.subprograma, item.aplicacao,
+        )
+
+        # 3a. EsforcoAereo novo?
+        if key not in db_map:
+            novo = EsforcoAereo(
+                tipo=item.tipo.strip(),
+                modelo=item.modelo.strip(),
+                grupo=item.grupo.strip(),
+                prog=item.programa.strip(),
+                sub_prog=item.subprograma.strip() or None,
+                aplicacao=item.aplicacao.strip() or None,
+            )
+            session.add(novo)
+            await session.flush()
+            db_map[key] = novo
+            id_to_esf[novo.id] = novo
+
+            session.add(EsfAerAloc(
+                esfaer_id=novo.id,
+                ano_ref=ano_ref,
+                alocado=item.horas_alocadas,
+            ))
+            import_ids.add(novo.id)
+            diff_rows.append(EsfAerDiffRow(
+                descricao=novo.descricao,
+                antes=0,
+                depois=item.horas_alocadas,
+            ))
+            continue
+
+        esf = db_map[key]
+        import_ids.add(esf.id)
+        antes = aloc_map[esf.id].alocado if esf.id in aloc_map else 0
+
+        # 3b. Alocacao existente para este ano?
+        if esf.id in aloc_map:
+            aloc = aloc_map[esf.id]
+            if aloc.alocado != item.horas_alocadas:
+                aloc.alocado = item.horas_alocadas
+        else:
+            session.add(EsfAerAloc(
+                esfaer_id=esf.id,
+                ano_ref=ano_ref,
+                alocado=item.horas_alocadas,
+            ))
+
+        diff_rows.append(EsfAerDiffRow(
+            descricao=esf.descricao,
+            antes=antes,
+            depois=item.horas_alocadas,
+        ))
+
+    # 4. Detectar removidos (tinham alocacao no banco, nao vieram)
+    removed_ids: list[int] = []
+
+    for esfaer_id, aloc in aloc_map.items():
+        if esfaer_id not in import_ids:
+            esf = id_to_esf.get(esfaer_id)
+            descricao = esf.descricao if esf else f'ID {esfaer_id}'
+            diff_rows.append(EsfAerDiffRow(
+                descricao=descricao,
+                antes=aloc.alocado,
+                depois=0,
+            ))
+            removed_ids.append(aloc.id)
+
+    if removed_ids:
+        await session.execute(
+            delete(EsfAerAloc).where(
+                EsfAerAloc.id.in_(removed_ids)
+            )
+        )
+
+    await session.commit()
+
+    diff_rows.sort(key=lambda r: r.descricao)
+
+    total_antes = sum(r.antes for r in diff_rows)
+    total_depois = sum(r.depois for r in diff_rows)
+
+    return success_response(
+        data=EsfAerImportResponse(
+            ano_ref=ano_ref,
+            rows=diff_rows,
+            total_antes=total_antes,
+            total_depois=total_depois,
         )
     )
