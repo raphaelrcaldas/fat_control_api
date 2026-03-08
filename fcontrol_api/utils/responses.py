@@ -27,6 +27,7 @@ def paginated_response(
     page: int,
     per_page: int,
     message: str | None = None,
+    total_items: int | None = None,
 ) -> ApiPaginatedResponse[T]:
     """Cria uma resposta paginada padronizada."""
     pages = (total + per_page - 1) // per_page if total > 0 else 1
@@ -38,4 +39,5 @@ def paginated_response(
         per_page=per_page,
         pages=pages,
         message=message,
+        total_items=total_items,
     )

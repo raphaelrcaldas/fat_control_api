@@ -26,10 +26,7 @@ class EsfAerUpdateItem(BaseModel):
     programa: str
     subprograma: str
     aplicacao: str
-    meses: list[int]
     horas_alocadas: int
-    horas_gastas: int
-    saldo_horas: int
 
 
 class EsfAerUpdateRequest(BaseModel):

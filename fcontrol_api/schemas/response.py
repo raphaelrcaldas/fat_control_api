@@ -32,6 +32,7 @@ class ApiPaginatedResponse(ApiResponse[list[T]], Generic[T]):
     page: int = 1
     per_page: int = 20
     pages: int = 1
+    total_items: int | None = None
 
 
 class ApiErrorResponse(BaseModel):

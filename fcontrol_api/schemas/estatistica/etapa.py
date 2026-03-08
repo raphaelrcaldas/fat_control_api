@@ -1,6 +1,7 @@
 from datetime import date, time
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class EtapaBase(BaseModel):
@@ -11,18 +12,40 @@ class EtapaBase(BaseModel):
     destino: str = Field(min_length=4, max_length=4)
     dep: time
     arr: time
-    tvoo: int
-    anv: str
-    pousos: int
-    tow: int | None
-    pax: int | None
-    carga: int | None
-    comb: int | None
-    lub: float | None
-    nivel: str | None = Field(None, pattern=r'^\d{3}$')
+    tvoo: int = Field(ge=5)
+    anv: str = Field(max_length=4)
+    pousos: int = Field(ge=0, le=32767)
+    tow: int | None = Field(None, gt=0)
+    pax: int | None = Field(None, ge=0, le=32767)
+    carga: int | None = Field(None, ge=0, le=32767)
+    comb: int | None = Field(None, gt=0, le=32767)
+    lub: float | None = Field(None, ge=0, le=9999.9)
+    nivel: str | None = Field(
+        None, pattern=r'^\d{3}$'
+    )
     sagem: bool
     parte1: bool
     obs: str | None
+
+    @model_validator(mode='after')
+    def validate_tvoo(self) -> Self:
+        """Valida consistencia de tvoo com dep/arr."""
+        dep_min = (
+            self.dep.hour * 60 + self.dep.minute
+        )
+        arr_min = (
+            self.arr.hour * 60 + self.arr.minute
+        )
+        if arr_min < dep_min:
+            arr_min += 1440  # +24h
+        expected = arr_min - dep_min
+        if self.tvoo != expected:
+            msg = (
+                f'tvoo ({self.tvoo}) nao confere com '
+                f'dep/arr ({expected} min)'
+            )
+            raise ValueError(msg)
+        return self
 
 
 class EtapaOut(BaseModel):
@@ -49,7 +72,14 @@ class EtapaOut(BaseModel):
     obs: str | None
     esf_aer_itens: list[str] = []
     tipo_missao_cod: str | None = None
-    tripulantes: dict[str, list[str]] = {}
+    tripulantes: list['TripEtapaOut'] = []
+
+
+class EtapaFlatOut(EtapaOut):
+    """Schema de saida para listagem flat."""
+
+    missao_id: int
+    missao_titulo: str | None = None
 
 
 class MissaoComEtapasOut(BaseModel):
@@ -84,10 +114,9 @@ class OIEtapaOut(BaseModel):
 
 
 class EtapaDetailOut(EtapaOut):
-    """Detalhe completo de uma etapa com tripulantes."""
+    """Detalhe completo de uma etapa."""
 
     pousos: int
-    tripulantes: list[TripEtapaOut] = []
     oi_etapas: list[OIEtapaOut] = []
 
 
@@ -105,11 +134,11 @@ class OIEtapaIn(BaseModel):
     esf_aer_id: int
     tipo_missao_id: int
     reg: str = Field(pattern=r'^[dnv]$')
-    tvoo: int
+    tvoo: int = Field(gt=0, le=32767)
 
 
 class EtapaCreate(EtapaBase):
-    """Schema de criacao de etapa com tripulantes e OIs."""
+    """Schema de criacao de etapa com tripulantes."""
 
     missao_id: int
     tripulantes: list[TripEtapaIn] = []
@@ -117,22 +146,38 @@ class EtapaCreate(EtapaBase):
 
 
 class EtapaUpdate(BaseModel):
-    """Schema de atualizacao de etapa (todos os campos opcionais)."""
+    """Schema de atualizacao (campos opcionais)."""
 
     data: date | None = None
-    origem: str | None = Field(None, min_length=4, max_length=4)
-    destino: str | None = Field(None, min_length=4, max_length=4)
+    origem: str | None = Field(
+        None, min_length=4, max_length=4
+    )
+    destino: str | None = Field(
+        None, min_length=4, max_length=4
+    )
     dep: time | None = None
     arr: time | None = None
-    tvoo: int | None = None
-    anv: str | None = None
-    pousos: int | None = None
-    tow: int | None = None
-    pax: int | None = None
-    carga: int | None = None
-    comb: int | None = None
-    lub: float | None = None
-    nivel: str | None = Field(None, pattern=r'^\d{3}$')
+    tvoo: int | None = Field(None, ge=5)
+    anv: str | None = Field(None, max_length=4)
+    pousos: int | None = Field(
+        None, ge=0, le=32767
+    )
+    tow: int | None = Field(None, gt=0)
+    pax: int | None = Field(
+        None, ge=0, le=32767
+    )
+    carga: int | None = Field(
+        None, ge=0, le=32767
+    )
+    comb: int | None = Field(
+        None, gt=0, le=32767
+    )
+    lub: float | None = Field(
+        None, ge=0, le=9999.9
+    )
+    nivel: str | None = Field(
+        None, pattern=r'^\d{3}$'
+    )
     sagem: bool | None = None
     parte1: bool | None = None
     obs: str | None = None
@@ -141,7 +186,7 @@ class EtapaUpdate(BaseModel):
 
 
 class EtapaPublic(BaseModel):
-    """Schema de resposta apos criar/atualizar etapa."""
+    """Schema de resposta apos criar/atualizar."""
 
     model_config = ConfigDict(from_attributes=True)
 
