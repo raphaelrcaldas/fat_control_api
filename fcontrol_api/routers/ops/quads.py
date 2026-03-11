@@ -3,7 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import contains_eager, selectinload
@@ -15,6 +15,7 @@ from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.ops.quads import (
+    QuadBatchDelete,
     QuadPublic,
     QuadSchema,
     QuadsGroupSchema,
@@ -211,19 +212,20 @@ async def list_quads(
     return success_response(data=response)
 
 
-@router.delete('/{id}', response_model=ApiResponse[None])
-async def delete_quad(id: int, session: Session):
-    quad = await session.scalar(select(Quad).where(Quad.id == id))
-
-    if not quad:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Quad not found'
-        )
-
-    await session.delete(quad)
+@router.delete('/', response_model=ApiResponse[None])
+async def delete_quads(body: QuadBatchDelete, session: Session):
+    result = await session.execute(delete(Quad).where(Quad.id.in_(body.ids)))
     await session.commit()
 
-    return success_response(message='Quadrinho deletado')
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Nenhum quadrinho encontrado',
+        )
+
+    return success_response(
+        message=f'{result.rowcount} quadrinho(s) deletado(s)'
+    )
 
 
 @router.put('/{id}', response_model=ApiResponse[None])

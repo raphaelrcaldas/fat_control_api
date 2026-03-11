@@ -21,9 +21,7 @@ from fcontrol_api.utils.responses import success_response
 Session = Annotated[AsyncSession, Depends(get_session)]
 TipoMissaoId = Annotated[int, Path()]
 
-router = APIRouter(
-    prefix='/tipo-missao', tags=['estatistica']
-)
+router = APIRouter(prefix='/tipo-missao', tags=['estatistica'])
 
 
 @router.get(
@@ -75,9 +73,7 @@ async def update_tipo_missao(
     data: TipoMissaoUpdate,
     session: Session,
 ) -> ApiResponse[TipoMissaoPublic]:
-    tipo = await session.scalar(
-        select(TipoMissao).where(TipoMissao.id == id)
-    )
+    tipo = await session.scalar(select(TipoMissao).where(TipoMissao.id == id))
     if not tipo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -96,8 +92,7 @@ async def update_tipo_missao(
             raise HTTPException(
                 status_code=HTTPStatus.CONFLICT,
                 detail=(
-                    f'Tipo de missao com cod '
-                    f'"{updates["cod"]}" ja cadastrado'
+                    f'Tipo de missao com cod "{updates["cod"]}" ja cadastrado'
                 ),
             )
 
@@ -121,9 +116,7 @@ async def delete_tipo_missao(
     id: TipoMissaoId,
     session: Session,
 ) -> ApiResponse[None]:
-    tipo = await session.scalar(
-        select(TipoMissao).where(TipoMissao.id == id)
-    )
+    tipo = await session.scalar(select(TipoMissao).where(TipoMissao.id == id))
     if not tipo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -131,17 +124,12 @@ async def delete_tipo_missao(
         )
 
     in_use = await session.scalar(
-        select(OIEtapa.id)
-        .where(OIEtapa.tipo_missao_id == id)
-        .limit(1)
+        select(OIEtapa.id).where(OIEtapa.tipo_missao_id == id).limit(1)
     )
     if in_use:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail=(
-                'Tipo de missao em uso por etapas, '
-                'nao pode ser removido'
-            ),
+            detail=('Tipo de missao em uso por etapas, nao pode ser removido'),
         )
 
     await session.delete(tipo)

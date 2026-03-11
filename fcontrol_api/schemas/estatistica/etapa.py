@@ -20,9 +20,7 @@ class EtapaBase(BaseModel):
     carga: int | None = Field(None, ge=0, le=32767)
     comb: int | None = Field(None, gt=0, le=32767)
     lub: float | None = Field(None, ge=0, le=9999.9)
-    nivel: str | None = Field(
-        None, pattern=r'^\d{3}$'
-    )
+    nivel: str | None = Field(None, pattern=r'^\d{3}$')
     sagem: bool
     parte1: bool
     obs: str | None
@@ -30,19 +28,14 @@ class EtapaBase(BaseModel):
     @model_validator(mode='after')
     def validate_tvoo(self) -> Self:
         """Valida consistencia de tvoo com dep/arr."""
-        dep_min = (
-            self.dep.hour * 60 + self.dep.minute
-        )
-        arr_min = (
-            self.arr.hour * 60 + self.arr.minute
-        )
+        dep_min = self.dep.hour * 60 + self.dep.minute
+        arr_min = self.arr.hour * 60 + self.arr.minute
         if arr_min < dep_min:
             arr_min += 1440  # +24h
         expected = arr_min - dep_min
         if self.tvoo != expected:
             msg = (
-                f'tvoo ({self.tvoo}) nao confere com '
-                f'dep/arr ({expected} min)'
+                f'tvoo ({self.tvoo}) nao confere com dep/arr ({expected} min)'
             )
             raise ValueError(msg)
         return self
@@ -149,35 +142,19 @@ class EtapaUpdate(BaseModel):
     """Schema de atualizacao (campos opcionais)."""
 
     data: date | None = None
-    origem: str | None = Field(
-        None, min_length=4, max_length=4
-    )
-    destino: str | None = Field(
-        None, min_length=4, max_length=4
-    )
+    origem: str | None = Field(None, min_length=4, max_length=4)
+    destino: str | None = Field(None, min_length=4, max_length=4)
     dep: time | None = None
     arr: time | None = None
     tvoo: int | None = Field(None, ge=5)
     anv: str | None = Field(None, max_length=4)
-    pousos: int | None = Field(
-        None, ge=0, le=32767
-    )
+    pousos: int | None = Field(None, ge=0, le=32767)
     tow: int | None = Field(None, gt=0)
-    pax: int | None = Field(
-        None, ge=0, le=32767
-    )
-    carga: int | None = Field(
-        None, ge=0, le=32767
-    )
-    comb: int | None = Field(
-        None, gt=0, le=32767
-    )
-    lub: float | None = Field(
-        None, ge=0, le=9999.9
-    )
-    nivel: str | None = Field(
-        None, pattern=r'^\d{3}$'
-    )
+    pax: int | None = Field(None, ge=0, le=32767)
+    carga: int | None = Field(None, ge=0, le=32767)
+    comb: int | None = Field(None, gt=0, le=32767)
+    lub: float | None = Field(None, ge=0, le=9999.9)
+    nivel: str | None = Field(None, pattern=r'^\d{3}$')
     sagem: bool | None = None
     parte1: bool | None = None
     obs: str | None = None

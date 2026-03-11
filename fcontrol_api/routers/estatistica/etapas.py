@@ -67,11 +67,7 @@ _ETAPA_UPDATE_FIELDS = frozenset({
 
 def _like_safe(val: str) -> str:
     """Escapa caracteres especiais de LIKE."""
-    return (
-        val.replace('\\', '\\\\')
-        .replace('%', '\\%')
-        .replace('_', '\\_')
-    )
+    return val.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 def _oi_extra(
@@ -86,9 +82,7 @@ def _oi_extra(
         }
     return {
         'esf_aer_itens': list(dict.fromkeys(info['esf_aer'])),
-        'tipo_missao_cod': (
-            info['tipo'][0] if info['tipo'] else None
-        ),
+        'tipo_missao_cod': (info['tipo'][0] if info['tipo'] else None),
     }
 
 
@@ -222,9 +216,7 @@ async def _list_etapas_flat(
 
     total = (
         await session.scalar(
-            select(sql_func.count()).select_from(
-                valid_etapa_ids
-            )
+            select(sql_func.count()).select_from(valid_etapa_ids)
         )
     ) or 0
 
@@ -254,9 +246,7 @@ async def _list_etapas_flat(
     page_etapa_ids = [e.id for e in etapas_page]
 
     oi_data = await _fetch_oi_data(session, page_etapa_ids)
-    trip_data = await _fetch_trip_data(
-        session, page_etapa_ids
-    )
+    trip_data = await _fetch_trip_data(session, page_etapa_ids)
 
     # Missoes para obter titulo
     missao_ids = list({e.missao_id for e in etapas_page})
@@ -301,20 +291,12 @@ async def list_etapas(
     session: Session,
     data_ini: Annotated[date | None, Query()] = None,
     data_fim: Annotated[date | None, Query()] = None,
-    origem: Annotated[
-        str | None, Query(max_length=4)
-    ] = None,
-    destino: Annotated[
-        str | None, Query(max_length=4)
-    ] = None,
+    origem: Annotated[str | None, Query(max_length=4)] = None,
+    destino: Annotated[str | None, Query(max_length=4)] = None,
     anv: Annotated[list[str] | None, Query()] = None,
     esf_aer: Annotated[str | None, Query()] = None,
-    reg: Annotated[
-        str | None, Query(pattern='^[dnv]$')
-    ] = None,
-    tipo_missao_cod: Annotated[
-        list[str] | None, Query()
-    ] = None,
+    reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
+    tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
     flat: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -327,45 +309,27 @@ async def list_etapas(
     etapa_filter = select(Etapa.id)
 
     if data_ini:
-        etapa_filter = etapa_filter.where(
-            Etapa.data >= data_ini
-        )
+        etapa_filter = etapa_filter.where(Etapa.data >= data_ini)
     if data_fim:
-        etapa_filter = etapa_filter.where(
-            Etapa.data <= data_fim
-        )
+        etapa_filter = etapa_filter.where(Etapa.data <= data_fim)
     if origem:
-        etapa_filter = etapa_filter.where(
-            Etapa.origem.ilike(origem)
-        )
+        etapa_filter = etapa_filter.where(Etapa.origem.ilike(origem))
     if destino:
-        etapa_filter = etapa_filter.where(
-            Etapa.destino.ilike(destino)
-        )
+        etapa_filter = etapa_filter.where(Etapa.destino.ilike(destino))
     if anv:
-        etapa_filter = etapa_filter.where(
-            Etapa.anv.in_(anv)
-        )
+        etapa_filter = etapa_filter.where(Etapa.anv.in_(anv))
 
     needs_oi_join = any([esf_aer, reg, tipo_missao_cod])
     if needs_oi_join:
-        etapa_filter = etapa_filter.join(
-            OIEtapa, OIEtapa.etapa_id == Etapa.id
-        )
+        etapa_filter = etapa_filter.join(OIEtapa, OIEtapa.etapa_id == Etapa.id)
         if esf_aer:
             safe_esf = _like_safe(esf_aer)
             etapa_filter = etapa_filter.join(
                 EsforcoAereo,
                 EsforcoAereo.id == OIEtapa.esf_aer_id,
-            ).where(
-                EsforcoAereo.descricao.ilike(
-                    f'%{safe_esf}%', escape='\\'
-                )
-            )
+            ).where(EsforcoAereo.descricao.ilike(f'%{safe_esf}%', escape='\\'))
         if reg:
-            etapa_filter = etapa_filter.where(
-                OIEtapa.reg == reg
-            )
+            etapa_filter = etapa_filter.where(OIEtapa.reg == reg)
         if tipo_missao_cod:
             etapa_filter = etapa_filter.join(
                 TipoMissao,
@@ -376,21 +340,16 @@ async def list_etapas(
         safe_trip = _like_safe(trip_search)
         search_term = f'%{safe_trip}%'
         etapa_filter = (
-            etapa_filter.join(
-                TripEtapa, TripEtapa.etapa_id == Etapa.id
-            )
+            etapa_filter
+            .join(TripEtapa, TripEtapa.etapa_id == Etapa.id)
             .join(
                 Tripulante,
                 Tripulante.id == TripEtapa.trip_id,
             )
             .join(User, User.id == Tripulante.user_id)
             .where(
-                User.nome_guerra.ilike(
-                    search_term, escape='\\'
-                )
-                | Tripulante.trig.ilike(
-                    search_term, escape='\\'
-                )
+                User.nome_guerra.ilike(search_term, escape='\\')
+                | Tripulante.trig.ilike(search_term, escape='\\')
             )
         )
 
@@ -427,9 +386,7 @@ async def list_etapas(
             literal_column('1').label('ord'),
             sql_func.min(Etapa.data).label('first_date'),
         )
-        .where(
-            Etapa.id.in_(select(valid_etapa_ids.c.id))
-        )
+        .where(Etapa.id.in_(select(valid_etapa_ids.c.id)))
         .group_by(Etapa.missao_id)
     )
 
@@ -440,30 +397,20 @@ async def list_etapas(
             select(
                 Missao.id.label('mid'),
                 literal_column('0').label('ord'),
-                literal_column('NULL').label(
-                    'first_date'
-                ),
+                literal_column('NULL').label('first_date'),
             )
-            .outerjoin(
-                Etapa, Etapa.missao_id == Missao.id
-            )
+            .outerjoin(Etapa, Etapa.missao_id == Missao.id)
             .where(Etapa.id.is_(None))
         )
-        combined = union_all(
-            missoes_sem_etapa, missoes_com_etapa
-        ).subquery()
+        combined = union_all(missoes_sem_etapa, missoes_com_etapa).subquery()
 
     total = (
-        await session.scalar(
-            select(sql_func.count()).select_from(combined)
-        )
+        await session.scalar(select(sql_func.count()).select_from(combined))
     ) or 0
 
     total_etapas = (
         await session.scalar(
-            select(sql_func.count()).select_from(
-                valid_etapa_ids
-            )
+            select(sql_func.count()).select_from(valid_etapa_ids)
         )
     ) or 0
 
@@ -509,14 +456,10 @@ async def list_etapas(
 
     # Passo 3b: esf_aer e tipo_missao por etapa
     page_etapa_ids = [e.id for e in etapas_all]
-    oi_data = await _fetch_oi_data(
-        session, page_etapa_ids
-    )
+    oi_data = await _fetch_oi_data(session, page_etapa_ids)
 
     # Passo 3c: tripulantes por etapa
-    trip_data = await _fetch_trip_data(
-        session, page_etapa_ids
-    )
+    trip_data = await _fetch_trip_data(session, page_etapa_ids)
 
     # Passo 4: objetos Missao e montagem da resposta
     missoes_result = await session.scalars(
@@ -541,9 +484,7 @@ async def list_etapas(
                 EtapaOut.model_validate(e).model_copy(
                     update={
                         **_oi_extra(e.id, oi_data),
-                        'tripulantes': trip_data.get(
-                            e.id, []
-                        ),
+                        'tripulantes': trip_data.get(e.id, []),
                     }
                 )
                 for e in etapas_por_missao[mid]
@@ -569,9 +510,7 @@ async def list_etapas(
 async def get_etapa_detail(
     id: EtapaId, session: Session
 ) -> ApiResponse[EtapaDetailOut]:
-    etapa = await session.scalar(
-        select(Etapa).where(Etapa.id == id)
-    )
+    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -585,11 +524,7 @@ async def get_etapa_detail(
     oi_data: dict[int, dict[str, list[str]]] = {}
     if oi_etapas:
         oi_data[id] = {
-            'esf_aer': list(
-                dict.fromkeys(
-                    oi.esf_aer for oi in oi_etapas
-                )
-            ),
+            'esf_aer': list(dict.fromkeys(oi.esf_aer for oi in oi_etapas)),
             'tipo': [oi_etapas[0].tipo_missao_cod],
         }
 
@@ -597,9 +532,7 @@ async def get_etapa_detail(
     trip_data = await _fetch_trip_data(session, [id])
     tripulantes = trip_data.get(id, [])
 
-    detail = EtapaDetailOut.model_validate(
-        etapa
-    ).model_copy(
+    detail = EtapaDetailOut.model_validate(etapa).model_copy(
         update={
             **_oi_extra(etapa.id, oi_data),
             'tripulantes': tripulantes,
@@ -701,9 +634,7 @@ async def update_etapa(
     diretamente. Se oi_etapas fornecido, valida soma
     contra tvoo do payload ou do banco.
     """
-    etapa = await session.scalar(
-        select(Etapa).where(Etapa.id == id)
-    )
+    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -711,14 +642,8 @@ async def update_etapa(
         )
 
     if data.oi_etapas is not None:
-        tvoo_ref = (
-            data.tvoo
-            if data.tvoo is not None
-            else etapa.tvoo
-        )
-        soma_oi = sum(
-            oi.tvoo for oi in data.oi_etapas
-        )
+        tvoo_ref = data.tvoo if data.tvoo is not None else etapa.tvoo
+        soma_oi = sum(oi.tvoo for oi in data.oi_etapas)
         if data.oi_etapas and soma_oi != tvoo_ref:
             raise HTTPException(
                 status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -746,9 +671,7 @@ async def update_etapa(
 
     if data.tripulantes is not None:
         await session.execute(
-            sa_delete(TripEtapa).where(
-                TripEtapa.etapa_id == id
-            )
+            sa_delete(TripEtapa).where(TripEtapa.etapa_id == id)
         )
         await session.flush()
         for t in data.tripulantes:
@@ -762,11 +685,7 @@ async def update_etapa(
             )
 
     if data.oi_etapas is not None:
-        await session.execute(
-            sa_delete(OIEtapa).where(
-                OIEtapa.etapa_id == id
-            )
-        )
+        await session.execute(sa_delete(OIEtapa).where(OIEtapa.etapa_id == id))
         await session.flush()
         for oi in data.oi_etapas:
             session.add(
@@ -792,32 +711,18 @@ async def update_etapa(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
 )
-async def delete_etapa(
-    id: EtapaId, session: Session
-) -> ApiResponse[None]:
+async def delete_etapa(id: EtapaId, session: Session) -> ApiResponse[None]:
     """Remove uma etapa e seus dados vinculados."""
-    etapa = await session.scalar(
-        select(Etapa).where(Etapa.id == id)
-    )
+    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Etapa nao encontrada',
         )
 
-    await session.execute(
-        sa_delete(TripEtapa).where(
-            TripEtapa.etapa_id == id
-        )
-    )
-    await session.execute(
-        sa_delete(OIEtapa).where(
-            OIEtapa.etapa_id == id
-        )
-    )
+    await session.execute(sa_delete(TripEtapa).where(TripEtapa.etapa_id == id))
+    await session.execute(sa_delete(OIEtapa).where(OIEtapa.etapa_id == id))
 
     await session.delete(etapa)
     await session.commit()
-    return success_response(
-        message='Etapa excluida com sucesso'
-    )
+    return success_response(message='Etapa excluida com sucesso')

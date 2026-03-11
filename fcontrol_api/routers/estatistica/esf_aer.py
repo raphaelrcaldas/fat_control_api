@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import Annotated
 
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.esf_aer import (
     EsfAerAloc,
+    EsfAerAlocHist,
     EsforcoAereo,
 )
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa
@@ -199,16 +201,18 @@ async def update_esf_aer(
     ano_ref = payload.ano_ref
 
     # 1. Buscar todos os EsforcoAereo existentes
-    existing_result = await session.execute(
-        select(EsforcoAereo)
-    )
+    existing_result = await session.execute(select(EsforcoAereo))
     existing_rows = existing_result.scalars().all()
 
     # Mapa: chave -> EsforcoAereo
     db_map: dict[tuple[str, ...], EsforcoAereo] = {
         _esf_aer_key(
-            r.tipo, r.modelo, r.grupo,
-            r.prog, r.sub_prog, r.aplicacao,
+            r.tipo,
+            r.modelo,
+            r.grupo,
+            r.prog,
+            r.sub_prog,
+            r.aplicacao,
         ): r
         for r in existing_rows
     }
@@ -220,9 +224,7 @@ async def update_esf_aer(
     aloc_rows = aloc_result.scalars().all()
 
     # Mapa: esfaer_id -> EsfAerAloc
-    aloc_map: dict[int, EsfAerAloc] = {
-        a.esfaer_id: a for a in aloc_rows
-    }
+    aloc_map: dict[int, EsfAerAloc] = {a.esfaer_id: a for a in aloc_rows}
 
     # Mapa auxiliar: esfaer_id -> EsforcoAereo
     id_to_esf = {r.id: r for r in existing_rows}
@@ -233,8 +235,12 @@ async def update_esf_aer(
 
     for item in payload.items:
         key = _esf_aer_key(
-            item.tipo, item.modelo, item.grupo,
-            item.programa, item.subprograma, item.aplicacao,
+            item.tipo,
+            item.modelo,
+            item.grupo,
+            item.programa,
+            item.subprograma,
+            item.aplicacao,
         )
 
         # 3a. EsforcoAereo novo?
@@ -252,17 +258,21 @@ async def update_esf_aer(
             db_map[key] = novo
             id_to_esf[novo.id] = novo
 
-            session.add(EsfAerAloc(
+            nova_aloc = EsfAerAloc(
                 esfaer_id=novo.id,
                 ano_ref=ano_ref,
                 alocado=item.horas_alocadas,
-            ))
+            )
+            session.add(nova_aloc)
+            aloc_map[novo.id] = nova_aloc
             import_ids.add(novo.id)
-            diff_rows.append(EsfAerDiffRow(
-                descricao=novo.descricao,
-                antes=0,
-                depois=item.horas_alocadas,
-            ))
+            diff_rows.append(
+                EsfAerDiffRow(
+                    descricao=novo.descricao,
+                    antes=0,
+                    depois=item.horas_alocadas,
+                )
+            )
             continue
 
         esf = db_map[key]
@@ -275,17 +285,21 @@ async def update_esf_aer(
             if aloc.alocado != item.horas_alocadas:
                 aloc.alocado = item.horas_alocadas
         else:
-            session.add(EsfAerAloc(
+            nova_aloc = EsfAerAloc(
                 esfaer_id=esf.id,
                 ano_ref=ano_ref,
                 alocado=item.horas_alocadas,
-            ))
+            )
+            session.add(nova_aloc)
+            aloc_map[esf.id] = nova_aloc
 
-        diff_rows.append(EsfAerDiffRow(
-            descricao=esf.descricao,
-            antes=antes,
-            depois=item.horas_alocadas,
-        ))
+        diff_rows.append(
+            EsfAerDiffRow(
+                descricao=esf.descricao,
+                antes=antes,
+                depois=item.horas_alocadas,
+            )
+        )
 
     # 4. Detectar removidos (tinham alocacao no banco, nao vieram)
     removed_ids: list[int] = []
@@ -294,17 +308,41 @@ async def update_esf_aer(
         if esfaer_id not in import_ids:
             esf = id_to_esf.get(esfaer_id)
             descricao = esf.descricao if esf else f'ID {esfaer_id}'
-            diff_rows.append(EsfAerDiffRow(
-                descricao=descricao,
-                antes=aloc.alocado,
-                depois=0,
-            ))
+            diff_rows.append(
+                EsfAerDiffRow(
+                    descricao=descricao,
+                    antes=aloc.alocado,
+                    depois=0,
+                )
+            )
             removed_ids.append(aloc.id)
 
     if removed_ids:
         await session.execute(
-            delete(EsfAerAloc).where(
-                EsfAerAloc.id.in_(removed_ids)
+            delete(EsfAerAloc).where(EsfAerAloc.id.in_(removed_ids))
+        )
+
+    # 5. Registrar historico para alocacoes que mudaram
+    await session.flush()
+    now = datetime.now(timezone.utc)
+    desc_to_esfaer: dict[str, int] = {
+        e.descricao: e.id
+        for e in list(id_to_esf.values()) + list(db_map.values())
+    }
+    for row in diff_rows:
+        if row.antes == row.depois:
+            continue
+        esfaer_id = desc_to_esfaer.get(row.descricao)
+        if esfaer_id is None:
+            continue
+        aloc = aloc_map.get(esfaer_id)
+        if aloc is None or aloc.id in removed_ids:
+            continue
+        session.add(
+            EsfAerAlocHist(
+                esf_aer_aloc_id=aloc.id,
+                aloc_hist=row.depois,
+                timestamp=now,
             )
         )
 

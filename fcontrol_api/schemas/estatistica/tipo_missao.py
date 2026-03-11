@@ -23,13 +23,8 @@ class TipoMissaoUpdate(BaseModel):
     @field_validator('cod')
     @classmethod
     def validar_cod(cls, v: str | None) -> str | None:
-        if v is not None and not re.fullmatch(
-            r'\d{2}[A-Za-z]{2}', v
-        ):
-            msg = (
-                'Formato invalido: '
-                '2 digitos + 2 letras (ex: 01AB)'
-            )
+        if v is not None and not re.fullmatch(r'\d{2}[A-Za-z]{2}', v):
+            msg = 'Formato invalido: 2 digitos + 2 letras (ex: 01AB)'
             raise ValueError(msg)
         return v.upper() if v else v
 

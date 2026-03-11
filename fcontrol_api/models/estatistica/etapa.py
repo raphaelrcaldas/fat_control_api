@@ -27,12 +27,8 @@ class Missao(Base):
         init=False,
         primary_key=True,
     )
-    titulo: Mapped[str | None] = mapped_column(
-        nullable=True
-    )
-    obs: Mapped[str | None] = mapped_column(
-        nullable=True
-    )
+    titulo: Mapped[str | None] = mapped_column(nullable=True)
+    obs: Mapped[str | None] = mapped_column(nullable=True)
 
 
 class TipoMissao(Base):
@@ -44,9 +40,7 @@ class TipoMissao(Base):
         init=False,
         primary_key=True,
     )
-    cod: Mapped[str] = mapped_column(
-        String(4), nullable=False
-    )
+    cod: Mapped[str] = mapped_column(String(4), nullable=False)
     desc: Mapped[str] = mapped_column(nullable=False)
 
 
@@ -57,27 +51,13 @@ class Etapa(Base):
             'tvoo % 5 = 0',
             name='ck_etapa_tvoo_multiplo_5',
         ),
-        CheckConstraint(
-            'tvoo >= 5', name='ck_etapa_tvoo_min'
-        ),
-        CheckConstraint(
-            'pousos >= 0', name='ck_etapa_pousos_nn'
-        ),
-        CheckConstraint(
-            'tow > 0', name='ck_etapa_tow_positivo'
-        ),
-        CheckConstraint(
-            'pax >= 0', name='ck_etapa_pax_nn'
-        ),
-        CheckConstraint(
-            'carga >= 0', name='ck_etapa_carga_nn'
-        ),
-        CheckConstraint(
-            'comb > 0', name='ck_etapa_comb_nn'
-        ),
-        CheckConstraint(
-            'lub >= 0', name='ck_etapa_lub_nn'
-        ),
+        CheckConstraint('tvoo >= 5', name='ck_etapa_tvoo_min'),
+        CheckConstraint('pousos >= 0', name='ck_etapa_pousos_nn'),
+        CheckConstraint('tow > 0', name='ck_etapa_tow_positivo'),
+        CheckConstraint('pax >= 0', name='ck_etapa_pax_nn'),
+        CheckConstraint('carga >= 0', name='ck_etapa_carga_nn'),
+        CheckConstraint('comb > 0', name='ck_etapa_comb_nn'),
+        CheckConstraint('lub >= 0', name='ck_etapa_lub_nn'),
         CheckConstraint(
             "nivel ~ '^[0-9]{3}$'",
             name='ck_etapa_nivel_fl',
@@ -85,15 +65,9 @@ class Etapa(Base):
         {'schema': 'estatistica'},
     )
 
-    id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True
-    )
-    missao_id: Mapped[int] = mapped_column(
-        ForeignKey(Missao.id)
-    )
-    obs: Mapped[str | None] = mapped_column(
-        nullable=True
-    )
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
+    missao_id: Mapped[int] = mapped_column(ForeignKey(Missao.id))
+    obs: Mapped[str | None] = mapped_column(nullable=True)
 
     data: Mapped[date]
     origem: Mapped[str] = mapped_column(String(4))
@@ -113,30 +87,16 @@ class Etapa(Base):
         ),
         init=False,
     )
-    anv: Mapped[str] = mapped_column(
-        ForeignKey(Aeronave.matricula)
-    )
+    anv: Mapped[str] = mapped_column(ForeignKey(Aeronave.matricula))
     pousos: Mapped[int] = mapped_column(SmallInteger)
 
     # ofrag ?
-    tow: Mapped[int | None] = mapped_column(
-        nullable=True
-    )
-    pax: Mapped[int | None] = mapped_column(
-        SmallInteger, nullable=True
-    )
-    carga: Mapped[int | None] = mapped_column(
-        SmallInteger, nullable=True
-    )
-    comb: Mapped[int | None] = mapped_column(
-        SmallInteger, nullable=True
-    )
-    lub: Mapped[float | None] = mapped_column(
-        Numeric(5, 1), nullable=True
-    )
-    nivel: Mapped[str | None] = mapped_column(
-        String(3), nullable=True
-    )
+    tow: Mapped[int | None] = mapped_column(nullable=True)
+    pax: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    carga: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    comb: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    lub: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True)
+    nivel: Mapped[str | None] = mapped_column(String(3), nullable=True)
 
     sagem: Mapped[bool]
     parte1: Mapped[bool]
@@ -149,40 +109,28 @@ class OIEtapa(Base):
             'tvoo % 5 = 0',
             name='ck_oi_etapa_tvoo_multiplo_5',
         ),
-        CheckConstraint(
-            'tvoo >= 5', name='ck_oi_etapa_tvoo_min'
-        ),
+        CheckConstraint('tvoo >= 5', name='ck_oi_etapa_tvoo_min'),
         {'schema': 'estatistica'},
     )
 
-    id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True
-    )
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     etapa_id: Mapped[int] = mapped_column(
         ForeignKey(
             'estatistica.etapas.id',
             ondelete='CASCADE',
         )
     )
-    esf_aer_id: Mapped[int] = mapped_column(
-        ForeignKey(EsforcoAereo.id)
-    )
+    esf_aer_id: Mapped[int] = mapped_column(ForeignKey(EsforcoAereo.id))
     tvoo: Mapped[int] = mapped_column(SmallInteger)
-    reg: Mapped[str] = mapped_column(
-        String(1)
-    )  # diurno(d)/noturno(n)/nvg(v)
-    tipo_missao_id: Mapped[int] = mapped_column(
-        ForeignKey(TipoMissao.id)
-    )
+    reg: Mapped[str] = mapped_column(String(1))  # diurno(d)/noturno(n)/nvg(v)
+    tipo_missao_id: Mapped[int] = mapped_column(ForeignKey(TipoMissao.id))
 
 
 class TripEtapa(Base):
     __tablename__ = 'trip_etapa'
     __table_args__ = ({'schema': 'estatistica'},)
 
-    id: Mapped[int] = mapped_column(
-        Identity(), init=False, primary_key=True
-    )
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     etapa_id: Mapped[int] = mapped_column(
         ForeignKey(
             'estatistica.etapas.id',
@@ -191,6 +139,4 @@ class TripEtapa(Base):
     )
     func: Mapped[str] = mapped_column(String(3))
     func_bordo: Mapped[str] = mapped_column(String(2))
-    trip_id: Mapped[int] = mapped_column(
-        ForeignKey(Tripulante.id)
-    )
+    trip_id: Mapped[int] = mapped_column(ForeignKey(Tripulante.id))

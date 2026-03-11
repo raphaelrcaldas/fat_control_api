@@ -30,6 +30,10 @@ class QuadUpdate(BaseModel):
     description: Annotated[str | None, Body()]
 
 
+class QuadBatchDelete(BaseModel):
+    ids: list[int]
+
+
 class QuadList(BaseModel):
     quads: list[QuadPublic]
 
