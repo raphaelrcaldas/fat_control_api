@@ -1,0 +1,132 @@
+from datetime import date
+from http import HTTPStatus
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func as sql_func
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from fcontrol_api.database import get_session
+from fcontrol_api.models.estatistica.etapa import Etapa, TripEtapa
+from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.public.users import User
+from fcontrol_api.schemas.estatistica.sebo import (
+    SeboCartoes,
+    SeboTripOut,
+    SeboVoo,
+)
+from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.responses import success_response
+
+Session = Annotated[AsyncSession, Depends(get_session)]
+
+router = APIRouter(prefix='/sebo', tags=['estatistica'])
+
+
+@router.get(
+    '/',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[list[SeboTripOut]],
+)
+async def list_sebo(
+    session: Session,
+    func: Annotated[str, Query()],
+    oper: Annotated[list[str] | None, Query()] = None,
+    func_bordo: Annotated[list[str] | None, Query()] = None,
+    ano: Annotated[int | None, Query(ge=2020)] = None,
+) -> ApiResponse[list[SeboTripOut]]:
+    """Dados agregados do Pau de Sebo por tripulante."""
+    ref_ano = ano or date.today().year
+    jan1 = date(ref_ano, 1, 1)
+    dec31 = date(ref_ano, 12, 31)
+
+    h_ano = sql_func.coalesce(
+        sql_func.sum(Etapa.tvoo).filter(
+            (Etapa.data >= jan1) & (Etapa.data <= dec31)
+        ),
+        0,
+    ).label('h_ano')
+
+    h_total = sql_func.coalesce(
+        sql_func.sum(Etapa.tvoo).filter(Etapa.data <= dec31),
+        0,
+    ).label('h_total')
+
+    dsv = (
+        sql_func.current_date()
+        - sql_func.max(Etapa.data).filter(Etapa.data <= dec31)
+    ).label('dsv')
+
+    data_ult_voo = sql_func.max(Etapa.data).filter(
+        Etapa.data <= dec31
+    ).label('data_ult_voo')
+
+    query = (
+        select(
+            Tripulante.id.label('trip_id'),
+            User.p_g,
+            User.nome_guerra,
+            Tripulante.trig,
+            Funcao.func,
+            Funcao.oper,
+            h_ano,
+            h_total,
+            dsv,
+            data_ult_voo,
+        )
+        .select_from(Tripulante)
+        .join(User, User.id == Tripulante.user_id)
+        .join(
+            Funcao,
+            (Funcao.trip_id == Tripulante.id) & (Funcao.func == func),
+        )
+        .outerjoin(
+            TripEtapa,
+            (TripEtapa.trip_id == Tripulante.id)
+            & (TripEtapa.func_bordo.in_(func_bordo) if func_bordo else True),
+        )
+        .outerjoin(
+            Etapa,
+            Etapa.id == TripEtapa.etapa_id,
+        )
+        .where(Tripulante.active.is_(True))
+        .group_by(
+            Tripulante.id,
+            User.p_g,
+            User.nome_guerra,
+            Tripulante.trig,
+            Funcao.func,
+            Funcao.oper,
+        )
+        .order_by(
+            text('h_ano DESC'),
+            Tripulante.id,
+        )
+    )
+
+    if oper:
+        query = query.where(Funcao.oper.in_(oper))
+
+    rows = await session.execute(query)
+    items = [
+        SeboTripOut(
+            trip_id=r.trip_id,
+            p_g=r.p_g,
+            nome_guerra=r.nome_guerra,
+            trig=r.trig,
+            func=r.func,
+            oper=r.oper,
+            voo=SeboVoo(
+                h_ano=r.h_ano,
+                h_total=r.h_total,
+                dsv=r.dsv,
+                data_ult_voo=r.data_ult_voo,
+            ),
+            cartoes=SeboCartoes(),
+        )
+        for r in rows.all()
+    ]
+
+    return success_response(data=items)
