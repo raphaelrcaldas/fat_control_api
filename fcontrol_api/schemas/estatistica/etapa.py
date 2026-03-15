@@ -170,6 +170,21 @@ class EtapaPublic(BaseModel):
     id: int
 
 
+class EtapaExportRequest(BaseModel):
+    """Requisicao de exportacao de etapas para Excel."""
+
+    ids: list[int] = Field(min_length=1)
+    pousos: bool = False
+    nivel: bool = False
+    tow: bool = False
+    pax: bool = False
+    carga: bool = False
+    comb: bool = False
+    lub: bool = False
+    esforco_aereo: bool = False
+    tripulantes: bool = False
+
+
 class MissaoCreate(BaseModel):
     titulo: str | None = None
     obs: str | None = None
