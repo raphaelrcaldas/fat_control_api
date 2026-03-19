@@ -1,5 +1,6 @@
 from sqlalchemy import MetaData
 
+from .aeromedica.base import Base as BaseAeromedica
 from .cegep.base import Base as BaseCegep
 from .estatistica.base import Base as BaseStats
 from .nav.base import Base as BaseNav
@@ -13,6 +14,7 @@ for m in [
     BaseCegep.metadata,
     BaseNav.metadata,
     BaseStats.metadata,
+    BaseAeromedica.metadata,
 ]:
     for t in m.tables.values():
         t.tometadata(metadata)
