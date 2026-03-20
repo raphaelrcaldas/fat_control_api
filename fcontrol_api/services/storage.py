@@ -23,7 +23,10 @@ def _get_client():
         aws_access_key_id=settings.STORAGE_ACCESS_KEY,
         aws_secret_access_key=settings.STORAGE_SECRET_KEY,
         region_name=settings.STORAGE_REGION,
-        config=Config(signature_version='s3v4'),
+        config=Config(
+            signature_version='s3v4',
+            s3={'addressing_style': 'path'},
+        ),
     )
 
 
