@@ -13,6 +13,7 @@ from fcontrol_api.models.estatistica.etapa import Etapa, TripEtapa
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
+from fcontrol_api.models.seg_voo.crm import CrmCertificado
 from fcontrol_api.schemas.estatistica.sebo import (
     SeboCartoes,
     SeboTripOut,
@@ -76,12 +77,17 @@ async def list_sebo(
             CartaoSaude.cemal.label('cartao_cemal'),
             CartaoSaude.tovn.label('cartao_tovn'),
             CartaoSaude.imae.label('cartao_imae'),
+            CrmCertificado.data_validade.label('cartao_crm'),
         )
         .select_from(Tripulante)
         .join(User, User.id == Tripulante.user_id)
         .outerjoin(
             CartaoSaude,
             CartaoSaude.user_id == User.id,
+        )
+        .outerjoin(
+            CrmCertificado,
+            CrmCertificado.user_id == User.id,
         )
         .join(
             Funcao,
@@ -107,6 +113,7 @@ async def list_sebo(
             CartaoSaude.cemal,
             CartaoSaude.tovn,
             CartaoSaude.imae,
+            CrmCertificado.data_validade,
         )
         .order_by(
             text('h_ano DESC'),
@@ -135,6 +142,7 @@ async def list_sebo(
                 cemal=r.cartao_cemal,
                 tovn=r.cartao_tovn,
                 imae=r.cartao_imae,
+                crm=r.cartao_crm,
             ),
         )
         for r in rows.all()

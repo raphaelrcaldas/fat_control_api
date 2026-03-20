@@ -61,8 +61,11 @@ async def get_cartoes_saude(
 
     query = (
         select(
-            User, CartaoSaude, Tripulante.id,
-            cemal_tem_ata, total_atas,
+            User,
+            CartaoSaude,
+            Tripulante.id,
+            cemal_tem_ata,
+            total_atas,
         )
         .join(PostoGrad)
         .outerjoin(

@@ -6,6 +6,7 @@ from .estatistica.base import Base as BaseStats
 from .nav.base import Base as BaseNav
 from .public.base import Base as BasePublic
 from .security.base import Base as BaseSecurity
+from .seg_voo.base import Base as BaseSegVoo
 
 metadata = MetaData()
 for m in [
@@ -15,6 +16,7 @@ for m in [
     BaseNav.metadata,
     BaseStats.metadata,
     BaseAeromedica.metadata,
+    BaseSegVoo.metadata,
 ]:
     for t in m.tables.values():
         t.tometadata(metadata)

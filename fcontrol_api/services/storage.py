@@ -46,8 +46,7 @@ def ensure_bucket() -> None:
             client.create_bucket(Bucket=bucket)
         else:
             logger.warning(
-                'Bucket %s check failed (code=%s), '
-                'assuming it exists',
+                'Bucket %s check failed (code=%s), assuming it exists',
                 bucket,
                 code,
             )
@@ -120,12 +119,8 @@ def get_all_buckets_stats() -> dict:
             bucket_objects = 0
 
             try:
-                paginator = client.get_paginator(
-                    'list_objects_v2'
-                )
-                for page in paginator.paginate(
-                    Bucket=bucket_name
-                ):
+                paginator = client.get_paginator('list_objects_v2')
+                for page in paginator.paginate(Bucket=bucket_name):
                     for obj in page.get('Contents', []):
                         bucket_size += obj.get('Size', 0)
                         bucket_objects += 1

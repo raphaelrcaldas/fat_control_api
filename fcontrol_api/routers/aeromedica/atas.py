@@ -356,15 +356,17 @@ async def get_atas_orfas(session: Session):
     total_size = 0
     for ata, nome_guerra, nome_completo in rows:
         total_size += ata.file_size
-        atas.append(AtaOrfaPublic(
-            id=ata.id,
-            user_id=ata.user_id,
-            nome_guerra=nome_guerra,
-            nome_completo=nome_completo,
-            file_name=ata.file_name,
-            file_size=ata.file_size,
-            created_at=ata.created_at,
-        ))
+        atas.append(
+            AtaOrfaPublic(
+                id=ata.id,
+                user_id=ata.user_id,
+                nome_guerra=nome_guerra,
+                nome_completo=nome_completo,
+                file_name=ata.file_name,
+                file_size=ata.file_size,
+                created_at=ata.created_at,
+            )
+        )
 
     return success_response(
         data=AtasOrfasResumo(
