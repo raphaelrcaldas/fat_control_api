@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,9 +11,17 @@ from fcontrol_api.exceptions import (
     validation_exception_handler,
 )
 from fcontrol_api.middlewares import middleware_stack
+from fcontrol_api.services.storage import ensure_bucket
 from fcontrol_api.settings import Settings
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    ensure_bucket()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

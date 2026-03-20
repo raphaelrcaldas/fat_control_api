@@ -11,10 +11,18 @@ async def http_exception_handler(
     request: Request, exc: HTTPException
 ) -> JSONResponse:
     """Handler para HTTPException retornando ApiErrorResponse."""
+    if isinstance(exc.detail, dict):
+        message = exc.detail.pop('type', 'Erro')
+        errors = exc.detail
+    else:
+        message = str(exc.detail)
+        errors = None
+
     return JSONResponse(
         status_code=exc.status_code,
         content=ApiErrorResponse(
-            message=str(exc.detail),
+            message=message,
+            errors=errors,
             path=str(request.url.path),
         ).model_dump(),
     )

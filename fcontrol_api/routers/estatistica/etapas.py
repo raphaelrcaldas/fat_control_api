@@ -305,9 +305,7 @@ async def list_etapas(
 async def get_etapa_detail(
     id: EtapaId, session: Session
 ) -> ApiResponse[EtapaDetailOut]:
-    etapa = await session.scalar(
-        select(Etapa).where(Etapa.id == id)
-    )
+    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -319,20 +317,14 @@ async def get_etapa_detail(
     oi_data: dict[int, dict[str, list[str]]] = {}
     if oi_etapas:
         oi_data[id] = {
-            'esf_aer': list(
-                dict.fromkeys(
-                    oi.esf_aer for oi in oi_etapas
-                )
-            ),
+            'esf_aer': list(dict.fromkeys(oi.esf_aer for oi in oi_etapas)),
             'tipo': [oi_etapas[0].tipo_missao_cod],
         }
 
     trip_data = await fetch_trip_data(session, [id])
     tripulantes = trip_data.get(id, [])
 
-    detail = EtapaDetailOut.model_validate(
-        etapa
-    ).model_copy(
+    detail = EtapaDetailOut.model_validate(etapa).model_copy(
         update={
             **oi_extra(etapa.id, oi_data),
             'tripulantes': tripulantes,
@@ -433,9 +425,7 @@ async def update_etapa(
     diretamente. Se oi_etapas fornecido, valida soma
     contra tvoo do payload ou do banco.
     """
-    etapa = await session.scalar(
-        select(Etapa).where(Etapa.id == id)
-    )
+    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -443,14 +433,8 @@ async def update_etapa(
         )
 
     if data.oi_etapas is not None:
-        tvoo_ref = (
-            data.tvoo
-            if data.tvoo is not None
-            else etapa.tvoo
-        )
-        soma_oi = sum(
-            oi.tvoo for oi in data.oi_etapas
-        )
+        tvoo_ref = data.tvoo if data.tvoo is not None else etapa.tvoo
+        soma_oi = sum(oi.tvoo for oi in data.oi_etapas)
         if data.oi_etapas and soma_oi != tvoo_ref:
             raise HTTPException(
                 status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -477,9 +461,7 @@ async def update_etapa(
 
     if data.tripulantes is not None:
         await session.execute(
-            sa_delete(TripEtapa).where(
-                TripEtapa.etapa_id == id
-            )
+            sa_delete(TripEtapa).where(TripEtapa.etapa_id == id)
         )
         await session.flush()
         for t in data.tripulantes:
@@ -493,11 +475,7 @@ async def update_etapa(
             )
 
     if data.oi_etapas is not None:
-        await session.execute(
-            sa_delete(OIEtapa).where(
-                OIEtapa.etapa_id == id
-            )
-        )
+        await session.execute(sa_delete(OIEtapa).where(OIEtapa.etapa_id == id))
         await session.flush()
         for oi in data.oi_etapas:
             session.add(
@@ -523,29 +501,17 @@ async def update_etapa(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
 )
-async def delete_etapa(
-    id: EtapaId, session: Session
-) -> ApiResponse[None]:
+async def delete_etapa(id: EtapaId, session: Session) -> ApiResponse[None]:
     """Remove uma etapa e seus dados vinculados."""
-    etapa = await session.scalar(
-        select(Etapa).where(Etapa.id == id)
-    )
+    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Etapa nao encontrada',
         )
 
-    await session.execute(
-        sa_delete(TripEtapa).where(
-            TripEtapa.etapa_id == id
-        )
-    )
-    await session.execute(
-        sa_delete(OIEtapa).where(
-            OIEtapa.etapa_id == id
-        )
-    )
+    await session.execute(sa_delete(TripEtapa).where(TripEtapa.etapa_id == id))
+    await session.execute(sa_delete(OIEtapa).where(OIEtapa.etapa_id == id))
 
     await session.delete(etapa)
     await session.commit()
@@ -582,13 +548,15 @@ async def export_etapas(
     oi_data = None
     if data.esforco_aereo:
         oi_data = await fetch_oi_detail_data(
-            session, etapa_ids,
+            session,
+            etapa_ids,
         )
 
     trip_data = None
     if data.tripulantes:
         trip_data = await fetch_trip_data(
-            session, etapa_ids,
+            session,
+            etapa_ids,
         )
 
     columns = {
@@ -616,12 +584,9 @@ async def export_etapas(
     return StreamingResponse(
         content=buffer,
         media_type=(
-            'application/vnd.openxmlformats-'
-            'officedocument.spreadsheetml.sheet'
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         ),
         headers={
-            'Content-Disposition': (
-                f'attachment; filename="{filename}"'
-            ),
+            'Content-Disposition': (f'attachment; filename="{filename}"'),
         },
     )

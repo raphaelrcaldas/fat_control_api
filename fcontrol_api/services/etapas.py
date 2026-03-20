@@ -25,11 +25,7 @@ from fcontrol_api.utils.responses import paginated_response
 
 def like_safe(val: str) -> str:
     """Escapa caracteres especiais de LIKE."""
-    return (
-        val.replace('\\', '\\\\')
-        .replace('%', '\\%')
-        .replace('_', '\\_')
-    )
+    return val.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 def oi_extra(
@@ -44,12 +40,8 @@ def oi_extra(
             'tipo_missao_cod': None,
         }
     return {
-        'esf_aer_itens': list(
-            dict.fromkeys(info['esf_aer'])
-        ),
-        'tipo_missao_cod': (
-            info['tipo'][0] if info['tipo'] else None
-        ),
+        'esf_aer_itens': list(dict.fromkeys(info['esf_aer'])),
+        'tipo_missao_cod': (info['tipo'][0] if info['tipo'] else None),
     }
 
 
@@ -228,9 +220,7 @@ async def list_etapas_flat(
 
     total = (
         await session.scalar(
-            select(sql_func.count()).select_from(
-                valid_etapa_ids
-            )
+            select(sql_func.count()).select_from(valid_etapa_ids)
         )
     ) or 0
 
@@ -259,16 +249,10 @@ async def list_etapas_flat(
 
     page_etapa_ids = [e.id for e in etapas_page]
 
-    oi_data = await fetch_oi_data(
-        session, page_etapa_ids
-    )
-    trip_data = await fetch_trip_data(
-        session, page_etapa_ids
-    )
+    oi_data = await fetch_oi_data(session, page_etapa_ids)
+    trip_data = await fetch_trip_data(session, page_etapa_ids)
 
-    missao_ids = list(
-        {e.missao_id for e in etapas_page}
-    )
+    missao_ids = list({e.missao_id for e in etapas_page})
     missoes_result = await session.scalars(
         select(Missao).where(Missao.id.in_(missao_ids))
     )

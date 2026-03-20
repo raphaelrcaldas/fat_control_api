@@ -41,5 +41,7 @@ class UserCartaoSaude(BaseModel):
     user: UserPublic
     cartao: CartaoSaudePublic | None = None
     tripulante: bool = False
+    cemal_tem_ata: bool | None = None
+    total_atas: int = 0
 
     model_config = ConfigDict(from_attributes=True)

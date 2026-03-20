@@ -15,3 +15,11 @@ class Settings(BaseSettings):
     FATCONTROL_URL: str
     FATBIRD_URL: str
     ENV: str = 'production'
+
+    # Storage (MinIO local / Supabase S3 prod)
+    STORAGE_ENDPOINT: str = 'localhost:9000'
+    STORAGE_ACCESS_KEY: str
+    STORAGE_SECRET_KEY: str
+    STORAGE_BUCKET: str = 'atas-inspecao'
+    STORAGE_SECURE: bool = False
+    STORAGE_REGION: str = 'sa-east-1'

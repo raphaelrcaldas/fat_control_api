@@ -124,7 +124,9 @@ def _fmt_val(val, fmt: str = 'int') -> str | int | float:
 
 
 def _auto_width(
-    ws, col_count: int, header_row: int,
+    ws,
+    col_count: int,
+    header_row: int,
     wide_cols: frozenset[str] | None = None,
     skip_cols: frozenset[str] | None = None,
 ):
@@ -136,9 +138,7 @@ def _auto_width(
     for col_idx in range(1, col_count + 1):
         max_len = 0
         col_letter = get_column_letter(col_idx)
-        hdr_val = str(
-            ws.cell(row=header_row, column=col_idx).value or ''
-        )
+        hdr_val = str(ws.cell(row=header_row, column=col_idx).value or '')
         if hdr_val in skip_cols:
             continue
         is_wide = hdr_val in wide_cols
@@ -153,9 +153,7 @@ def _auto_width(
                     continue
                 val = str(cell.value)
                 lines = val.split('\n')
-                longest = max(
-                    len(ln) for ln in lines
-                )
+                longest = max(len(ln) for ln in lines)
                 if cell.row == header_row:
                     longest = int(longest * 1.3) + 3
                 max_len = max(max_len, longest)
@@ -173,15 +171,20 @@ _WRAP_HEADERS = frozenset({
 })
 # Colunas com wrap_text centralizado
 _WRAP_CENTER_HEADERS = frozenset({
-    'Cod OI', 'Regime',
+    'Cod OI',
+    'Regime',
 })
 # Colunas numericas alinhadas a direita
 _NUM_HEADERS = frozenset({
-    'Pousos', 'TOW', 'Comb', 'Lub',
+    'Pousos',
+    'TOW',
+    'Comb',
+    'Lub',
 })
 # Colunas centralizadas
 _CENTER_HEADERS = frozenset({
-    'PAX', 'Carga',
+    'PAX',
+    'Carga',
 })
 
 
@@ -406,7 +409,8 @@ def generate_etapas_xlsx(
         for val in values:
             if isinstance(val, str) and '\n' in val:
                 max_lines = max(
-                    max_lines, val.count('\n') + 1,
+                    max_lines,
+                    val.count('\n') + 1,
                 )
         if max_lines > 1:
             ws.row_dimensions[r].height = max_lines * 15
@@ -498,7 +502,8 @@ def generate_etapas_xlsx(
 
     # Auto-width apenas para colunas dinamicas
     _auto_width(
-        ws, col_count,
+        ws,
+        col_count,
         header_row=header_row,
         wide_cols=_WRAP_HEADERS,
         skip_cols=frozenset(_FIXED_WIDTHS.keys()),
