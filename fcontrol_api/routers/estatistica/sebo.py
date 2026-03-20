@@ -4,10 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func as sql_func
-from sqlalchemy import select, text
+from sqlalchemy import select, text, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.etapa import Etapa, TripEtapa
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.tripulantes import Tripulante
@@ -49,11 +50,6 @@ async def list_sebo(
         0,
     ).label('h_ano')
 
-    h_total = sql_func.coalesce(
-        sql_func.sum(Etapa.tvoo).filter(Etapa.data <= dec31),
-        0,
-    ).label('h_total')
-
     dsv = (
         sql_func.current_date()
         - sql_func.max(Etapa.data).filter(Etapa.data <= dec31)
@@ -75,12 +71,18 @@ async def list_sebo(
             Funcao.func,
             Funcao.oper,
             h_ano,
-            h_total,
             dsv,
             data_ult_voo,
+            CartaoSaude.cemal.label('cartao_cemal'),
+            CartaoSaude.tovn.label('cartao_tovn'),
+            CartaoSaude.imae.label('cartao_imae'),
         )
         .select_from(Tripulante)
         .join(User, User.id == Tripulante.user_id)
+        .outerjoin(
+            CartaoSaude,
+            CartaoSaude.user_id == User.id,
+        )
         .join(
             Funcao,
             (Funcao.trip_id == Tripulante.id) & (Funcao.func == func),
@@ -88,7 +90,7 @@ async def list_sebo(
         .outerjoin(
             TripEtapa,
             (TripEtapa.trip_id == Tripulante.id)
-            & (TripEtapa.func_bordo.in_(func_bordo) if func_bordo else True),
+            & (TripEtapa.func_bordo.in_(func_bordo) if func_bordo else true()),
         )
         .outerjoin(
             Etapa,
@@ -102,6 +104,9 @@ async def list_sebo(
             Tripulante.trig,
             Funcao.func,
             Funcao.oper,
+            CartaoSaude.cemal,
+            CartaoSaude.tovn,
+            CartaoSaude.imae,
         )
         .order_by(
             text('h_ano DESC'),
@@ -123,11 +128,14 @@ async def list_sebo(
             oper=r.oper,
             voo=SeboVoo(
                 h_ano=r.h_ano,
-                h_total=r.h_total,
                 dsv=r.dsv,
                 data_ult_voo=r.data_ult_voo,
             ),
-            cartoes=SeboCartoes(),
+            cartoes=SeboCartoes(
+                cemal=r.cartao_cemal,
+                tovn=r.cartao_tovn,
+                imae=r.cartao_imae,
+            ),
         )
         for r in rows.all()
     ]

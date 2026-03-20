@@ -7,7 +7,6 @@ class SeboVoo(BaseModel):
     """Dados de voo agregados."""
 
     h_ano: int
-    h_total: int
     dsv: int | None
     data_ult_voo: date | None
 
