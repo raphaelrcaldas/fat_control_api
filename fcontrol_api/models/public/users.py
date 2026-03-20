@@ -25,6 +25,7 @@ class User(Base):
     saram: Mapped[str] = mapped_column(String(7), nullable=False, unique=True)
     unidade: Mapped[str] = mapped_column(String(8), nullable=False)
     cpf: Mapped[str] = mapped_column(String(11), nullable=True)
+    telefone: Mapped[str] = mapped_column(String(11), nullable=True)
     email_fab: Mapped[str] = mapped_column(nullable=True)
     email_pess: Mapped[str] = mapped_column(nullable=True)
     nasc: Mapped[date] = mapped_column(nullable=True)

@@ -23,6 +23,7 @@ class UserSchema(BaseModel):
     id_fab: str | None = Field(default=None, min_length=6, max_length=6)
     saram: str = Field(min_length=7, max_length=7)
     cpf: str
+    telefone: str | None = None
     ult_promo: Annotated[date | None, Body()]
     nasc: Annotated[date | None, Body()]
     email_pess: EmailStr | None
@@ -92,6 +93,7 @@ class UserUpdate(BaseModel):
     id_fab: str | None = Field(default=None, min_length=6, max_length=6)
     saram: str | None = Field(default=None, min_length=7, max_length=7)
     cpf: str | None = None
+    telefone: str | None = None
     ult_promo: date | None = None
     nasc: date | None = None
     email_pess: EmailStr | None = None
@@ -164,6 +166,7 @@ class UserPublic(BaseModel):
     nome_completo: str
     active: bool
     unidade: str
+    telefone: str | None = None
     ult_promo: Annotated[date | None, Body()]
     ant_rel: int | None = Field(gt=0)
     model_config = ConfigDict(from_attributes=True)
