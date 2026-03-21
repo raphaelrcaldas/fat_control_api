@@ -40,6 +40,13 @@ class EsfAerAloc(Base):
         CheckConstraint('alocado >= 0', name='ck_alocado_aloc_min'),
         CheckConstraint('alocado % 5 = 0', name='ck_alocado_multiplo_5'),
         CheckConstraint('ano_ref >= 2020', name='ck_alocado_anoref_min'),
+        *(
+            CheckConstraint(
+                f'm{i} >= 0 AND m{i} % 5 = 0',
+                name=f'ck_aloc_m{i}',
+            )
+            for i in range(1, 13)
+        ),
         {'schema': 'estatistica'},
     )
 
@@ -47,6 +54,18 @@ class EsfAerAloc(Base):
     esfaer_id: Mapped[int] = mapped_column(ForeignKey(EsforcoAereo.id))
     ano_ref: Mapped[int]
     alocado: Mapped[int]
+    m1: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m2: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m3: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m4: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m5: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m6: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m7: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m8: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m9: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m10: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m11: Mapped[int] = mapped_column(SmallInteger, default=0)
+    m12: Mapped[int] = mapped_column(SmallInteger, default=0)
 
 
 class EsfAerAlocHist(Base):
