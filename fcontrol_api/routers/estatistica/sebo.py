@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.etapa import Etapa, TripEtapa
+from fcontrol_api.models.inteligencia.passaportes import Passaporte
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
@@ -78,6 +79,8 @@ async def list_sebo(
             CartaoSaude.tovn.label('cartao_tovn'),
             CartaoSaude.imae.label('cartao_imae'),
             CrmCertificado.data_validade.label('cartao_crm'),
+            Passaporte.validade_passaporte.label('cartao_val_pass'),
+            Passaporte.validade_visa.label('cartao_val_visa'),
         )
         .select_from(Tripulante)
         .join(User, User.id == Tripulante.user_id)
@@ -88,6 +91,10 @@ async def list_sebo(
         .outerjoin(
             CrmCertificado,
             CrmCertificado.user_id == User.id,
+        )
+        .outerjoin(
+            Passaporte,
+            Passaporte.user_id == User.id,
         )
         .join(
             Funcao,
@@ -114,6 +121,8 @@ async def list_sebo(
             CartaoSaude.tovn,
             CartaoSaude.imae,
             CrmCertificado.data_validade,
+            Passaporte.validade_passaporte,
+            Passaporte.validade_visa,
         )
         .order_by(
             text('h_ano DESC'),
@@ -143,6 +152,8 @@ async def list_sebo(
                 tovn=r.cartao_tovn,
                 imae=r.cartao_imae,
                 crm=r.cartao_crm,
+                val_pass=r.cartao_val_pass,
+                val_visa=r.cartao_val_visa,
             ),
         )
         for r in rows.all()
