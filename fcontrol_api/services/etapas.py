@@ -28,60 +28,6 @@ def like_safe(val: str) -> str:
     return val.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
-def oi_extra(
-    etapa_id: int,
-    oi_data: dict[int, dict[str, list[str]]],
-) -> dict[str, object]:
-    """Extrai esf_aer_itens e tipo_missao_cod de oi_data."""
-    info = oi_data.get(etapa_id)
-    if not info:
-        return {
-            'esf_aer_itens': [],
-            'tipo_missao_cod': None,
-        }
-    return {
-        'esf_aer_itens': list(dict.fromkeys(info['esf_aer'])),
-        'tipo_missao_cod': (info['tipo'][0] if info['tipo'] else None),
-    }
-
-
-async def fetch_oi_data(
-    session: AsyncSession,
-    etapa_ids: list[int],
-) -> dict[int, dict[str, list[str]]]:
-    """Busca esf_aer e tipo_missao agrupados por etapa."""
-    if not etapa_ids:
-        return {}
-
-    oi_data: dict[int, dict[str, list[str]]] = {}
-    oi_rows = await session.execute(
-        select(
-            OIEtapa.etapa_id,
-            EsforcoAereo.descricao.label('esf_descr'),
-            TipoMissao.cod.label('tipo_cod'),
-        )
-        .select_from(OIEtapa)
-        .join(
-            EsforcoAereo,
-            EsforcoAereo.id == OIEtapa.esf_aer_id,
-        )
-        .join(
-            TipoMissao,
-            TipoMissao.id == OIEtapa.tipo_missao_id,
-        )
-        .where(OIEtapa.etapa_id.in_(etapa_ids))
-        .order_by(OIEtapa.etapa_id, OIEtapa.id)
-    )
-    for row in oi_rows.all():
-        eid = row.etapa_id
-        if eid not in oi_data:
-            oi_data[eid] = {'esf_aer': [], 'tipo': []}
-        oi_data[eid]['esf_aer'].append(row.esf_descr)
-        oi_data[eid]['tipo'].append(row.tipo_cod)
-
-    return oi_data
-
-
 async def fetch_trip_data(
     session: AsyncSession,
     etapa_ids: list[int],
@@ -249,7 +195,9 @@ async def list_etapas_flat(
 
     page_etapa_ids = [e.id for e in etapas_page]
 
-    oi_data = await fetch_oi_data(session, page_etapa_ids)
+    oi_detail_data = await fetch_oi_detail_data(
+        session, page_etapa_ids,
+    )
     trip_data = await fetch_trip_data(session, page_etapa_ids)
 
     missao_ids = list({e.missao_id for e in etapas_page})
@@ -261,7 +209,9 @@ async def list_etapas_flat(
     items = [
         EtapaFlatOut.model_validate(e).model_copy(
             update={
-                **oi_extra(e.id, oi_data),
+                'oi_etapas': oi_detail_data.get(
+                    e.id, [],
+                ),
                 'tripulantes': trip_data.get(e.id, []),
                 'missao_id': e.missao_id,
                 'missao_titulo': (

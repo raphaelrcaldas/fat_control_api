@@ -63,9 +63,8 @@ class EtapaOut(BaseModel):
     sagem: bool
     parte1: bool
     obs: str | None
-    esf_aer_itens: list[str] = []
-    tipo_missao_cod: str | None = None
     tripulantes: list['TripEtapaOut'] = []
+    oi_etapas: list['OIEtapaOut'] = []
 
 
 class EtapaFlatOut(EtapaOut):
@@ -110,7 +109,6 @@ class EtapaDetailOut(EtapaOut):
     """Detalhe completo de uma etapa."""
 
     pousos: int
-    oi_etapas: list[OIEtapaOut] = []
 
 
 class TripEtapaIn(BaseModel):

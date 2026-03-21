@@ -35,13 +35,11 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
 )
 from fcontrol_api.services.etapas import (
-    fetch_oi_data,
     fetch_oi_detail_data,
     fetch_oi_etapas,
     fetch_trip_data,
     like_safe,
     list_etapas_flat,
-    oi_extra,
 )
 from fcontrol_api.utils.responses import (
     paginated_response,
@@ -249,9 +247,11 @@ async def list_etapas(
     etapas_result = await session.scalars(etapas_query)
     etapas_all = etapas_result.all()
 
-    # Passo 3b: esf_aer e tipo_missao por etapa
+    # Passo 3b: OI etapas completas por etapa
     page_etapa_ids = [e.id for e in etapas_all]
-    oi_data = await fetch_oi_data(session, page_etapa_ids)
+    oi_detail_data = await fetch_oi_detail_data(
+        session, page_etapa_ids,
+    )
 
     # Passo 3c: tripulantes por etapa
     trip_data = await fetch_trip_data(session, page_etapa_ids)
@@ -278,8 +278,12 @@ async def list_etapas(
             etapas=[
                 EtapaOut.model_validate(e).model_copy(
                     update={
-                        **oi_extra(e.id, oi_data),
-                        'tripulantes': trip_data.get(e.id, []),
+                        'oi_etapas': oi_detail_data.get(
+                            e.id, [],
+                        ),
+                        'tripulantes': trip_data.get(
+                            e.id, [],
+                        ),
                     }
                 )
                 for e in etapas_por_missao[mid]
@@ -313,20 +317,11 @@ async def get_etapa_detail(
         )
 
     oi_etapas = await fetch_oi_etapas(session, id)
-
-    oi_data: dict[int, dict[str, list[str]]] = {}
-    if oi_etapas:
-        oi_data[id] = {
-            'esf_aer': list(dict.fromkeys(oi.esf_aer for oi in oi_etapas)),
-            'tipo': [oi_etapas[0].tipo_missao_cod],
-        }
-
     trip_data = await fetch_trip_data(session, [id])
     tripulantes = trip_data.get(id, [])
 
     detail = EtapaDetailOut.model_validate(etapa).model_copy(
         update={
-            **oi_extra(etapa.id, oi_data),
             'tripulantes': tripulantes,
             'oi_etapas': oi_etapas,
         }
