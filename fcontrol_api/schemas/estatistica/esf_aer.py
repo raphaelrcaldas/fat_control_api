@@ -39,6 +39,9 @@ class EsfAerUpdateItem(BaseModel):
         if any(m < 0 for m in v):
             msg = 'valores mensais devem ser >= 0'
             raise ValueError(msg)
+        if any(m % 5 != 0 for m in v):
+            msg = 'valores mensais devem ser multiplos de 5'
+            raise ValueError(msg)
         return v
 
 

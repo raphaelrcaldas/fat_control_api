@@ -50,24 +50,8 @@ async def list_esf_aer_items(session: Session):
     )
     rows = result.all()
     return success_response(
-        data=[
-            EsfAerItem(id=row.id, descricao=row.descricao)
-            for row in rows
-        ]
+        data=[EsfAerItem(id=row.id, descricao=row.descricao) for row in rows]
     )
-
-
-def _mes_col(mes: int):
-    """Gera coluna SUM condicional para um mes."""
-    return func.coalesce(
-        func.sum(
-            case(
-                (extract('month', Etapa.data) == mes, OIEtapa.tvoo),
-                else_=0,
-            )
-        ),
-        0,
-    ).label(f'm{mes}')
 
 
 @router.get(
@@ -79,11 +63,32 @@ async def get_esf_aer_resumo(
     session: Session,
     ano_ref: AnoRef,
 ):
-    voado_cols = [_mes_col(m) for m in range(1, 13)]
-    sagem_cols = [
+    # Subquery: OIEtapa filtrada por ano via Etapa
+    oi_sub = (
+        select(
+            OIEtapa.esf_aer_id,
+            OIEtapa.tvoo,
+            extract('month', Etapa.data).label('mes'),
+        )
+        .join(Etapa, Etapa.id == OIEtapa.etapa_id)
+        .where(extract('year', Etapa.data) == ano_ref)
+        .subquery('oi_ano')
+    )
+
+    voado_cols = [
         func.coalesce(
-            getattr(EsfAerAloc, f'm{i}'), 0
-        ).label(f'sagem_m{i}')
+            func.sum(
+                case(
+                    (oi_sub.c.mes == m, oi_sub.c.tvoo),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label(f'm{m}')
+        for m in range(1, 13)
+    ]
+    sagem_cols = [
+        func.coalesce(getattr(EsfAerAloc, f'm{i}'), 0).label(f'sagem_m{i}')
         for i in range(1, 13)
     ]
 
@@ -92,15 +97,7 @@ async def get_esf_aer_resumo(
             EsforcoAereo.id,
             EsforcoAereo.descricao,
             func.coalesce(EsfAerAloc.alocado, 0).label('alocado'),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (Etapa.id.isnot(None), OIEtapa.tvoo),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label('voado'),
+            func.coalesce(func.sum(oi_sub.c.tvoo), 0).label('voado'),
             *voado_cols,
             *sagem_cols,
         )
@@ -110,39 +107,19 @@ async def get_esf_aer_resumo(
             & (EsfAerAloc.ano_ref == ano_ref),
         )
         .outerjoin(
-            OIEtapa,
-            OIEtapa.esf_aer_id == EsforcoAereo.id,
-        )
-        .outerjoin(
-            Etapa,
-            (Etapa.id == OIEtapa.etapa_id)
-            & (extract('year', Etapa.data) == ano_ref),
+            oi_sub,
+            oi_sub.c.esf_aer_id == EsforcoAereo.id,
         )
         .group_by(
             EsforcoAereo.id,
             EsforcoAereo.descricao,
             EsfAerAloc.alocado,
-            *[
-                getattr(EsfAerAloc, f'm{i}')
-                for i in range(1, 13)
-            ],
+            *[getattr(EsfAerAloc, f'm{i}') for i in range(1, 13)],
         )
         .having(
             or_(
                 func.coalesce(EsfAerAloc.alocado, 0) > 0,
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (
-                                Etapa.id.isnot(None),
-                                OIEtapa.tvoo,
-                            ),
-                            else_=0,
-                        )
-                    ),
-                    0,
-                )
-                > 0,
+                func.coalesce(func.sum(oi_sub.c.tvoo), 0) > 0,
             )
         )
         .order_by(EsforcoAereo.descricao)
@@ -160,12 +137,8 @@ async def get_esf_aer_resumo(
     for row in rows:
         alocado = row.alocado
         voado = row.voado
-        meses_voados = [
-            getattr(row, f'm{m}') for m in range(1, 13)
-        ]
-        meses_sagem = [
-            getattr(row, f'sagem_m{m}') for m in range(1, 13)
-        ]
+        meses_voados = [getattr(row, f'm{m}') for m in range(1, 13)]
+        meses_sagem = [getattr(row, f'sagem_m{m}') for m in range(1, 13)]
 
         items.append(
             EsfAerResumoItem(
@@ -252,12 +225,22 @@ async def update_esf_aer(
     aloc_rows = aloc_result.scalars().all()
 
     # Mapa: esfaer_id -> EsfAerAloc
-    aloc_map: dict[int, EsfAerAloc] = {
-        a.esfaer_id: a for a in aloc_rows
-    }
+    aloc_map: dict[int, EsfAerAloc] = {a.esfaer_id: a for a in aloc_rows}
 
     # Mapa auxiliar: esfaer_id -> EsforcoAereo
     id_to_esf = {r.id: r for r in existing_rows}
+
+    # Total antes (snapshot do DB, sem simulador)
+    total_antes = sum(
+        a.alocado
+        for a in aloc_rows
+        if 'SML'
+        not in (
+            id_to_esf[a.esfaer_id].descricao
+            if a.esfaer_id in id_to_esf
+            else ''
+        )
+    )
 
     # 3. Processar cada item do payload
     diff_rows: list[EsfAerDiffRow] = []
@@ -310,9 +293,7 @@ async def update_esf_aer(
 
         esf = db_map[key]
         import_ids.add(esf.id)
-        antes = (
-            aloc_map[esf.id].alocado if esf.id in aloc_map else 0
-        )
+        antes = aloc_map[esf.id].alocado if esf.id in aloc_map else 0
 
         # 3b. Alocacao existente para este ano?
         if esf.id in aloc_map:
@@ -345,9 +326,7 @@ async def update_esf_aer(
     for esfaer_id, aloc in aloc_map.items():
         if esfaer_id not in import_ids:
             esf = id_to_esf.get(esfaer_id)
-            descricao = (
-                esf.descricao if esf else f'ID {esfaer_id}'
-            )
+            descricao = esf.descricao if esf else f'ID {esfaer_id}'
             diff_rows.append(
                 EsfAerDiffRow(
                     descricao=descricao,
@@ -359,9 +338,7 @@ async def update_esf_aer(
 
     if removed_ids:
         await session.execute(
-            delete(EsfAerAloc).where(
-                EsfAerAloc.id.in_(removed_ids)
-            )
+            delete(EsfAerAloc).where(EsfAerAloc.id.in_(removed_ids))
         )
 
     # 5. Registrar historico para alocacoes que mudaram
@@ -369,8 +346,7 @@ async def update_esf_aer(
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     desc_to_esfaer: dict[str, int] = {
         e.descricao: e.id
-        for e in list(id_to_esf.values())
-        + list(db_map.values())
+        for e in list(id_to_esf.values()) + list(db_map.values())
     }
     for row in diff_rows:
         if row.antes == row.depois:
@@ -394,17 +370,12 @@ async def update_esf_aer(
     changed = [r for r in diff_rows if r.antes != r.depois]
     changed.sort(key=lambda r: r.descricao)
 
-    # Total do esquadrao (todas as alocacoes, sem simulador)
+    # Total depois (todas as alocacoes vigentes, sem simulador)
     all_esf: dict[int, EsforcoAereo] = {**id_to_esf}
     for v in db_map.values():
         all_esf[v.id] = v
 
     removed_set = set(removed_ids)
-    total_antes = sum(
-        r.antes or 0
-        for r in diff_rows
-        if 'SML' not in r.descricao
-    )
     total_depois = 0
     for eid, aloc in aloc_map.items():
         if aloc.id in removed_set:

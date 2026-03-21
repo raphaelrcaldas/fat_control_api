@@ -196,7 +196,8 @@ async def list_etapas_flat(
     page_etapa_ids = [e.id for e in etapas_page]
 
     oi_detail_data = await fetch_oi_detail_data(
-        session, page_etapa_ids,
+        session,
+        page_etapa_ids,
     )
     trip_data = await fetch_trip_data(session, page_etapa_ids)
 
@@ -210,7 +211,8 @@ async def list_etapas_flat(
         EtapaFlatOut.model_validate(e).model_copy(
             update={
                 'oi_etapas': oi_detail_data.get(
-                    e.id, [],
+                    e.id,
+                    [],
                 ),
                 'tripulantes': trip_data.get(e.id, []),
                 'missao_id': e.missao_id,
