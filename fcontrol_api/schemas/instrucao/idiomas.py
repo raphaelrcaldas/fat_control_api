@@ -22,13 +22,9 @@ class IdiomasUpdate(IdiomasBase):
     @model_validator(mode='after')
     def validade_requer_habilitacao(self) -> 'IdiomasUpdate':
         if self.val_espanhol is not None and self.hab_espanhol is None:
-            raise ValueError(
-                'val_espanhol requer hab_espanhol preenchido'
-            )
+            raise ValueError('val_espanhol requer hab_espanhol preenchido')
         if self.val_ingles is not None and self.hab_ingles is None:
-            raise ValueError(
-                'val_ingles requer hab_ingles preenchido'
-            )
+            raise ValueError('val_ingles requer hab_ingles preenchido')
         return self
 
 

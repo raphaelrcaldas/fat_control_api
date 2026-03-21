@@ -69,7 +69,8 @@ async def list_crm(
     if funcao:
         funcs = [f.strip() for f in funcao.split(',')]
         query = (
-            query.join(Funcao, Funcao.trip_id == Tripulante.id)
+            query
+            .join(Funcao, Funcao.trip_id == Tripulante.id)
             .where(Funcao.func.in_(funcs))
             .distinct()
         )
