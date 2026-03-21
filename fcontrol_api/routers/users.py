@@ -23,6 +23,7 @@ from fcontrol_api.security import (
     get_current_user,
     get_password_hash,
     permission_checker,
+    require_admin,
 )
 from fcontrol_api.services.auth import get_user_roles
 from fcontrol_api.services.logs import log_user_action
@@ -80,7 +81,7 @@ async def change_pwd(
 async def reset_pwd(
     user_id: int,
     session: Session,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:

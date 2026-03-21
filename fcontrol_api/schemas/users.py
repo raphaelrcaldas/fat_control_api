@@ -219,8 +219,7 @@ class UserProfile(BaseModel):
     role: str | None
     permissions: list[Permission]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserPublicPaginated(PaginatedResponse[UserPublic]):
