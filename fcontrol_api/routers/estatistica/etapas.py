@@ -93,7 +93,7 @@ async def list_etapas(
     trip_search: Annotated[str | None, Query()] = None,
     flat: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
-    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
+    per_page: Annotated[int, Query(ge=1, le=400)] = 20,
 ) -> (
     ApiPaginatedResponse[MissaoComEtapasOut]
     | ApiPaginatedResponse[EtapaFlatOut]
