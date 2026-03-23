@@ -68,6 +68,20 @@ class UserSchema(BaseModel):
             raise ValueError('CPF inválido')
         return v
 
+    @field_validator('telefone')
+    @classmethod
+    def validate_telefone(cls, v: str | None) -> str | None:
+        """
+        Valida que telefone contém 10 ou 11 dígitos.
+        """
+        if v is not None:
+            digits = re.sub(r'\D', '', v)
+            if len(digits) not in (10, 11):
+                raise ValueError(
+                    'Telefone deve conter 10 ou 11 dígitos'
+                )
+        return v
+
     @field_validator('email_fab')
     @classmethod
     def validate_email_fab(cls, v: str) -> str:
@@ -137,6 +151,20 @@ class UserUpdate(BaseModel):
         """
         if v and not validar_cpf(v):
             raise ValueError('CPF inválido')
+        return v
+
+    @field_validator('telefone')
+    @classmethod
+    def validate_telefone(cls, v: str | None) -> str | None:
+        """
+        Valida que telefone contém 10 ou 11 dígitos.
+        """
+        if v is not None:
+            digits = re.sub(r'\D', '', v)
+            if len(digits) not in (10, 11):
+                raise ValueError(
+                    'Telefone deve conter 10 ou 11 dígitos'
+                )
         return v
 
     @field_validator('email_fab')

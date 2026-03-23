@@ -143,6 +143,7 @@ async def create_user(
         nasc=payload.nasc,
         email_pess=payload.email_pess,
         email_fab=payload.email_fab,
+        telefone=payload.telefone,
         unidade=payload.unidade,
         ant_rel=payload.ant_rel,
         password=hashed_password,

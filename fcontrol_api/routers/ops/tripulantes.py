@@ -98,6 +98,19 @@ async def get_my_trip(
 
 
 @router.get(
+    '/user-ids',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[list[int]],
+)
+async def get_trip_user_ids(session: Session, uae: str = '11gt'):
+    """Retorna os user_ids de todos os tripulantes da UAE."""
+    result = await session.scalars(
+        select(Tripulante.user_id).where(Tripulante.uae == uae)
+    )
+    return success_response(data=list(result.all()))
+
+
+@router.get(
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[TripWithFuncs],
@@ -150,6 +163,7 @@ async def list_trips(
         filter_query = filter_query.where(
             (Tripulante.trig.ilike(f'%{search_term}%'))
             | (User.nome_guerra.ilike(f'%{search_term}%'))
+            | (User.nome_completo.ilike(f'%{search_term}%'))
         )
 
     # Filtro por posto/graduação
