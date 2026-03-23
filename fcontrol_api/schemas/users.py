@@ -76,7 +76,7 @@ class UserSchema(BaseModel):
         """
         if v is not None:
             digits = re.sub(r'\D', '', v)
-            if len(digits) not in (10, 11):
+            if len(digits) not in {10, 11}:
                 raise ValueError(
                     'Telefone deve conter 10 ou 11 dígitos'
                 )
@@ -161,7 +161,7 @@ class UserUpdate(BaseModel):
         """
         if v is not None:
             digits = re.sub(r'\D', '', v)
-            if len(digits) not in (10, 11):
+            if len(digits) not in {10, 11}:
                 raise ValueError(
                     'Telefone deve conter 10 ou 11 dígitos'
                 )

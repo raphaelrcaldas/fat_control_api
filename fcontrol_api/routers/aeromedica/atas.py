@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from http import HTTPStatus
 from typing import Annotated
 
@@ -15,6 +15,7 @@ from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.aeromedica.atas import (
     AllBucketsStatsPublic,
+    AtaExtrairResponse,
     AtaInspecaoPublic,
     AtaInspecaoWithUrl,
     AtaOrfaPublic,
@@ -25,7 +26,10 @@ from fcontrol_api.schemas.aeromedica.atas import (
     DadosExtraidos,
     StorageStatsPublic,
 )
-from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.schemas.response import (
+    ApiResponse,
+    ResponseStatus,
+)
 from fcontrol_api.services.aeromedica_extracao import (
     extrair_dados_ata_bytes,
 )
@@ -45,7 +49,149 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
+
+async def _validar_pdf(file: UploadFile) -> bytes:
+    """Valida e retorna conteudo de um PDF."""
+    if (
+        not file.filename
+        or not file.filename.lower().endswith('.pdf')
+    ):
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Apenas arquivos PDF são permitidos',
+        )
+
+    conteudo = await file.read()
+
+    if len(conteudo) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Arquivo excede o limite de 10 MB',
+        )
+
+    if not conteudo[:5].startswith(b'%PDF-'):
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Arquivo não é um PDF válido',
+        )
+
+    return conteudo
+
+
+async def _buscar_usuario(
+    session: AsyncSession, user_id: int
+) -> User:
+    """Busca usuario ou levanta 404."""
+    user = await session.scalar(
+        select(User).where(User.id == user_id)
+    )
+    if not user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Usuário não encontrado',
+        )
+    return user
+
+
+async def _verificar_duplicata(
+    session: AsyncSession,
+    user_id: int,
+    letra: str | None,
+    realizacao: date | None,
+    validade: date | None,
+) -> None:
+    """Levanta 409 se ata duplicada existir."""
+    filtros = [AtaInspecao.user_id == user_id]
+
+    if letra:
+        filtros.append(
+            AtaInspecao.letra_finalidade == letra
+        )
+    else:
+        filtros.append(
+            AtaInspecao.letra_finalidade.is_(None)
+        )
+    if realizacao:
+        filtros.append(
+            AtaInspecao.data_realizacao == realizacao
+        )
+    else:
+        filtros.append(
+            AtaInspecao.data_realizacao.is_(None)
+        )
+    if validade:
+        filtros.append(
+            AtaInspecao.validade_inspsau == validade
+        )
+    else:
+        filtros.append(
+            AtaInspecao.validade_inspsau.is_(None)
+        )
+
+    duplicata = await session.scalar(
+        select(AtaInspecao.id).where(and_(*filtros))
+    )
+    if duplicata:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail='Já existe uma ata com a mesma'
+            ' letra, data de realização e'
+            ' validade para este militar',
+        )
+
+
 router = APIRouter(prefix='/atas', tags=['Atas de Inspeção'])
+
+
+@router.post(
+    '/extrair',
+    response_model=ApiResponse[AtaExtrairResponse],
+)
+async def extrair_ata(
+    session: Session,
+    user_id: int,
+    file: UploadFile,
+):
+    """Extrai dados de um PDF de ata sem salvar."""
+    conteudo = await _validar_pdf(file)
+    user = await _buscar_usuario(session, user_id)
+    dados = extrair_dados_ata_bytes(conteudo)
+
+    extracao_vazia = not any((
+        dados['letra_finalidade'],
+        dados['data_realizacao'],
+        dados['validade_inspsau'],
+    ))
+
+    dados_extraidos = DadosExtraidos(
+        nome_completo=dados['nome_completo'],
+        letra_finalidade=dados['letra_finalidade'],
+        data_realizacao=dados['data_realizacao'],
+        validade_inspsau=dados['validade_inspsau'],
+    )
+
+    response_data = AtaExtrairResponse(
+        dados_extraidos=dados_extraidos,
+        extracao_vazia=extracao_vazia,
+    )
+
+    # Verificar divergencia de nome (aviso, nao erro)
+    nome_pdf = dados.get('nome_completo')
+    if not extracao_vazia and nome_pdf:
+        nome_db = user.nome_completo.strip().upper()
+        nome_pdf_up = nome_pdf.strip().upper()
+        if nome_pdf_up != nome_db:
+            return ApiResponse(
+                status=ResponseStatus.WARNING,
+                data=response_data,
+                message='nome_divergente',
+                errors={
+                    'nome_ata': nome_pdf_up,
+                    'nome_sistema': nome_db,
+                },
+            )
+
+    return success_response(data=response_data)
 
 
 @router.post(
@@ -57,108 +203,62 @@ async def upload_ata(
     session: Session,
     user_id: int,
     file: UploadFile,
-    ignorar_nome: bool = False,
+    dados_confirmados: bool = False,
+    conf_letra: str | None = None,
+    conf_realizacao: date | None = None,
+    conf_validade: date | None = None,
 ):
-    """Upload de PDF de ata de inspeção de saúde."""
-    if not file.filename or not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Apenas arquivos PDF são permitidos',
-        )
+    """Upload de PDF de ata de inspecao de saude."""
+    conteudo = await _validar_pdf(file)
+    user = await _buscar_usuario(session, user_id)
 
-    conteudo = await file.read()
-    tamanho = len(conteudo)
+    if dados_confirmados:
+        dados = {
+            'nome_completo': None,
+            'letra_finalidade': conf_letra,
+            'data_realizacao': conf_realizacao,
+            'validade_inspsau': conf_validade,
+        }
+        extracao_vazia = not any((
+            conf_letra,
+            conf_realizacao,
+            conf_validade,
+        ))
+    else:
+        dados = extrair_dados_ata_bytes(conteudo)
+        extracao_vazia = not any((
+            dados['letra_finalidade'],
+            dados['data_realizacao'],
+            dados['validade_inspsau'],
+        ))
 
-    if tamanho > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Arquivo excede o limite de 10 MB',
-        )
-
-    # Validar magic bytes do PDF
-    if not conteudo[:5].startswith(b'%PDF-'):
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Arquivo não é um PDF válido',
-        )
-
-    # Buscar nome_guerra do usuario
-    user = await session.scalar(select(User).where(User.id == user_id))
-    if not user:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Usuário não encontrado',
-        )
-
-    # Extrair dados do PDF
-    dados = extrair_dados_ata_bytes(conteudo)
-
-    extracao_vazia = not any((
-        dados['letra_finalidade'],
-        dados['data_realizacao'],
-        dados['validade_inspsau'],
-    ))
-
-    # Validações só quando houve extração
+    # Verificar duplicata (sempre, independente do fluxo)
     if not extracao_vazia:
-        # Verificar nome do PDF vs banco
-        nome_pdf = dados.get('nome_completo')
-        if nome_pdf and not ignorar_nome:
-            nome_db = user.nome_completo.strip().upper()
-            nome_pdf_upper = nome_pdf.strip().upper()
-            if nome_pdf_upper != nome_db:
-                raise HTTPException(
-                    status_code=HTTPStatus.CONFLICT,
-                    detail={
-                        'type': 'nome_divergente',
-                        'nome_ata': nome_pdf_upper,
-                        'nome_sistema': nome_db,
-                    },
-                )
-
-        # Verificar duplicata (mesma letra + datas)
-        filtros = [AtaInspecao.user_id == user_id]
-        if dados['letra_finalidade']:
-            filtros.append(
-                AtaInspecao.letra_finalidade == dados['letra_finalidade']
-            )
-        else:
-            filtros.append(AtaInspecao.letra_finalidade.is_(None))
-        if dados['data_realizacao']:
-            filtros.append(
-                AtaInspecao.data_realizacao == dados['data_realizacao']
-            )
-        else:
-            filtros.append(AtaInspecao.data_realizacao.is_(None))
-        if dados['validade_inspsau']:
-            filtros.append(
-                AtaInspecao.validade_inspsau == dados['validade_inspsau']
-            )
-        else:
-            filtros.append(AtaInspecao.validade_inspsau.is_(None))
-
-        duplicata = await session.scalar(
-            select(AtaInspecao.id).where(and_(*filtros))
+        await _verificar_duplicata(
+            session,
+            user_id,
+            dados['letra_finalidade'],
+            dados['data_realizacao'],
+            dados['validade_inspsau'],
         )
-        if duplicata:
-            raise HTTPException(
-                status_code=HTTPStatus.CONFLICT,
-                detail='Já existe uma ata com a mesma'
-                ' letra, data de realização e'
-                ' validade para este militar',
-            )
 
     # Montar nome do arquivo: NOME_GUERRA_YYYY-MM-DD.pdf
-    nome_guerra = user.nome_guerra.strip().replace(' ', '_').lower()
+    nome_guerra = (
+        user.nome_guerra.strip().replace(' ', '_').lower()
+    )
     now = datetime.now(tz=UTC)
     if dados['data_realizacao']:
-        data_str = dados['data_realizacao'].strftime('%Y-%m-%d')
+        data_str = dados['data_realizacao'].strftime(
+            '%Y-%m-%d'
+        )
     else:
         data_str = now.strftime('%Y-%m-%d')
     file_name = f'{nome_guerra}_{data_str}.pdf'
 
     # Comprimir PDF
-    conteudo = await asyncio.to_thread(comprimir_pdf, conteudo)
+    conteudo = await asyncio.to_thread(
+        comprimir_pdf, conteudo
+    )
     tamanho = len(conteudo)
 
     # Upload para o bucket
@@ -186,11 +286,13 @@ async def upload_ata(
 
         session.add(ata)
 
-        # Atualizar cemal do CartaoSaude se validade extraída
+        # Atualizar cemal do CartaoSaude se validade extraida
         cemal_atualizado = False
         if dados['validade_inspsau']:
             cartao = await session.scalar(
-                select(CartaoSaude).where(CartaoSaude.user_id == user_id)
+                select(CartaoSaude).where(
+                    CartaoSaude.user_id == user_id
+                )
             )
             if not cartao:
                 cartao = CartaoSaude(
@@ -242,7 +344,7 @@ async def get_atas_by_user(
     user_id: int,
     session: Session,
 ):
-    """Lista atas de inspeção de um usuário."""
+    """Lista atas de inspecao de um usuario."""
     result = await session.execute(
         select(AtaInspecao)
         .where(AtaInspecao.user_id == user_id)
@@ -256,7 +358,9 @@ async def get_atas_by_user(
     data = []
     for ata in atas:
         url = get_signed_url(ata.file_path)
-        ata_dict = AtaInspecaoPublic.model_validate(ata).model_dump()
+        ata_dict = (
+            AtaInspecaoPublic.model_validate(ata).model_dump()
+        )
         ata_dict['url'] = url
         data.append(AtaInspecaoWithUrl(**ata_dict))
 
@@ -289,7 +393,9 @@ async def update_ata(
     # Atualizar cemal se validade informada
     if body.validade_inspsau:
         cartao = await session.scalar(
-            select(CartaoSaude).where(CartaoSaude.user_id == ata.user_id)
+            select(CartaoSaude).where(
+                CartaoSaude.user_id == ata.user_id
+            )
         )
         if not cartao:
             cartao = CartaoSaude(
@@ -335,7 +441,9 @@ async def delete_ata(
     await session.delete(ata)
     await session.commit()
 
-    return success_response(message='Ata removida com sucesso')
+    return success_response(
+        message='Ata removida com sucesso',
+    )
 
 
 @router.get(
@@ -343,9 +451,11 @@ async def delete_ata(
     response_model=ApiResponse[AtasOrfasResumo],
 )
 async def get_atas_orfas(session: Session):
-    """Lista atas de usuários inativos."""
+    """Lista atas de usuarios inativos."""
     result = await session.execute(
-        select(AtaInspecao, User.nome_guerra, User.nome_completo)
+        select(
+            AtaInspecao, User.nome_guerra, User.nome_completo
+        )
         .join(User, AtaInspecao.user_id == User.id)
         .where(User.active.is_(False))
         .order_by(User.nome_guerra, AtaInspecao.id)
@@ -382,7 +492,7 @@ async def get_atas_orfas(session: Session):
     response_model=ApiResponse[None],
 )
 async def delete_atas_orfas(session: Session):
-    """Remove todas as atas de usuários inativos."""
+    """Remove todas as atas de usuarios inativos."""
     result = await session.execute(
         select(AtaInspecao)
         .join(User, AtaInspecao.user_id == User.id)
@@ -406,7 +516,7 @@ async def delete_atas_orfas(session: Session):
     response_model=ApiResponse[StorageStatsPublic],
 )
 async def storage_stats():
-    """Retorna estatísticas de uso do bucket."""
+    """Retorna estatisticas de uso do bucket."""
     stats = await asyncio.to_thread(get_bucket_stats)
     return success_response(
         data=StorageStatsPublic(**stats),
@@ -418,9 +528,11 @@ async def storage_stats():
     response_model=ApiResponse[AllBucketsStatsPublic],
 )
 async def all_buckets_stats():
-    """Retorna estatísticas de todos os buckets."""
+    """Retorna estatisticas de todos os buckets."""
     stats = await asyncio.to_thread(get_all_buckets_stats)
-    buckets = [BucketStatsPublic(**b) for b in stats['buckets']]
+    buckets = [
+        BucketStatsPublic(**b) for b in stats['buckets']
+    ]
     return success_response(
         data=AllBucketsStatsPublic(
             total_size=stats['total_size'],

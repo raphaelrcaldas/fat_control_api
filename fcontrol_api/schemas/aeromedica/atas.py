@@ -35,6 +35,11 @@ class AtaUploadResponse(BaseModel):
     extracao_vazia: bool = False
 
 
+class AtaExtrairResponse(BaseModel):
+    dados_extraidos: DadosExtraidos
+    extracao_vazia: bool = False
+
+
 class AtaUpdate(BaseModel):
     letra_finalidade: str | None = None
     data_realizacao: date | None = None
