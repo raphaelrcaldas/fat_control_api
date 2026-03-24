@@ -10,3 +10,4 @@ class IndispEnum(str, Enum):
     missao = 'mis'
     ordem_mis = 'odm'
     pessoal = 'pes'
+    cemal = 'ins'
