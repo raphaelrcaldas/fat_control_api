@@ -305,6 +305,7 @@ async def upload_ata(
                 session.add(cartao)
             else:
                 cartao.cemal = dados['validade_inspsau']
+                cartao.ag_cemal = None
             cemal_atualizado = True
 
         await session.commit()
@@ -408,6 +409,7 @@ async def update_ata(
             session.add(cartao)
         else:
             cartao.cemal = body.validade_inspsau
+            cartao.ag_cemal = None
 
     await session.commit()
     await session.refresh(ata)
