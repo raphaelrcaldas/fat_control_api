@@ -63,7 +63,10 @@ async def list_idiomas(
             IdiomasHabilidade,
             IdiomasHabilidade.user_id == User.id,
         )
-        .where(Tripulante.active.is_(True))
+        .where(
+            Tripulante.active.is_(True),
+            User.active.is_(True),
+        )
         .where(pilot_filter)
         .order_by(
             PostoGrad.ant.asc(),

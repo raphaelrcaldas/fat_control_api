@@ -33,6 +33,7 @@ class TripPassaporteOut(BaseModel):
     nome_guerra: str
     nome_completo: str | None
     saram: str | None
+    telefone: str | None
     passaporte: PassaportePublic | None = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -113,14 +113,14 @@ async def get_cartoes_saude(
 
     if funcao:
         funcs = [f.strip() for f in funcao.split(',')]
-        query = (
-            query
-            .where(Tripulante.id.isnot(None))
-            .where(Funcao.func.in_(funcs))
-            .join(
-                Funcao,
-                Funcao.trip_id == Tripulante.id,
-            )
+        query = query.where(
+            Tripulante.id.isnot(None),
+            exists(
+                select(Funcao.id).where(
+                    Funcao.trip_id == Tripulante.id,
+                    Funcao.func.in_(funcs),
+                )
+            ),
         )
 
     query = query.order_by(

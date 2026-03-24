@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -42,6 +42,7 @@ async def list_passaportes(
             User.nome_guerra,
             User.nome_completo,
             User.saram,
+            User.telefone,
             Passaporte.id.label('passaporte_id'),
             Passaporte.passaporte.label('passaporte_num'),
             Passaporte.validade_passaporte,
@@ -54,7 +55,10 @@ async def list_passaportes(
             Passaporte,
             Passaporte.user_id == User.id,
         )
-        .where(Tripulante.active.is_(True))
+        .where(
+            Tripulante.active.is_(True),
+            User.active.is_(True),
+        )
         .order_by(
             PostoGrad.ant.asc(),
             User.ult_promo.asc(),
@@ -69,11 +73,13 @@ async def list_passaportes(
 
     if funcao:
         funcs = [f.strip() for f in funcao.split(',')]
-        query = (
-            query
-            .join(Funcao, Funcao.trip_id == Tripulante.id)
-            .where(Funcao.func.in_(funcs))
-            .distinct()
+        query = query.where(
+            exists(
+                select(Funcao.id).where(
+                    Funcao.trip_id == Tripulante.id,
+                    Funcao.func.in_(funcs),
+                )
+            )
         )
 
     rows = await session.execute(query)
@@ -85,6 +91,7 @@ async def list_passaportes(
             nome_guerra=r.nome_guerra,
             nome_completo=r.nome_completo,
             saram=r.saram,
+            telefone=r.telefone,
             passaporte=PassaportePublic(
                 id=r.passaporte_id,
                 user_id=r.user_id,
