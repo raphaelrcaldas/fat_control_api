@@ -13,6 +13,7 @@ class Aeronave(Base):
     active: Mapped[bool]
     sit: Mapped[str] = mapped_column(String(2))
     obs: Mapped[str | None]
+    is_sim: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         init=False,

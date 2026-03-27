@@ -43,10 +43,8 @@ def _meses_kwargs(meses: list[int]) -> dict[str, int]:
 async def list_esf_aer_items(session: Session):
     """Lista todos os itens de Esforco Aereo para selects."""
     result = await session.execute(
-        select(
-            EsforcoAereo.id,
-            EsforcoAereo.descricao,
-        ).order_by(EsforcoAereo.descricao)
+        select(EsforcoAereo.id, EsforcoAereo.descricao)
+        .order_by(EsforcoAereo.descricao)
     )
     rows = result.all()
     return success_response(

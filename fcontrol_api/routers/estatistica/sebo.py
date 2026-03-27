@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
-from fcontrol_api.models.estatistica.etapa import Etapa, TripEtapa
+from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
+from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.tripulantes import Tripulante
@@ -45,22 +46,33 @@ async def list_sebo(
     jan1 = date(ref_ano, 1, 1)
     dec31 = date(ref_ano, 12, 31)
 
+    sim_etapa_ids = (
+        select(OIEtapa.etapa_id)
+        .join(EsforcoAereo, EsforcoAereo.id == OIEtapa.esf_aer_id)
+        .where(EsforcoAereo.descricao.contains('SML'))
+        .scalar_subquery()
+    )
+
+    nao_sim = ~Etapa.id.in_(sim_etapa_ids)
+
     h_ano = sql_func.coalesce(
         sql_func.sum(Etapa.tvoo).filter(
-            (Etapa.data >= jan1) & (Etapa.data <= dec31)
+            (Etapa.data >= jan1) & (Etapa.data <= dec31) & nao_sim
         ),
         0,
     ).label('h_ano')
 
     dsv = (
         sql_func.current_date()
-        - sql_func.max(Etapa.data).filter(Etapa.data <= dec31)
+        - sql_func.max(Etapa.data).filter(
+            (Etapa.data <= dec31) & nao_sim
+        )
     ).label('dsv')
 
     data_ult_voo = (
         sql_func
         .max(Etapa.data)
-        .filter(Etapa.data <= dec31)
+        .filter((Etapa.data <= dec31) & nao_sim)
         .label('data_ult_voo')
     )
 

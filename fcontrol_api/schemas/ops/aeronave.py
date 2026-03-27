@@ -8,12 +8,14 @@ class AeronaveCreate(BaseModel):
     active: bool = True
     sit: str = Field(min_length=2, max_length=2)
     obs: str | None = None
+    is_sim: bool = False
 
 
 class AeronaveUpdate(BaseModel):
     active: bool | None = None
     sit: str | None = Field(None, min_length=2, max_length=2)
     obs: str | None = None
+    is_sim: bool | None = None
 
 
 class AeronavePublic(BaseModel):
@@ -21,6 +23,7 @@ class AeronavePublic(BaseModel):
     active: bool
     sit: str
     obs: str | None
+    is_sim: bool
     updated_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)

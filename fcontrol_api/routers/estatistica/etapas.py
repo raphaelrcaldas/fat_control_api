@@ -41,6 +41,7 @@ from fcontrol_api.services.etapas import (
     like_safe,
     list_etapas_flat,
 )
+from fcontrol_api.services.excel_etapas import generate_etapas_xlsx
 from fcontrol_api.utils.responses import (
     paginated_response,
     success_response,
@@ -91,6 +92,7 @@ async def list_etapas(
     reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
     tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
+    excluir_sim: Annotated[bool, Query()] = True,
     flat: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=400)] = 20,
@@ -149,6 +151,14 @@ async def list_etapas(
     if needs_oi_join or trip_search:
         etapa_filter = etapa_filter.distinct()
 
+    if excluir_sim:
+        sim_sub = (
+            select(OIEtapa.etapa_id)
+            .join(EsforcoAereo, EsforcoAereo.id == OIEtapa.esf_aer_id)
+            .where(EsforcoAereo.descricao.contains('SML'))
+        )
+        etapa_filter = etapa_filter.where(~Etapa.id.in_(sim_sub))
+
     valid_etapa_ids = etapa_filter.subquery()
 
     # Modo flat: paginacao por etapa individual
@@ -162,8 +172,6 @@ async def list_etapas(
 
     # Passo 2: missao_ids distintos com paginacao
     has_filters = any([
-        data_ini,
-        data_fim,
         origem,
         destino,
         anv,
@@ -524,10 +532,6 @@ async def export_etapas(
     session: Session,
 ) -> StreamingResponse:
     """Exporta etapas selecionadas para Excel."""
-    from fcontrol_api.services.excel_etapas import (  # noqa: PLC0415
-        generate_etapas_xlsx,
-    )
-
     etapas_result = await session.scalars(
         select(Etapa)
         .where(Etapa.id.in_(data.ids))

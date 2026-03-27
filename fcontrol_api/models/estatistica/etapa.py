@@ -115,10 +115,7 @@ class OIEtapa(Base):
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     etapa_id: Mapped[int] = mapped_column(
-        ForeignKey(
-            'estatistica.etapas.id',
-            ondelete='CASCADE',
-        )
+        ForeignKey(Etapa.id, ondelete='CASCADE')
     )
     esf_aer_id: Mapped[int] = mapped_column(ForeignKey(EsforcoAereo.id))
     tvoo: Mapped[int] = mapped_column(SmallInteger)
@@ -132,11 +129,60 @@ class TripEtapa(Base):
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     etapa_id: Mapped[int] = mapped_column(
-        ForeignKey(
-            'estatistica.etapas.id',
-            ondelete='CASCADE',
-        )
+        ForeignKey(Etapa.id, ondelete='CASCADE')
     )
     func: Mapped[str] = mapped_column(String(3))
     func_bordo: Mapped[str] = mapped_column(String(2))
     trip_id: Mapped[int] = mapped_column(ForeignKey(Tripulante.id))
+
+
+class PqdEtapa:
+    __tablename__ = 'pqd_etapa'
+    __table_args__ = (
+        CheckConstraint('qtd >= 0', name='ck_qtd'),
+        {'schema': 'estatistica'},
+    )
+
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
+    etapa_id: Mapped[int] = mapped_column(
+        ForeignKey(Etapa.id, ondelete='CASCADE')
+    )
+    tipo: Mapped[str] = mapped_column(String(5))  # VTC, LV, PREC, LIVRE
+    qtd: Mapped[int] = mapped_column(SmallInteger())
+
+
+class REVOEtapa:
+    __tablename__ = 'revo_etapa'
+    __table_args__ = (
+        CheckConstraint('comb_transf >= 0', name='ck_comb_transf'),
+        {'schema': 'estatistica'},
+    )
+
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
+    etapa_id: Mapped[int] = mapped_column(
+        ForeignKey(Etapa.id, ondelete='CASCADE')
+    )
+    comb_transf: Mapped[int] = mapped_column(SmallInteger())
+
+
+class HeavyCDS:
+    __tablename__ = 'heavy_cds_etapa'
+    __table_args__ = (
+        CheckConstraint('dist >= 0', name='ck_heavy_cds_dist_nn'),
+        CheckConstraint(
+            'radial >= 0 AND radial < 360',
+            name='ck_heavy_cds_radial_range',
+        ),
+        {'schema': 'estatistica'},
+    )
+
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
+    etapa_id: Mapped[int] = mapped_column(
+        ForeignKey(Etapa.id, ondelete='CASCADE')
+    )
+    tipo: Mapped[str] = mapped_column(String(5))  # heavy, cds
+    peso: Mapped[int] = mapped_column(SmallInteger())
+
+    # ponto impacto
+    dist: Mapped[int] = mapped_column(SmallInteger())
+    radial: Mapped[int] = mapped_column(SmallInteger())

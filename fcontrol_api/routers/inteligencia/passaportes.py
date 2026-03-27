@@ -45,6 +45,7 @@ async def list_passaportes(
             User.telefone,
             Passaporte.id.label('passaporte_id'),
             Passaporte.passaporte.label('passaporte_num'),
+            Passaporte.visa.label('visa_num'),
             Passaporte.validade_passaporte,
             Passaporte.validade_visa,
         )
@@ -68,11 +69,11 @@ async def list_passaportes(
     )
 
     if p_g:
-        pgs = [p.strip() for p in p_g.split(',')]
+        pgs = [p.strip() for p in p_g.split(',') if p.strip()]
         query = query.where(User.p_g.in_(pgs))
 
     if funcao:
-        funcs = [f.strip() for f in funcao.split(',')]
+        funcs = [f.strip() for f in funcao.split(',') if f.strip()]
         query = query.where(
             exists(
                 select(Funcao.id).where(
@@ -96,6 +97,7 @@ async def list_passaportes(
                 id=r.passaporte_id,
                 user_id=r.user_id,
                 passaporte=r.passaporte_num,
+                visa=r.visa_num,
                 validade_passaporte=r.validade_passaporte,
                 validade_visa=r.validade_visa,
             )
@@ -142,6 +144,7 @@ async def upsert_passaporte(
         passaporte = Passaporte(
             user_id=tripulante.user_id,
             passaporte=dados.passaporte,
+            visa=dados.visa,
             validade_passaporte=dados.validade_passaporte,
             validade_visa=dados.validade_visa,
         )

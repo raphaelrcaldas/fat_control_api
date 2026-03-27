@@ -51,6 +51,7 @@ async def create_aeronave(
         active=aeronave.active,
         sit=aeronave.sit,
         obs=aeronave.obs,
+        is_sim=aeronave.is_sim,
     )
 
     session.add(new_aeronave)
@@ -72,6 +73,7 @@ async def list_aeronaves(
     session: Session,
     sit: str | None = None,
     active: bool | None = None,
+    is_sim: bool | None = None,
     page: int = 1,
     per_page: int = 100,
 ):
@@ -93,6 +95,9 @@ async def list_aeronaves(
 
     if active is not None:
         filters.append(Aeronave.active == active)
+
+    if is_sim is not None:
+        filters.append(Aeronave.is_sim == is_sim)
 
     for f in filters:
         base_query = base_query.where(f)

@@ -15,6 +15,7 @@ class Passaporte(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id), unique=True)
     passaporte: Mapped[str | None] = mapped_column(String(20))
     validade_passaporte: Mapped[date | None]
+    visa: Mapped[str | None] = mapped_column(String(20))
     validade_visa: Mapped[date | None]
 
     user = relationship(
