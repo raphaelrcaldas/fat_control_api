@@ -284,9 +284,7 @@ async def get_rotaer(
         )
 
     if force and force.lower() == 'html':
-        return success_response(
-            data=RotaerResponse(rotaer_html=response.text)
-        )
+        return success_response(data=RotaerResponse(rotaer_html=response.text))
 
     try:
         root = ET.fromstring(response.text)
