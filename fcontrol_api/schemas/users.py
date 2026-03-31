@@ -77,9 +77,7 @@ class UserSchema(BaseModel):
         if v is not None:
             digits = re.sub(r'\D', '', v)
             if len(digits) not in {10, 11}:
-                raise ValueError(
-                    'Telefone deve conter 10 ou 11 dígitos'
-                )
+                raise ValueError('Telefone deve conter 10 ou 11 dígitos')
         return v
 
     @field_validator('email_fab')
@@ -162,9 +160,7 @@ class UserUpdate(BaseModel):
         if v is not None:
             digits = re.sub(r'\D', '', v)
             if len(digits) not in {10, 11}:
-                raise ValueError(
-                    'Telefone deve conter 10 ou 11 dígitos'
-                )
+                raise ValueError('Telefone deve conter 10 ou 11 dígitos')
         return v
 
     @field_validator('email_fab')

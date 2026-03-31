@@ -52,10 +52,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 async def _validar_pdf(file: UploadFile) -> bytes:
     """Valida e retorna conteudo de um PDF."""
-    if (
-        not file.filename
-        or not file.filename.lower().endswith('.pdf')
-    ):
+    if not file.filename or not file.filename.lower().endswith('.pdf'):
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Apenas arquivos PDF são permitidos',
@@ -78,13 +75,9 @@ async def _validar_pdf(file: UploadFile) -> bytes:
     return conteudo
 
 
-async def _buscar_usuario(
-    session: AsyncSession, user_id: int
-) -> User:
+async def _buscar_usuario(session: AsyncSession, user_id: int) -> User:
     """Busca usuario ou levanta 404."""
-    user = await session.scalar(
-        select(User).where(User.id == user_id)
-    )
+    user = await session.scalar(select(User).where(User.id == user_id))
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -104,29 +97,17 @@ async def _verificar_duplicata(
     filtros = [AtaInspecao.user_id == user_id]
 
     if letra:
-        filtros.append(
-            AtaInspecao.letra_finalidade == letra
-        )
+        filtros.append(AtaInspecao.letra_finalidade == letra)
     else:
-        filtros.append(
-            AtaInspecao.letra_finalidade.is_(None)
-        )
+        filtros.append(AtaInspecao.letra_finalidade.is_(None))
     if realizacao:
-        filtros.append(
-            AtaInspecao.data_realizacao == realizacao
-        )
+        filtros.append(AtaInspecao.data_realizacao == realizacao)
     else:
-        filtros.append(
-            AtaInspecao.data_realizacao.is_(None)
-        )
+        filtros.append(AtaInspecao.data_realizacao.is_(None))
     if validade:
-        filtros.append(
-            AtaInspecao.validade_inspsau == validade
-        )
+        filtros.append(AtaInspecao.validade_inspsau == validade)
     else:
-        filtros.append(
-            AtaInspecao.validade_inspsau.is_(None)
-        )
+        filtros.append(AtaInspecao.validade_inspsau.is_(None))
 
     duplicata = await session.scalar(
         select(AtaInspecao.id).where(and_(*filtros))
@@ -243,22 +224,16 @@ async def upload_ata(
         )
 
     # Montar nome do arquivo: NOME_GUERRA_YYYY-MM-DD.pdf
-    nome_guerra = (
-        user.nome_guerra.strip().replace(' ', '_').lower()
-    )
+    nome_guerra = user.nome_guerra.strip().replace(' ', '_').lower()
     now = datetime.now(tz=UTC)
     if dados['data_realizacao']:
-        data_str = dados['data_realizacao'].strftime(
-            '%Y-%m-%d'
-        )
+        data_str = dados['data_realizacao'].strftime('%Y-%m-%d')
     else:
         data_str = now.strftime('%Y-%m-%d')
     file_name = f'{nome_guerra}_{data_str}.pdf'
 
     # Comprimir PDF
-    conteudo = await asyncio.to_thread(
-        comprimir_pdf, conteudo
-    )
+    conteudo = await asyncio.to_thread(comprimir_pdf, conteudo)
     tamanho = len(conteudo)
 
     # Upload para o bucket
@@ -290,9 +265,7 @@ async def upload_ata(
         cemal_atualizado = False
         if dados['validade_inspsau']:
             cartao = await session.scalar(
-                select(CartaoSaude).where(
-                    CartaoSaude.user_id == user_id
-                )
+                select(CartaoSaude).where(CartaoSaude.user_id == user_id)
             )
             if not cartao:
                 cartao = CartaoSaude(
@@ -359,9 +332,7 @@ async def get_atas_by_user(
     data = []
     for ata in atas:
         url = get_signed_url(ata.file_path)
-        ata_dict = (
-            AtaInspecaoPublic.model_validate(ata).model_dump()
-        )
+        ata_dict = AtaInspecaoPublic.model_validate(ata).model_dump()
         ata_dict['url'] = url
         data.append(AtaInspecaoWithUrl(**ata_dict))
 
@@ -394,9 +365,7 @@ async def update_ata(
     # Atualizar cemal se validade informada
     if body.validade_inspsau:
         cartao = await session.scalar(
-            select(CartaoSaude).where(
-                CartaoSaude.user_id == ata.user_id
-            )
+            select(CartaoSaude).where(CartaoSaude.user_id == ata.user_id)
         )
         if not cartao:
             cartao = CartaoSaude(
@@ -455,9 +424,7 @@ async def delete_ata(
 async def get_atas_orfas(session: Session):
     """Lista atas de usuarios inativos."""
     result = await session.execute(
-        select(
-            AtaInspecao, User.nome_guerra, User.nome_completo
-        )
+        select(AtaInspecao, User.nome_guerra, User.nome_completo)
         .join(User, AtaInspecao.user_id == User.id)
         .where(User.active.is_(False))
         .order_by(User.nome_guerra, AtaInspecao.id)
@@ -532,9 +499,7 @@ async def storage_stats():
 async def all_buckets_stats():
     """Retorna estatisticas de todos os buckets."""
     stats = await asyncio.to_thread(get_all_buckets_stats)
-    buckets = [
-        BucketStatsPublic(**b) for b in stats['buckets']
-    ]
+    buckets = [BucketStatsPublic(**b) for b in stats['buckets']]
     return success_response(
         data=AllBucketsStatsPublic(
             total_size=stats['total_size'],

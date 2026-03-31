@@ -39,9 +39,7 @@ async def _sync_ag_cemal(
 ) -> None:
     """Atualiza ag_cemal no CartaoSaude do tripulante."""
     cartao = await session.scalar(
-        select(CartaoSaude).where(
-            CartaoSaude.user_id == user_id
-        )
+        select(CartaoSaude).where(CartaoSaude.user_id == user_id)
     )
     if cartao:
         cartao.ag_cemal = ag_cemal
@@ -181,9 +179,7 @@ async def create_indisp(
     session.add(new_indisp)
 
     if indisp.mtv == CEMAL:
-        await _sync_ag_cemal(
-            session, indisp.user_id, indisp.date_start
-        )
+        await _sync_ag_cemal(session, indisp.user_id, indisp.date_start)
 
     await session.commit()
 
@@ -239,9 +235,7 @@ async def delete_indisp(
     indisp.deleted_at = datetime.now(timezone.utc)
 
     if indisp.mtv == CEMAL.value:
-        await _sync_ag_cemal(
-            session, indisp.user_id, None
-        )
+        await _sync_ag_cemal(session, indisp.user_id, None)
 
     # Log de deleção
     await log_user_action(
@@ -336,9 +330,7 @@ async def update_indisp(
     )
 
     if was_cemal and not is_cemal:
-        await _sync_ag_cemal(
-            session, db_indisp.user_id, None
-        )
+        await _sync_ag_cemal(session, db_indisp.user_id, None)
     elif is_cemal and (new_mtv or 'date_start' in after):
         await _sync_ag_cemal(
             session,

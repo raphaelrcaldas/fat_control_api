@@ -64,9 +64,7 @@ async def list_sebo(
 
     dsv = (
         sql_func.current_date()
-        - sql_func.max(Etapa.data).filter(
-            (Etapa.data <= dec31) & nao_sim
-        )
+        - sql_func.max(Etapa.data).filter((Etapa.data <= dec31) & nao_sim)
     ).label('dsv')
 
     data_ult_voo = (
