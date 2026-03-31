@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     FATBIRD_URL: str
     ENV: str = 'production'
 
+    # AISWEB DECEA
+    AISWEB_API_KEY: str = ''
+    AISWEB_API_PASS: str = ''
+
     # Storage (MinIO local / Supabase S3 prod)
     STORAGE_ENDPOINT: str = 'localhost:9000'
     STORAGE_ACCESS_KEY: str
