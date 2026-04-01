@@ -80,6 +80,7 @@ class MissaoComEtapasOut(BaseModel):
     id: int
     titulo: str | None
     obs: str | None
+    is_simulador: bool = False
     etapas: list[EtapaOut]
 
 
@@ -186,6 +187,7 @@ class EtapaExportRequest(BaseModel):
 class MissaoCreate(BaseModel):
     titulo: str | None = None
     obs: str | None = None
+    is_simulador: bool = False
 
 
 class MissaoUpdate(BaseModel):
@@ -199,3 +201,4 @@ class MissaoPublic(BaseModel):
     id: int
     titulo: str | None
     obs: str | None
+    is_simulador: bool = False

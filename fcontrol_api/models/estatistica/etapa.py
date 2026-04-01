@@ -29,6 +29,10 @@ class Missao(Base):
     )
     titulo: Mapped[str | None] = mapped_column(nullable=True)
     obs: Mapped[str | None] = mapped_column(nullable=True)
+    is_simulador: Mapped[bool] = mapped_column(
+        default=False,
+        server_default='false',
+    )
 
 
 class TipoMissao(Base):

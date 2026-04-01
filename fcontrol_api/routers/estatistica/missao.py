@@ -26,10 +26,13 @@ router = APIRouter(prefix='/missao', tags=['estatistica'])
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[MissaoPublic],
 )
-async def create_missao(missao: MissaoCreate, session: Session):
+async def create_missao(
+    missao: MissaoCreate, session: Session,
+) -> ApiResponse[MissaoPublic]:
     new_missao = Missao(
         titulo=missao.titulo,
         obs=missao.obs,
+        is_simulador=missao.is_simulador,
     )
     session.add(new_missao)
     await session.commit()
@@ -50,7 +53,7 @@ async def update_missao(
     missao_id: MissaoId,
     missao_data: MissaoUpdate,
     session: Session,
-):
+) -> ApiResponse[MissaoPublic]:
     missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
     if not missao:
         raise HTTPException(
@@ -77,7 +80,9 @@ async def update_missao(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
 )
-async def delete_missao(missao_id: MissaoId, session: Session):
+async def delete_missao(
+    missao_id: MissaoId, session: Session,
+) -> ApiResponse[None]:
     missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
     if not missao:
         raise HTTPException(

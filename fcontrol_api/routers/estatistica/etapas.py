@@ -92,7 +92,7 @@ async def list_etapas(
     reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
     tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
-    excluir_sim: Annotated[bool, Query()] = True,
+    is_simulador: Annotated[bool, Query()] = False,
     flat: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=400)] = 20,
@@ -151,14 +151,6 @@ async def list_etapas(
     if needs_oi_join or trip_search:
         etapa_filter = etapa_filter.distinct()
 
-    if excluir_sim:
-        sim_sub = (
-            select(OIEtapa.etapa_id)
-            .join(EsforcoAereo, EsforcoAereo.id == OIEtapa.esf_aer_id)
-            .where(EsforcoAereo.descricao.contains('SML'))
-        )
-        etapa_filter = etapa_filter.where(~Etapa.id.in_(sim_sub))
-
     valid_etapa_ids = etapa_filter.subquery()
 
     # Modo flat: paginacao por etapa individual
@@ -191,10 +183,14 @@ async def list_etapas(
         .group_by(Etapa.missao_id)
     )
 
-    if has_filters:
+    missoes_com_etapa = missoes_com_etapa.join(
+        Missao, Missao.id == Etapa.missao_id
+    ).where(Missao.is_simulador.is_(is_simulador))
+
+    if has_filters and not is_simulador:
         combined = missoes_com_etapa.subquery()
     else:
-        missoes_sem_etapa = (
+        missoes_sem_etapa_q = (
             select(
                 Missao.id.label('mid'),
                 literal_column('0').label('ord'),
@@ -203,7 +199,15 @@ async def list_etapas(
             .outerjoin(Etapa, Etapa.missao_id == Missao.id)
             .where(Etapa.id.is_(None))
         )
-        combined = union_all(missoes_sem_etapa, missoes_com_etapa).subquery()
+        if is_simulador:
+            missoes_sem_etapa_q = missoes_sem_etapa_q.where(
+                Missao.is_simulador.is_(True)
+            )
+        else:
+            missoes_sem_etapa_q = missoes_sem_etapa_q.where(
+                ~Missao.is_simulador
+            )
+        combined = union_all(missoes_sem_etapa_q, missoes_com_etapa).subquery()
 
     total = (
         await session.scalar(select(sql_func.count()).select_from(combined))
