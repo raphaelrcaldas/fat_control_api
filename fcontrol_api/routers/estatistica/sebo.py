@@ -22,6 +22,7 @@ from fcontrol_api.schemas.estatistica.sebo import (
     SeboVoo,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.utils.params import parse_str_list
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -37,11 +38,13 @@ router = APIRouter(prefix='/sebo', tags=['estatistica'])
 async def list_sebo(
     session: Session,
     func: Annotated[str, Query()],
-    oper: Annotated[list[str] | None, Query()] = None,
-    func_bordo: Annotated[list[str] | None, Query()] = None,
+    oper: Annotated[str | None, Query()] = None,
+    func_bordo: Annotated[str | None, Query()] = None,
     ano: Annotated[int | None, Query(ge=2020)] = None,
 ) -> ApiResponse[list[SeboTripOut]]:
     """Dados agregados do Pau de Sebo por tripulante."""
+    oper_list = parse_str_list(oper, 'oper')
+    func_bordo_list = parse_str_list(func_bordo, 'func_bordo')
     ref_ano = ano or date.today().year
     jan1 = date(ref_ano, 1, 1)
     dec31 = date(ref_ano, 12, 31)
@@ -113,7 +116,11 @@ async def list_sebo(
         .outerjoin(
             TripEtapa,
             (TripEtapa.trip_id == Tripulante.id)
-            & (TripEtapa.func_bordo.in_(func_bordo) if func_bordo else true()),
+            & (
+                TripEtapa.func_bordo.in_(func_bordo_list)
+                if func_bordo_list
+                else true()
+            ),
         )
         .outerjoin(
             Etapa,
@@ -140,8 +147,8 @@ async def list_sebo(
         )
     )
 
-    if oper:
-        query = query.where(Funcao.oper.in_(oper))
+    if oper_list:
+        query = query.where(Funcao.oper.in_(oper_list))
 
     rows = await session.execute(query)
     items = [
