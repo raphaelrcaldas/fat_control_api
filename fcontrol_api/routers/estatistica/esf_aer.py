@@ -324,15 +324,16 @@ async def update_esf_aer(
 
     for esfaer_id, aloc in aloc_map.items():
         if esfaer_id not in import_ids:
-            esf = id_to_esf.get(esfaer_id)
-            descricao = esf.descricao if esf else f'ID {esfaer_id}'
-            diff_rows.append(
-                EsfAerDiffRow(
-                    descricao=descricao,
-                    antes=aloc.alocado,
-                    depois=None,
+            if aloc.alocado != 0:
+                esf = id_to_esf.get(esfaer_id)
+                descricao = esf.descricao if esf else f'ID {esfaer_id}'
+                diff_rows.append(
+                    EsfAerDiffRow(
+                        descricao=descricao,
+                        antes=aloc.alocado,
+                        depois=None,
+                    )
                 )
-            )
             removed_ids.append(aloc.id)
 
     if removed_ids:
