@@ -3,7 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, delete, extract, func, or_, select
+from sqlalchemy import case, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -336,9 +336,12 @@ async def update_esf_aer(
             removed_ids.append(aloc.id)
 
     if removed_ids:
-        await session.execute(
-            delete(EsfAerAloc).where(EsfAerAloc.id.in_(removed_ids))
-        )
+        removed_set = set(removed_ids)
+        for aloc in aloc_map.values():
+            if aloc.id in removed_set:
+                aloc.alocado = 0
+                for i in range(1, 13):
+                    setattr(aloc, f'm{i}', 0)
 
     # 5. Registrar historico para alocacoes que mudaram
     await session.flush()
@@ -354,7 +357,7 @@ async def update_esf_aer(
         if esfaer_id is None:
             continue
         aloc = aloc_map.get(esfaer_id)
-        if aloc is None or aloc.id in removed_ids:
+        if aloc is None:
             continue
         session.add(
             EsfAerAlocHist(
