@@ -199,6 +199,71 @@ async def get_fragmentos(
     )
 
 
+# ============ ENDPOINTS DE ETIQUETAS ============
+
+
+@router.get('/etiquetas', response_model=ApiResponse[list[EtiquetaSchema]])
+async def get_etiquetas(session: Session):
+    """Lista todas as etiquetas disponíveis"""
+    stmt = select(Etiqueta).order_by(Etiqueta.nome)
+    db_etiquetas = (await session.scalars(stmt)).all()
+    return success_response(data=list(db_etiquetas))
+
+
+@router.post('/etiquetas', response_model=ApiResponse[EtiquetaSchema])
+async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
+    """Cria ou atualiza uma etiqueta"""
+    if payload.id:
+        # Atualização
+        db_etiqueta = await session.scalar(
+            select(Etiqueta).where(Etiqueta.id == payload.id)
+        )
+        if not db_etiqueta:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail='Etiqueta não encontrada',
+            )
+        db_etiqueta.nome = payload.nome
+        db_etiqueta.cor = payload.cor
+        db_etiqueta.descricao = payload.descricao
+        msg = 'Etiqueta atualizada com sucesso'
+    else:
+        # Criação
+        db_etiqueta = Etiqueta(
+            nome=payload.nome,
+            cor=payload.cor,
+            descricao=payload.descricao,
+        )
+        session.add(db_etiqueta)
+        msg = 'Etiqueta criada com sucesso'
+
+    await session.commit()
+    await session.refresh(db_etiqueta)
+
+    return success_response(
+        data=EtiquetaSchema.model_validate(db_etiqueta),
+        message=msg,
+    )
+
+
+@router.delete('/etiquetas/{etiqueta_id}', response_model=ApiResponse[None])
+async def delete_etiqueta(etiqueta_id: int, session: Session):
+    """Remove uma etiqueta"""
+    db_etiqueta = await session.scalar(
+        select(Etiqueta).where(Etiqueta.id == etiqueta_id)
+    )
+    if not db_etiqueta:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Etiqueta não encontrada',
+        )
+
+    await session.delete(db_etiqueta)
+    await session.commit()
+
+    return success_response(message='Etiqueta removida com sucesso')
+
+
 @router.get('/{id}', response_model=ApiResponse[FragMisSchema])
 async def get_missao(id: int, session: Session):
     """Obter uma missão específica pelo ID."""
@@ -390,68 +455,3 @@ async def delete_fragmis(id: int, session: Session):
     await session.commit()
 
     return success_response(message='Missão removida com sucesso')
-
-
-# ============ ENDPOINTS DE ETIQUETAS ============
-
-
-@router.get('/etiquetas', response_model=ApiResponse[list[EtiquetaSchema]])
-async def get_etiquetas(session: Session):
-    """Lista todas as etiquetas disponíveis"""
-    stmt = select(Etiqueta).order_by(Etiqueta.nome)
-    db_etiquetas = (await session.scalars(stmt)).all()
-    return success_response(data=list(db_etiquetas))
-
-
-@router.post('/etiquetas', response_model=ApiResponse[EtiquetaSchema])
-async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
-    """Cria ou atualiza uma etiqueta"""
-    if payload.id:
-        # Atualização
-        db_etiqueta = await session.scalar(
-            select(Etiqueta).where(Etiqueta.id == payload.id)
-        )
-        if not db_etiqueta:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail='Etiqueta não encontrada',
-            )
-        db_etiqueta.nome = payload.nome
-        db_etiqueta.cor = payload.cor
-        db_etiqueta.descricao = payload.descricao
-        msg = 'Etiqueta atualizada com sucesso'
-    else:
-        # Criação
-        db_etiqueta = Etiqueta(
-            nome=payload.nome,
-            cor=payload.cor,
-            descricao=payload.descricao,
-        )
-        session.add(db_etiqueta)
-        msg = 'Etiqueta criada com sucesso'
-
-    await session.commit()
-    await session.refresh(db_etiqueta)
-
-    return success_response(
-        data=EtiquetaSchema.model_validate(db_etiqueta),
-        message=msg,
-    )
-
-
-@router.delete('/etiquetas/{etiqueta_id}', response_model=ApiResponse[None])
-async def delete_etiqueta(etiqueta_id: int, session: Session):
-    """Remove uma etiqueta"""
-    db_etiqueta = await session.scalar(
-        select(Etiqueta).where(Etiqueta.id == etiqueta_id)
-    )
-    if not db_etiqueta:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Etiqueta não encontrada',
-        )
-
-    await session.delete(db_etiqueta)
-    await session.commit()
-
-    return success_response(message='Etiqueta removida com sucesso')
