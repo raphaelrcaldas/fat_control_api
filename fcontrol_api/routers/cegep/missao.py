@@ -199,6 +199,32 @@ async def get_fragmentos(
     )
 
 
+@router.get('/{id}', response_model=ApiResponse[FragMisSchema])
+async def get_missao(id: int, session: Session):
+    """Obter uma missão específica pelo ID."""
+    missao = await session.scalar(
+        select(FragMis)
+        .options(selectinload(FragMis.users))
+        .where(FragMis.id == id)
+    )
+    if not missao:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Missão não encontrada',
+        )
+
+    # Ordena usuários por posto/antiguidade
+    missao.users.sort(
+        key=lambda u: (
+            u.user.posto.ant,
+            u.user.ult_promo or date.min,
+            u.user.ant_rel or 0,
+        )
+    )
+
+    return success_response(data=missao)
+
+
 @router.post('/', response_model=ApiResponse[None])
 async def create_or_update_missao(payload: FragMisSchema, session: Session):
     # Capturar usuários antigos ANTES de deletar (para recalcular removidos)
