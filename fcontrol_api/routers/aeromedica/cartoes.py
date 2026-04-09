@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import exists, func, or_
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -70,13 +70,18 @@ async def get_cartoes_saude(
         .join(PostoGrad)
         .outerjoin(
             Tripulante,
-            Tripulante.user_id == User.id,
+            and_(
+                Tripulante.user_id == User.id,
+                Tripulante.active.is_(True),
+            ),
         )
         .outerjoin(
             CartaoSaude,
             CartaoSaude.user_id == User.id,
         )
-        .where(User.active.is_(True))
+        .where(
+            User.active.is_(True),
+        )
     )
 
     # Filtro base: tripulantes + nao-tripulantes do 11gt
