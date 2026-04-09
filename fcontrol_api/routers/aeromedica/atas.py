@@ -227,7 +227,8 @@ async def upload_ata(
     # Montar nome do arquivo: NOME_GUERRA_YYYY-MM-DD.pdf
     nome_guerra = user.nome_guerra.strip().replace(' ', '_').lower()
     nome_guerra = ''.join(
-        c for c in unicodedata.normalize('NFD', nome_guerra)
+        c
+        for c in unicodedata.normalize('NFD', nome_guerra)
         if unicodedata.category(c) != 'Mn'
     )
     now = datetime.now(tz=UTC)

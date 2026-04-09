@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_
+from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -12,6 +13,8 @@ from sqlalchemy.orm import selectinload
 from fcontrol_api.database import get_session
 from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
+from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
+from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
 from fcontrol_api.models.public.funcoes import Funcao
 from fcontrol_api.models.public.indisp import Indisp
 from fcontrol_api.models.public.posto_grad import PostoGrad
@@ -91,10 +94,43 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
     if not tripulantes:
         return success_response(data=[])
 
-    # 2. Extrai os IDs dos usuários para a próxima query.
+    # 2. Extrai os IDs dos usuários e tripulantes para as próximas queries.
     user_ids = [trip.user_id for trip in tripulantes]
+    trip_ids = [trip.id for trip in tripulantes]
 
-    # 3. Uma única query para buscar todas as indisponibilidades relevantes,
+    # 3. Query batch para cemal + data_ult_voo (excluindo simuladores)
+    sim_etapa_ids = (
+        select(OIEtapa.etapa_id)
+        .join(EsforcoAereo, EsforcoAereo.id == OIEtapa.esf_aer_id)
+        .where(EsforcoAereo.descricao.contains('SML'))
+        .scalar_subquery()
+    )
+    cemal_voo_query = (
+        select(
+            Tripulante.id.label('trip_id'),
+            CartaoSaude.cemal,
+            sql_func
+            .max(Etapa.data)
+            .filter(~Etapa.id.in_(sim_etapa_ids))
+            .label('data_ult_voo'),
+        )
+        .select_from(Tripulante)
+        .outerjoin(CartaoSaude, CartaoSaude.user_id == Tripulante.user_id)
+        .outerjoin(TripEtapa, TripEtapa.trip_id == Tripulante.id)
+        .outerjoin(Etapa, Etapa.id == TripEtapa.etapa_id)
+        .where(Tripulante.id.in_(trip_ids))
+        .group_by(Tripulante.id, CartaoSaude.cemal)
+    )
+    cemal_result = await session.execute(cemal_voo_query)
+    cemal_by_trip = {
+        row.trip_id: {
+            'cemal': row.cemal,
+            'data_ult_voo': row.data_ult_voo,
+        }
+        for row in cemal_result.all()
+    }
+
+    # 4. Uma única query para buscar todas as indisponibilidades relevantes,
     #    já carregando o usuário que a criou e o posto desse usuário.
     indisp_query = (
         select(Indisp)
@@ -103,7 +139,7 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
     )
     indisps_result = await session.scalars(indisp_query)
 
-    # 4. Agrupa as indisponibilidades por user_id em um dicionário para
+    # 5. Agrupa as indisponibilidades por user_id em um dicionário para
     # acesso rápido
     indisps_by_user = defaultdict(list)
     for indisp in indisps_result:
@@ -111,7 +147,7 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
             IndispOut.model_validate(indisp)
         )
 
-    # 5. Monta a resposta final
+    # 6. Monta a resposta final
     response = []
     for trip in tripulantes:
         # Pega as indisponibilidades do dicionário
@@ -122,12 +158,18 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
             BaseFunc.model_validate(trip.funcs[0]) if trip.funcs else None
         )
 
+        trip_extra = cemal_by_trip.get(
+            trip.id, {'cemal': None, 'data_ult_voo': None}
+        )
+
         response.append({
             'trip': {
                 'trig': trip.trig,
                 'id': trip.id,
                 'user': UserPublic.model_validate(trip.user),
                 'func': func_schema,
+                'cemal': trip_extra.get('cemal'),
+                'data_ult_voo': trip_extra.get('data_ult_voo'),
             },
             'indisps': user_indisps,
         })

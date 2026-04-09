@@ -27,7 +27,8 @@ router = APIRouter(prefix='/missao', tags=['estatistica'])
     response_model=ApiResponse[MissaoPublic],
 )
 async def create_missao(
-    missao: MissaoCreate, session: Session,
+    missao: MissaoCreate,
+    session: Session,
 ) -> ApiResponse[MissaoPublic]:
     new_missao = Missao(
         titulo=missao.titulo,
@@ -81,7 +82,8 @@ async def update_missao(
     response_model=ApiResponse[None],
 )
 async def delete_missao(
-    missao_id: MissaoId, session: Session,
+    missao_id: MissaoId,
+    session: Session,
 ) -> ApiResponse[None]:
     missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
     if not missao:

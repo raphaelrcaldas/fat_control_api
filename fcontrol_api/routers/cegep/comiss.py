@@ -68,13 +68,9 @@ async def get_cmtos(
             query = query.where(User.p_g.in_(pg_list))
 
     if tipo == 'periodo':
-        query = query.where(
-            Comissionamento.dias_cumprir.isnot(None)
-        )
+        query = query.where(Comissionamento.dias_cumprir.isnot(None))
     elif tipo == 'comparativo':
-        query = query.where(
-            Comissionamento.dias_cumprir.is_(None)
-        )
+        query = query.where(Comissionamento.dias_cumprir.is_(None))
 
     if modulo == 'sim':
         query = query.where(
@@ -311,18 +307,14 @@ async def update_cmto(
     return success_response(message='Comissionamento atualizado com sucesso')
 
 
-@router.delete(
-    '/{comiss_id}', response_model=ApiResponse[dict | None]
-)
+@router.delete('/{comiss_id}', response_model=ApiResponse[dict | None])
 async def delete_cmto(
     comiss_id: int,
     session: Session,
     confirm: bool = False,
 ):
     db_comiss = await session.scalar(
-        select(Comissionamento).where(
-            Comissionamento.id == comiss_id
-        )
+        select(Comissionamento).where(Comissionamento.id == comiss_id)
     )
 
     if not db_comiss:
@@ -358,9 +350,7 @@ async def delete_cmto(
     if not registros:
         await session.delete(db_comiss)
         await session.commit()
-        return success_response(
-            message='Comissionamento deletado com sucesso'
-        )
+        return success_response(message='Comissionamento deletado com sucesso')
 
     # Com missoes, sem confirmacao → preview
     if not confirm:
@@ -419,12 +409,8 @@ async def delete_cmto(
 
     parts = ['Comissionamento deletado']
     if removed_count:
-        parts.append(
-            f'{removed_count} missão(ões) desvinculada(s)'
-        )
+        parts.append(f'{removed_count} missão(ões) desvinculada(s)')
     if orphan_count:
-        parts.append(
-            f'{orphan_count} missão(ões) órfã(s) removida(s)'
-        )
+        parts.append(f'{orphan_count} missão(ões) órfã(s) removida(s)')
 
     return success_response(message='. '.join(parts) + '.')
