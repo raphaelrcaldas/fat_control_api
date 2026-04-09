@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import unicodedata
 from datetime import UTC, date, datetime
 from http import HTTPStatus
 from typing import Annotated
@@ -225,6 +226,10 @@ async def upload_ata(
 
     # Montar nome do arquivo: NOME_GUERRA_YYYY-MM-DD.pdf
     nome_guerra = user.nome_guerra.strip().replace(' ', '_').lower()
+    nome_guerra = ''.join(
+        c for c in unicodedata.normalize('NFD', nome_guerra)
+        if unicodedata.category(c) != 'Mn'
+    )
     now = datetime.now(tz=UTC)
     if dados['data_realizacao']:
         data_str = dados['data_realizacao'].strftime('%Y-%m-%d')
