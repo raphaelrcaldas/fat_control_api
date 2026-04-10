@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.public.users import User
@@ -34,14 +34,14 @@ async def list_roles(session: Session):
     stmt = (
         select(Roles)
         .options(
-            joinedload(Roles.permissions)
-            .joinedload(RolePermissions.permission)
-            .joinedload(Permissions.resource)
+            selectinload(Roles.permissions)
+            .selectinload(RolePermissions.permission)
+            .selectinload(Permissions.resource)
         )
         .order_by(Roles.name)
     )
     result = await session.execute(stmt)
-    roles = result.unique().scalars()
+    roles = result.scalars()
 
     return success_response(
         data=[
@@ -79,9 +79,9 @@ async def get_role_detail(role_id: int, session: Session):
         select(Roles)
         .where(Roles.id == role_id)
         .options(
-            joinedload(Roles.permissions)
-            .joinedload(RolePermissions.permission)
-            .joinedload(Permissions.resource)
+            selectinload(Roles.permissions)
+            .selectinload(RolePermissions.permission)
+            .selectinload(Permissions.resource)
         )
     )
 

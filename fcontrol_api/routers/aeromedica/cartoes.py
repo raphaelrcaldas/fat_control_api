@@ -176,7 +176,7 @@ async def get_cartao_saude_by_id(
 
 @router.get(
     '/user/{user_id}',
-    response_model=ApiResponse[CartaoSaudePublic],
+    response_model=ApiResponse[CartaoSaudePublic | None],
 )
 async def get_cartao_saude_by_user(
     user_id: int,
@@ -186,12 +186,6 @@ async def get_cartao_saude_by_user(
     cartao = await session.scalar(
         select(CartaoSaude).where(CartaoSaude.user_id == user_id)
     )
-
-    if not cartao:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=('Cartao de saude nao encontrado para este usuario'),
-        )
 
     return success_response(data=cartao)
 

@@ -110,6 +110,14 @@ async def list_passaportes(
     return success_response(data=items)
 
 
+@router.get('/user/{user_id}', response_model=ApiResponse[PassaportePublic | None])
+async def get_passaporte_by_user(user_id: int, session: Session):
+    passaporte = await session.scalar(
+        select(Passaporte).where(Passaporte.user_id == user_id)
+    )
+    return success_response(data=passaporte)
+
+
 @router.put(
     '/{trip_id}',
     response_model=ApiResponse[None],

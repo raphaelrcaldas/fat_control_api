@@ -106,6 +106,14 @@ async def list_crm(
     return success_response(data=items)
 
 
+@router.get('/user/{user_id}', response_model=ApiResponse[CrmPublic | None])
+async def get_crm_by_user(user_id: int, session: Session):
+    crm = await session.scalar(
+        select(CrmCertificado).where(CrmCertificado.user_id == user_id)
+    )
+    return success_response(data=crm)
+
+
 @router.put(
     '/{trip_id}',
     response_model=ApiResponse[None],
