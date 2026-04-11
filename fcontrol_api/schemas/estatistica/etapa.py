@@ -54,12 +54,7 @@ class EtapaOut(BaseModel):
     arr: time
     tvoo: int
     anv: str
-    tow: int | None
-    pax: int | None
-    carga: int | None
-    comb: int | None
-    lub: float | None
-    nivel: str | None
+    pousos: int
     sagem: bool
     parte1: bool
     obs: str | None
@@ -93,6 +88,9 @@ class TripEtapaOut(BaseModel):
     p_g: str
     func: str
     func_bordo: str
+    ant: int
+    ult_promo: str | None
+    ant_rel: int | None
 
 
 class OIEtapaOut(BaseModel):
@@ -109,7 +107,12 @@ class OIEtapaOut(BaseModel):
 class EtapaDetailOut(EtapaOut):
     """Detalhe completo de uma etapa."""
 
-    pousos: int
+    tow: int | None
+    pax: int | None
+    carga: int | None
+    comb: int | None
+    lub: float | None
+    nivel: str | None
 
 
 class TripEtapaIn(BaseModel):

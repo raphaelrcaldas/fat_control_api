@@ -12,6 +12,7 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
+from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
@@ -46,13 +47,14 @@ async def fetch_trip_data(
             Tripulante.trig,
             User.nome_guerra,
             User.p_g,
+            User.ult_promo,
+            User.ant_rel,
+            PostoGrad.ant,
         )
         .select_from(TripEtapa)
-        .join(
-            Tripulante,
-            Tripulante.id == TripEtapa.trip_id,
-        )
+        .join(Tripulante, Tripulante.id == TripEtapa.trip_id)
         .join(User, User.id == Tripulante.user_id)
+        .join(PostoGrad, PostoGrad.short == User.p_g)
         .where(TripEtapa.etapa_id.in_(etapa_ids))
         .order_by(TripEtapa.etapa_id, TripEtapa.id)
     )
@@ -65,6 +67,11 @@ async def fetch_trip_data(
                 p_g=row.p_g,
                 func=row.func,
                 func_bordo=row.func_bordo,
+                ant=row.ant,
+                ult_promo=(
+                    row.ult_promo.isoformat() if row.ult_promo else None
+                ),
+                ant_rel=row.ant_rel,
             )
         )
 
