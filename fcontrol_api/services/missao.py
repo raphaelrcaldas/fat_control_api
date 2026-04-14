@@ -150,6 +150,7 @@ async def adicionar_missao(
         await session.execute(
             delete(FragEtiqueta).where(FragEtiqueta.frag_id == missao.id)
         )
+        session.expire(missao)
 
     else:
         # Criação
