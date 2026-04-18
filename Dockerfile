@@ -34,11 +34,18 @@ RUN groupadd --gid 1000 appuser \
 # Copia pacotes Python instalados no builder
 COPY --from=builder /usr/local /usr/local
 
-# Copia código da aplicação
-COPY . .
+# Copia código da aplicação já com ownership correto (evita camada extra de chown)
+COPY --chown=appuser:appuser . .
 
-# Garante que o usuário não-root é dono dos arquivos
-RUN chown -R appuser:appuser /app
+# Pré-compila .pyc para todo o código + site-packages do Python do sistema.
+# Economiza 100-300ms de compilação on-the-fly no 1º import em cold start
+# (Fly), às custas de ~10-20s a mais no build. O caminho do site-packages é
+# derivado em runtime para não travar em uma versão específica do Python.
+# -q: silencia output; `|| true` absorve warnings em arquivos sem sintaxe
+# válida (ex.: templates em pacotes third-party) — sem ele, um único arquivo
+# problemático quebra o build inteiro.
+RUN SITE_PACKAGES="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && python -m compileall -q -j 0 /app "$SITE_PACKAGES" || true
 
 USER appuser
 

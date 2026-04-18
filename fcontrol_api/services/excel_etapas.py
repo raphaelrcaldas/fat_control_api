@@ -3,18 +3,7 @@
 from datetime import date, datetime, time
 from io import BytesIO
 
-from openpyxl import Workbook
-from openpyxl.styles import (
-    Alignment,
-    Border,
-    Font,
-    PatternFill,
-    Side,
-)
-from openpyxl.utils import get_column_letter
-
-# ── Estilos ────────────────────────────────────────────
-
+# Paleta de cores (stdlib, sem openpyxl — seguras no nível do módulo).
 _BLUE_DARK = '1F3864'
 _BLUE_MED = '2E5E9E'
 _BLUE_LIGHT = 'D6E4F0'
@@ -22,77 +11,123 @@ _BLUE_ZEBRA = 'F2F6FC'
 _BORDER_CLR = 'D0D5DD'
 _WHITE = 'FFFFFF'
 
-_TITLE_FONT = Font(
-    bold=True,
-    size=14,
-    color=_WHITE,
-)
-_TITLE_FILL = PatternFill(
-    start_color=_BLUE_DARK,
-    end_color=_BLUE_DARK,
-    fill_type='solid',
-)
-_META_FONT = Font(
-    size=10,
-    italic=True,
-    color='4472C4',
-)
-_META_FILL = PatternFill(
-    start_color=_BLUE_LIGHT,
-    end_color=_BLUE_LIGHT,
-    fill_type='solid',
-)
-_HEADER_FONT = Font(
-    bold=True,
-    size=10,
-    color=_WHITE,
-)
-_HEADER_FILL = PatternFill(
-    start_color=_BLUE_MED,
-    end_color=_BLUE_MED,
-    fill_type='solid',
-)
-_HEADER_BORDER = Border(
-    top=Side(style='thin', color=_BLUE_DARK),
-    bottom=Side(style='thin', color=_BLUE_DARK),
-    left=Side(style='thin', color=_BLUE_DARK),
-    right=Side(style='thin', color=_BLUE_DARK),
-)
-_DATA_BORDER = Border(
-    top=Side(style='thin', color=_BORDER_CLR),
-    bottom=Side(style='thin', color=_BORDER_CLR),
-    left=Side(style='thin', color=_BORDER_CLR),
-    right=Side(style='thin', color=_BORDER_CLR),
-)
-_ZEBRA_FILL = PatternFill(
-    start_color=_BLUE_ZEBRA,
-    end_color=_BLUE_ZEBRA,
-    fill_type='solid',
-)
-_TOTAL_FILL = PatternFill(
-    start_color=_BLUE_LIGHT,
-    end_color=_BLUE_LIGHT,
-    fill_type='solid',
-)
-_TOTAL_FONT = Font(bold=True, size=10)
-_CENTER = Alignment(
-    horizontal='center',
-    vertical='center',
-)
-_CENTER_WRAP = Alignment(
-    horizontal='center',
-    vertical='center',
-    wrap_text=True,
-)
-_LEFT_WRAP = Alignment(
-    horizontal='left',
-    vertical='center',
-    wrap_text=True,
-)
-_RIGHT = Alignment(
-    horizontal='right',
-    vertical='center',
-)
+# Placeholders para openpyxl. Inicializados como None para que ruff
+# (F821) enxergue os nomes no nível do módulo; o import real e a
+# construção das constantes acontece em _init_openpyxl(), chamado
+# no começo de generate_etapas_xlsx(). Assim openpyxl (~200ms) só
+# carrega quando o endpoint de export é efetivamente invocado — fora
+# do cold start.
+Workbook = None
+get_column_letter = None
+Alignment = None
+Border = None
+Side = None
+Font = None
+PatternFill = None
+_TITLE_FONT = None
+_TITLE_FILL = None
+_META_FONT = None
+_META_FILL = None
+_HEADER_FONT = None
+_HEADER_FILL = None
+_HEADER_BORDER = None
+_DATA_BORDER = None
+_ZEBRA_FILL = None
+_TOTAL_FILL = None
+_TOTAL_FONT = None
+_CENTER = None
+_CENTER_WRAP = None
+_LEFT_WRAP = None
+_RIGHT = None
+
+_lazy_initialized = False
+
+
+def _init_openpyxl() -> None:
+    """Importa openpyxl e popula as constantes de estilo do módulo.
+
+    Idempotente — chamadas subsequentes são no-op. Deve ser chamada
+    no começo de toda função pública que use os estilos.
+    """
+    global _lazy_initialized  # noqa: PLW0603
+    if _lazy_initialized:
+        return
+
+    from openpyxl import Workbook  # noqa: PLC0415
+    from openpyxl.styles import (  # noqa: PLC0415
+        Alignment,
+        Border,
+        Font,
+        PatternFill,
+        Side,
+    )
+    from openpyxl.utils import get_column_letter  # noqa: PLC0415
+
+    # Escopo local: os nomes importados acima são locais a esta função;
+    # globals().update() sobrescreve os placeholders `None` no módulo.
+    globals().update({
+        'Workbook': Workbook,
+        'get_column_letter': get_column_letter,
+        'Alignment': Alignment,
+        'Border': Border,
+        'Side': Side,
+        'Font': Font,
+        'PatternFill': PatternFill,
+        '_TITLE_FONT': Font(bold=True, size=14, color=_WHITE),
+        '_TITLE_FILL': PatternFill(
+            start_color=_BLUE_DARK,
+            end_color=_BLUE_DARK,
+            fill_type='solid',
+        ),
+        '_META_FONT': Font(size=10, italic=True, color='4472C4'),
+        '_META_FILL': PatternFill(
+            start_color=_BLUE_LIGHT,
+            end_color=_BLUE_LIGHT,
+            fill_type='solid',
+        ),
+        '_HEADER_FONT': Font(bold=True, size=10, color=_WHITE),
+        '_HEADER_FILL': PatternFill(
+            start_color=_BLUE_MED,
+            end_color=_BLUE_MED,
+            fill_type='solid',
+        ),
+        '_HEADER_BORDER': Border(
+            top=Side(style='thin', color=_BLUE_DARK),
+            bottom=Side(style='thin', color=_BLUE_DARK),
+            left=Side(style='thin', color=_BLUE_DARK),
+            right=Side(style='thin', color=_BLUE_DARK),
+        ),
+        '_DATA_BORDER': Border(
+            top=Side(style='thin', color=_BORDER_CLR),
+            bottom=Side(style='thin', color=_BORDER_CLR),
+            left=Side(style='thin', color=_BORDER_CLR),
+            right=Side(style='thin', color=_BORDER_CLR),
+        ),
+        '_ZEBRA_FILL': PatternFill(
+            start_color=_BLUE_ZEBRA,
+            end_color=_BLUE_ZEBRA,
+            fill_type='solid',
+        ),
+        '_TOTAL_FILL': PatternFill(
+            start_color=_BLUE_LIGHT,
+            end_color=_BLUE_LIGHT,
+            fill_type='solid',
+        ),
+        '_TOTAL_FONT': Font(bold=True, size=10),
+        '_CENTER': Alignment(horizontal='center', vertical='center'),
+        '_CENTER_WRAP': Alignment(
+            horizontal='center',
+            vertical='center',
+            wrap_text=True,
+        ),
+        '_LEFT_WRAP': Alignment(
+            horizontal='left',
+            vertical='center',
+            wrap_text=True,
+        ),
+        '_RIGHT': Alignment(horizontal='right', vertical='center'),
+    })
+    _lazy_initialized = True
 
 
 def _min_to_hhmm(minutes: int) -> str:
@@ -202,6 +237,7 @@ def generate_etapas_xlsx(
         trip_data: TripEtapaOut agrupados por etapa_id
         columns: flags de colunas opcionais
     """
+    _init_openpyxl()
     wb = Workbook()
     ws = wb.active
     ws.title = 'Etapas'

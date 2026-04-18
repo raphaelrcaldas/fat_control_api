@@ -1,18 +1,29 @@
 import logging
-from functools import lru_cache
+import threading
+from functools import cache
 from io import BytesIO
 
-import boto3
-from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from fcontrol_api.settings import Settings
 
 logger = logging.getLogger(__name__)
 
+# Flag + lock para garantir que a verificação/criação do bucket rode no
+# máximo uma vez por processo, sem race condition sob threads concorrentes
+# (FastAPI executa handlers síncronos em thread pool — múltiplos uploads
+# simultâneos entrariam em ensure_bucket() ao mesmo tempo).
+_bucket_verified = False
+_bucket_lock = threading.Lock()
 
-@lru_cache(maxsize=1)
+
+@cache
 def _get_client():
+    # Imports lazy: boto3/botocore são pesados (~300-500ms) e só devem
+    # ser carregados quando o storage for efetivamente usado.
+    import boto3  # noqa: PLC0415
+    from botocore.config import Config  # noqa: PLC0415
+
     settings = Settings()
     protocol = 'https' if settings.STORAGE_SECURE else 'http'
     endpoint_url = f'{protocol}://{settings.STORAGE_ENDPOINT}'
@@ -26,29 +37,80 @@ def _get_client():
         config=Config(
             signature_version='s3v4',
             s3={'addressing_style': 'path'},
+            # connect_timeout curto: detecta storage fora do ar rápido.
+            # read_timeout=30s é um compromisso — uploads de PDFs/atas
+            # maiores precisam desse tempo sob rede lenta. Se o storage
+            # estiver saudável mas a rede lenta, reduzir isso causaria
+            # falsos negativos em uploads legítimos.
+            connect_timeout=3,
+            read_timeout=30,
+            retries={'max_attempts': 2, 'mode': 'standard'},
         ),
     )
 
 
-@lru_cache(maxsize=1)
+@cache
 def _get_bucket() -> str:
     return Settings().STORAGE_BUCKET
 
 
 def ensure_bucket() -> None:
-    client = _get_client()
-    bucket = _get_bucket()
-    try:
-        client.head_bucket(Bucket=bucket)
-    except ClientError as e:
-        code = e.response['Error']['Code']
-        if code == '404':
-            client.create_bucket(Bucket=bucket)
-        else:
-            logger.warning(
-                'Bucket %s check failed (code=%s), assuming it exists',
-                bucket,
-                code,
+    """Garante que o bucket existe. Idempotente e à prova de falhas.
+
+    Chamado de forma lazy (primeira operação de escrita) — NÃO deve
+    ser chamado no boot, para não acoplar disponibilidade do storage
+    ao startup da API.
+    """
+    global _bucket_verified  # noqa: PLW0603
+    if _bucket_verified:
+        return
+
+    with _bucket_lock:
+        # Double-checked locking: outra thread pode ter verificado
+        # enquanto esperávamos o lock.
+        if _bucket_verified:
+            return
+
+        client = _get_client()
+        bucket = _get_bucket()
+        try:
+            client.head_bucket(Bucket=bucket)
+            _bucket_verified = True
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code == '404':
+                try:
+                    client.create_bucket(Bucket=bucket)
+                    _bucket_verified = True
+                except ClientError:
+                    logger.exception('Falha ao criar bucket %s', bucket)
+            elif code in {'403', 'AccessDenied', 'Forbidden'}:
+                # 403 significa "bucket existe e você não tem permissão
+                # de head" — situação comum em buckets provisionados por
+                # admin. Consideramos verificado; operações reais dirão
+                # se há problema de permissão por operação.
+                logger.info(
+                    'Bucket %s head negado (code=%s); '
+                    'assumindo que existe',
+                    bucket,
+                    code,
+                )
+                _bucket_verified = True
+            else:
+                # 5xx/timeouts/etc.: storage pode estar instável. NÃO
+                # marcamos como verificado — tentamos de novo na próxima
+                # operação (pode ter se recuperado). Log só; a operação
+                # real abaixo vai falhar naturalmente se ainda quebrado.
+                logger.warning(
+                    'Bucket %s check falhou (code=%s); '
+                    'seguir tentando na próxima operação',
+                    bucket,
+                    code,
+                )
+        except Exception:
+            # Timeout, DNS, rede: idem acima — não marca verificado.
+            logger.exception(
+                'Erro inesperado verificando bucket %s', bucket
             )
 
 
@@ -58,6 +120,7 @@ def upload_file(
     content_type: str,
     size: int,
 ) -> None:
+    ensure_bucket()
     client = _get_client()
     bucket = _get_bucket()
     client.upload_fileobj(

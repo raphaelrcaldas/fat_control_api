@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file='.env', env_file_encoding='utf-8'
+        env_file='.env', env_file_encoding='utf-8', extra='ignore'
     )
 
     DATABASE_URL: str
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     FATCONTROL_URL: str
     FATBIRD_URL: str
     ENV: str = 'production'
+    BOOT_PROFILE: bool = False
 
     # AISWEB DECEA
     AISWEB_API_KEY: str = ''

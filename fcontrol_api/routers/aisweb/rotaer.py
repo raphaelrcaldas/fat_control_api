@@ -1,5 +1,6 @@
 from http import HTTPStatus
 from typing import Annotated
+from xml.etree.ElementTree import Element, tostring
 
 import defusedxml.ElementTree as ET
 import httpx
@@ -99,7 +100,7 @@ def _parse_military(text: str | None) -> bool | None:
     return None
 
 
-def _collect_lights(elem: ET.Element) -> list[str]:
+def _collect_lights(elem: Element) -> list[str]:
     """Coleta descr de todas as tags <lights>/<light> dentro de elem."""
     result: list[str] = []
     for lights_elem in elem.findall('lights'):
@@ -110,7 +111,7 @@ def _collect_lights(elem: ET.Element) -> list[str]:
     return result
 
 
-def _parse_runways(root: ET.Element) -> list[RotaerRunway]:
+def _parse_runways(root: Element) -> list[RotaerRunway]:
     runways_elem = root.find('runways')
     if runways_elem is None:
         return []
@@ -156,7 +157,7 @@ def _parse_runways(root: ET.Element) -> list[RotaerRunway]:
     return result
 
 
-def _parse_services(root: ET.Element) -> list[RotaerService]:
+def _parse_services(root: Element) -> list[RotaerService]:
     services_elem = root.find('services')
     if services_elem is None:
         return []
@@ -164,7 +165,7 @@ def _parse_services(root: ET.Element) -> list[RotaerService]:
     result: list[RotaerService] = []
     for svc in services_elem.findall('service'):
         service_type = svc.get('type', '')
-        raw_xml = ET.tostring(svc, encoding='unicode')
+        raw_xml = tostring(svc, encoding='unicode')
         result.append(
             RotaerService(service_type=service_type, raw_xml=raw_xml)
         )
@@ -172,7 +173,7 @@ def _parse_services(root: ET.Element) -> list[RotaerService]:
     return result
 
 
-def _parse_remarks(root: ET.Element) -> list[str]:
+def _parse_remarks(root: Element) -> list[str]:
     rmk_elem = root.find('rmk')
     if rmk_elem is None:
         return []
@@ -183,7 +184,7 @@ def _parse_remarks(root: ET.Element) -> list[str]:
     ]
 
 
-def _parse_complements(root: ET.Element) -> dict[str, str]:
+def _parse_complements(root: Element) -> dict[str, str]:
     compls_elem = root.find('compls')
     if compls_elem is None:
         return {}
@@ -198,7 +199,7 @@ def _parse_complements(root: ET.Element) -> dict[str, str]:
     return result
 
 
-def _parse_org(root: ET.Element) -> RotaerOrg | None:
+def _parse_org(root: Element) -> RotaerOrg | None:
     org_elem = root.find('org')
     if org_elem is None:
         return None
@@ -211,7 +212,7 @@ def _parse_org(root: ET.Element) -> RotaerOrg | None:
     )
 
 
-def _parse_rotaer_xml(root: ET.Element, icao: str) -> RotaerData:
+def _parse_rotaer_xml(root: Element, icao: str) -> RotaerData:
     return RotaerData(
         status=root.findtext('status'),
         dt=root.findtext('dt'),

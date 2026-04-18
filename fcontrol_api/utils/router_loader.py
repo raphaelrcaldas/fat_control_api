@@ -1,4 +1,5 @@
 import importlib
+import logging
 import pkgutil
 from typing import Sequence
 
@@ -6,7 +7,9 @@ from fastapi import APIRouter
 from fastapi.params import Depends
 
 from fcontrol_api.settings import Settings
+from fcontrol_api.utils.boot_profiler import mark
 
+logger = logging.getLogger(__name__)
 settings = Settings()
 
 
@@ -39,13 +42,22 @@ def load_routers(
         try:
             # Importa o módulo dinamicamente
             module = importlib.import_module(full_module_name)
+            # Só sinaliza routers que custam > 100ms
+            mark(
+                f'router_loader: {full_module_name}',
+                threshold_ms=100.0,
+            )
             # Se o módulo tiver um atributo 'router', inclui ele
             if hasattr(module, 'router'):
                 router.include_router(module.router, prefix=prefix)
                 loaded_modules.append(module_name)
-        except Exception as e:
-            if settings.ENV == 'development':
-                print(f'Erro ao importar o roteador {full_module_name}: {e}')
+        except Exception:
+            # SEMPRE loga: falha de import de router em produção é um bug
+            # silencioso crítico (endpoints somem sem aviso). Em dev o
+            # logger vai pro console; em prod pro sistema de logs.
+            logger.exception(
+                'Erro ao importar o roteador %s', full_module_name
+            )
 
     if settings.ENV == 'development' and loaded_modules:
         print(f'Módulo "{name}" carregou os roteadores de: {loaded_modules}')

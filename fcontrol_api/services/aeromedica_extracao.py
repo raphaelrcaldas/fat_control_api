@@ -2,8 +2,6 @@ import re
 from datetime import date, datetime
 from io import BytesIO
 
-import pdfplumber
-
 
 def _parse_date(text: str) -> date | None:
     cleaned = text.strip().rstrip('.')
@@ -16,6 +14,10 @@ def _parse_date(text: str) -> date | None:
 
 
 def extrair_dados_ata_bytes(conteudo: bytes) -> dict:
+    # Lazy import: pdfplumber custa ~300ms no cold start e só
+    # é usado quando uma ata é efetivamente processada.
+    import pdfplumber  # noqa: PLC0415
+
     resultado = {
         'nome_completo': None,
         'letra_finalidade': None,

@@ -1,27 +1,39 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+# ruff: noqa: E402
+# E402 desativado: imports são intercalados com chamadas a
+# mark() para instrumentação de cold start (BOOT_PROFILE=1).
+from fcontrol_api.utils.boot_profiler import mark
+
+mark('app.py: import start')
 
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+mark('app.py: fastapi imported')
+
 from fcontrol_api import routers
+
+mark('app.py: routers package imported')
+
 from fcontrol_api.exceptions import (
     http_exception_handler,
     validation_exception_handler,
 )
 from fcontrol_api.middlewares import middleware_stack
-from fcontrol_api.services.storage import ensure_bucket
+
+mark('app.py: middlewares imported')
+
 from fcontrol_api.settings import Settings
 
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    ensure_bucket()
-    yield
+mark('app.py: settings imported')
 
 
-app = FastAPI(lifespan=lifespan)
+# Sem lifespan: removido deliberadamente para desacoplar o boot de
+# dependências externas (storage/Supabase). Inicializações preguiçosas
+# (ensure_bucket, _get_client, etc.) rodam na 1ª requisição que delas
+# precisar — se o storage estiver fora no momento do deploy, a API ainda
+# sobe e serve endpoints que não dependem dele. Ver services/storage.py.
+app = FastAPI()
 
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -44,3 +56,5 @@ app.add_middleware(
 )
 
 app.include_router(routers.router)
+
+mark('app.py: app fully configured')
