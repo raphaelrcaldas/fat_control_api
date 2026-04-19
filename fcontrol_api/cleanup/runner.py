@@ -9,7 +9,7 @@ from fcontrol_api.cleanup.models.cleanup_result import CleanupTaskResult
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_TASKS = {'old_login_logs', 'old_unavailability'}
+ALLOWED_TASKS = {'old_login_logs', 'old_unavailability', 'expired_auth_codes'}
 
 
 async def run_all_tasks(

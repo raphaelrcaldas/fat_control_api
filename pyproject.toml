@@ -77,6 +77,8 @@ pre_test = 'task lint'
 test = 'pytest -s -x --cov=fcontrol_api -vv'
 post_test = 'coverage html'
 
+cleanup = 'python -m scripts.run_cleanup'
+
 lint = 'ruff check . && ruff check . --diff'
 format = 'ruff check . --fix && ruff format .'
 

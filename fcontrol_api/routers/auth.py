@@ -146,37 +146,46 @@ async def exchange_code_for_token(
             detail='Invalid authorization code',
         )
 
+    # Extrair dados e consumir o código imediatamente (single-use).
+    # O commit antes das validações garante que qualquer tentativa de reutilização
+    # do mesmo code seja rejeitada, mesmo que as validações seguintes falhem.
+    stored_client_id = auth_code_obj.client.client_id
+    stored_redirect_uri = auth_code_obj.client.redirect_uri
+    stored_expires_at = auth_code_obj.expires_at
+    stored_code_challenge = auth_code_obj.code_challenge
+    stored_user_id = auth_code_obj.user_id
+
+    await session.delete(auth_code_obj)
+    await session.commit()
+
     # 2. Validar o código (cliente, redirect_uri, expiração)
-    if auth_code_obj.client.client_id != client_id:
+    if stored_client_id != client_id:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail='Client ID mismatch'
         )
-    if auth_code_obj.client.redirect_uri != redirect_uri:
+    if stored_redirect_uri != redirect_uri:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail='Redirect URI mismatch'
         )
-    if datetime.now(timezone.utc) > auth_code_obj.expires_at:
+    if datetime.now(timezone.utc) > stored_expires_at:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Authorization code expired',
         )
 
     # 3. Verificação PKCE (usando o verifier do cookie)
-    if not verify_pkce_challenge(
-        pkce_code_verifier, auth_code_obj.code_challenge
-    ):
+    if not verify_pkce_challenge(pkce_code_verifier, stored_code_challenge):
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail='Invalid code_verifier'
         )
 
-    # 4. Código válido, buscar o usuário e invalidar o código
-    user = await session.get(User, auth_code_obj.user_id)
-    await session.delete(auth_code_obj)  # Invalida o código de uso único
+    # 4. Código consumido e validado — buscar o usuário
+    user = await session.get(User, stored_user_id)
 
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='User not found for this authorization code',
+            detail='Usuário associado ao código não encontrado',
         )
 
     # --- Geração de Token ---
