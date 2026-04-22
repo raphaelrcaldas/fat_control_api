@@ -150,7 +150,11 @@ async def adicionar_missao(
         await session.execute(
             delete(FragEtiqueta).where(FragEtiqueta.frag_id == missao.id)
         )
-        session.expire(missao)
+        # Expira apenas relacionamentos (não colunas escalares como id),
+        # para evitar lazy-load síncrono em contexto async ao acessar
+        # missao.id mais adiante, mas garantindo que o ORM descarte as
+        # coleções obsoletas (cascade delete-orphan) antes do commit.
+        session.expire(missao, ['pernoites', 'users', 'etiquetas'])
 
     else:
         # Criação
