@@ -27,6 +27,12 @@ FROM python:3.14-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 
+# Ghostscript: usado por fcontrol_api/services/pdf.py para comprimir PDFs
+# (fallback transparente no código se ausente, mas reduz ~30-50% o tamanho).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ghostscript \
+    && rm -rf /var/lib/apt/lists/*
+
 # Cria usuário não-root
 RUN groupadd --gid 1000 appuser \
     && useradd --uid 1000 --gid appuser --no-create-home appuser
