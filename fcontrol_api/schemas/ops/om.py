@@ -4,7 +4,13 @@ from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.etiquetas import EtiquetaSchema
@@ -116,10 +122,10 @@ class OrdemMissaoCore(BaseModel):
     """Campos essenciais de uma Ordem de Missão"""
 
     matricula_anv: str
-    tipo: str
+    tipo: Annotated[str, Field(max_length=100)]
     projeto: str
     status: str
-    doc_ref: str | None = None
+    doc_ref: Annotated[str | None, Field(max_length=100, default=None)] = None
     data_saida: date | None = None
     uae: str
     esf_aer: int = 0
@@ -140,10 +146,10 @@ class OrdemMissaoUpdate(BaseModel):
 
     numero: str | None = None
     matricula_anv: str | None = None
-    tipo: str | None = None
+    tipo: Annotated[str | None, Field(max_length=100)] = None
     projeto: str | None = None
     status: str | None = None
-    doc_ref: str | None = None
+    doc_ref: Annotated[str | None, Field(max_length=100)] = None
     data_saida: date | None = None
     uae: str | None = None
     esf_aer: int | None = None
