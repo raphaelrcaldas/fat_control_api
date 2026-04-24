@@ -112,6 +112,78 @@ async def get_cmtos(
     return success_response(data=response)
 
 
+@router.get('/summary', response_model=ApiResponse[dict])
+async def get_summary(
+    session: Session,
+    ano: int,
+):
+    """
+    Retorna o summary orçamentário dos comissionamentos do ano escolhido.
+    """
+    query = (
+        select(Comissionamento)
+        .join(User)
+        .where(
+            (func.extract('year', Comissionamento.data_ab) == ano)
+            | (func.extract('year', Comissionamento.data_fc) == ano)
+        )
+        .order_by(Comissionamento.data_ab.desc())
+    )
+
+    result = await session.scalars(query)
+    comiss_list = result.all()
+
+    soma_ab = 0.0
+    soma_fc = 0.0
+    previsao_fc = 0.0
+
+    response_comiss = []
+
+    for comiss in comiss_list:
+        if comiss.data_ab and comiss.data_ab.year == ano:
+            soma_ab += comiss.valor_aj_ab or 0.0
+
+        if comiss.data_fc and comiss.data_fc.year == ano:
+            if comiss.status == 'fechado':
+                soma_fc += comiss.valor_aj_fc or 0.0
+            else:
+                previsao_fc += comiss.valor_aj_fc or 0.0
+
+        user = UserPublic.model_validate(comiss.user).model_dump()
+        comiss_data = ComissSchema.model_validate(comiss).model_dump(
+            exclude={'user_id'},
+        )
+        comiss_data['user'] = user
+
+        # Ler valores do cache JSONB
+        cache = comiss.cache_calc or {}
+        comiss_data['completude'] = cache.get('completude', 0)
+
+        response_comiss.append(comiss_data)
+
+    data = {
+        'fechamento': {
+            'soma': soma_fc,
+            'previsao': previsao_fc,
+            'orcamento': 900_000.0,
+        },
+        'abertura': {
+            'soma': soma_ab,
+            'orcamento': 1_000_000.0,
+        },
+        'total': {
+            'soma_abertura': soma_ab,
+            'soma_fechamento': soma_fc,
+            'soma': soma_ab + soma_fc,
+            'previsao': previsao_fc,
+            'orcamento': 1_900_000.0,
+        },
+        'comissionamentos': response_comiss,
+    }
+
+    return success_response(data=data)
+
+
 @router.get('/{comiss_id}', response_model=ApiResponse[dict])
 async def get_cmto_by_id(
     comiss_id: int,
