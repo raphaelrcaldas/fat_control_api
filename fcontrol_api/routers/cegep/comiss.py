@@ -1,27 +1,52 @@
+import json
 from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import Boolean, and_, cast, func
+from sqlalchemy import Boolean, and_, cast, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
 from fcontrol_api.models.public.users import User
+from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.schemas.cegep.comiss import ComissSchema
 from fcontrol_api.schemas.cegep.missoes import FragMisSchema
 from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.security import get_current_user
 from fcontrol_api.services.comis import verificar_conflito_comiss
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.financeiro import custo_missao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/comiss', tags=['CEGEP'])
+
+RESOURCE = 'comissionamento'
+
+
+def _comiss_to_dict(c: Comissionamento) -> dict:
+    return {
+        'status': c.status,
+        'dep': c.dep,
+        'data_ab': c.data_ab.isoformat() if c.data_ab else None,
+        'qtd_aj_ab': float(c.qtd_aj_ab),
+        'valor_aj_ab': float(c.valor_aj_ab),
+        'data_fc': c.data_fc.isoformat() if c.data_fc else None,
+        'qtd_aj_fc': float(c.qtd_aj_fc),
+        'valor_aj_fc': float(c.valor_aj_fc),
+        'dias_cumprir': c.dias_cumprir,
+        'doc_prop': c.doc_prop,
+        'doc_aut': c.doc_aut,
+        'doc_enc': c.doc_enc,
+    }
 
 
 @router.get('/', response_model=ApiResponse[list])
@@ -99,7 +124,6 @@ async def get_cmtos(
         )
         comiss_data['user'] = user
 
-        # Ler valores do cache JSONB
         cache = comiss.cache_calc or {}
         comiss_data['dias_comp'] = cache.get('dias_comp', 0)
         comiss_data['diarias_comp'] = cache.get('diarias_comp', 0)
@@ -164,7 +188,6 @@ async def get_summary(
         )
         comiss_data['user'] = user
 
-        # Ler valores do cache JSONB
         cache = comiss.cache_calc or {}
         comiss_data['completude'] = cache.get('completude', 0)
         comiss_data['modulo'] = cache.get('modulo', False)
@@ -201,7 +224,7 @@ async def get_cmto_by_id(
     session: Session,
 ):
     """
-    Retorna um comissionamento com todas as missões agregadas.
+    Retorna um comissionamento com todas as missões e o histórico de auditoria.
     """
     comiss = await session.scalar(
         select(Comissionamento).where(Comissionamento.id == comiss_id)
@@ -213,14 +236,12 @@ async def get_cmto_by_id(
             detail='Comissionamento não encontrado',
         )
 
-    # Montar dados base
     user = UserPublic.model_validate(comiss.user).model_dump()
     comiss_data = ComissSchema.model_validate(comiss).model_dump(
         exclude={'user_id'},
     )
     comiss_data['user'] = user
 
-    # Ler valores do cache JSONB
     cache = comiss.cache_calc or {}
     comiss_data['dias_comp'] = cache.get('dias_comp', 0)
     comiss_data['diarias_comp'] = cache.get('diarias_comp', 0)
@@ -228,8 +249,7 @@ async def get_cmto_by_id(
     comiss_data['modulo'] = cache.get('modulo', False)
     comiss_data['completude'] = cache.get('completude', 0)
 
-    # Buscar missões do comissionamento
-    query = (
+    missoes_query = (
         select(FragMis, UserFrag)
         .join(
             UserFrag,
@@ -248,7 +268,7 @@ async def get_cmto_by_id(
         .order_by(FragMis.afast)
     )
 
-    result = await session.execute(query)
+    result = await session.execute(missoes_query)
     registros = result.all()
 
     missoes = []
@@ -265,12 +285,46 @@ async def get_cmto_by_id(
 
     comiss_data['missoes'] = missoes
 
+    logs_query = (
+        select(UserActionLog)
+        .options(selectinload(UserActionLog.user))
+        .where(
+            UserActionLog.resource == RESOURCE,
+            UserActionLog.resource_id == comiss_id,
+        )
+        .order_by(UserActionLog.timestamp.desc(), UserActionLog.id.desc())
+        .limit(100)
+    )
+
+    logs_result = await session.scalars(logs_query)
+    logs = []
+    for log in logs_result.all():
+        try:
+            before = json.loads(log.before) if log.before else None
+        except (json.JSONDecodeError, TypeError):
+            before = None
+        try:
+            after = json.loads(log.after) if log.after else None
+        except (json.JSONDecodeError, TypeError):
+            after = None
+        logs.append({
+            'id': log.id,
+            'user': UserPublic.model_validate(log.user).model_dump(),
+            'action': log.action,
+            'before': before,
+            'after': after,
+            'timestamp': log.timestamp.isoformat(),
+        })
+
+    comiss_data['logs'] = logs
+
     return success_response(data=comiss_data)
 
 
 @router.post('/', response_model=ApiResponse[None])
 async def create_cmto(
     session: Session,
+    current_user: CurrentUser,
     comiss: ComissSchema,
 ):
     db_comiss = await session.scalar(
@@ -293,8 +347,18 @@ async def create_cmto(
         exclude={'id'}
     )
     new_comiss = Comissionamento(**comiss_data)
-
     session.add(new_comiss)
+    await session.flush()
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='create',
+        resource=RESOURCE,
+        resource_id=new_comiss.id,
+        before=None,
+        after=_comiss_to_dict(new_comiss),
+    )
 
     await session.commit()
 
@@ -305,6 +369,7 @@ async def create_cmto(
 async def update_cmto(
     comiss_id: int,
     session: Session,
+    current_user: CurrentUser,
     comiss: ComissSchema,
 ):
     db_comiss = await session.scalar(
@@ -381,8 +446,24 @@ async def update_cmto(
             detail=msg,
         )
 
+    before = _comiss_to_dict(db_comiss)
+
     for key, value in comiss.model_dump(exclude_unset=True).items():
         setattr(db_comiss, key, value)
+
+    await session.flush()
+    after = _comiss_to_dict(db_comiss)
+
+    if before != after:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='update',
+            resource=RESOURCE,
+            resource_id=comiss_id,
+            before=before,
+            after=after,
+        )
 
     await session.commit()
     await session.refresh(db_comiss)
@@ -406,7 +487,6 @@ async def delete_cmto(
             detail='Comissionamento não encontrado',
         )
 
-    # Buscar missoes vinculadas ao comissionamento
     missoes_query = (
         select(FragMis, UserFrag)
         .join(
@@ -429,8 +509,14 @@ async def delete_cmto(
     result = await session.execute(missoes_query)
     registros = result.all()
 
-    # Sem missoes → deleta direto
+    # Sem missoes → deleta direto (+ limpa logs)
     if not registros:
+        await session.execute(
+            delete(UserActionLog).where(
+                UserActionLog.resource == RESOURCE,
+                UserActionLog.resource_id == comiss_id,
+            )
+        )
         await session.delete(db_comiss)
         await session.commit()
         return success_response(message='Comissionamento deletado com sucesso')
@@ -463,7 +549,7 @@ async def delete_cmto(
             ),
         )
 
-    # Com confirmacao → cascade delete
+    # Com confirmacao → cascade delete + limpa logs
     frag_ids = set()
     for missao, user_frag in registros:
         frag_ids.add(missao.id)
@@ -486,6 +572,13 @@ async def delete_cmto(
             if orphan_mission:
                 await session.delete(orphan_mission)
                 orphan_count += 1
+
+    await session.execute(
+        delete(UserActionLog).where(
+            UserActionLog.resource == RESOURCE,
+            UserActionLog.resource_id == comiss_id,
+        )
+    )
 
     await session.delete(db_comiss)
     await session.commit()

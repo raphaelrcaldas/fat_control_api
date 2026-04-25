@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, time
 from http import HTTPStatus
 from typing import Annotated
@@ -19,6 +20,7 @@ from fcontrol_api.models.cegep.missoes import (
 )
 from fcontrol_api.models.public.estados_cidades import Cidade
 from fcontrol_api.models.public.users import User
+from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
     CustoPernoiteInput,
@@ -35,18 +37,40 @@ from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
 )
+from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.security import get_current_user
 from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
 )
 from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
 from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
 from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/missoes', tags=['CEGEP'])
+
+RESOURCE = 'missao'
+
+
+def _missao_to_dict(m) -> dict:
+    afast = m.afast
+    regres = m.regres
+    return {
+        'tipo_doc': m.tipo_doc,
+        'n_doc': m.n_doc,
+        'desc': m.desc,
+        'afast': afast.isoformat() if hasattr(afast, 'isoformat') else str(afast),
+        'regres': regres.isoformat() if hasattr(regres, 'isoformat') else str(regres),
+        'indenizavel': m.indenizavel,
+        'acrec_desloc': m.acrec_desloc,
+        'tipo': m.tipo,
+        'obs': m.obs,
+    }
 
 
 @router.get('/', response_model=ApiPaginatedResponse[FragMisSchema])
@@ -264,9 +288,9 @@ async def delete_etiqueta(etiqueta_id: int, session: Session):
     return success_response(message='Etiqueta removida com sucesso')
 
 
-@router.get('/{id}', response_model=ApiResponse[FragMisSchema])
+@router.get('/{id}', response_model=ApiResponse[dict])
 async def get_missao(id: int, session: Session):
-    """Obter uma missão específica pelo ID."""
+    """Obter uma missão específica pelo ID, com histórico de auditoria."""
     missao = await session.scalar(
         select(FragMis)
         .options(selectinload(FragMis.users))
@@ -287,13 +311,53 @@ async def get_missao(id: int, session: Session):
         )
     )
 
-    return success_response(data=missao)
+    missao_data = FragMisSchema.model_validate(missao).model_dump()
+
+    # Buscar logs de auditoria
+    logs_result = await session.scalars(
+        select(UserActionLog)
+        .options(selectinload(UserActionLog.user))
+        .where(
+            UserActionLog.resource == RESOURCE,
+            UserActionLog.resource_id == id,
+        )
+        .order_by(UserActionLog.timestamp.desc(), UserActionLog.id.desc())
+        .limit(100)
+    )
+
+    logs = []
+    for log in logs_result.all():
+        try:
+            before = json.loads(log.before) if log.before else None
+        except (json.JSONDecodeError, TypeError):
+            before = None
+        try:
+            after = json.loads(log.after) if log.after else None
+        except (json.JSONDecodeError, TypeError):
+            after = None
+        logs.append({
+            'id': log.id,
+            'user': UserPublic.model_validate(log.user).model_dump(),
+            'action': log.action,
+            'before': before,
+            'after': after,
+            'timestamp': log.timestamp.isoformat(),
+        })
+
+    missao_data['logs'] = logs
+
+    return success_response(data=missao_data)
 
 
 @router.post('/', response_model=ApiResponse[None])
-async def create_or_update_missao(payload: FragMisSchema, session: Session):
-    # Capturar usuários antigos ANTES de deletar (para recalcular removidos)
+async def create_or_update_missao(
+    payload: FragMisSchema,
+    session: Session,
+    current_user: CurrentUser,
+):
+    # Capturar snapshot anterior e usuários antigos ANTES de deletar
     usuarios_antigos_comiss: list[tuple[int, date, date]] = []
+    before_snapshot: dict | None = None
     if payload.id:
         missao_antiga = await session.scalar(
             select(FragMis)
@@ -301,6 +365,7 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
             .where(FragMis.id == payload.id)
         )
         if missao_antiga:
+            before_snapshot = _missao_to_dict(missao_antiga)
             usuarios_antigos_comiss = [
                 (
                     u.user_id,
@@ -416,6 +481,18 @@ async def create_or_update_missao(payload: FragMisSchema, session: Session):
             user_id, afast_date, regres_date, session
         )
 
+    # Log de auditoria
+    after_snapshot = _missao_to_dict(missao)
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='update' if payload.id else 'create',
+        resource=RESOURCE,
+        resource_id=missao.id,
+        before=before_snapshot,
+        after=after_snapshot,
+    )
+
     await session.commit()
 
     return success_response(message='Missão salva com sucesso')
@@ -445,6 +522,12 @@ async def delete_fragmis(id: int, session: Session):
         delete(PernoiteFrag).where(PernoiteFrag.frag_id == id)
     )
     await session.execute(delete(UserFrag).where(UserFrag.frag_id == id))
+    await session.execute(
+        delete(UserActionLog).where(
+            UserActionLog.resource == RESOURCE,
+            UserActionLog.resource_id == id,
+        )
+    )
 
     await session.delete(db_frag)
 

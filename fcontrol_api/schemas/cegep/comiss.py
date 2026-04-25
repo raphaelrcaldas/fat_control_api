@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.schemas.cegep.missoes import FragMisSchema
+from fcontrol_api.schemas.logs import UserSummary
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -34,3 +35,12 @@ class ComissOutSchema(ComissSchema):
     dias_cumpridos: int = 0
     user: UserPublic
     missoes: list[FragMisSchema] = []
+
+
+class ComissLogOut(BaseModel):
+    id: int
+    user: UserSummary
+    action: str
+    before: dict | None
+    after: dict | None
+    timestamp: datetime
