@@ -81,6 +81,27 @@ class PernoiteFragMis(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CustoVal(BaseModel):
+    valor: float
+    qtd: float
+
+
+class CustoPernoiteOut(BaseModel):
+    """Custo calculado de um pernoite para um pg+sit específico."""
+
+    subtotal: float = 0
+    ac_desloc: float = 0
+    vals: list[CustoVal] = []
+    dias: int = 0
+
+
+class PernoiteWithCusto(PernoiteFragMis):
+    """PernoiteFragMis com campos de custo calculados por custo_missao."""
+
+    gp_cid: int = 3
+    custo: CustoPernoiteOut | None = None
+
+
 class UserFragMis(BaseModel):
     id: Optional[int] = None
     frag_id: Optional[int] = None
@@ -114,6 +135,7 @@ class FragMisSchema(BaseModel):
 class FragMisEmbed(FragMisSchema):
     """FragMis embarcado em comiss/financeiro — sem users, com campos de custo."""
 
+    pernoites: list[PernoiteWithCusto] = []
     dias: int = 0
     diarias: float = 0
     valor_total: float = 0
