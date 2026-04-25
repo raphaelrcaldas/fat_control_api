@@ -9,6 +9,7 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
+from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.cegep.comiss import ComissSchema
 from fcontrol_api.schemas.cegep.missoes import FragMisSchema
@@ -133,6 +134,14 @@ async def get_summary(
     result = await session.scalars(query)
     comiss_list = result.all()
 
+    orcamento = await session.scalar(
+        select(OrcamentoAnual).where(OrcamentoAnual.ano_ref == ano)
+    )
+
+    orc_total = orcamento.total if orcamento else 0.0
+    orc_abertura = orcamento.abertura if orcamento else 0.0
+    orc_fechamento = orcamento.fechamento if orcamento else 0.0
+
     soma_ab = 0.0
     soma_fc = 0.0
     previsao_fc = 0.0
@@ -158,25 +167,27 @@ async def get_summary(
         # Ler valores do cache JSONB
         cache = comiss.cache_calc or {}
         comiss_data['completude'] = cache.get('completude', 0)
+        comiss_data['modulo'] = cache.get('modulo', False)
 
         response_comiss.append(comiss_data)
 
     data = {
+        'orcamento_id': orcamento.id if orcamento else None,
         'fechamento': {
             'soma': soma_fc,
             'previsao': previsao_fc,
-            'orcamento': 900_000.0,
+            'orcamento': orc_fechamento,
         },
         'abertura': {
             'soma': soma_ab,
-            'orcamento': 1_000_000.0,
+            'orcamento': orc_abertura,
         },
         'total': {
             'soma_abertura': soma_ab,
             'soma_fechamento': soma_fc,
             'soma': soma_ab + soma_fc,
             'previsao': previsao_fc,
-            'orcamento': 1_900_000.0,
+            'orcamento': orc_total,
         },
         'comissionamentos': response_comiss,
     }
