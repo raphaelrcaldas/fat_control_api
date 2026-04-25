@@ -21,7 +21,13 @@ from fcontrol_api.models.public.posto_grad import PostoGrad
 from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.public.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc
-from fcontrol_api.schemas.indisp import BaseIndisp, IndispOut, IndispSchema
+from fcontrol_api.schemas.indisp import (
+    BaseIndisp,
+    IndispCrewEntry,
+    IndispOut,
+    IndispSchema,
+    IndispTripInfo,
+)
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
@@ -58,7 +64,7 @@ async def _sync_ag_cemal(
         )
 
 
-@router.get('/', response_model=ApiResponse[list])
+@router.get('/', response_model=ApiResponse[list[IndispCrewEntry]])
 async def get_crew_indisp(session: Session, funcao: str, uae: str):
     date_ini = date.today() - timedelta(days=30)
 
@@ -150,29 +156,23 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
     # 6. Monta a resposta final
     response = []
     for trip in tripulantes:
-        # Pega as indisponibilidades do dicionário
         user_indisps = indisps_by_user.get(trip.user_id, [])
         user_indisps.sort(key=lambda i: i.date_end, reverse=True)
-
-        func_schema = (
-            BaseFunc.model_validate(trip.funcs[0]) if trip.funcs else None
-        )
 
         trip_extra = cemal_by_trip.get(
             trip.id, {'cemal': None, 'data_ult_voo': None}
         )
 
-        response.append({
-            'trip': {
-                'trig': trip.trig,
-                'id': trip.id,
-                'user': UserPublic.model_validate(trip.user),
-                'func': func_schema,
-                'cemal': trip_extra.get('cemal'),
-                'data_ult_voo': trip_extra.get('data_ult_voo'),
-            },
-            'indisps': user_indisps,
-        })
+        trip_info = IndispTripInfo(
+            id=trip.id,
+            trig=trip.trig,
+            user=UserPublic.model_validate(trip.user),
+            func=BaseFunc.model_validate(trip.funcs[0]) if trip.funcs else None,
+            cemal=trip_extra.get('cemal'),
+            data_ult_voo=trip_extra.get('data_ult_voo'),
+        )
+
+        response.append(IndispCrewEntry(trip=trip_info, indisps=user_indisps))
 
     return success_response(data=response)
 

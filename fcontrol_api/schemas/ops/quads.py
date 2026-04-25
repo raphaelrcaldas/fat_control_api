@@ -4,8 +4,9 @@ from typing import Annotated
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict
 
-from fcontrol_api.schemas.funcoes import FuncPublic
+from fcontrol_api.schemas.funcoes import BaseFunc, FuncPublic
 from fcontrol_api.schemas.ops.tripulantes import TripWithFuncs
+from fcontrol_api.schemas.users import UserPublic
 
 
 class BaseQuad(BaseModel):
@@ -55,3 +56,20 @@ class QuadsGroupSchema(BaseModel):
     short: str
     long: str
     types: list[QuadsTypeSchema]
+
+
+class TripQuadInfo(BaseModel):
+    """Dados do tripulante no contexto de quadrinhos."""
+
+    id: int
+    trig: str
+    user: UserPublic
+    func: BaseFunc | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TripQuadEntry(BaseModel):
+    trip: TripQuadInfo
+    quads: list[QuadPublic]
+    quads_len: int

@@ -1,5 +1,7 @@
 from datetime import date, time
-from typing import Self
+from typing import Annotated, Self
+
+from fastapi import Body
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -89,7 +91,7 @@ class TripEtapaOut(BaseModel):
     func: str
     func_bordo: str
     ant: int
-    ult_promo: str | None
+    ult_promo: Annotated[date | None, Body()]
     ant_rel: int | None
 
 

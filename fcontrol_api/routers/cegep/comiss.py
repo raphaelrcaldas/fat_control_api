@@ -14,8 +14,19 @@ from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
 from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.logs import UserActionLog
-from fcontrol_api.schemas.cegep.comiss import ComissSchema
-from fcontrol_api.schemas.cegep.missoes import FragMisSchema
+from fcontrol_api.schemas.cegep.comiss import (
+    ComissAbertura,
+    ComissDeletePreview,
+    ComissDetail,
+    ComissFechamento,
+    ComissLogOut,
+    ComissMissaoPreview,
+    ComissPublic,
+    ComissSchema,
+    ComissSummaryResponse,
+    ComissSummaryTotal,
+)
+from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
@@ -33,23 +44,13 @@ RESOURCE = 'comissionamento'
 
 
 def _comiss_to_dict(c: Comissionamento) -> dict:
-    return {
-        'status': c.status,
-        'dep': c.dep,
-        'data_ab': c.data_ab.isoformat() if c.data_ab else None,
-        'qtd_aj_ab': float(c.qtd_aj_ab),
-        'valor_aj_ab': float(c.valor_aj_ab),
-        'data_fc': c.data_fc.isoformat() if c.data_fc else None,
-        'qtd_aj_fc': float(c.qtd_aj_fc),
-        'valor_aj_fc': float(c.valor_aj_fc),
-        'dias_cumprir': c.dias_cumprir,
-        'doc_prop': c.doc_prop,
-        'doc_aut': c.doc_aut,
-        'doc_enc': c.doc_enc,
-    }
+    """Snapshot JSON-serializável para auditoria (before/after)."""
+    return ComissSchema.model_validate(c).model_dump(
+        mode='json', exclude={'id', 'user_id'}
+    )
 
 
-@router.get('/', response_model=ApiResponse[list])
+@router.get('/', response_model=ApiResponse[list[ComissPublic]])
 async def get_cmtos(
     session: Session,
     user_id: int = None,
@@ -118,26 +119,35 @@ async def get_cmtos(
 
     response = []
     for comiss in comiss_list:
-        user = UserPublic.model_validate(comiss.user).model_dump()
-        comiss_data = ComissSchema.model_validate(comiss).model_dump(
-            exclude={'user_id'},
-        )
-        comiss_data['user'] = user
-
         cache = comiss.cache_calc or {}
-        comiss_data['dias_comp'] = cache.get('dias_comp', 0)
-        comiss_data['diarias_comp'] = cache.get('diarias_comp', 0)
-        comiss_data['vals_comp'] = cache.get('vals_comp', 0)
-        comiss_data['modulo'] = cache.get('modulo', False)
-        comiss_data['completude'] = cache.get('completude', 0)
-        comiss_data['missoes_count'] = cache.get('missoes_count', 0)
-
-        response.append(comiss_data)
+        base = ComissSchema.model_validate(comiss)
+        response.append(ComissPublic(
+            id=base.id,
+            status=base.status,
+            dep=base.dep,
+            data_ab=base.data_ab,
+            qtd_aj_ab=base.qtd_aj_ab,
+            valor_aj_ab=base.valor_aj_ab,
+            data_fc=base.data_fc,
+            qtd_aj_fc=base.qtd_aj_fc,
+            valor_aj_fc=base.valor_aj_fc,
+            dias_cumprir=base.dias_cumprir,
+            doc_prop=base.doc_prop,
+            doc_aut=base.doc_aut,
+            doc_enc=base.doc_enc,
+            user=UserPublic.model_validate(comiss.user),
+            dias_comp=cache.get('dias_comp', 0),
+            diarias_comp=cache.get('diarias_comp', 0),
+            vals_comp=cache.get('vals_comp', 0),
+            modulo=cache.get('modulo', False),
+            completude=cache.get('completude', 0),
+            missoes_count=cache.get('missoes_count', 0),
+        ))
 
     return success_response(data=response)
 
 
-@router.get('/summary', response_model=ApiResponse[dict])
+@router.get('/summary', response_model=ApiResponse[ComissSummaryResponse])
 async def get_summary(
     session: Session,
     ano: int,
@@ -182,43 +192,52 @@ async def get_summary(
             else:
                 previsao_fc += comiss.valor_aj_fc or 0.0
 
-        user = UserPublic.model_validate(comiss.user).model_dump()
-        comiss_data = ComissSchema.model_validate(comiss).model_dump(
-            exclude={'user_id'},
-        )
-        comiss_data['user'] = user
-
         cache = comiss.cache_calc or {}
-        comiss_data['completude'] = cache.get('completude', 0)
-        comiss_data['modulo'] = cache.get('modulo', False)
+        base = ComissSchema.model_validate(comiss)
+        response_comiss.append(ComissPublic(
+            id=base.id,
+            status=base.status,
+            dep=base.dep,
+            data_ab=base.data_ab,
+            qtd_aj_ab=base.qtd_aj_ab,
+            valor_aj_ab=base.valor_aj_ab,
+            data_fc=base.data_fc,
+            qtd_aj_fc=base.qtd_aj_fc,
+            valor_aj_fc=base.valor_aj_fc,
+            dias_cumprir=base.dias_cumprir,
+            doc_prop=base.doc_prop,
+            doc_aut=base.doc_aut,
+            doc_enc=base.doc_enc,
+            user=UserPublic.model_validate(comiss.user),
+            completude=cache.get('completude', 0),
+            modulo=cache.get('modulo', False),
+        ))
 
-        response_comiss.append(comiss_data)
-
-    data = {
-        'orcamento_id': orcamento.id if orcamento else None,
-        'fechamento': {
-            'soma': soma_fc,
-            'previsao': previsao_fc,
-            'orcamento': orc_fechamento,
-        },
-        'abertura': {
-            'soma': soma_ab,
-            'orcamento': orc_abertura,
-        },
-        'total': {
-            'soma_abertura': soma_ab,
-            'soma_fechamento': soma_fc,
-            'soma': soma_ab + soma_fc,
-            'previsao': previsao_fc,
-            'orcamento': orc_total,
-        },
-        'comissionamentos': response_comiss,
-    }
+    data = ComissSummaryResponse(
+        orcamento_id=orcamento.id if orcamento else None,
+        fechamento=ComissFechamento(
+            soma=soma_fc,
+            previsao=previsao_fc,
+            orcamento=orc_fechamento,
+        ),
+        abertura=ComissAbertura(
+            soma=soma_ab,
+            orcamento=orc_abertura,
+        ),
+        total=ComissSummaryTotal(
+            soma_abertura=soma_ab,
+            soma_fechamento=soma_fc,
+            soma=soma_ab + soma_fc,
+            previsao=previsao_fc,
+            orcamento=orc_total,
+        ),
+        comissionamentos=response_comiss,
+    )
 
     return success_response(data=data)
 
 
-@router.get('/{comiss_id}', response_model=ApiResponse[dict])
+@router.get('/{comiss_id}', response_model=ApiResponse[ComissDetail])
 async def get_cmto_by_id(
     comiss_id: int,
     session: Session,
@@ -236,18 +255,8 @@ async def get_cmto_by_id(
             detail='Comissionamento não encontrado',
         )
 
-    user = UserPublic.model_validate(comiss.user).model_dump()
-    comiss_data = ComissSchema.model_validate(comiss).model_dump(
-        exclude={'user_id'},
-    )
-    comiss_data['user'] = user
-
     cache = comiss.cache_calc or {}
-    comiss_data['dias_comp'] = cache.get('dias_comp', 0)
-    comiss_data['diarias_comp'] = cache.get('diarias_comp', 0)
-    comiss_data['vals_comp'] = cache.get('vals_comp', 0)
-    comiss_data['modulo'] = cache.get('modulo', False)
-    comiss_data['completude'] = cache.get('completude', 0)
+    base = ComissSchema.model_validate(comiss)
 
     missoes_query = (
         select(FragMis, UserFrag)
@@ -273,17 +282,11 @@ async def get_cmto_by_id(
 
     missoes = []
     for missao, user_frag in registros:
-        missao_data = FragMisSchema.model_validate(missao).model_dump(
+        mis_dict = FragMisSchema.model_validate(missao).model_dump(
             exclude={'users'}
         )
-        missao_data = custo_missao(
-            user_frag.p_g,
-            user_frag.sit,
-            missao_data,
-        )
-        missoes.append(missao_data)
-
-    comiss_data['missoes'] = missoes
+        mis_dict = custo_missao(user_frag.p_g, user_frag.sit, mis_dict)
+        missoes.append(FragMisEmbed.model_validate(mis_dict))
 
     logs_query = (
         select(UserActionLog)
@@ -307,18 +310,41 @@ async def get_cmto_by_id(
             after = json.loads(log.after) if log.after else None
         except (json.JSONDecodeError, TypeError):
             after = None
-        logs.append({
-            'id': log.id,
-            'user': UserPublic.model_validate(log.user).model_dump(),
-            'action': log.action,
-            'before': before,
-            'after': after,
-            'timestamp': log.timestamp.isoformat(),
-        })
+        logs.append(ComissLogOut(
+            id=log.id,
+            user=UserPublic.model_validate(log.user),
+            action=log.action,
+            before=before,
+            after=after,
+            timestamp=log.timestamp,
+        ))
 
-    comiss_data['logs'] = logs
+    detail = ComissDetail(
+        id=base.id,
+        status=base.status,
+        dep=base.dep,
+        data_ab=base.data_ab,
+        qtd_aj_ab=base.qtd_aj_ab,
+        valor_aj_ab=base.valor_aj_ab,
+        data_fc=base.data_fc,
+        qtd_aj_fc=base.qtd_aj_fc,
+        valor_aj_fc=base.valor_aj_fc,
+        dias_cumprir=base.dias_cumprir,
+        doc_prop=base.doc_prop,
+        doc_aut=base.doc_aut,
+        doc_enc=base.doc_enc,
+        user=UserPublic.model_validate(comiss.user),
+        dias_comp=cache.get('dias_comp', 0),
+        diarias_comp=cache.get('diarias_comp', 0),
+        vals_comp=cache.get('vals_comp', 0),
+        modulo=cache.get('modulo', False),
+        completude=cache.get('completude', 0),
+        missoes_count=len(missoes),
+        missoes=missoes,
+        logs=logs,
+    )
 
-    return success_response(data=comiss_data)
+    return success_response(data=detail)
 
 
 @router.post('/', response_model=ApiResponse[None])
@@ -471,7 +497,7 @@ async def update_cmto(
     return success_response(message='Comissionamento atualizado com sucesso')
 
 
-@router.delete('/{comiss_id}', response_model=ApiResponse[dict | None])
+@router.delete('/{comiss_id}', response_model=ApiResponse[ComissDeletePreview | None])
 async def delete_cmto(
     comiss_id: int,
     session: Session,
@@ -524,23 +550,23 @@ async def delete_cmto(
     # Com missoes, sem confirmacao → preview
     if not confirm:
         missoes_preview = [
-            {
-                'id': missao.id,
-                'tipo_doc': missao.tipo_doc,
-                'n_doc': missao.n_doc,
-                'desc': missao.desc,
-                'afast': missao.afast.isoformat(),
-                'regres': missao.regres.isoformat(),
-            }
+            ComissMissaoPreview(
+                id=missao.id,
+                tipo_doc=missao.tipo_doc,
+                n_doc=missao.n_doc,
+                desc=missao.desc,
+                afast=missao.afast,
+                regres=missao.regres,
+            )
             for missao, _ in registros
         ]
 
         return ApiResponse(
             status=ResponseStatus.WARNING,
-            data={
-                'missoes_count': len(missoes_preview),
-                'missoes': missoes_preview,
-            },
+            data=ComissDeletePreview(
+                missoes_count=len(missoes_preview),
+                missoes=missoes_preview,
+            ),
             message=(
                 f'Este comissionamento possui '
                 f'{len(missoes_preview)} missão(ões) '

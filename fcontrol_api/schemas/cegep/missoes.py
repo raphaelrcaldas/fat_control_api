@@ -9,6 +9,7 @@ from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.users import UserPublic
 
 
+
 class MissoesFilterParams(BaseModel):
     """
     Parâmetros de filtro e paginação para missões.
@@ -103,8 +104,34 @@ class FragMisSchema(BaseModel):
     obs: str
     tipo: Literal['adm', 'tal', 'opr']
     pernoites: list[PernoiteFragMis]
-    users: list[UserFragMis]
+    users: list[UserFragMis] = []
     etiquetas: list[EtiquetaSchema] = []
     custos: Optional[dict] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FragMisEmbed(FragMisSchema):
+    """FragMis embarcado em comiss/financeiro — sem users, com campos de custo."""
+
+    dias: int = 0
+    diarias: float = 0
+    valor_total: float = 0
+    qtd_ac: int = 0
+
+
+class MissaoLogOut(BaseModel):
+    id: int
+    user: UserPublic
+    action: str
+    before: dict | None
+    after: dict | None
+    timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MissaoDetail(FragMisSchema):
+    """FragMis com histórico de auditoria."""
+
+    logs: list[MissaoLogOut] = []

@@ -68,9 +68,7 @@ async def fetch_trip_data(
                 func=row.func,
                 func_bordo=row.func_bordo,
                 ant=row.ant,
-                ult_promo=(
-                    row.ult_promo.isoformat() if row.ult_promo else None
-                ),
+                ult_promo=row.ult_promo,
                 ant_rel=row.ant_rel,
             )
         )

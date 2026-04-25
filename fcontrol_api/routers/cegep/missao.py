@@ -28,6 +28,8 @@ from fcontrol_api.schemas.cegep.custos import (
 )
 from fcontrol_api.schemas.cegep.missoes import (
     FragMisSchema,
+    MissaoDetail,
+    MissaoLogOut,
     MissoesFilterParams,
     PernoiteFragMis,
     UserFragMis,
@@ -58,19 +60,10 @@ RESOURCE = 'missao'
 
 
 def _missao_to_dict(m) -> dict:
-    afast = m.afast
-    regres = m.regres
-    return {
-        'tipo_doc': m.tipo_doc,
-        'n_doc': m.n_doc,
-        'desc': m.desc,
-        'afast': afast.isoformat() if hasattr(afast, 'isoformat') else str(afast),
-        'regres': regres.isoformat() if hasattr(regres, 'isoformat') else str(regres),
-        'indenizavel': m.indenizavel,
-        'acrec_desloc': m.acrec_desloc,
-        'tipo': m.tipo,
-        'obs': m.obs,
-    }
+    """Snapshot JSON-serializável para auditoria (before/after)."""
+    return FragMisSchema.model_validate(m).model_dump(
+        mode='json', exclude={'id', 'pernoites', 'users', 'etiquetas', 'custos'}
+    )
 
 
 @router.get('/', response_model=ApiPaginatedResponse[FragMisSchema])
@@ -288,7 +281,7 @@ async def delete_etiqueta(etiqueta_id: int, session: Session):
     return success_response(message='Etiqueta removida com sucesso')
 
 
-@router.get('/{id}', response_model=ApiResponse[dict])
+@router.get('/{id}', response_model=ApiResponse[MissaoDetail])
 async def get_missao(id: int, session: Session):
     """Obter uma missão específica pelo ID, com histórico de auditoria."""
     missao = await session.scalar(
@@ -310,8 +303,6 @@ async def get_missao(id: int, session: Session):
             u.user.ant_rel or 0,
         )
     )
-
-    missao_data = FragMisSchema.model_validate(missao).model_dump()
 
     # Buscar logs de auditoria
     logs_result = await session.scalars(
@@ -335,18 +326,19 @@ async def get_missao(id: int, session: Session):
             after = json.loads(log.after) if log.after else None
         except (json.JSONDecodeError, TypeError):
             after = None
-        logs.append({
-            'id': log.id,
-            'user': UserPublic.model_validate(log.user).model_dump(),
-            'action': log.action,
-            'before': before,
-            'after': after,
-            'timestamp': log.timestamp.isoformat(),
-        })
+        logs.append(MissaoLogOut(
+            id=log.id,
+            user=UserPublic.model_validate(log.user),
+            action=log.action,
+            before=before,
+            after=after,
+            timestamp=log.timestamp,
+        ))
 
-    missao_data['logs'] = logs
+    missao_detail = MissaoDetail.model_validate(missao)
+    missao_detail.logs = logs
 
-    return success_response(data=missao_data)
+    return success_response(data=missao_detail)
 
 
 @router.post('/', response_model=ApiResponse[None])

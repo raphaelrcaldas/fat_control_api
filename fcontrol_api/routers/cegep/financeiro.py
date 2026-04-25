@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.public.users import User
-from fcontrol_api.schemas.cegep.missoes import FragMisSchema, UserFragMis
+from fcontrol_api.schemas.cegep.financeiro import PagamentoItem, UserFragPublic
+from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema, UserFragMis
 from fcontrol_api.schemas.response import ApiPaginatedResponse
 from fcontrol_api.utils.financeiro import custo_missao
 from fcontrol_api.utils.responses import paginated_response
@@ -18,7 +19,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/financeiro', tags=['CEGEP'])
 
 
-@router.get('/pgts', response_model=ApiPaginatedResponse[dict])
+@router.get('/pgts', response_model=ApiPaginatedResponse[PagamentoItem])
 async def get_pgto(
     session: Session,
     tipo_doc: list[str] = Query(None, description='Tipos de documento'),
@@ -110,25 +111,15 @@ async def get_pgto(
 
     items = []
     for usr_frg, missao in result:
-        uf_data = UserFragMis.model_validate(usr_frg).model_dump(
-            exclude={'user_id', 'frag_id'}
-        )
-        mis = FragMisSchema.model_validate(missao).model_dump(
+        mis_dict = FragMisSchema.model_validate(missao).model_dump(
             exclude={'users'}
         )
-        # Read costs from JSONB column (pre-calculated)
-        # Usa valores diretamente do modelo SQLAlchemy para consistência
-        # com o endpoint de comiss (evita problemas com enum serialization)
-        mis = custo_missao(
-            usr_frg.p_g,
-            usr_frg.sit,
-            mis,
-        )
+        mis_dict = custo_missao(usr_frg.p_g, usr_frg.sit, mis_dict)
 
-        items.append({
-            'user_mis': uf_data,
-            'missao': mis,
-        })
+        items.append(PagamentoItem(
+            user_mis=UserFragPublic.model_validate(usr_frg),
+            missao=FragMisEmbed.model_validate(mis_dict),
+        ))
 
     return paginated_response(
         items=items,

@@ -21,7 +21,7 @@ from fcontrol_api.models.security.auth import (
     OAuth2AuthorizationCode,
     OAuth2Client,
 )
-from fcontrol_api.schemas.auth import Token
+from fcontrol_api.schemas.auth import DevTokenResponse, Token
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     create_access_token,
@@ -228,7 +228,7 @@ async def refresh_access_token(user: User = Depends(get_current_user)):
     )
 
 
-@router.post('/dev_login')
+@router.post('/dev_login', response_model=ApiResponse[DevTokenResponse])
 async def dev_login(
     user_id: int,
     session: Session,
@@ -297,11 +297,11 @@ async def dev_login(
     )
 
     return success_response(
-        data={
-            'access_token': access_token,
-            'token_type': 'bearer',
-            'target_user': target_user,
-            'expires_in_days': 7,
-        },
+        data=DevTokenResponse(
+            access_token=access_token,
+            token_type='bearer',
+            target_user=target_user,
+            expires_in_days=7,
+        ),
         message=f'Token de desenvolvimento gerado para {target_user}',
     )

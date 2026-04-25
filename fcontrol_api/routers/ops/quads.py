@@ -20,6 +20,8 @@ from fcontrol_api.schemas.ops.quads import (
     QuadSchema,
     QuadsGroupSchema,
     QuadUpdate,
+    TripQuadEntry,
+    TripQuadInfo,
 )
 from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.schemas.response import ApiResponse
@@ -89,7 +91,7 @@ async def quads_by_trip(trip_id: int, type_id: int, session: Session):
     return success_response(data=[QuadPublic.model_validate(q) for q in quads])
 
 
-@router.get('/', status_code=HTTPStatus.OK, response_model=ApiResponse[list])
+@router.get('/', status_code=HTTPStatus.OK, response_model=ApiResponse[list[TripQuadEntry]])
 async def list_quads(
     session: Session,
     tipo_quad: int = 1,  # sobr preto
@@ -188,26 +190,19 @@ async def list_quads(
     response = []
     for trip, total_quads in trip_data:
         relevant_func = trip.funcs[0] if trip.funcs else None
-        trip_info = {
-            'trig': trip.trig,
-            'id': trip.id,
-            'user': UserPublic.model_validate(trip.user).model_dump(),
-            'func': (
-                BaseFunc.model_validate(relevant_func).model_dump()
-                if relevant_func
-                else None
-            ),
-        }
 
-        crew_quads_data = quads_by_trip_id[trip.id]
-        response.append({
-            'trip': trip_info,
-            'quads': [
-                QuadPublic.model_validate(q).model_dump()
-                for q in crew_quads_data
-            ],
-            'quads_len': total_quads if total_quads is not None else 0,
-        })
+        trip_info = TripQuadInfo(
+            id=trip.id,
+            trig=trip.trig,
+            user=UserPublic.model_validate(trip.user),
+            func=BaseFunc.model_validate(relevant_func) if relevant_func else None,
+        )
+
+        response.append(TripQuadEntry(
+            trip=trip_info,
+            quads=[QuadPublic.model_validate(q) for q in quads_by_trip_id[trip.id]],
+            quads_len=total_quads if total_quads is not None else 0,
+        ))
 
     return success_response(data=response)
 

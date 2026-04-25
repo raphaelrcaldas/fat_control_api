@@ -5,6 +5,7 @@ from fastapi import Body
 from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.enums.indisp import IndispEnum
+from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -30,3 +31,21 @@ class IndispOut(IndispSchema):
     deleted_at: Annotated[datetime | None, Body()] = None
     user_created: UserPublic
     model_config = ConfigDict(from_attributes=True)
+
+
+class IndispTripInfo(BaseModel):
+    """Dados do tripulante no contexto de indisponibilidades da escala."""
+
+    id: int
+    trig: str
+    user: UserPublic
+    func: BaseFunc | None = None
+    cemal: date | None = None
+    data_ult_voo: date | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IndispCrewEntry(BaseModel):
+    trip: IndispTripInfo
+    indisps: list[IndispOut]
