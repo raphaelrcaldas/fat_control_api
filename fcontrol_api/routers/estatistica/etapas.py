@@ -30,6 +30,7 @@ from fcontrol_api.schemas.estatistica.etapa import (
     EtapaUpdate,
     MissaoComEtapasOut,
 )
+from fcontrol_api.schemas.funcoes import funcs
 from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
@@ -92,6 +93,7 @@ async def list_etapas(
     reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
     tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
+    funcao: Annotated[funcs | None, Query()] = None,
     is_simulador: Annotated[bool, Query()] = False,
     flat: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -100,6 +102,13 @@ async def list_etapas(
     ApiPaginatedResponse[MissaoComEtapasOut]
     | ApiPaginatedResponse[EtapaFlatOut]
 ):
+    """Lista etapas paginadas com filtros opcionais.
+
+    `funcao` filtra etapas onde existe um TripEtapa cuja func
+    casa com o codigo informado. Quando combinado com
+    `trip_search`, ambas as condicoes precisam ser satisfeitas
+    pelo MESMO TripEtapa (AND na mesma linha do JOIN).
+    """
     # Passo 1: subquery de etapa_ids validos
     etapa_filter = select(Etapa.id)
 
@@ -131,24 +140,29 @@ async def list_etapas(
                 TipoMissao.id == OIEtapa.tipo_missao_id,
             ).where(TipoMissao.cod.in_(tipo_missao_cod))
 
-    if trip_search:
-        safe_trip = like_safe(trip_search)
-        search_term = f'%{safe_trip}%'
-        etapa_filter = (
-            etapa_filter
-            .join(TripEtapa, TripEtapa.etapa_id == Etapa.id)
-            .join(
-                Tripulante,
-                Tripulante.id == TripEtapa.trip_id,
-            )
-            .join(User, User.id == Tripulante.user_id)
-            .where(
-                User.nome_guerra.ilike(search_term, escape='\\')
-                | Tripulante.trig.ilike(search_term, escape='\\')
-            )
+    if trip_search or funcao:
+        etapa_filter = etapa_filter.join(
+            TripEtapa, TripEtapa.etapa_id == Etapa.id
         )
+        if trip_search:
+            safe_trip = like_safe(trip_search)
+            search_term = f'%{safe_trip}%'
+            etapa_filter = (
+                etapa_filter
+                .join(
+                    Tripulante,
+                    Tripulante.id == TripEtapa.trip_id,
+                )
+                .join(User, User.id == Tripulante.user_id)
+                .where(
+                    User.nome_guerra.ilike(search_term, escape='\\')
+                    | Tripulante.trig.ilike(search_term, escape='\\')
+                )
+            )
+        if funcao:
+            etapa_filter = etapa_filter.where(TripEtapa.func == funcao)
 
-    if needs_oi_join or trip_search:
+    if needs_oi_join or trip_search or funcao:
         etapa_filter = etapa_filter.distinct()
 
     valid_etapa_ids = etapa_filter.subquery()
@@ -171,6 +185,7 @@ async def list_etapas(
         reg,
         tipo_missao_cod,
         trip_search,
+        funcao,
     ])
 
     missoes_com_etapa = (
