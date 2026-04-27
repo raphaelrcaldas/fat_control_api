@@ -1,3 +1,6 @@
-from fcontrol_api.utils.router_loader import load_routers
+from fastapi import APIRouter
 
-router = load_routers(__path__, __name__, prefix='/nav')
+from fcontrol_api.routers.nav import aerodromos
+
+router = APIRouter(prefix='/nav')
+router.include_router(aerodromos.router)

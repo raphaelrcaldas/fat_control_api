@@ -1,3 +1,6 @@
-from fcontrol_api.utils.router_loader import load_routers
+from fastapi import APIRouter
 
-router = load_routers(__path__, __name__, prefix='/instrucao')
+from fcontrol_api.routers.instrucao import idiomas
+
+router = APIRouter(prefix='/instrucao')
+router.include_router(idiomas.router)

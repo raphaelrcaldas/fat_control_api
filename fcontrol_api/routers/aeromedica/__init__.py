@@ -1,3 +1,7 @@
-from fcontrol_api.utils.router_loader import load_routers
+from fastapi import APIRouter
 
-router = load_routers(__path__, __name__, prefix='/aeromedica')
+from fcontrol_api.routers.aeromedica import atas, cartoes
+
+router = APIRouter(prefix='/aeromedica')
+router.include_router(atas.router)
+router.include_router(cartoes.router)

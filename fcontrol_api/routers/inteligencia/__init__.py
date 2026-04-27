@@ -1,3 +1,6 @@
-from fcontrol_api.utils.router_loader import load_routers
+from fastapi import APIRouter
 
-router = load_routers(__path__, __name__, prefix='/inteligencia')
+from fcontrol_api.routers.inteligencia import passaportes
+
+router = APIRouter(prefix='/inteligencia')
+router.include_router(passaportes.router)
