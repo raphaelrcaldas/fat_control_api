@@ -15,7 +15,6 @@ class CrmCertificado(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id), unique=True)
     data_realizacao: Mapped[date | None]
     data_validade: Mapped[date | None]
-    data_validade2: Mapped[date | None]
 
     user = relationship(
         User,
