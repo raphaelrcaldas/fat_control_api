@@ -3,22 +3,20 @@ FROM python:3.14-slim AS builder
 
 WORKDIR /app
 
-# Instala dependências de build
+# Dependências de build para pacotes nativos (asyncpg, gevent, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl gcc g++ make \
+    gcc g++ make \
     && rm -rf /var/lib/apt/lists/*
 
-# Instala Poetry (versão pinada para reprodutibilidade)
-ENV POETRY_VERSION=2.1.3
-RUN curl -sSL https://install.python-poetry.org | python3 - --version $POETRY_VERSION
-ENV PATH="/root/.local/bin:$PATH"
-ENV POETRY_VIRTUALENVS_CREATE=false
+# Copia UV do layer oficial (sem curl, sem instalação extra)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ENV UV_SYSTEM_PYTHON=1
 
 # Copia arquivos de dependência
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml uv.lock ./
 
 # Instala apenas dependências de produção direto no Python do sistema
-RUN poetry install --no-root --only main \
+RUN uv sync --frozen --no-dev --no-install-project \
     && rm -rf /root/.cache
 
 # -------- Stage 2: Runtime --------
