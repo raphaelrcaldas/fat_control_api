@@ -10,10 +10,5 @@
       "src": "/(.*)",
       "dest": "fcontrol_api/app.py"
     }
-  ],
-  "functions": {
-    "fcontrol_api/app.py": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
