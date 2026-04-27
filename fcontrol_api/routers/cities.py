@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.estados_cidades import Cidade
+from fcontrol_api.models.shared.estados_cidades import Cidade
 from fcontrol_api.schemas.cidade import CidadeSchema
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.utils.responses import success_response

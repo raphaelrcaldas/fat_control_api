@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
-from fcontrol_api.models.public.posto_grad import PostoGrad, Soldo
+from fcontrol_api.models.shared.posto_grad import PostoGrad, Soldo
 from fcontrol_api.schemas.cegep.soldo import (
     SoldoCreate,
     SoldoPublic,

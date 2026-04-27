@@ -19,7 +19,7 @@ import pytest
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.shared.tripulantes import Tripulante
 from tests.factories import FuncFactory, IndispFactory, TripFactory
 
 

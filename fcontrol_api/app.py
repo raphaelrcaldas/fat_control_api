@@ -49,6 +49,7 @@ app.add_middleware(
         Settings().FATLOGIN_URL,
         Settings().FATCONTROL_URL,
         Settings().FATBIRD_URL,
+        'http://localhost:4000',
     ],
     allow_credentials=True,
     allow_methods=['*'],

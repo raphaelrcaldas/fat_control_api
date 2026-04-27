@@ -9,10 +9,10 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import contains_eager, selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.quads import Quad, QuadsGroup, QuadsType
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
 from fcontrol_api.schemas.ops.quads import (
     QuadBatchDelete,
@@ -91,7 +91,11 @@ async def quads_by_trip(trip_id: int, type_id: int, session: Session):
     return success_response(data=[QuadPublic.model_validate(q) for q in quads])
 
 
-@router.get('/', status_code=HTTPStatus.OK, response_model=ApiResponse[list[TripQuadEntry]])
+@router.get(
+    '/',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[list[TripQuadEntry]],
+)
 async def list_quads(
     session: Session,
     tipo_quad: int = 1,  # sobr preto
@@ -195,14 +199,21 @@ async def list_quads(
             id=trip.id,
             trig=trip.trig,
             user=UserPublic.model_validate(trip.user),
-            func=BaseFunc.model_validate(relevant_func) if relevant_func else None,
+            func=BaseFunc.model_validate(relevant_func)
+            if relevant_func
+            else None,
         )
 
-        response.append(TripQuadEntry(
-            trip=trip_info,
-            quads=[QuadPublic.model_validate(q) for q in quads_by_trip_id[trip.id]],
-            quads_len=total_quads if total_quads is not None else 0,
-        ))
+        response.append(
+            TripQuadEntry(
+                trip=trip_info,
+                quads=[
+                    QuadPublic.model_validate(q)
+                    for q in quads_by_trip_id[trip.id]
+                ],
+                quads_len=total_quads if total_quads is not None else 0,
+            )
+        )
 
     return success_response(data=response)
 

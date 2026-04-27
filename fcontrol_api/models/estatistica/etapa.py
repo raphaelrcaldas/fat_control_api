@@ -12,8 +12,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
-from fcontrol_api.models.public.aeronaves import Aeronave
-from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.shared.aeronaves import Aeronave
+from fcontrol_api.models.shared.tripulantes import Tripulante
 
 from .base import Base
 

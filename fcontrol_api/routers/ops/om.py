@@ -11,14 +11,14 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.om import (
+from fcontrol_api.models.shared.om import (
     Etiqueta,
     OrdemEtapa,
     OrdemMissao,
     OrdemTripulacao,
 )
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.etiquetas import (
     EtiquetaCreate,
     EtiquetaSchema,

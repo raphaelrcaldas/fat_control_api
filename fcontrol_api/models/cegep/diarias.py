@@ -3,8 +3,8 @@ from datetime import date
 from sqlalchemy import ForeignKey, Identity
 from sqlalchemy.orm import Mapped, mapped_column
 
-from fcontrol_api.models.public.estados_cidades import Cidade
-from fcontrol_api.models.public.posto_grad import PostoGrad
+from fcontrol_api.models.shared.estados_cidades import Cidade
+from fcontrol_api.models.shared.posto_grad import PostoGrad
 
 from .base import Base
 

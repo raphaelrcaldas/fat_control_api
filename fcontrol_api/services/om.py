@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from fcontrol_api.models.public.om import OrdemTripulacao
-from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.shared.om import OrdemTripulacao
+from fcontrol_api.models.shared.tripulantes import Tripulante
 
 
 async def criar_tripulacao_batch(

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.aeronaves import Aeronave
+from fcontrol_api.models.shared.aeronaves import Aeronave
 from fcontrol_api.schemas.ops.aeronave import (
     AeronaveCreate,
     AeronavePublic,

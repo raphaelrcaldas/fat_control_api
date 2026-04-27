@@ -12,10 +12,10 @@ from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.seg_voo.crm import CrmCertificado
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.sebo import (
     SeboCartoes,
     SeboTripOut,

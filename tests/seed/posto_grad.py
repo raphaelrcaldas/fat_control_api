@@ -1,4 +1,4 @@
-from fcontrol_api.models.public.posto_grad import PostoGrad
+from fcontrol_api.models.shared.posto_grad import PostoGrad
 
 POSTOS_GRAD_DATA = [
     (1, 'tb', 'ten brig', 'tenente-brigadeiro', 'of_gen'),

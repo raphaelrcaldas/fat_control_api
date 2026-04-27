@@ -4,7 +4,7 @@ Inclui todas as capitais estaduais para testes de diarias CEGEP.
 Dados extraidos do Supabase em 2026-01-31.
 """
 
-from fcontrol_api.models.public.estados_cidades import Cidade, Estado
+from fcontrol_api.models.shared.estados_cidades import Cidade, Estado
 
 ESTADOS_DATA = [
     # (codigo_uf, nome, uf)

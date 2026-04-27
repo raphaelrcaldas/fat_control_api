@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.posto_grad import PostoGrad
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.ops.tripulantes import (
     BaseTrip,
     TripSchema,

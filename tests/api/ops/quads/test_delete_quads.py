@@ -10,7 +10,7 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.quads import Quad
+from fcontrol_api.models.shared.quads import Quad
 from tests.factories import QuadFactory
 
 pytestmark = pytest.mark.anyio

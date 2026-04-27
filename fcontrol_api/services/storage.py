@@ -90,8 +90,7 @@ def ensure_bucket() -> None:
                 # admin. Consideramos verificado; operações reais dirão
                 # se há problema de permissão por operação.
                 logger.info(
-                    'Bucket %s head negado (code=%s); '
-                    'assumindo que existe',
+                    'Bucket %s head negado (code=%s); assumindo que existe',
                     bucket,
                     code,
                 )
@@ -109,9 +108,7 @@ def ensure_bucket() -> None:
                 )
         except Exception:
             # Timeout, DNS, rede: idem acima — não marca verificado.
-            logger.exception(
-                'Erro inesperado verificando bucket %s', bucket
-            )
+            logger.exception('Erro inesperado verificando bucket %s', bucket)
 
 
 def upload_file(

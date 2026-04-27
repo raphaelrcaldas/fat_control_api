@@ -7,8 +7,8 @@ from sqlalchemy import select
 from fcontrol_api.cleanup.tasks.old_unavailability import (
     cleanup_old_unavailability,
 )
-from fcontrol_api.models.public.indisp import Indisp
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.indisp import Indisp
 from tests.factories import IndispFactory, UserActionLogFactory
 
 pytestmark = pytest.mark.anyio

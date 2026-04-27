@@ -4,7 +4,8 @@ from typing import Optional
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..public.users import User
+from fcontrol_api.models.shared.users import User
+
 from .base import Base
 
 

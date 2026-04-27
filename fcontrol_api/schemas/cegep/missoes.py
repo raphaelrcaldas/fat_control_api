@@ -9,7 +9,6 @@ from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.users import UserPublic
 
 
-
 class MissoesFilterParams(BaseModel):
     """
     Parâmetros de filtro e paginação para missões.
@@ -133,7 +132,7 @@ class FragMisSchema(BaseModel):
 
 
 class FragMisEmbed(FragMisSchema):
-    """FragMis embarcado em comiss/financeiro — sem users, com campos de custo."""
+    """FragMis embarcado em comiss/financeiro — sem users, custo incluso."""
 
     pernoites: list[PernoiteWithCusto] = []
     dias: int = 0

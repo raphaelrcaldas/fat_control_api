@@ -13,7 +13,7 @@ from fcontrol_api.models.estatistica.etapa import (
     Etapa,
     OIEtapa,
 )
-from fcontrol_api.models.public.aeronaves import Aeronave
+from fcontrol_api.models.shared.aeronaves import Aeronave
 from fcontrol_api.schemas.estatistica.horas_anv import (
     AnvHorasResponse,
     AnvHorasRow,

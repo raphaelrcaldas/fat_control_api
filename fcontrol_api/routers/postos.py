@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.posto_grad import PostoGrad
+from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.utils.responses import success_response

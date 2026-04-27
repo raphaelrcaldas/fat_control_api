@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
-from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.models.shared.posto_grad import Soldo
 
 
 @pytest.fixture

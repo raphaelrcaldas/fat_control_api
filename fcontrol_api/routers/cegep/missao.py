@@ -18,9 +18,9 @@ from fcontrol_api.models.cegep.missoes import (
     PernoiteFrag,
     UserFrag,
 )
-from fcontrol_api.models.public.estados_cidades import Cidade
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.estados_cidades import Cidade
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
     CustoPernoiteInput,
@@ -62,7 +62,8 @@ RESOURCE = 'missao'
 def _missao_to_dict(m) -> dict:
     """Snapshot JSON-serializável para auditoria (before/after)."""
     return FragMisSchema.model_validate(m).model_dump(
-        mode='json', exclude={'id', 'pernoites', 'users', 'etiquetas', 'custos'}
+        mode='json',
+        exclude={'id', 'pernoites', 'users', 'etiquetas', 'custos'},
     )
 
 
@@ -326,14 +327,16 @@ async def get_missao(id: int, session: Session):
             after = json.loads(log.after) if log.after else None
         except (json.JSONDecodeError, TypeError):
             after = None
-        logs.append(MissaoLogOut(
-            id=log.id,
-            user=UserPublic.model_validate(log.user),
-            action=log.action,
-            before=before,
-            after=after,
-            timestamp=log.timestamp,
-        ))
+        logs.append(
+            MissaoLogOut(
+                id=log.id,
+                user=UserPublic.model_validate(log.user),
+                action=log.action,
+                before=before,
+                after=after,
+                timestamp=log.timestamp,
+            )
+        )
 
     missao_detail = MissaoDetail.model_validate(missao)
     missao_detail.logs = logs

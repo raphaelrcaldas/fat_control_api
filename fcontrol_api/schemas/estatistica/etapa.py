@@ -2,7 +2,6 @@ from datetime import date, time
 from typing import Annotated, Self
 
 from fastapi import Body
-
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 

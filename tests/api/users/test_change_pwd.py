@@ -9,7 +9,7 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.security import verify_password
 
 pytestmark = pytest.mark.anyio

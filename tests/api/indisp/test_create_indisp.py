@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.future import select
 
 from fcontrol_api.enums.indisp import IndispEnum
-from fcontrol_api.models.public.indisp import Indisp
+from fcontrol_api.models.shared.indisp import Indisp
 from tests.factories import IndispFactory
 
 pytestmark = pytest.mark.anyio

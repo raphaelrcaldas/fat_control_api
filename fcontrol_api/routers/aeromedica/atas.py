@@ -13,7 +13,7 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.atas import AtaInspecao
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.aeromedica.atas import (
     AllBucketsStatsPublic,
     AtaExtrairResponse,

@@ -1,7 +1,7 @@
 from datetime import date
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
-from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.models.shared.posto_grad import Soldo
 from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
     CustoPernoiteInput,

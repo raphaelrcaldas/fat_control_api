@@ -18,8 +18,8 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
     EtapaCreate,
     EtapaDetailOut,

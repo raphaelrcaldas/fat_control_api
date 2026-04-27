@@ -19,15 +19,15 @@ from fcontrol_api.models.cegep.missoes import (
     UserFrag,
 )
 from fcontrol_api.models.nav.aerodromos import Aerodromo
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.indisp import Indisp
-from fcontrol_api.models.public.om import OrdemEtapa, OrdemMissao
-from fcontrol_api.models.public.posto_grad import Soldo
-from fcontrol_api.models.public.quads import Quad
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.indisp import Indisp
+from fcontrol_api.models.shared.om import OrdemEtapa, OrdemMissao
+from fcontrol_api.models.shared.posto_grad import Soldo
+from fcontrol_api.models.shared.quads import Quad
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
 from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.utils.validators import calcular_dv_saram

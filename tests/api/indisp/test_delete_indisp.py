@@ -10,7 +10,7 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.indisp import Indisp
+from fcontrol_api.models.shared.indisp import Indisp
 
 pytestmark = pytest.mark.anyio
 

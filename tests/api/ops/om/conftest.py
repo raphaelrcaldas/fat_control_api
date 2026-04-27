@@ -1,6 +1,6 @@
 import pytest
 
-from fcontrol_api.models.public.aeronaves import Aeronave
+from fcontrol_api.models.shared.aeronaves import Aeronave
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,7 @@
 from sqlalchemy import JSON, ForeignKey, Identity
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fcontrol_api.models.public.estados_cidades import Cidade
+from fcontrol_api.models.shared.estados_cidades import Cidade
 
 from .base import Base
 

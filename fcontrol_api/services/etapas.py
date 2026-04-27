@@ -12,9 +12,9 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
-from fcontrol_api.models.public.posto_grad import PostoGrad
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
     EtapaFlatOut,
     OIEtapaOut,

@@ -9,8 +9,8 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.orcamento import (
     OrcamentoAnualCreate,
     OrcamentoAnualOut,

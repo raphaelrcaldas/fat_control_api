@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import ForeignKey, Identity
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.users import User
 
 from .base import Base
 
@@ -15,6 +15,7 @@ class CrmCertificado(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id), unique=True)
     data_realizacao: Mapped[date | None]
     data_validade: Mapped[date | None]
+    data_validade2: Mapped[date | None]
 
     user = relationship(
         User,

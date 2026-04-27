@@ -4,7 +4,7 @@ Dados baseados no ambiente de produção (Supabase).
 Representa a estrutura de quadrinhos operacionais do 1GT.
 """
 
-from fcontrol_api.models.public.quads import QuadsFunc, QuadsGroup, QuadsType
+from fcontrol_api.models.shared.quads import QuadsFunc, QuadsGroup, QuadsType
 
 # Grupos de quadrinhos (categorias principais)
 QUADS_GROUPS = [

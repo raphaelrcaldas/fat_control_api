@@ -12,8 +12,8 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.comiss import (
     ComissAbertura,
     ComissDeletePreview,
@@ -121,28 +121,30 @@ async def get_cmtos(
     for comiss in comiss_list:
         cache = comiss.cache_calc or {}
         base = ComissSchema.model_validate(comiss)
-        response.append(ComissPublic(
-            id=base.id,
-            status=base.status,
-            dep=base.dep,
-            data_ab=base.data_ab,
-            qtd_aj_ab=base.qtd_aj_ab,
-            valor_aj_ab=base.valor_aj_ab,
-            data_fc=base.data_fc,
-            qtd_aj_fc=base.qtd_aj_fc,
-            valor_aj_fc=base.valor_aj_fc,
-            dias_cumprir=base.dias_cumprir,
-            doc_prop=base.doc_prop,
-            doc_aut=base.doc_aut,
-            doc_enc=base.doc_enc,
-            user=UserPublic.model_validate(comiss.user),
-            dias_comp=cache.get('dias_comp', 0),
-            diarias_comp=cache.get('diarias_comp', 0),
-            vals_comp=cache.get('vals_comp', 0),
-            modulo=cache.get('modulo', False),
-            completude=cache.get('completude', 0),
-            missoes_count=cache.get('missoes_count', 0),
-        ))
+        response.append(
+            ComissPublic(
+                id=base.id,
+                status=base.status,
+                dep=base.dep,
+                data_ab=base.data_ab,
+                qtd_aj_ab=base.qtd_aj_ab,
+                valor_aj_ab=base.valor_aj_ab,
+                data_fc=base.data_fc,
+                qtd_aj_fc=base.qtd_aj_fc,
+                valor_aj_fc=base.valor_aj_fc,
+                dias_cumprir=base.dias_cumprir,
+                doc_prop=base.doc_prop,
+                doc_aut=base.doc_aut,
+                doc_enc=base.doc_enc,
+                user=UserPublic.model_validate(comiss.user),
+                dias_comp=cache.get('dias_comp', 0),
+                diarias_comp=cache.get('diarias_comp', 0),
+                vals_comp=cache.get('vals_comp', 0),
+                modulo=cache.get('modulo', False),
+                completude=cache.get('completude', 0),
+                missoes_count=cache.get('missoes_count', 0),
+            )
+        )
 
     return success_response(data=response)
 
@@ -194,24 +196,26 @@ async def get_summary(
 
         cache = comiss.cache_calc or {}
         base = ComissSchema.model_validate(comiss)
-        response_comiss.append(ComissPublic(
-            id=base.id,
-            status=base.status,
-            dep=base.dep,
-            data_ab=base.data_ab,
-            qtd_aj_ab=base.qtd_aj_ab,
-            valor_aj_ab=base.valor_aj_ab,
-            data_fc=base.data_fc,
-            qtd_aj_fc=base.qtd_aj_fc,
-            valor_aj_fc=base.valor_aj_fc,
-            dias_cumprir=base.dias_cumprir,
-            doc_prop=base.doc_prop,
-            doc_aut=base.doc_aut,
-            doc_enc=base.doc_enc,
-            user=UserPublic.model_validate(comiss.user),
-            completude=cache.get('completude', 0),
-            modulo=cache.get('modulo', False),
-        ))
+        response_comiss.append(
+            ComissPublic(
+                id=base.id,
+                status=base.status,
+                dep=base.dep,
+                data_ab=base.data_ab,
+                qtd_aj_ab=base.qtd_aj_ab,
+                valor_aj_ab=base.valor_aj_ab,
+                data_fc=base.data_fc,
+                qtd_aj_fc=base.qtd_aj_fc,
+                valor_aj_fc=base.valor_aj_fc,
+                dias_cumprir=base.dias_cumprir,
+                doc_prop=base.doc_prop,
+                doc_aut=base.doc_aut,
+                doc_enc=base.doc_enc,
+                user=UserPublic.model_validate(comiss.user),
+                completude=cache.get('completude', 0),
+                modulo=cache.get('modulo', False),
+            )
+        )
 
     data = ComissSummaryResponse(
         orcamento_id=orcamento.id if orcamento else None,
@@ -310,14 +314,16 @@ async def get_cmto_by_id(
             after = json.loads(log.after) if log.after else None
         except (json.JSONDecodeError, TypeError):
             after = None
-        logs.append(ComissLogOut(
-            id=log.id,
-            user=UserPublic.model_validate(log.user),
-            action=log.action,
-            before=before,
-            after=after,
-            timestamp=log.timestamp,
-        ))
+        logs.append(
+            ComissLogOut(
+                id=log.id,
+                user=UserPublic.model_validate(log.user),
+                action=log.action,
+                before=before,
+                after=after,
+                timestamp=log.timestamp,
+            )
+        )
 
     detail = ComissDetail(
         id=base.id,
@@ -497,7 +503,10 @@ async def update_cmto(
     return success_response(message='Comissionamento atualizado com sucesso')
 
 
-@router.delete('/{comiss_id}', response_model=ApiResponse[ComissDeletePreview | None])
+@router.delete(
+    '/{comiss_id}',
+    response_model=ApiResponse[ComissDeletePreview | None],
+)
 async def delete_cmto(
     comiss_id: int,
     session: Session,

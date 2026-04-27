@@ -15,11 +15,11 @@ from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.indisp import Indisp
-from fcontrol_api.models.public.posto_grad import PostoGrad
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.indisp import Indisp
+from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import (
     BaseIndisp,
@@ -167,7 +167,9 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
             id=trip.id,
             trig=trip.trig,
             user=UserPublic.model_validate(trip.user),
-            func=BaseFunc.model_validate(trip.funcs[0]) if trip.funcs else None,
+            func=BaseFunc.model_validate(trip.funcs[0])
+            if trip.funcs
+            else None,
             cemal=trip_extra.get('cemal'),
             data_ult_voo=trip_extra.get('data_ult_voo'),
         )

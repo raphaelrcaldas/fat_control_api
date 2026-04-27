@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.users import User
 
 pytestmark = pytest.mark.anyio
 

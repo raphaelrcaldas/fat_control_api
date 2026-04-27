@@ -16,11 +16,11 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.auth import (
     OAuth2AuthorizationCode,
     OAuth2Client,
 )
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.auth import DevTokenResponse, Token
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
@@ -147,8 +147,9 @@ async def exchange_code_for_token(
         )
 
     # Extrair dados e consumir o código imediatamente (single-use).
-    # O commit antes das validações garante que qualquer tentativa de reutilização
-    # do mesmo code seja rejeitada, mesmo que as validações seguintes falhem.
+    # Commit antes das validações: impede reutilização do code mesmo que
+    # as validações seguintes falhem.
+
     stored_client_id = auth_code_obj.client.client_id
     stored_redirect_uri = auth_code_obj.client.redirect_uri
     stored_expires_at = auth_code_obj.expires_at

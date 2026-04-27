@@ -13,8 +13,8 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.resources import UserRole
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.services.auth import (
     get_user_roles,
     validate_user_client_access,

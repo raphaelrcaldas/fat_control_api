@@ -7,13 +7,13 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.tripulantes import Tripulante
 from fcontrol_api.models.security.resources import (
     Permissions,
     RolePermissions,
     Roles,
     UserRole,
 )
+from fcontrol_api.models.shared.tripulantes import Tripulante
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 

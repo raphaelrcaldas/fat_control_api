@@ -8,7 +8,7 @@ from http import HTTPStatus
 
 import pytest
 
-from fcontrol_api.models.public.om import Etiqueta
+from fcontrol_api.models.shared.om import Etiqueta
 
 pytestmark = pytest.mark.anyio
 

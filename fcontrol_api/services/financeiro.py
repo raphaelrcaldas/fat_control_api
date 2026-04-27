@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
-from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.models.shared.posto_grad import Soldo
 
 
 async def cache_diarias(session: AsyncSession):

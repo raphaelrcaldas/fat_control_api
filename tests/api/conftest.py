@@ -21,8 +21,8 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.app import app
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.resources import UserRole
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.security import create_access_token, get_password_hash
 from tests.factories import OAuth2ClientFactory, UserFactory
 

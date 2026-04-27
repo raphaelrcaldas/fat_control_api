@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, Identity
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.users import User
 
 from .base import Base
 

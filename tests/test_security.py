@@ -8,8 +8,8 @@ import pytest
 from fastapi import HTTPException, Request
 from jwt import decode
 
-from fcontrol_api.models.public.users import User
 from fcontrol_api.models.security.resources import Roles, UserRole
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.security import (
     create_access_token,
     get_current_user,

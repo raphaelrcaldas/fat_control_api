@@ -39,9 +39,9 @@ from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.quads import Quad, QuadsGroup, QuadsType
-from fcontrol_api.models.public.tripulantes import Tripulante
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
+from fcontrol_api.models.shared.tripulantes import Tripulante
 
 
 async def get_all_combinations(session):

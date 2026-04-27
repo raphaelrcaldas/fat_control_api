@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
-from fcontrol_api.models.public.funcoes import Funcao
-from fcontrol_api.models.public.posto_grad import PostoGrad
-from fcontrol_api.models.public.tripulantes import Tripulante
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.funcoes import Funcao
+from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.inteligencia.passaportes import (
     PassaportePublic,
     PassaporteUpdate,
@@ -110,7 +110,10 @@ async def list_passaportes(
     return success_response(data=items)
 
 
-@router.get('/user/{user_id}', response_model=ApiResponse[PassaportePublic | None])
+@router.get(
+    '/user/{user_id}',
+    response_model=ApiResponse[PassaportePublic | None],
+)
 async def get_passaporte_by_user(user_id: int, session: Session):
     passaporte = await session.scalar(
         select(Passaporte).where(Passaporte.user_id == user_id)

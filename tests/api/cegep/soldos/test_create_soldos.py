@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import and_
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.models.shared.posto_grad import Soldo
 
 pytestmark = pytest.mark.anyio
 

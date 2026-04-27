@@ -5,8 +5,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.cleanup.models.cleanup_result import CleanupTaskResult
-from fcontrol_api.models.public.indisp import Indisp
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.indisp import Indisp
 
 TASK_NAME = 'cleanup_old_unavailability'
 

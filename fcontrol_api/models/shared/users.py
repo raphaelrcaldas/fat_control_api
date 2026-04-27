@@ -4,9 +4,9 @@ from sqlalchemy import ForeignKey, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
+from fcontrol_api.models.shared.posto_grad import PostoGrad
 
 from .base import Base
-from .posto_grad import PostoGrad
 
 
 class User(Base):

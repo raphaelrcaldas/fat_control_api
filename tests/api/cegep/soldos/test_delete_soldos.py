@@ -11,7 +11,7 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.models.shared.posto_grad import Soldo
 from tests.factories import (
     FragMisFactory,
     PernoiteFragFactory,

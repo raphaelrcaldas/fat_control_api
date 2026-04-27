@@ -6,7 +6,7 @@ Dados extraidos do Supabase em 2026-01-31.
 
 from datetime import date
 
-from fcontrol_api.models.public.posto_grad import Soldo
+from fcontrol_api.models.shared.posto_grad import Soldo
 
 # Soldos vigentes a partir de 2026-01-01
 SOLDOS_DATA = [

@@ -9,7 +9,7 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.public.funcoes import Funcao
+from fcontrol_api.models.shared.funcoes import Funcao
 from tests.factories import FuncFactory
 
 pytestmark = pytest.mark.anyio

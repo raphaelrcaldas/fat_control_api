@@ -4,9 +4,9 @@ from sqlalchemy import ForeignKey, Identity, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fcontrol_api.models.public.estados_cidades import Cidade
-from fcontrol_api.models.public.posto_grad import PostoGrad
-from fcontrol_api.models.public.users import User
+from fcontrol_api.models.shared.estados_cidades import Cidade
+from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.users import User
 
 from .base import Base
 
