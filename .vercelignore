@@ -1,0 +1,12 @@
+.venv
+htmlcov
+.ruff_cache
+tests
+__pycache__
+*.pyc
+.coverage
+.coverage.*
+.pytest_cache
+docker-compose.yml
+Dockerfile
+fly.toml

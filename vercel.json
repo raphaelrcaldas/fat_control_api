@@ -1,0 +1,19 @@
+{
+  "builds": [
+    {
+      "src": "fcontrol_api/app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "fcontrol_api/app.py"
+    }
+  ],
+  "functions": {
+    "fcontrol_api/app.py": {
+      "maxDuration": 30
+    }
+  }
+}
