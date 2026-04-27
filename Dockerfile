@@ -10,12 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copia UV do layer oficial (sem curl, sem instalação extra)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-ENV UV_SYSTEM_PYTHON=1
 
 # Copia arquivos de dependência
 COPY pyproject.toml uv.lock ./
 
-# Instala apenas dependências de produção direto no Python do sistema
+# Instala dependências de produção no .venv local (/app/.venv)
 RUN uv sync --frozen --no-dev --no-install-project \
     && rm -rf /root/.cache
 
@@ -24,6 +23,8 @@ FROM python:3.14-slim
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
+# Coloca o venv no PATH para que uvicorn/python resolvam os pacotes corretamente
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Ghostscript: usado por fcontrol_api/services/pdf.py para comprimir PDFs
 # (fallback transparente no código se ausente, mas reduz ~30-50% o tamanho).
@@ -35,21 +36,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd --gid 1000 appuser \
     && useradd --uid 1000 --gid appuser --no-create-home appuser
 
-# Copia pacotes Python instalados no builder
-COPY --from=builder /usr/local /usr/local
+# Copia apenas o venv do builder (não /usr/local inteiro)
+COPY --from=builder /app/.venv /app/.venv
 
 # Copia código da aplicação já com ownership correto (evita camada extra de chown)
 COPY --chown=appuser:appuser . .
 
-# Pré-compila .pyc para todo o código + site-packages do Python do sistema.
-# Economiza 100-300ms de compilação on-the-fly no 1º import em cold start
-# (Fly), às custas de ~10-20s a mais no build. O caminho do site-packages é
-# derivado em runtime para não travar em uma versão específica do Python.
-# -q: silencia output; `|| true` absorve warnings em arquivos sem sintaxe
-# válida (ex.: templates em pacotes third-party) — sem ele, um único arquivo
-# problemático quebra o build inteiro.
-RUN SITE_PACKAGES="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
-    && python -m compileall -q -j 0 /app "$SITE_PACKAGES" || true
+# Pré-compila .pyc para código da app + site-packages do venv.
+# Economiza 100-300ms de compilação on-the-fly no 1º import em cold start.
+RUN python -m compileall -q -j 0 /app /app/.venv/lib || true
 
 USER appuser
 
