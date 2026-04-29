@@ -28,11 +28,24 @@ class EtapaBase(BaseModel):
 
     @model_validator(mode='after')
     def validate_tvoo(self) -> Self:
-        """Valida consistencia de tvoo com dep/arr."""
+        """Valida consistencia de tvoo com dep/arr.
+
+        Regra: a etapa nao pode atravessar o dia. arr DEVE ser
+        > dep, com unica excecao: arr == 00:00 representa 24:00
+        (fim do dia). Voos como 23:00->01:00 precisam ser
+        divididos em 23:00->00:00 e 00:00->01:00.
+        """
         dep_min = self.dep.hour * 60 + self.dep.minute
         arr_min = self.arr.hour * 60 + self.arr.minute
-        if arr_min < dep_min:
-            arr_min += 1440  # +24h
+        # 00:00 no arr representa fim do dia (1440 min)
+        if arr_min == 0 and dep_min > 0:
+            arr_min = 1440
+        if arr_min <= dep_min:
+            msg = (
+                'Etapa nao pode atravessar o dia. arr deve ser '
+                'maior que dep (00:00 e aceito como fim do dia).'
+            )
+            raise ValueError(msg)
         expected = arr_min - dep_min
         if self.tvoo != expected:
             msg = (

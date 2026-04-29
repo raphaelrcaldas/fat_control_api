@@ -36,6 +36,7 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
 )
 from fcontrol_api.services.etapas import (
+    assert_no_anv_collision,
     fetch_oi_detail_data,
     fetch_oi_etapas,
     fetch_trip_data,
@@ -385,6 +386,20 @@ async def create_etapa(
                 ),
             )
 
+    try:
+        await assert_no_anv_collision(
+            session,
+            data=data.data,
+            anv=data.anv,
+            dep=data.dep,
+            arr=data.arr,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
     etapa = Etapa(
         missao_id=data.missao_id,
         data=data.data,
@@ -469,6 +484,25 @@ async def update_etapa(
                     f'({tvoo_ref} min)'
                 ),
             )
+
+    new_data = data.data if data.data is not None else etapa.data
+    new_anv = data.anv if data.anv is not None else etapa.anv
+    new_dep = data.dep if data.dep is not None else etapa.dep
+    new_arr = data.arr if data.arr is not None else etapa.arr
+    try:
+        await assert_no_anv_collision(
+            session,
+            data=new_data,
+            anv=new_anv,
+            dep=new_dep,
+            arr=new_arr,
+            exclude_id=id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
     updates = data.model_dump(exclude_unset=True)
     for key in ('tripulantes', 'oi_etapas', 'tvoo'):

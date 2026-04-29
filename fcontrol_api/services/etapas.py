@@ -1,5 +1,7 @@
 """Funcoes de consulta de etapas, OIs e tripulantes."""
 
+from datetime import date, time
+
 from sqlalchemy import func as sql_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +29,56 @@ from fcontrol_api.utils.responses import paginated_response
 def like_safe(val: str) -> str:
     """Escapa caracteres especiais de LIKE."""
     return val.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
+def _to_interval(dep: time, arr: time) -> tuple[int, int]:
+    """Converte dep/arr em intervalo [start, end] em minutos.
+
+    arr == 00:00 com dep > 00:00 representa fim do dia (1440).
+    """
+    start = dep.hour * 60 + dep.minute
+    end = arr.hour * 60 + arr.minute
+    if end == 0 and start > 0:
+        end = 1440
+    return start, end
+
+
+async def assert_no_anv_collision(
+    session: AsyncSession,
+    *,
+    data: date,
+    anv: str,
+    dep: time,
+    arr: time,
+    exclude_id: int | None = None,
+) -> None:
+    """Verifica se a aeronave ja tem etapa em horario sobreposto.
+
+    Levanta ValueError com a etapa em conflito caso exista.
+    Intervalos que apenas se tocam (ex.: 23:00->00:00 e
+    00:00->01:00) nao colidem.
+    """
+    new_start, new_end = _to_interval(dep, arr)
+
+    stmt = select(Etapa).where(
+        Etapa.data == data,
+        Etapa.anv == anv,
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Etapa.id != exclude_id)
+
+    rows = await session.scalars(stmt)
+    for existing in rows.all():
+        ex_start, ex_end = _to_interval(existing.dep, existing.arr)
+        if new_start < ex_end and ex_start < new_end:
+            msg = (
+                f'Colisao de horario para a aeronave {anv}: '
+                f'etapa #{existing.id} ja ocupa '
+                f'{existing.dep.strftime("%H:%M")}-'
+                f'{existing.arr.strftime("%H:%M")} '
+                f'em {data.isoformat()}.'
+            )
+            raise ValueError(msg)
 
 
 async def fetch_trip_data(
