@@ -45,8 +45,10 @@ async def list_passaportes(
             User.telefone,
             Passaporte.id.label('passaporte_id'),
             Passaporte.passaporte.label('passaporte_num'),
-            Passaporte.visa.label('visa_num'),
+            Passaporte.data_expedicao_passaporte,
             Passaporte.validade_passaporte,
+            Passaporte.visa.label('visa_num'),
+            Passaporte.data_expedicao_visa,
             Passaporte.validade_visa,
         )
         .select_from(Tripulante)
@@ -97,8 +99,10 @@ async def list_passaportes(
                 id=r.passaporte_id,
                 user_id=r.user_id,
                 passaporte=r.passaporte_num,
-                visa=r.visa_num,
+                data_expedicao_passaporte=r.data_expedicao_passaporte,
                 validade_passaporte=r.validade_passaporte,
+                visa=r.visa_num,
+                data_expedicao_visa=r.data_expedicao_visa,
                 validade_visa=r.validade_visa,
             )
             if r.passaporte_id is not None
@@ -155,8 +159,10 @@ async def upsert_passaporte(
         passaporte = Passaporte(
             user_id=tripulante.user_id,
             passaporte=dados.passaporte,
-            visa=dados.visa,
+            data_expedicao_passaporte=dados.data_expedicao_passaporte,
             validade_passaporte=dados.validade_passaporte,
+            visa=dados.visa,
+            data_expedicao_visa=dados.data_expedicao_visa,
             validade_visa=dados.validade_visa,
         )
         session.add(passaporte)
