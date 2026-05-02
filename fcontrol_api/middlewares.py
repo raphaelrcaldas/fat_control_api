@@ -15,19 +15,38 @@ from fcontrol_api.settings import Settings
 settings = Settings()
 logger = logging.getLogger(__name__)
 
+PUBLIC_ROUTES = frozenset({
+    '/auth/authorize',
+    '/auth/token',
+    '/health',
+    '/docs',
+    '/openapi.json',
+    '/redoc',
+})
+
+# Rotas permitidas quando o usuário ainda precisa trocar a senha
+# (first_login=True). Qualquer outra rota é bloqueada com 403.
+PWD_CHANGE_ALLOWED_ROUTES = frozenset({
+    '/users/change-pwd',
+    '/users/me',
+    '/auth/refresh_token',
+})
+
+
+def _normalize_path(path: str) -> str:
+    """Normaliza para casar com rotas declaradas (sem trailing slash).
+
+    O middleware roda antes do redirect 307 do FastAPI, então
+    `/users/me/` chegaria sem normalização e escaparia da allow-list.
+    """
+    return path.rstrip('/') or '/'
+
 
 async def validate_token(request: Request, call_next):
-    PUBLIC_ROUTES = [
-        '/auth/authorize',
-        '/auth/token',
-        '/health',
-        '/docs',
-        '/openapi.json',
-        '/redoc',
-    ]
+    path = _normalize_path(request.url.path)
 
     # 1. Verificar se rota é pública
-    if request.url.path in PUBLIC_ROUTES:
+    if path in PUBLIC_ROUTES:
         return await call_next(request)
 
     # 2. Extrair token
@@ -79,7 +98,23 @@ async def validate_token(request: Request, call_next):
             ).model_dump(),
         )
 
-    # IMPLEMENTAR BLACKLIST
+    # 3.1 Bloquear rotas quando troca de senha está pendente
+    if (
+        payload.get('first_login')
+        and path not in PWD_CHANGE_ALLOWED_ROUTES
+    ):
+        logger.warning(
+            f'Acesso bloqueado por troca de senha pendente | '
+            f'Path: {request.url.path} | '
+            f'user_id: {user_id}'
+        )
+        return JSONResponse(
+            status_code=403,
+            content=ApiErrorResponse(
+                message='PASSWORD_CHANGE_REQUIRED',
+                path=str(request.url.path),
+            ).model_dump(),
+        )
 
     # 4. Adicionar contexto de segurança ao request
     request.state.token_payload = payload

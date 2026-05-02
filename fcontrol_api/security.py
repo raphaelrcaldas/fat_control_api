@@ -48,6 +48,7 @@ def token_data(user: User, client: str):
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
         'app_client': client,
+        'first_login': user.first_login,
     }
 
     return data

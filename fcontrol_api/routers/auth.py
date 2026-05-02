@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import Annotated
+from urllib.parse import urlparse
 
 from fastapi import (
     APIRouter,
@@ -39,6 +40,35 @@ router = APIRouter(prefix='/auth', tags=['auth'])
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
+settings = Settings()
+
+_DEV_LOOPBACK_HOSTS = {'localhost', '127.0.0.1'}
+
+
+def _is_dev_loopback(uri: str) -> bool:
+    """Aceita http://localhost:<porta> ou http://127.0.0.1:<porta>.
+
+    Segue a RFC 8252 (OAuth 2.0 for Native Apps): em loopback, a porta
+    é dinâmica e não deve ser comparada. Habilitado apenas em
+    ENV=development para não vazar em produção.
+    """
+    try:
+        parsed = urlparse(uri)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == 'http'
+        and parsed.hostname in _DEV_LOOPBACK_HOSTS
+    )
+
+
+def _redirect_uri_allowed(client_uri: str, requested_uri: str) -> bool:
+    if client_uri == requested_uri:
+        return True
+    if settings.ENV == 'development' and _is_dev_loopback(requested_uri):
+        return True
+    return False
+
 
 @router.post('/authorize', response_model=ApiResponse[dict])
 async def authorize(
@@ -66,7 +96,9 @@ async def authorize(
     client = await session.scalar(
         select(OAuth2Client).where(OAuth2Client.client_id == client_id)
     )
-    if not client or client.redirect_uri != redirect_uri:
+    if not client or not _redirect_uri_allowed(
+        client.redirect_uri, redirect_uri
+    ):
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Invalid client or redirect_uri',
@@ -164,7 +196,7 @@ async def exchange_code_for_token(
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail='Client ID mismatch'
         )
-    if stored_redirect_uri != redirect_uri:
+    if not _redirect_uri_allowed(stored_redirect_uri, redirect_uri):
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail='Redirect URI mismatch'
         )
@@ -217,8 +249,11 @@ async def exchange_code_for_token(
 
 
 @router.post('/refresh_token', response_model=ApiResponse[Token])
-async def refresh_access_token(user: User = Depends(get_current_user)):
-    data = token_data(user)
+async def refresh_access_token(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    data = token_data(user, request.state.app_client)
     new_access_token = create_access_token(data=data)
     return success_response(
         data=Token(
