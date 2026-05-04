@@ -1,6 +1,7 @@
 from datetime import datetime, time
+from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -55,3 +56,25 @@ async def listar_logs(
 
     result = await session.scalars(query)
     return success_response(data=list(result.all()))
+
+
+@router.delete(
+    '/user-actions/{log_id}',
+    response_model=ApiResponse[None],
+)
+async def excluir_log(
+    log_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    log = await session.get(UserActionLog, log_id)
+
+    if not log:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Log não encontrado',
+        )
+
+    await session.delete(log)
+    await session.commit()
+
+    return success_response(message='Log excluído com sucesso')
