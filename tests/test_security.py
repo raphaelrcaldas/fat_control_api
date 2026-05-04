@@ -212,7 +212,7 @@ async def test_permission_checker_user_data_none(session):
             await checker(session, user)
 
         assert exc_info.value.status_code == HTTPStatus.FORBIDDEN
-        assert 'sem role atribuída' in exc_info.value.detail
+        assert 'Permissão negada' in exc_info.value.detail
         mock_get_user_roles.assert_called_once_with(user.id, session)
 
 
@@ -239,4 +239,4 @@ async def test_permission_checker_user_data_empty_dict(session):
             await checker(session, user)
 
         assert exc_info.value.status_code == HTTPStatus.FORBIDDEN
-        assert 'sem role atribuída' in exc_info.value.detail
+        assert 'Permissão negada' in exc_info.value.detail

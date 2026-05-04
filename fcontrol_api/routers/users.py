@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -20,6 +21,7 @@ from fcontrol_api.schemas.users import (
     UserUpdate,
 )
 from fcontrol_api.security import (
+    ensure_permission_or_owner,
     get_current_user,
     get_password_hash,
     permission_checker,
@@ -179,6 +181,7 @@ async def read_users(
     active: bool | None = None,
     page: int = 1,
     per_page: int = 15,
+    _: User = Depends(permission_checker('user', 'view')),
 ):
     # Limita per_page para evitar queries muito pesadas
     per_page = min(per_page, 100)
@@ -245,7 +248,11 @@ async def read_users(
 
 
 @router.get('/{user_id}', response_model=ApiResponse[UserFull])
-async def get_user(user_id: int, session: Session):
+async def get_user(
+    user_id: int,
+    session: Session,
+    user: User = Depends(get_current_user),
+):
     query = select(User).where(User.id == user_id)
     db_user = await session.scalar(query)
 
@@ -253,6 +260,10 @@ async def get_user(user_id: int, session: Session):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
+
+    await ensure_permission_or_owner(
+        user, session, 'user', 'view', db_user.id
+    )
 
     return success_response(data=UserFull.model_validate(db_user))
 
@@ -262,7 +273,7 @@ async def update_user(
     user_id: int,
     user_patch: UserUpdate,
     session: Session,
-    user: User = Depends(permission_checker('user', 'update')),
+    user: User = Depends(get_current_user),
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
 
@@ -270,6 +281,10 @@ async def update_user(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
+
+    await ensure_permission_or_owner(
+        user, session, 'user', 'update', db_user.id
+    )
 
     patch = user_patch.model_dump(exclude_unset=True)
     # Verifica conflitos apenas para os campos presentes na atualização
@@ -325,18 +340,44 @@ async def update_user(
     )
 
 
-# @router.delete('/{user_id}')
-# async def delete_user(user_id: int, session: Session):
-#     query = await select(User).where(User.id == user_id)
+@router.delete('/{user_id}', response_model=ApiResponse[None])
+async def delete_user(
+    user_id: int,
+    session: Session,
+    user: User = Depends(permission_checker('user', 'delete')),
+):
+    db_user = await session.scalar(select(User).where(User.id == user_id))
 
-#     db_user = session.scalar(query)
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+        )
 
-#     if not db_user:
-#         raise HTTPException(
-#             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
-#         )
+    if db_user.id == user.id:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Não é possivel deletar o próprio usuario',
+        )
 
-#     await session.delete(db_user)
-#     await session.commit()
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='delete',
+        resource='user',
+        resource_id=db_user.id,
+    )
 
-#     return {'detail': 'Deletado com Sucesso'}
+    try:
+        await session.delete(db_user)
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Não é possível excluir o usuário pois ele está'
+                ' vinculado a outros registros do sistema'
+            ),
+        )
+
+    return success_response(message='Usuario deletado com sucesso')

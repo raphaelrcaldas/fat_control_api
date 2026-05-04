@@ -131,6 +131,22 @@ async def require_admin(
     return user
 
 
+async def has_permission(
+    user: User,
+    session: AsyncSession,
+    resource: str,
+    action: str,
+) -> bool:
+    """Retorna True se o usuário possuir a permissão (resource.action)."""
+    user_data = await get_user_roles(user.id, session)
+    if not user_data:
+        return False
+    return any(
+        perm['resource'] == resource and perm['name'] == action
+        for perm in user_data.get('perms', [])
+    )
+
+
 def permission_checker(resource: str, action: str):
     async def check_permission(
         session: Session,
@@ -138,24 +154,7 @@ def permission_checker(resource: str, action: str):
     ) -> User:
         "Verifica se usuário tem permissão necessária."
 
-        # Buscar permissões do usuário
-        user_data = await get_user_roles(user.id, session)
-
-        if not user_data:
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN,
-                detail='Usuário sem role atribuída',
-            )
-
-        # Verificar se tem a permissão necessária
-        user_permissions = user_data.get('perms', [])
-
-        has_permission = any(
-            perm['resource'] == resource and perm['name'] == action
-            for perm in user_permissions
-        )
-
-        if not has_permission:
+        if not await has_permission(user, session, resource, action):
             await log_user_action(
                 session=session,
                 user_id=user.id,
@@ -174,3 +173,40 @@ def permission_checker(resource: str, action: str):
         return user
 
     return check_permission
+
+
+async def ensure_permission_or_owner(
+    user: User,
+    session: AsyncSession,
+    resource: str,
+    action: str,
+    owner_id: int,
+) -> None:
+    """Permite a ação se o usuário é o dono OU tem a permissão de role.
+
+    Use em endpoints self-service onde a propriedade do recurso só é
+    conhecida após carregar o registro ou ler o body. Para rotas
+    administrativas puras, prefira `Depends(permission_checker(...))`.
+    """
+    if user.id == owner_id:
+        return
+
+    if await has_permission(user, session, resource, action):
+        return
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='access_denied',
+        resource=resource,
+        resource_id=owner_id,
+        before=None,
+        after=(
+            f"Tentou ação '{action}' em recurso de {owner_id} sem permissão"
+        ),
+    )
+
+    raise HTTPException(
+        status_code=HTTPStatus.FORBIDDEN,
+        detail=f'Permissão negada: {resource}.{action}',
+    )
