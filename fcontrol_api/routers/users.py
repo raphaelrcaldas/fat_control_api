@@ -261,9 +261,7 @@ async def get_user(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
 
-    await ensure_permission_or_owner(
-        user, session, 'user', 'view', db_user.id
-    )
+    await ensure_permission_or_owner(user, session, 'user', 'view', db_user.id)
 
     return success_response(data=UserFull.model_validate(db_user))
 

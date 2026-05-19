@@ -56,10 +56,7 @@ def _is_dev_loopback(uri: str) -> bool:
         parsed = urlparse(uri)
     except ValueError:
         return False
-    return (
-        parsed.scheme == 'http'
-        and parsed.hostname in _DEV_LOOPBACK_HOSTS
-    )
+    return parsed.scheme == 'http' and parsed.hostname in _DEV_LOOPBACK_HOSTS
 
 
 def _redirect_uri_allowed(client_uri: str, requested_uri: str) -> bool:

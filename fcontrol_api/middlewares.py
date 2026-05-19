@@ -99,10 +99,7 @@ async def validate_token(request: Request, call_next):
         )
 
     # 3.1 Bloquear rotas quando troca de senha está pendente
-    if (
-        payload.get('first_login')
-        and path not in PWD_CHANGE_ALLOWED_ROUTES
-    ):
+    if payload.get('first_login') and path not in PWD_CHANGE_ALLOWED_ROUTES:
         logger.warning(
             f'Acesso bloqueado por troca de senha pendente | '
             f'Path: {request.url.path} | '
