@@ -312,7 +312,7 @@ async def create_etapa(
         destino=data.destino.upper(),
         dep=data.dep,
         arr=data.arr,
-        anv=data.anv,
+        anv=data.anv.upper(),
         pousos=data.pousos,
         tow=data.tow,
         pax=data.pax,
@@ -401,7 +401,7 @@ async def update_etapa(
             anv=new_anv,
             dep=new_dep,
             arr=new_arr,
-            exclude_id=id,
+            exclude_ids=[id],
         )
     except ValueError as exc:
         raise HTTPException(
@@ -420,6 +420,8 @@ async def update_etapa(
             etapa.origem = valor.upper()
         elif campo == 'destino' and valor is not None:
             etapa.destino = valor.upper()
+        elif campo == 'anv' and valor is not None:
+            etapa.anv = valor.upper()
         else:
             setattr(etapa, campo, valor)
 

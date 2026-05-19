@@ -1,9 +1,11 @@
 """Funcoes de consulta de etapas, OIs e tripulantes."""
 
+from collections import defaultdict
+from collections.abc import Iterable
 from datetime import date, time
 
+from sqlalchemy import and_, or_, select
 from sqlalchemy import func as sql_func
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
@@ -50,13 +52,15 @@ async def assert_no_anv_collision(
     anv: str,
     dep: time,
     arr: time,
-    exclude_id: int | None = None,
+    exclude_ids: list[int] | None = None,
 ) -> None:
     """Verifica se a aeronave ja tem etapa em horario sobreposto.
 
     Levanta ValueError com a etapa em conflito caso exista.
     Intervalos que apenas se tocam (ex.: 23:00->00:00 e
-    00:00->01:00) nao colidem.
+    00:00->01:00) nao colidem. `exclude_ids` permite ignorar
+    etapas conhecidas (ex.: a propria etapa em edicao, ou
+    etapas que serao removidas/atualizadas na mesma transacao).
     """
     new_start, new_end = _to_interval(dep, arr)
 
@@ -64,8 +68,8 @@ async def assert_no_anv_collision(
         Etapa.data == data,
         Etapa.anv == anv,
     )
-    if exclude_id is not None:
-        stmt = stmt.where(Etapa.id != exclude_id)
+    if exclude_ids:
+        stmt = stmt.where(~Etapa.id.in_(exclude_ids))
 
     rows = await session.scalars(stmt)
     for existing in rows.all():
@@ -79,6 +83,79 @@ async def assert_no_anv_collision(
                 f'em {data.isoformat()}.'
             )
             raise ValueError(msg)
+
+
+def assert_no_internal_anv_collision(
+    etapas: list[tuple[str, date, str, time, time]],
+) -> None:
+    """Verifica colisoes entre etapas do mesmo payload.
+
+    Cada tupla: (label, data, anv, dep, arr). Levanta
+    ValueError descrevendo o par em conflito.
+    """
+    intervals = [
+        (label, d, anv, *_to_interval(dep, arr))
+        for label, d, anv, dep, arr in etapas
+    ]
+    n = len(intervals)
+    for i in range(n):
+        la, da, anva, sa, ea = intervals[i]
+        for j in range(i + 1, n):
+            lb, db, anvb, sb, eb = intervals[j]
+            if anva != anvb or da != db:
+                continue
+            if sa < eb and sb < ea:
+                msg = (
+                    f'{la} e {lb}: colisao de aeronave '
+                    f'({anva}) em {da.isoformat()}'
+                )
+                raise ValueError(msg)
+
+
+async def fetch_collision_candidates(
+    session: AsyncSession,
+    pairs: set[tuple[date, str]],
+    *,
+    exclude_ids: list[int] | None = None,
+) -> dict[tuple[date, str], list[Etapa]]:
+    """Busca em lote etapas candidatas a colisao.
+
+    Para cada (data, anv) em `pairs`, retorna todas as etapas
+    no DB com aquela combinacao, excluindo `exclude_ids`.
+    Resultado agrupado por (data, anv) para checagem O(1)
+    por etapa do payload — substitui N round-trips por 1.
+    """
+    if not pairs:
+        return {}
+    conditions = [and_(Etapa.data == d, Etapa.anv == a) for d, a in pairs]
+    stmt = select(Etapa).where(or_(*conditions))
+    if exclude_ids:
+        stmt = stmt.where(~Etapa.id.in_(exclude_ids))
+    rows = await session.scalars(stmt)
+    result: dict[tuple[date, str], list[Etapa]] = defaultdict(list)
+    for c in rows.all():
+        result[(c.data, c.anv)].append(c)
+    return result
+
+
+def find_collision(
+    candidates: Iterable[Etapa],
+    *,
+    dep: time,
+    arr: time,
+) -> Etapa | None:
+    """Retorna a primeira etapa em `candidates` que colide com
+    o intervalo (dep, arr), ou None.
+
+    Assume que todas as `candidates` ja foram filtradas por
+    mesma data/anv. Intervalos que apenas se tocam nao colidem.
+    """
+    new_start, new_end = _to_interval(dep, arr)
+    for ex in candidates:
+        ex_start, ex_end = _to_interval(ex.dep, ex.arr)
+        if new_start < ex_end and ex_start < new_end:
+            return ex
+    return None
 
 
 async def fetch_trip_data(

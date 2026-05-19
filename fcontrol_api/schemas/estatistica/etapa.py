@@ -129,6 +129,18 @@ class EtapaDetailOut(EtapaOut):
     nivel: str | None
 
 
+class MissaoComEtapasDetailOut(BaseModel):
+    """Missao com etapas em detalhe completo (uso no editor)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    titulo: str | None
+    obs: str | None
+    is_simulador: bool = False
+    etapas: list[EtapaDetailOut]
+
+
 class TripEtapaIn(BaseModel):
     """Tripulante a vincular em uma etapa."""
 
@@ -152,6 +164,106 @@ class EtapaCreate(EtapaBase):
     missao_id: int
     tripulantes: list[TripEtapaIn] = []
     oi_etapas: list[OIEtapaIn] = []
+
+
+class EtapaCreateNested(EtapaBase):
+    """Etapa para criacao aninhada dentro de uma missao.
+
+    Espelha EtapaCreate mas SEM missao_id — a etapa sera vinculada
+    a missao criada na mesma transacao.
+
+    Nota: tvoo e herdado de EtapaBase e validado contra dep/arr pelo
+    model_validator. Embora o banco compute tvoo via trigger, o
+    payload o exige para validar a consistencia das OIs antes de
+    persistir.
+    """
+
+    tripulantes: list[TripEtapaIn] = []
+    oi_etapas: list[OIEtapaIn] = []
+
+
+def _check_oi_sums(items, label: str) -> None:
+    """Valida sum(oi.tvoo) == etapa.tvoo para cada item.
+
+    Late-bound: usado pelos validadores de MissaoComEtapasCreate
+    e MissaoComEtapasUpdate. Levanta ValueError descritivo com
+    o indice + label do payload em conflito.
+    """
+    for idx, etapa in enumerate(items):
+        if not etapa.oi_etapas:
+            continue
+        soma = sum(oi.tvoo for oi in etapa.oi_etapas)
+        if soma != etapa.tvoo:
+            msg = (
+                f'{label}[{idx}]: soma das OIs ({soma}) '
+                f'nao confere com tvoo ({etapa.tvoo})'
+            )
+            raise ValueError(msg)
+
+
+class MissaoComEtapasCreate(BaseModel):
+    """Payload atomico: cria missao + etapas em uma transacao."""
+
+    titulo: str | None = None
+    obs: str | None = None
+    is_simulador: bool = False
+    etapas: list[EtapaCreateNested] = Field(min_length=1)
+
+    @model_validator(mode='after')
+    def validate_oi_sums(self) -> Self:
+        """Valida soma OIs == tvoo para cada etapa do payload."""
+        _check_oi_sums(self.etapas, 'etapa')
+        return self
+
+
+class EtapaUpdateNested(EtapaBase):
+    """Etapa existente a ser atualizada dentro de uma missao.
+
+    Espelha EtapaCreateNested mas com `id` obrigatorio. Usado no
+    endpoint atomico PUT /missao/{id}/with-etapas. Semantica de
+    "full replace": o cliente DEVE enviar todos os campos (e a
+    lista completa de OIs/tripulantes — o servidor descarta as
+    associacoes anteriores e regrava com o conteudo recebido).
+    """
+
+    id: int
+    tripulantes: list[TripEtapaIn] = []
+    oi_etapas: list[OIEtapaIn] = []
+
+
+class MissaoComEtapasUpdate(BaseModel):
+    """Payload atomico: atualiza missao + etapas em uma transacao.
+
+    `delete_ids` lista etapas a remover. `update` traz etapas
+    existentes com novos valores (replace de OIs/tripulantes).
+    `create` insere novas etapas vinculadas a esta missao.
+    `is_simulador` e imutavel apos a criacao — nao e aceito aqui.
+    """
+
+    titulo: str | None = None
+    obs: str | None = None
+    delete_ids: list[int] = Field(default_factory=list)
+    update: list[EtapaUpdateNested] = Field(default_factory=list)
+    create: list[EtapaCreateNested] = Field(default_factory=list)
+
+    @model_validator(mode='after')
+    def validate_payload(self) -> Self:
+        """Valida unicidade, sem-interseccao e somas de OI."""
+        update_ids = [e.id for e in self.update]
+        if len(update_ids) != len(set(update_ids)):
+            dupes = sorted({i for i in update_ids if update_ids.count(i) > 1})
+            msg = f'IDs duplicados em update: {dupes}'
+            raise ValueError(msg)
+        overlap = set(update_ids) & set(self.delete_ids)
+        if overlap:
+            msg = (
+                f'IDs nao podem aparecer em update e '
+                f'delete_ids ao mesmo tempo: {sorted(overlap)}'
+            )
+            raise ValueError(msg)
+        _check_oi_sums(self.create, 'create')
+        _check_oi_sums(self.update, 'update')
+        return self
 
 
 class EtapaUpdate(BaseModel):
