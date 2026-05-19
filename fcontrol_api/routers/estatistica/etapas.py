@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func as sql_func
-from sqlalchemy import literal_column, select, union_all
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -44,10 +44,7 @@ from fcontrol_api.services.etapas import (
     list_etapas_flat,
 )
 from fcontrol_api.services.excel_etapas import generate_etapas_xlsx
-from fcontrol_api.utils.responses import (
-    paginated_response,
-    success_response,
-)
+from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
@@ -79,7 +76,7 @@ _ETAPA_UPDATE_FIELDS = frozenset({
     '/',
     status_code=HTTPStatus.OK,
     response_model=(
-        ApiPaginatedResponse[MissaoComEtapasOut]
+        ApiResponse[list[MissaoComEtapasOut]]
         | ApiPaginatedResponse[EtapaFlatOut]
     ),
 )
@@ -100,8 +97,7 @@ async def list_etapas(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=400)] = 20,
 ) -> (
-    ApiPaginatedResponse[MissaoComEtapasOut]
-    | ApiPaginatedResponse[EtapaFlatOut]
+    ApiResponse[list[MissaoComEtapasOut]] | ApiPaginatedResponse[EtapaFlatOut]
 ):
     """Lista etapas paginadas com filtros opcionais.
 
@@ -177,127 +173,48 @@ async def list_etapas(
             per_page,
         )
 
-    # Passo 2: missao_ids distintos com paginacao
-    has_filters = any([
-        origem,
-        destino,
-        anv,
-        esf_aer,
-        reg,
-        tipo_missao_cod,
-        trip_search,
-        funcao,
-    ])
+    # Window function: min(data) por missao para ordenacao no SQL
+    first_date_col = (
+        sql_func
+        .min(Etapa.data)
+        .over(partition_by=Etapa.missao_id)
+        .label('first_date')
+    )
 
-    missoes_com_etapa = (
-        select(
-            Etapa.missao_id.label('mid'),
-            literal_column('1').label('ord'),
-            sql_func.min(Etapa.data).label('first_date'),
-        )
+    etapas_result = await session.execute(
+        select(Etapa, Missao, first_date_col)
         .where(Etapa.id.in_(select(valid_etapa_ids.c.id)))
-        .group_by(Etapa.missao_id)
-    )
-
-    missoes_com_etapa = missoes_com_etapa.join(
-        Missao, Missao.id == Etapa.missao_id
-    ).where(Missao.is_simulador.is_(is_simulador))
-
-    if has_filters and not is_simulador:
-        combined = missoes_com_etapa.subquery()
-    else:
-        missoes_sem_etapa_q = (
-            select(
-                Missao.id.label('mid'),
-                literal_column('0').label('ord'),
-                literal_column('NULL').label('first_date'),
-            )
-            .outerjoin(Etapa, Etapa.missao_id == Missao.id)
-            .where(Etapa.id.is_(None))
-        )
-        if is_simulador:
-            missoes_sem_etapa_q = missoes_sem_etapa_q.where(
-                Missao.is_simulador.is_(True)
-            )
-        else:
-            missoes_sem_etapa_q = missoes_sem_etapa_q.where(
-                ~Missao.is_simulador
-            )
-        combined = union_all(missoes_sem_etapa_q, missoes_com_etapa).subquery()
-
-    total = (
-        await session.scalar(select(sql_func.count()).select_from(combined))
-    ) or 0
-
-    total_etapas = (
-        await session.scalar(
-            select(sql_func.count()).select_from(valid_etapa_ids)
-        )
-    ) or 0
-
-    offset = (page - 1) * per_page
-    paginated = (
-        select(combined.c.mid)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(Missao.is_simulador.is_(is_simulador))
         .order_by(
-            combined.c.ord,
-            combined.c.first_date.desc(),
-            combined.c.mid.desc(),
-        )
-        .offset(offset)
-        .limit(per_page)
-    )
-    missao_ids_result = await session.scalars(paginated)
-    missao_ids_page = list(missao_ids_result.all())
-
-    if not missao_ids_page:
-        return paginated_response(
-            items=[],
-            total=total,
-            page=page,
-            per_page=per_page,
-            total_items=total_etapas,
-        )
-
-    # Passo 3: etapas filtradas para os missao_ids
-    etapas_query = (
-        select(Etapa)
-        .where(
-            Etapa.missao_id.in_(missao_ids_page),
-            Etapa.id.in_(select(valid_etapa_ids.c.id)),
-        )
-        .order_by(
-            Etapa.missao_id,
+            first_date_col.desc(),
+            Etapa.missao_id.desc(),
             Etapa.data,
             Etapa.dep,
             Etapa.id,
         )
     )
-    etapas_result = await session.scalars(etapas_query)
-    etapas_all = etapas_result.all()
+    all_rows = etapas_result.all()
 
-    # Passo 3b: OI etapas completas por etapa
-    page_etapa_ids = [e.id for e in etapas_all]
-    oi_detail_data = await fetch_oi_detail_data(
-        session,
-        page_etapa_ids,
-    )
+    if not all_rows:
+        return success_response(data=[])
 
-    # Passo 3c: tripulantes por etapa
-    trip_data = await fetch_trip_data(session, page_etapa_ids)
+    # Query ja vem ordenada; dict preserva ordem de insercao
+    etapas_all: list[Etapa] = []
+    missoes: dict[int, Missao] = {}
+    etapas_por_missao: dict[int, list[Etapa]] = {}
+    for etapa, missao, _ in all_rows:
+        etapas_all.append(etapa)
+        if missao.id not in missoes:
+            missoes[missao.id] = missao
+            etapas_por_missao[missao.id] = []
+        etapas_por_missao[missao.id].append(etapa)
 
-    # Passo 4: objetos Missao e montagem da resposta
-    missoes_result = await session.scalars(
-        select(Missao)
-        .where(Missao.id.in_(missao_ids_page))
-        .order_by(Missao.id)
-    )
-    missoes = {m.id: m for m in missoes_result.all()}
+    missao_ids_all = list(missoes.keys())
+    etapa_ids = [e.id for e in etapas_all]
 
-    etapas_por_missao: dict[int, list[Etapa]] = {
-        mid: [] for mid in missao_ids_page
-    }
-    for etapa in etapas_all:
-        etapas_por_missao[etapa.missao_id].append(etapa)
+    oi_detail_data = await fetch_oi_detail_data(session, etapa_ids)
+    trip_data = await fetch_trip_data(session, etapa_ids)
 
     items = [
         MissaoComEtapasOut(
@@ -307,29 +224,17 @@ async def list_etapas(
             etapas=[
                 EtapaOut.model_validate(e).model_copy(
                     update={
-                        'oi_etapas': oi_detail_data.get(
-                            e.id,
-                            [],
-                        ),
-                        'tripulantes': trip_data.get(
-                            e.id,
-                            [],
-                        ),
+                        'oi_etapas': oi_detail_data.get(e.id, []),
+                        'tripulantes': trip_data.get(e.id, []),
                     }
                 )
                 for e in etapas_por_missao[mid]
             ],
         )
-        for mid in missao_ids_page
+        for mid in missao_ids_all
     ]
 
-    return paginated_response(
-        items=items,
-        total=total,
-        page=page,
-        per_page=per_page,
-        total_items=total_etapas,
-    )
+    return success_response(data=items)
 
 
 @router.get(
