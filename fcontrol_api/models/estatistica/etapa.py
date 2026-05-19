@@ -119,7 +119,7 @@ class OIEtapa(Base):
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     etapa_id: Mapped[int] = mapped_column(
-        ForeignKey(Etapa.id, ondelete='CASCADE')
+        ForeignKey(Etapa.id, ondelete='CASCADE'), index=True
     )
     esf_aer_id: Mapped[int] = mapped_column(ForeignKey(EsforcoAereo.id))
     tvoo: Mapped[int] = mapped_column(SmallInteger)
@@ -133,7 +133,7 @@ class TripEtapa(Base):
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     etapa_id: Mapped[int] = mapped_column(
-        ForeignKey(Etapa.id, ondelete='CASCADE')
+        ForeignKey(Etapa.id, ondelete='CASCADE'), index=True
     )
     func: Mapped[str] = mapped_column(String(3))
     func_bordo: Mapped[str] = mapped_column(String(2))
