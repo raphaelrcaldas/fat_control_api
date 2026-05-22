@@ -1,5 +1,5 @@
 from datetime import date, time
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -74,6 +74,9 @@ class EtapaOut(BaseModel):
     obs: str | None
     tripulantes: list['TripEtapaOut'] = []
     oi_etapas: list['OIEtapaOut'] = []
+    pqd: list['PqdEtapaOut'] = []
+    revo: list['RevoEtapaOut'] = []
+    heavy_cds: list['HeavyCdsEtapaOut'] = []
 
 
 class EtapaFlatOut(EtapaOut):
@@ -118,6 +121,34 @@ class OIEtapaOut(BaseModel):
     tvoo: int
 
 
+class PqdEtapaOut(BaseModel):
+    """Lancamento de paraquedista vinculado a uma etapa."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    tipo: str
+    qtd: int
+
+
+class RevoEtapaOut(BaseModel):
+    """Reabastecimento aereo vinculado a uma etapa."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    comb_transf: int
+
+
+class HeavyCdsEtapaOut(BaseModel):
+    """Lancamento de carga pesada (heavy/cds) vinculado a uma etapa."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    tipo: str
+    peso: int
+    dist: int
+    radial: int
+
+
 class EtapaDetailOut(EtapaOut):
     """Detalhe completo de uma etapa."""
 
@@ -158,12 +189,37 @@ class OIEtapaIn(BaseModel):
     tvoo: int = Field(gt=0, le=32767)
 
 
+class PqdEtapaIn(BaseModel):
+    """Lancamento de paraquedista a vincular em uma etapa."""
+
+    tipo: Literal['VTC', 'LV', 'PREC', 'LIVRE']
+    qtd: int = Field(ge=0, le=32767)
+
+
+class RevoEtapaIn(BaseModel):
+    """Reabastecimento aereo a vincular em uma etapa."""
+
+    comb_transf: int = Field(ge=0, le=32767)
+
+
+class HeavyCdsEtapaIn(BaseModel):
+    """Lancamento de carga pesada a vincular em uma etapa."""
+
+    tipo: Literal['heavy', 'cds']
+    peso: int = Field(ge=0, le=32767)
+    dist: int = Field(ge=0, le=32767)
+    radial: int = Field(ge=0, lt=360)
+
+
 class EtapaCreate(EtapaBase):
     """Schema de criacao de etapa com tripulantes."""
 
     missao_id: int
     tripulantes: list[TripEtapaIn] = []
     oi_etapas: list[OIEtapaIn] = []
+    pqd: list[PqdEtapaIn] = []
+    revo: list[RevoEtapaIn] = []
+    heavy_cds: list[HeavyCdsEtapaIn] = []
 
 
 class EtapaCreateNested(EtapaBase):
@@ -180,6 +236,9 @@ class EtapaCreateNested(EtapaBase):
 
     tripulantes: list[TripEtapaIn] = []
     oi_etapas: list[OIEtapaIn] = []
+    pqd: list[PqdEtapaIn] = []
+    revo: list[RevoEtapaIn] = []
+    heavy_cds: list[HeavyCdsEtapaIn] = []
 
 
 def _check_oi_sums(items, label: str) -> None:
@@ -229,6 +288,9 @@ class EtapaUpdateNested(EtapaBase):
     id: int
     tripulantes: list[TripEtapaIn] = []
     oi_etapas: list[OIEtapaIn] = []
+    pqd: list[PqdEtapaIn] = []
+    revo: list[RevoEtapaIn] = []
+    heavy_cds: list[HeavyCdsEtapaIn] = []
 
 
 class MissaoComEtapasUpdate(BaseModel):
@@ -288,6 +350,9 @@ class EtapaUpdate(BaseModel):
     obs: str | None = None
     tripulantes: list[TripEtapaIn] | None = None
     oi_etapas: list[OIEtapaIn] | None = None
+    pqd: list[PqdEtapaIn] | None = None
+    revo: list[RevoEtapaIn] | None = None
+    heavy_cds: list[HeavyCdsEtapaIn] | None = None
 
 
 class EtapaPublic(BaseModel):

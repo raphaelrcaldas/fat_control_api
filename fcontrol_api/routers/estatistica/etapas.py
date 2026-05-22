@@ -13,8 +13,11 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
+    HeavyCDS,
     Missao,
     OIEtapa,
+    PqdEtapa,
+    REVOEtapa,
     TipoMissao,
     TripEtapa,
 )
@@ -36,7 +39,9 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
 )
 from fcontrol_api.services.etapas import (
+    add_especificos,
     assert_no_anv_collision,
+    fetch_especificos_data,
     fetch_oi_detail_data,
     fetch_oi_etapas,
     fetch_trip_data,
@@ -215,6 +220,9 @@ async def list_etapas(
 
     oi_detail_data = await fetch_oi_detail_data(session, etapa_ids)
     trip_data = await fetch_trip_data(session, etapa_ids)
+    pqd_data, revo_data, heavy_data = await fetch_especificos_data(
+        session, etapa_ids
+    )
 
     items = [
         MissaoComEtapasOut(
@@ -226,6 +234,9 @@ async def list_etapas(
                     update={
                         'oi_etapas': oi_detail_data.get(e.id, []),
                         'tripulantes': trip_data.get(e.id, []),
+                        'pqd': pqd_data.get(e.id, []),
+                        'revo': revo_data.get(e.id, []),
+                        'heavy_cds': heavy_data.get(e.id, []),
                     }
                 )
                 for e in etapas_por_missao[mid]
@@ -255,11 +266,17 @@ async def get_etapa_detail(
     oi_etapas = await fetch_oi_etapas(session, id)
     trip_data = await fetch_trip_data(session, [id])
     tripulantes = trip_data.get(id, [])
+    pqd_data, revo_data, heavy_data = await fetch_especificos_data(
+        session, [id]
+    )
 
     detail = EtapaDetailOut.model_validate(etapa).model_copy(
         update={
             'tripulantes': tripulantes,
             'oi_etapas': oi_etapas,
+            'pqd': pqd_data.get(id, []),
+            'revo': revo_data.get(id, []),
+            'heavy_cds': heavy_data.get(id, []),
         }
     )
 
@@ -347,6 +364,14 @@ async def create_etapa(
                 tvoo=oi.tvoo,
             )
         )
+
+    add_especificos(
+        session,
+        etapa.id,
+        pqd=data.pqd,
+        revo=data.revo,
+        heavy_cds=data.heavy_cds,
+    )
 
     await session.commit()
     await session.refresh(etapa)
@@ -454,6 +479,33 @@ async def update_etapa(
                 )
             )
 
+    # Especificos: replace completo por tipo informado (None = nao mexe).
+    if data.pqd is not None:
+        await session.execute(
+            sa_delete(PqdEtapa).where(PqdEtapa.etapa_id == id)
+        )
+    if data.revo is not None:
+        await session.execute(
+            sa_delete(REVOEtapa).where(REVOEtapa.etapa_id == id)
+        )
+    if data.heavy_cds is not None:
+        await session.execute(
+            sa_delete(HeavyCDS).where(HeavyCDS.etapa_id == id)
+        )
+    if (
+        data.pqd is not None
+        or data.revo is not None
+        or data.heavy_cds is not None
+    ):
+        await session.flush()
+        add_especificos(
+            session,
+            id,
+            pqd=data.pqd or [],
+            revo=data.revo or [],
+            heavy_cds=data.heavy_cds or [],
+        )
+
     await session.commit()
     await session.refresh(etapa)
     return success_response(
@@ -478,6 +530,9 @@ async def delete_etapa(id: EtapaId, session: Session) -> ApiResponse[None]:
 
     await session.execute(sa_delete(TripEtapa).where(TripEtapa.etapa_id == id))
     await session.execute(sa_delete(OIEtapa).where(OIEtapa.etapa_id == id))
+    await session.execute(sa_delete(PqdEtapa).where(PqdEtapa.etapa_id == id))
+    await session.execute(sa_delete(REVOEtapa).where(REVOEtapa.etapa_id == id))
+    await session.execute(sa_delete(HeavyCDS).where(HeavyCDS.etapa_id == id))
 
     await session.delete(etapa)
     await session.commit()

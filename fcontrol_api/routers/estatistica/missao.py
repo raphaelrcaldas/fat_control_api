@@ -11,8 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
+    HeavyCDS,
     Missao,
     OIEtapa,
+    PqdEtapa,
+    REVOEtapa,
     TripEtapa,
 )
 from fcontrol_api.schemas.estatistica.etapa import (
@@ -28,9 +31,11 @@ from fcontrol_api.schemas.estatistica.etapa import (
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.services.etapas import (
+    add_especificos,
     assert_no_anv_collision,
     assert_no_internal_anv_collision,
     fetch_collision_candidates,
+    fetch_especificos_data,
     fetch_oi_detail_data,
     fetch_trip_data,
     find_collision,
@@ -70,6 +75,9 @@ async def get_missao(
     etapa_ids = [e.id for e in etapas]
     oi_detail_data = await fetch_oi_detail_data(session, etapa_ids)
     trip_data = await fetch_trip_data(session, etapa_ids)
+    pqd_data, revo_data, heavy_data = await fetch_especificos_data(
+        session, etapa_ids
+    )
 
     return success_response(
         data=MissaoComEtapasDetailOut(
@@ -82,6 +90,9 @@ async def get_missao(
                     update={
                         'oi_etapas': oi_detail_data.get(e.id, []),
                         'tripulantes': trip_data.get(e.id, []),
+                        'pqd': pqd_data.get(e.id, []),
+                        'revo': revo_data.get(e.id, []),
+                        'heavy_cds': heavy_data.get(e.id, []),
                     }
                 )
                 for e in etapas
@@ -219,6 +230,14 @@ async def create_missao_with_etapas(
                 )
             )
 
+        add_especificos(
+            session,
+            etapa.id,
+            pqd=etapa_in.pqd,
+            revo=etapa_in.revo,
+            heavy_cds=etapa_in.heavy_cds,
+        )
+
     await session.commit()
     await session.refresh(new_missao)
 
@@ -348,6 +367,21 @@ async def update_missao_with_etapas(
             )
         )
         await session.execute(
+            sa_delete(PqdEtapa).where(
+                PqdEtapa.etapa_id.in_(payload.delete_ids)
+            )
+        )
+        await session.execute(
+            sa_delete(REVOEtapa).where(
+                REVOEtapa.etapa_id.in_(payload.delete_ids)
+            )
+        )
+        await session.execute(
+            sa_delete(HeavyCDS).where(
+                HeavyCDS.etapa_id.in_(payload.delete_ids)
+            )
+        )
+        await session.execute(
             sa_delete(Etapa).where(Etapa.id.in_(payload.delete_ids))
         )
         await session.flush()
@@ -361,6 +395,15 @@ async def update_missao_with_etapas(
         )
         await session.execute(
             sa_delete(TripEtapa).where(TripEtapa.etapa_id.in_(all_update_ids))
+        )
+        await session.execute(
+            sa_delete(PqdEtapa).where(PqdEtapa.etapa_id.in_(all_update_ids))
+        )
+        await session.execute(
+            sa_delete(REVOEtapa).where(REVOEtapa.etapa_id.in_(all_update_ids))
+        )
+        await session.execute(
+            sa_delete(HeavyCDS).where(HeavyCDS.etapa_id.in_(all_update_ids))
         )
         await session.flush()
         for e in payload.update:
@@ -400,6 +443,13 @@ async def update_missao_with_etapas(
                         tvoo=oi.tvoo,
                     )
                 )
+            add_especificos(
+                session,
+                e.id,
+                pqd=e.pqd,
+                revo=e.revo,
+                heavy_cds=e.heavy_cds,
+            )
 
     # 7. Create de novas etapas + suas OIs/Trips.
     for e in payload.create:
@@ -443,6 +493,13 @@ async def update_missao_with_etapas(
                     tvoo=oi.tvoo,
                 )
             )
+        add_especificos(
+            session,
+            new_etapa.id,
+            pqd=e.pqd,
+            revo=e.revo,
+            heavy_cds=e.heavy_cds,
+        )
 
     # 8. Capturar campos da missao em locais ANTES do commit
     #    para evitar lazy-load (expire_on_commit default).
@@ -463,6 +520,9 @@ async def update_missao_with_etapas(
     etapa_ids = [e.id for e in etapas]
     oi_data = await fetch_oi_detail_data(session, etapa_ids)
     trip_data = await fetch_trip_data(session, etapa_ids)
+    pqd_data, revo_data, heavy_data = await fetch_especificos_data(
+        session, etapa_ids
+    )
 
     return success_response(
         data=MissaoComEtapasDetailOut(
@@ -475,6 +535,9 @@ async def update_missao_with_etapas(
                     update={
                         'oi_etapas': oi_data.get(e.id, []),
                         'tripulantes': trip_data.get(e.id, []),
+                        'pqd': pqd_data.get(e.id, []),
+                        'revo': revo_data.get(e.id, []),
+                        'heavy_cds': heavy_data.get(e.id, []),
                     }
                 )
                 for e in etapas
@@ -543,6 +606,15 @@ async def delete_missao_com_etapas(
         )
         await session.execute(
             sa_delete(TripEtapa).where(TripEtapa.etapa_id.in_(etapa_ids))
+        )
+        await session.execute(
+            sa_delete(PqdEtapa).where(PqdEtapa.etapa_id.in_(etapa_ids))
+        )
+        await session.execute(
+            sa_delete(REVOEtapa).where(REVOEtapa.etapa_id.in_(etapa_ids))
+        )
+        await session.execute(
+            sa_delete(HeavyCDS).where(HeavyCDS.etapa_id.in_(etapa_ids))
         )
         await session.execute(sa_delete(Etapa).where(Etapa.id.in_(etapa_ids)))
 

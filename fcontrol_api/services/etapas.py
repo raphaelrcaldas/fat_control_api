@@ -11,8 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
+    HeavyCDS,
     Missao,
     OIEtapa,
+    PqdEtapa,
+    REVOEtapa,
     TipoMissao,
     TripEtapa,
 )
@@ -21,7 +24,13 @@ from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
     EtapaFlatOut,
+    HeavyCdsEtapaIn,
+    HeavyCdsEtapaOut,
     OIEtapaOut,
+    PqdEtapaIn,
+    PqdEtapaOut,
+    RevoEtapaIn,
+    RevoEtapaOut,
     TripEtapaOut,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse
@@ -289,6 +298,88 @@ async def fetch_oi_detail_data(
     return result
 
 
+def add_especificos(
+    session: AsyncSession,
+    etapa_id: int,
+    *,
+    pqd: list[PqdEtapaIn],
+    revo: list[RevoEtapaIn],
+    heavy_cds: list[HeavyCdsEtapaIn],
+) -> None:
+    """Adiciona os especificos (PQD, REVO, Heavy/CDS) a sessao.
+
+    Apenas faz `session.add` — o flush/commit fica a cargo do
+    chamador, mantendo a atomicidade da transacao.
+    """
+    for p in pqd:
+        session.add(PqdEtapa(etapa_id=etapa_id, tipo=p.tipo, qtd=p.qtd))
+    for r in revo:
+        session.add(REVOEtapa(etapa_id=etapa_id, comb_transf=r.comb_transf))
+    for h in heavy_cds:
+        session.add(
+            HeavyCDS(
+                etapa_id=etapa_id,
+                tipo=h.tipo,
+                peso=h.peso,
+                dist=h.dist,
+                radial=h.radial,
+            )
+        )
+
+
+async def fetch_especificos_data(
+    session: AsyncSession,
+    etapa_ids: list[int],
+) -> tuple[
+    dict[int, list[PqdEtapaOut]],
+    dict[int, list[RevoEtapaOut]],
+    dict[int, list[HeavyCdsEtapaOut]],
+]:
+    """Busca especificos (PQD, REVO, Heavy/CDS) agrupados por etapa.
+
+    Retorna uma tupla de tres dicts (pqd, revo, heavy_cds), cada um
+    mapeando etapa_id -> lista de schemas Out. Etapas sem registros
+    nao aparecem nos dicts.
+    """
+    pqd: dict[int, list[PqdEtapaOut]] = {}
+    revo: dict[int, list[RevoEtapaOut]] = {}
+    heavy_cds: dict[int, list[HeavyCdsEtapaOut]] = {}
+    if not etapa_ids:
+        return pqd, revo, heavy_cds
+
+    pqd_rows = await session.scalars(
+        select(PqdEtapa)
+        .where(PqdEtapa.etapa_id.in_(etapa_ids))
+        .order_by(PqdEtapa.etapa_id, PqdEtapa.id)
+    )
+    for row in pqd_rows.all():
+        pqd.setdefault(row.etapa_id, []).append(
+            PqdEtapaOut.model_validate(row)
+        )
+
+    revo_rows = await session.scalars(
+        select(REVOEtapa)
+        .where(REVOEtapa.etapa_id.in_(etapa_ids))
+        .order_by(REVOEtapa.etapa_id, REVOEtapa.id)
+    )
+    for row in revo_rows.all():
+        revo.setdefault(row.etapa_id, []).append(
+            RevoEtapaOut.model_validate(row)
+        )
+
+    heavy_rows = await session.scalars(
+        select(HeavyCDS)
+        .where(HeavyCDS.etapa_id.in_(etapa_ids))
+        .order_by(HeavyCDS.etapa_id, HeavyCDS.id)
+    )
+    for row in heavy_rows.all():
+        heavy_cds.setdefault(row.etapa_id, []).append(
+            HeavyCdsEtapaOut.model_validate(row)
+        )
+
+    return pqd, revo, heavy_cds
+
+
 async def list_etapas_flat(
     session: AsyncSession,
     valid_etapa_ids,
@@ -334,6 +425,9 @@ async def list_etapas_flat(
         page_etapa_ids,
     )
     trip_data = await fetch_trip_data(session, page_etapa_ids)
+    pqd_data, revo_data, heavy_data = await fetch_especificos_data(
+        session, page_etapa_ids
+    )
 
     missao_ids = list({e.missao_id for e in etapas_page})
     missoes_result = await session.scalars(
@@ -349,6 +443,9 @@ async def list_etapas_flat(
                     [],
                 ),
                 'tripulantes': trip_data.get(e.id, []),
+                'pqd': pqd_data.get(e.id, []),
+                'revo': revo_data.get(e.id, []),
+                'heavy_cds': heavy_data.get(e.id, []),
                 'missao_id': e.missao_id,
                 'missao_titulo': (
                     missoes[e.missao_id].titulo
