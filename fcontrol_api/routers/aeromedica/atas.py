@@ -345,6 +345,69 @@ async def get_atas_by_user(
     return success_response(data=data)
 
 
+@router.get(
+    '/orfas',
+    response_model=ApiResponse[AtasOrfasResumo],
+)
+async def get_atas_orfas(session: Session):
+    """Lista atas de usuarios inativos."""
+    result = await session.execute(
+        select(AtaInspecao, User.nome_guerra, User.nome_completo)
+        .join(User, AtaInspecao.user_id == User.id)
+        .where(User.active.is_(False))
+        .order_by(User.nome_guerra, AtaInspecao.id)
+    )
+    rows = result.all()
+
+    atas = []
+    total_size = 0
+    for ata, nome_guerra, nome_completo in rows:
+        total_size += ata.file_size
+        atas.append(
+            AtaOrfaPublic(
+                id=ata.id,
+                user_id=ata.user_id,
+                nome_guerra=nome_guerra,
+                nome_completo=nome_completo,
+                file_name=ata.file_name,
+                file_size=ata.file_size,
+                created_at=ata.created_at,
+            )
+        )
+
+    return success_response(
+        data=AtasOrfasResumo(
+            total_atas=len(atas),
+            total_size=total_size,
+            atas=atas,
+        ),
+    )
+
+
+@router.delete(
+    '/orfas',
+    response_model=ApiResponse[None],
+)
+async def delete_atas_orfas(session: Session):
+    """Remove todas as atas de usuarios inativos."""
+    result = await session.execute(
+        select(AtaInspecao)
+        .join(User, AtaInspecao.user_id == User.id)
+        .where(User.active.is_(False))
+    )
+    atas = result.scalars().all()
+
+    for ata in atas:
+        delete_file(ata.file_path)
+        await session.delete(ata)
+
+    await session.commit()
+
+    return success_response(
+        message=f'{len(atas)} ata(s) órfã(s) removida(s)',
+    )
+
+
 @router.patch(
     '/{ata_id}',
     response_model=ApiResponse[AtaInspecaoPublic],
@@ -420,69 +483,6 @@ async def delete_ata(
 
     return success_response(
         message='Ata removida com sucesso',
-    )
-
-
-@router.get(
-    '/orfas',
-    response_model=ApiResponse[AtasOrfasResumo],
-)
-async def get_atas_orfas(session: Session):
-    """Lista atas de usuarios inativos."""
-    result = await session.execute(
-        select(AtaInspecao, User.nome_guerra, User.nome_completo)
-        .join(User, AtaInspecao.user_id == User.id)
-        .where(User.active.is_(False))
-        .order_by(User.nome_guerra, AtaInspecao.id)
-    )
-    rows = result.all()
-
-    atas = []
-    total_size = 0
-    for ata, nome_guerra, nome_completo in rows:
-        total_size += ata.file_size
-        atas.append(
-            AtaOrfaPublic(
-                id=ata.id,
-                user_id=ata.user_id,
-                nome_guerra=nome_guerra,
-                nome_completo=nome_completo,
-                file_name=ata.file_name,
-                file_size=ata.file_size,
-                created_at=ata.created_at,
-            )
-        )
-
-    return success_response(
-        data=AtasOrfasResumo(
-            total_atas=len(atas),
-            total_size=total_size,
-            atas=atas,
-        ),
-    )
-
-
-@router.delete(
-    '/orfas',
-    response_model=ApiResponse[None],
-)
-async def delete_atas_orfas(session: Session):
-    """Remove todas as atas de usuarios inativos."""
-    result = await session.execute(
-        select(AtaInspecao)
-        .join(User, AtaInspecao.user_id == User.id)
-        .where(User.active.is_(False))
-    )
-    atas = result.scalars().all()
-
-    for ata in atas:
-        delete_file(ata.file_path)
-        await session.delete(ata)
-
-    await session.commit()
-
-    return success_response(
-        message=f'{len(atas)} ata(s) órfã(s) removida(s)',
     )
 
 
