@@ -1,7 +1,10 @@
+from datetime import date
+from decimal import Decimal
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -15,11 +18,26 @@ from fcontrol_api.schemas.cegep.dados_bancarios import (
     DadosBancariosWithUser,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.services.portal_transparencia import buscar_remuneracao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/dados-bancarios', tags=['CEGEP'])
+
+
+class SyncRemuneracaoRequest(BaseModel):
+    user_id: int = Field(description='ID do militar a consultar')
+    mes_ano: date = Field(
+        description='Mes de referencia (qualquer dia do mes alvo)'
+    )
+
+
+class SyncRemuneracaoResponse(BaseModel):
+    cpf: str
+    mes_ano: date
+    remuneracao_bruta: Optional[Decimal] = None
+    remuneracao_liquida: Optional[Decimal] = None
 
 
 @router.get('/', response_model=ApiResponse[list[DadosBancariosWithUser]])
@@ -39,6 +57,8 @@ async def get_dados_bancarios(
             User.nome_guerra.ilike(f'%{search}%')
             | User.nome_completo.ilike(f'%{search}%')
         )
+
+    query = query.order_by(DadosBancarios.id)
 
     result = await session.execute(query)
     dados = result.scalars().all()
@@ -85,6 +105,46 @@ async def get_dados_bancarios_by_user(
         )
 
     return success_response(data=dados)
+
+
+@router.post(
+    '/sync-remuneracao',
+    response_model=ApiResponse[SyncRemuneracaoResponse],
+)
+async def sync_remuneracao_portal(
+    session: Session,
+    payload: SyncRemuneracaoRequest,
+):
+    """Consulta o Portal da Transparencia para um usuario+mes.
+
+    Funciona em modo create (sem registro ainda) e edit. NAO persiste
+    no banco — o frontend decide se preenche o formulario e salva.
+    """
+    user = await session.scalar(
+        select(User).where(User.id == payload.user_id)
+    )
+    if not user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Usuário não encontrado',
+        )
+    if not user.cpf:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail='Usuário sem CPF cadastrado',
+        )
+
+    resultado = await buscar_remuneracao(user.cpf, payload.mes_ano)
+
+    return success_response(
+        data=SyncRemuneracaoResponse(
+            cpf=user.cpf,
+            mes_ano=resultado['mes_ano'],
+            remuneracao_bruta=resultado['remuneracao_bruta'],
+            remuneracao_liquida=resultado['remuneracao_liquida'],
+        ),
+        message='Remuneração consultada com sucesso',
+    )
 
 
 @router.post(

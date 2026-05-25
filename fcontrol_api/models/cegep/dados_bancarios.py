@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Identity
+from sqlalchemy import DateTime, ForeignKey, Identity, Numeric, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.models.shared.users import User
@@ -17,11 +18,24 @@ class DadosBancarios(Base):
     codigo_banco: Mapped[str]
     agencia: Mapped[str]
     conta: Mapped[str]
-    created_at: Mapped[datetime] = mapped_column(
-        init=False, default=datetime.utcnow
+
+    remuneracao: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), default=None
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        init=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    mes_ano: Mapped[date | None] = mapped_column(default=None)
+
+    aux_transp: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), default=None
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), init=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        init=False,
+        default=None,
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     user = relationship(

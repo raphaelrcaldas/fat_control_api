@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     AISWEB_API_KEY: str = ''
     AISWEB_API_PASS: str = ''
 
+    # Portal da Transparência (CGU)
+    PORTAL_API_KEY: str = ''
+
     # Storage (MinIO local / Supabase S3 prod)
     STORAGE_ENDPOINT: str = 'localhost:9000'
     STORAGE_ACCESS_KEY: str

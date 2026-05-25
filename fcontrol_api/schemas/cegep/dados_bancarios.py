@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from fcontrol_api.schemas.users import UserPublic
 
@@ -11,6 +12,10 @@ class DadosBancariosBase(BaseModel):
     codigo_banco: str
     agencia: str
     conta: str
+
+    remuneracao: Optional[Decimal] = Field(default=None, ge=0)
+    mes_ano: Optional[date] = None
+    aux_transp: Optional[Decimal] = Field(default=None, ge=0)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,7 +35,11 @@ class DadosBancariosPublic(DadosBancariosBase):
     id: int
     user_id: int
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
+
+    @field_serializer('remuneracao', 'aux_transp')
+    def serialize_decimal(self, v: Optional[Decimal]) -> Optional[float]:
+        return float(v) if v is not None else None
 
 
 class DadosBancariosWithUser(DadosBancariosPublic):
