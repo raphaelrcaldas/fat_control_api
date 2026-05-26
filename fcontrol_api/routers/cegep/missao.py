@@ -59,12 +59,23 @@ router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 RESOURCE = 'missao'
 
 
-def _missao_to_dict(m) -> dict:
-    """Snapshot JSON-serializável para auditoria (before/after)."""
-    return FragMisSchema.model_validate(m).model_dump(
-        mode='json',
-        exclude={'id', 'pernoites', 'users', 'etiquetas', 'custos'},
-    )
+def _missao_to_dict(m: FragMis) -> dict:
+    """Snapshot JSON-serializável para auditoria (before/after).
+
+    Acessa apenas atributos escalares para evitar lazy-load assíncrono
+    de relacionamentos (pernoites/users/etiquetas) fora do greenlet.
+    """
+    return {
+        'n_doc': m.n_doc,
+        'tipo_doc': m.tipo_doc,
+        'indenizavel': m.indenizavel,
+        'acrec_desloc': m.acrec_desloc,
+        'afast': m.afast.isoformat() if m.afast else None,
+        'regres': m.regres.isoformat() if m.regres else None,
+        'desc': m.desc,
+        'obs': m.obs,
+        'tipo': m.tipo,
+    }
 
 
 @router.get('/', response_model=ApiPaginatedResponse[FragMisSchema])
