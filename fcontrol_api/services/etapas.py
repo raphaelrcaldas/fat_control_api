@@ -54,6 +54,71 @@ def _to_interval(dep: time, arr: time) -> tuple[int, int]:
     return start, end
 
 
+async def assert_no_trip_collision(
+    session: AsyncSession,
+    *,
+    data: date,
+    dep: time,
+    arr: time,
+    trip_ids: list[int],
+    exclude_ids: list[int] | None = None,
+) -> None:
+    """Verifica se algum tripulante ja esta escalado em
+    etapa com horario sobreposto na mesma data.
+
+    Levanta ValueError descrevendo TODOS os tripulantes em
+    conflito e suas etapas. Intervalos que apenas se tocam
+    nao colidem. `exclude_ids` permite ignorar etapas (ex.:
+    a propria etapa em edicao).
+    """
+    if not trip_ids:
+        return
+
+    new_start, new_end = _to_interval(dep, arr)
+
+    stmt = (
+        select(
+            Etapa.id,
+            Etapa.anv,
+            Etapa.dep,
+            Etapa.arr,
+            TripEtapa.trip_id,
+            Tripulante.trig,
+            User.nome_guerra,
+        )
+        .select_from(TripEtapa)
+        .join(Etapa, Etapa.id == TripEtapa.etapa_id)
+        .join(Tripulante, Tripulante.id == TripEtapa.trip_id)
+        .join(User, User.id == Tripulante.user_id)
+        .where(
+            Etapa.data == data,
+            TripEtapa.trip_id.in_(trip_ids),
+        )
+    )
+    if exclude_ids:
+        stmt = stmt.where(~Etapa.id.in_(exclude_ids))
+
+    rows = (await session.execute(stmt)).all()
+    conflitos: list[str] = []
+    for row in rows:
+        ex_start, ex_end = _to_interval(row.dep, row.arr)
+        if new_start < ex_end and ex_start < new_end:
+            conflitos.append(
+                f'{row.trig} ({row.nome_guerra}) ja escalado '
+                f'na etapa #{row.id} ({row.anv}) '
+                f'{row.dep.strftime("%H:%M")}-'
+                f'{row.arr.strftime("%H:%M")}'
+            )
+
+    if conflitos:
+        msg = (
+            f'Colisao de tripulantes em {data.isoformat()}: '
+            + '; '.join(conflitos)
+            + '.'
+        )
+        raise ValueError(msg)
+
+
 async def assert_no_anv_collision(
     session: AsyncSession,
     *,

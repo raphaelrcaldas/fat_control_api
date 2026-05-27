@@ -41,6 +41,7 @@ from fcontrol_api.schemas.response import (
 from fcontrol_api.services.etapas import (
     add_especificos,
     assert_no_anv_collision,
+    assert_no_trip_collision,
     fetch_especificos_data,
     fetch_oi_detail_data,
     fetch_oi_etapas,
@@ -316,6 +317,13 @@ async def create_etapa(
             dep=data.dep,
             arr=data.arr,
         )
+        await assert_no_trip_collision(
+            session,
+            data=data.data,
+            dep=data.dep,
+            arr=data.arr,
+            trip_ids=[t.trip_id for t in data.tripulantes],
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -419,6 +427,15 @@ async def update_etapa(
     new_anv = data.anv if data.anv is not None else etapa.anv
     new_dep = data.dep if data.dep is not None else etapa.dep
     new_arr = data.arr if data.arr is not None else etapa.arr
+
+    if data.tripulantes is not None:
+        new_trip_ids = [t.trip_id for t in data.tripulantes]
+    else:
+        existing_trips = await session.scalars(
+            select(TripEtapa.trip_id).where(TripEtapa.etapa_id == id)
+        )
+        new_trip_ids = list(existing_trips.all())
+
     try:
         await assert_no_anv_collision(
             session,
@@ -426,6 +443,14 @@ async def update_etapa(
             anv=new_anv,
             dep=new_dep,
             arr=new_arr,
+            exclude_ids=[id],
+        )
+        await assert_no_trip_collision(
+            session,
+            data=new_data,
+            dep=new_dep,
+            arr=new_arr,
+            trip_ids=new_trip_ids,
             exclude_ids=[id],
         )
     except ValueError as exc:
