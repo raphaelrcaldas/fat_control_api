@@ -46,8 +46,8 @@ async def get_dados_bancarios(
     user_id: int = None,
     search: str = None,
 ):
-    """Lista todos os dados bancários ou filtra por usuário/busca"""
-    query = select(DadosBancarios).join(User)
+    """Lista dados bancários de usuários ativos (filtra por usuário/busca)"""
+    query = select(DadosBancarios).join(User).where(User.active.is_(True))
 
     if user_id:
         query = query.where(DadosBancarios.user_id == user_id)
