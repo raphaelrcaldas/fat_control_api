@@ -236,12 +236,22 @@ class Permission(BaseModel):
     resource: str
 
 
+class OrgScope(BaseModel):
+    # organizacao_id None = escopo de sistema; role é o papel naquela org.
+    organizacao_id: str | None
+    sigla: str | None
+    nome: str | None
+    role: str
+
+
 class UserProfile(BaseModel):
     id: int
     posto: str
     nome_guerra: str
     role: str | None
     permissions: list[Permission]
+    active_org: str | None = None
+    orgs: list[OrgScope] = []
 
     model_config = ConfigDict(from_attributes=True)
 

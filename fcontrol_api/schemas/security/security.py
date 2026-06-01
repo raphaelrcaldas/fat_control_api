@@ -51,11 +51,14 @@ class UserRoleSchema(BaseModel):
     id: Optional[int] = None
     user_id: int
     role_id: int
+    # NULL = escopo de sistema (admin global); preenchido = restrito a org.
+    organizacao_id: Optional[str] = None
 
 
 class UserWithRole(BaseModel):
     role: RoleSchema
     user: UserPublic
+    organizacao_id: Optional[str] = None
 
 
 # Create/Update schemas

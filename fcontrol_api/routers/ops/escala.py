@@ -26,7 +26,6 @@ from fcontrol_api.schemas.ops.escala import (
     EscalaResponse,
     EscalaTripEntry,
 )
-from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.utils.responses import success_response
 
@@ -49,7 +48,7 @@ async def get_escala_disponiveis(
     tipo_quad_id: Annotated[int, Query()],
     funcs_param: Annotated[list[funcs], Query(alias='funcs', min_length=1)],
     sort: Annotated[Literal['horas_voo', 'quads_asc'], Query()],
-    uae: Annotated[uaes, Query()] = '11gt',
+    uae: Annotated[str, Query()] = '11gt',
     proj_param: Annotated[proj, Query(alias='proj')] = 'kc-390',
 ) -> ApiResponse[EscalaResponse]:
     """Tripulantes disponíveis para escala em uma janela de datas."""

@@ -118,6 +118,8 @@ async def validate_token(request: Request, call_next):
     request.state.user_id = user_id
     request.state.token = token
     request.state.app_client = app_client
+    # Org ativa do token (None em tokens antigos -> fallback em get_user_roles)
+    request.state.active_org = payload.get('active_org')
 
     request.state.security_context = {
         'ip': request.client.host,

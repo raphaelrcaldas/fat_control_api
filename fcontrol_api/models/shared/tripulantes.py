@@ -16,7 +16,11 @@ class Tripulante(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     trig: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool]
-    uae: Mapped[str]
+    uae: Mapped[str] = mapped_column(
+        ForeignKey(
+            'organizacoes.sigla', ondelete='RESTRICT', onupdate='CASCADE'
+        )
+    )
 
     user: Mapped[User] = relationship(
         User,

@@ -74,7 +74,13 @@ class OrdemMissao(Base):
     projeto: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20))
     campos_especiais: Mapped[list] = mapped_column(JSONB)
-    uae: Mapped[str] = mapped_column(String(20), nullable=False)
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            'organizacoes.sigla', ondelete='RESTRICT', onupdate='CASCADE'
+        ),
+        nullable=False,
+    )
     esf_aer: Mapped[int] = mapped_column(nullable=False, default=0)
     doc_ref: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None

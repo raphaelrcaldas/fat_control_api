@@ -23,7 +23,6 @@ from fcontrol_api.schemas.ops.quads import (
     TripQuadEntry,
     TripQuadInfo,
 )
-from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.utils.responses import success_response
@@ -100,7 +99,7 @@ async def list_quads(
     session: Session,
     tipo_quad: int = 1,  # sobr preto
     funcao: funcs = 'mc',
-    uae: uaes = '11gt',
+    uae: str = '11gt',
     proj: proj = 'kc-390',
 ):
     # 1. CTE para obter os IDs dos tripulantes que correspondem aos filtros

@@ -43,12 +43,13 @@ def verify_pkce_challenge(code_verifier: str, code_challenge: str) -> bool:
     return code == code_challenge
 
 
-def token_data(user: User, client: str):
+def token_data(user: User, client: str, active_org: str | None = None):
     data = {
         'sub': f'{user.posto.short} {user.nome_guerra}',
         'user_id': user.id,
         'app_client': client,
         'first_login': user.first_login,
+        'active_org': active_org,
     }
 
     return data
@@ -108,18 +109,23 @@ async def get_current_user(request: Request, session: Session):
 
 
 async def require_admin(
+    request: Request,
     session: Session,
     user: Annotated[User, Depends(get_current_user)],
 ):
-    """Dependência que valida se o usuário atual possui o perfil 'admin'.
+    """Valida se o usuário é admin **na organização ativa** (do token).
 
-    Retorna o usuário quando for administrador; senão levanta HTTP 403.
+    Os poderes acompanham a org ativa do `OrgSwitcher`: o vínculo admin
+    deve existir para `(user, active_org)`. Senão, HTTP 403.
     """
+    active_org = getattr(request.state, 'active_org', None)
 
-    # busca o registro de user role do usuário atual
     ur = await session.scalar(
         select(UserRole)
-        .where(UserRole.user_id == user.id)
+        .where(
+            UserRole.user_id == user.id,
+            UserRole.organizacao_id.is_not_distinct_from(active_org),
+        )
         .options(joinedload(UserRole.role))
     )
 
@@ -129,6 +135,67 @@ async def require_admin(
         )
 
     return user
+
+
+async def require_system_admin(
+    request: Request,
+    session: Session,
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Valida admin com escopo de SISTEMA na org ativa.
+
+    Exige org ativa NULL (contexto "Sistema") **e** vínculo admin com
+    `organizacao_id IS NULL`. Um admin de sistema que alternou para uma
+    unidade (active_org preenchido) perde os poderes de sistema enquanto
+    estiver naquele contexto.
+    """
+    active_org = getattr(request.state, 'active_org', None)
+
+    if active_org is not None:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail='Permissão negada'
+        )
+
+    ur = await session.scalar(
+        select(UserRole)
+        .where(
+            UserRole.user_id == user.id,
+            UserRole.organizacao_id.is_(None),
+        )
+        .options(joinedload(UserRole.role))
+    )
+
+    if not ur or not ur.role or ur.role.name.lower() != 'admin':
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail='Permissão negada'
+        )
+
+    return user
+
+
+class AdminScope:
+    """Escopo de admin resolvido pela org ativa do token.
+
+    `is_system` indica admin global (contexto "Sistema", active_org NULL);
+    caso contrário, `active_org` é a unidade à qual o admin está restrito.
+    """
+
+    def __init__(self, user: User, active_org: str | None):
+        self.user = user
+        self.active_org = active_org
+
+    @property
+    def is_system(self) -> bool:
+        return self.active_org is None
+
+
+async def get_admin_scope(
+    request: Request,
+    user: Annotated[User, Depends(require_admin)],
+) -> AdminScope:
+    """Entrega o escopo do admin atual (reusa `require_admin` já validado)."""
+    active_org = getattr(request.state, 'active_org', None)
+    return AdminScope(user=user, active_org=active_org)
 
 
 async def has_permission(

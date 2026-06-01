@@ -57,6 +57,7 @@ ignore = [
     'PLR0912',
     'PLR6301',
     'PLR2004',
+    'PLW0717',
 ]
 
 [tool.ruff.lint.per-file-ignores]

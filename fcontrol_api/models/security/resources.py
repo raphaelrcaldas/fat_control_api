@@ -1,6 +1,7 @@
-from sqlalchemy import ForeignKey, Identity
+from sqlalchemy import ForeignKey, Identity, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from fcontrol_api.models.shared.tenant import Tenant
 from fcontrol_api.models.shared.users import User
 
 from .base import Base
@@ -75,12 +76,26 @@ class Roles(Base):
 
 class UserRole(Base):
     __tablename__ = 'user_roles'
+    # Um usuário tem no máximo 1 role por org (NULL = sistema). NULLS NOT
+    # DISTINCT garante que isso valha também para o vínculo de sistema.
+    __table_args__ = (
+        UniqueConstraint(
+            'user_id',
+            'organizacao_id',
+            name='uq_user_roles_user_org',
+            postgresql_nulls_not_distinct=True,
+        ),
+        {'schema': 'security'},
+    )
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, nullable=False
     )
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     role_id: Mapped[int] = mapped_column(ForeignKey('security.roles.id'))
+    organizacao_id: Mapped[str | None] = mapped_column(
+        ForeignKey(Tenant.organizacao_id), nullable=True, default=None
+    )
     role: Mapped[Roles] = relationship(
         Roles, backref='user_roles', lazy='selectin', uselist=False, init=False
     )

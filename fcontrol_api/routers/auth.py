@@ -21,8 +21,9 @@ from fcontrol_api.models.security.auth import (
     OAuth2AuthorizationCode,
     OAuth2Client,
 )
+from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.auth import DevTokenResponse, Token
+from fcontrol_api.schemas.auth import DevTokenResponse, SwitchOrg, Token
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     create_access_token,
@@ -31,7 +32,10 @@ from fcontrol_api.security import (
     verify_password,
     verify_pkce_challenge,
 )
-from fcontrol_api.services.auth import validate_user_client_access
+from fcontrol_api.services.auth import (
+    resolve_default_org,
+    validate_user_client_access,
+)
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.settings import Settings
 from fcontrol_api.utils.responses import success_response
@@ -233,7 +237,8 @@ async def exchange_code_for_token(
 
     await session.commit()
 
-    data = token_data(user, client_id)
+    active_org = await resolve_default_org(user.id, session)
+    data = token_data(user, client_id, active_org)
     access_token = create_access_token(data=data)
 
     return success_response(
@@ -250,12 +255,60 @@ async def refresh_access_token(
     request: Request,
     user: User = Depends(get_current_user),
 ):
-    data = token_data(user, request.state.app_client)
+    data = token_data(
+        user, request.state.app_client, request.state.active_org
+    )
     new_access_token = create_access_token(data=data)
     return success_response(
         data=Token(
             first_login=user.first_login,
             access_token=new_access_token,
+            token_type='bearer',
+        )
+    )
+
+
+@router.post('/switch-org', response_model=ApiResponse[Token])
+async def switch_org(
+    body: SwitchOrg,
+    request: Request,
+    session: Session,
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Alterna a org ativa do usuário, reemitindo o token.
+
+    Valida que o usuário possui um vínculo (UserRole) na org escolhida
+    (organizacao_id NULL = escopo de sistema).
+    """
+    vinculo = await session.scalar(
+        select(UserRole).where(
+            UserRole.user_id == user.id,
+            UserRole.organizacao_id.is_not_distinct_from(body.organizacao_id),
+        )
+    )
+    if not vinculo:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Usuário não possui vínculo nessa organização',
+        )
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='switch_org',
+        resource='auth',
+        resource_id=None,
+        before={'active_org': request.state.active_org},
+        after={'active_org': body.organizacao_id},
+    )
+    await session.commit()
+
+    data = token_data(user, request.state.app_client, body.organizacao_id)
+    access_token = create_access_token(data=data)
+    return success_response(
+        data=Token(
+            first_login=user.first_login,
+            access_token=access_token,
             token_type='bearer',
         )
     )
@@ -320,7 +373,8 @@ async def dev_login(
     await session.commit()
 
     # Gerar token com expiração de 7 dias
-    data = token_data(db_user, request.state.app_client)
+    active_org = await resolve_default_org(db_user.id, session)
+    data = token_data(db_user, request.state.app_client, active_org)
     access_token = create_access_token(data=data, dev=True)
 
     target_user = (

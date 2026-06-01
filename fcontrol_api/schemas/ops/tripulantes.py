@@ -1,13 +1,10 @@
 from datetime import date
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.funcoes import FuncPublic
 from fcontrol_api.schemas.users import UserPublic
-
-uaes = Literal['11gt']
 
 
 class BaseTrip(BaseModel):
@@ -25,14 +22,14 @@ class BaseTrip(BaseModel):
 
 class TripSchema(BaseTrip):
     user_id: int
-    uae: uaes
+    uae: str
     model_config = ConfigDict(from_attributes=True)
 
 
 class TripBasicInfo(BaseModel):
     id: int
     trig: str = Field(min_length=3, max_length=3)
-    uae: uaes
+    uae: str
     active: bool
     user: UserPublic
     model_config = ConfigDict(from_attributes=True)

@@ -12,9 +12,11 @@ from fcontrol_api.routers import (
     logs,
     nav,
     ops,
+    organizacoes,
     postos,
     security,
     seg_voo,
+    tenants,
     users,
 )
 
@@ -30,7 +32,9 @@ router.include_router(inteligencia.router)
 router.include_router(logs.router)
 router.include_router(nav.router)
 router.include_router(ops.router)
+router.include_router(organizacoes.router)
 router.include_router(postos.router)
 router.include_router(security.router)
 router.include_router(seg_voo.router)
+router.include_router(tenants.router)
 router.include_router(users.router)

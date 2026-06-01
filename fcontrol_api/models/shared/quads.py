@@ -29,7 +29,11 @@ class QuadsGroup(Base):
     )
     short: Mapped[str] = mapped_column(nullable=False)
     long: Mapped[str] = mapped_column(nullable=False)
-    uae: Mapped[str]
+    uae: Mapped[str] = mapped_column(
+        ForeignKey(
+            'organizacoes.sigla', ondelete='RESTRICT', onupdate='CASCADE'
+        )
+    )
     types = relationship('QuadsType', backref='quads_group', uselist=True)
 
 

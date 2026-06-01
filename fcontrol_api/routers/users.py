@@ -2,17 +2,20 @@ from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.security.resources import Roles, UserRole
+from fcontrol_api.models.shared.organizacao import Organizacao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.users import (
+    OrgScope,
     PwdSchema,
     UserFull,
     UserProfile,
@@ -40,9 +43,30 @@ router = APIRouter(prefix='/users', tags=['users'])
 
 @router.get('/me', response_model=ApiResponse[UserProfile])
 async def read_users_me(
-    session: Session, current_user: Annotated[User, Depends(get_current_user)]
+    request: Request,
+    session: Session,
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
-    permissions = await get_user_roles(current_user.id, session)
+    active_org = getattr(request.state, 'active_org', None)
+    permissions = await get_user_roles(current_user.id, session, active_org)
+
+    # Orgs onde o usuário tem vínculo (NULL = escopo de sistema)
+    orgs_rows = await session.execute(
+        select(
+            UserRole.organizacao_id,
+            Organizacao.sigla,
+            Organizacao.nome,
+            Roles.name,
+        )
+        .join(Roles, Roles.id == UserRole.role_id)
+        .outerjoin(Organizacao, Organizacao.sigla == UserRole.organizacao_id)
+        .where(UserRole.user_id == current_user.id)
+        .order_by(UserRole.organizacao_id.asc().nulls_first())
+    )
+    orgs = [
+        OrgScope(organizacao_id=oid, sigla=sigla, nome=nome, role=role)
+        for oid, sigla, nome, role in orgs_rows.all()
+    ]
 
     profile = UserProfile(
         id=current_user.id,
@@ -50,6 +74,8 @@ async def read_users_me(
         nome_guerra=current_user.nome_guerra,
         role=permissions.get('role'),
         permissions=permissions.get('perms', []),
+        active_org=active_org,
+        orgs=orgs,
     )
 
     return success_response(data=profile)

@@ -17,3 +17,8 @@ class DevTokenResponse(BaseModel):
 class FormAuth(BaseModel):
     saram: str = Field(min_length=7, max_length=7)
     password: str
+
+
+class SwitchOrg(BaseModel):
+    # None = alternar para o escopo de sistema (vínculo com org NULL).
+    organizacao_id: str | None = None
