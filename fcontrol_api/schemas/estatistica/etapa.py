@@ -180,6 +180,20 @@ class TripEtapaIn(BaseModel):
     func_bordo: str
 
 
+_POSICOES_PILOTO = frozenset({'1P', '2P', 'IN', 'AL'})
+
+
+def _check_pilot_duplicates(tripulantes) -> None:
+    """Valida que nao ha posicoes de piloto duplicadas (1P, 2P, IN, AL)."""
+    seen: set[str] = set()
+    for t in tripulantes:
+        if t.func_bordo in _POSICOES_PILOTO:
+            if t.func_bordo in seen:
+                msg = f'Posicao de piloto duplicada: {t.func_bordo}'
+                raise ValueError(msg)
+            seen.add(t.func_bordo)
+
+
 class OIEtapaIn(BaseModel):
     """Ordem de Instrucao a vincular em uma etapa."""
 
@@ -221,6 +235,12 @@ class EtapaCreate(EtapaBase):
     revo: list[RevoEtapaIn] = []
     heavy_cds: list[HeavyCdsEtapaIn] = []
 
+    @model_validator(mode='after')
+    def validate_pilot_duplicates(self) -> Self:
+        if self.tripulantes:
+            _check_pilot_duplicates(self.tripulantes)
+        return self
+
 
 class EtapaCreateNested(EtapaBase):
     """Etapa para criacao aninhada dentro de uma missao.
@@ -239,6 +259,12 @@ class EtapaCreateNested(EtapaBase):
     pqd: list[PqdEtapaIn] = []
     revo: list[RevoEtapaIn] = []
     heavy_cds: list[HeavyCdsEtapaIn] = []
+
+    @model_validator(mode='after')
+    def validate_pilot_duplicates(self) -> Self:
+        if self.tripulantes:
+            _check_pilot_duplicates(self.tripulantes)
+        return self
 
 
 def _check_oi_sums(items, label: str) -> None:
@@ -291,6 +317,12 @@ class EtapaUpdateNested(EtapaBase):
     pqd: list[PqdEtapaIn] = []
     revo: list[RevoEtapaIn] = []
     heavy_cds: list[HeavyCdsEtapaIn] = []
+
+    @model_validator(mode='after')
+    def validate_pilot_duplicates(self) -> Self:
+        if self.tripulantes:
+            _check_pilot_duplicates(self.tripulantes)
+        return self
 
 
 class MissaoComEtapasUpdate(BaseModel):
@@ -353,6 +385,12 @@ class EtapaUpdate(BaseModel):
     pqd: list[PqdEtapaIn] | None = None
     revo: list[RevoEtapaIn] | None = None
     heavy_cds: list[HeavyCdsEtapaIn] | None = None
+
+    @model_validator(mode='after')
+    def validate_pilot_duplicates(self) -> Self:
+        if self.tripulantes:
+            _check_pilot_duplicates(self.tripulantes)
+        return self
 
 
 class EtapaPublic(BaseModel):
