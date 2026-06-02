@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, Identity, func
+from sqlalchemy import ForeignKey, Identity, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -51,6 +51,9 @@ class QuadsType(Base):
 
 class QuadsFunc(Base):
     __tablename__ = 'quads_func'
+    __table_args__ = (
+        UniqueConstraint('type_id', 'func', name='uq_quads_func_type_func'),
+    )
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, nullable=False

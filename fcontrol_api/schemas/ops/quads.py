@@ -2,9 +2,10 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fcontrol_api.schemas.funcoes import BaseFunc, FuncPublic
+from fcontrol_api.schemas.funcoes import funcs as FuncLiteral
 from fcontrol_api.schemas.ops.tripulantes import TripWithFuncs
 from fcontrol_api.schemas.users import UserPublic
 
@@ -56,6 +57,59 @@ class QuadsGroupSchema(BaseModel):
     short: str
     long: str
     types: list[QuadsTypeSchema]
+
+
+# ---------------------------------------------------------------------------
+# Gerenciamento da estrutura de quadrinhos (Group -> Type -> Func)
+# ---------------------------------------------------------------------------
+
+
+class QuadsGroupCreate(BaseModel):
+    short: str = Field(min_length=1, max_length=50)
+    long: str = Field(min_length=1, max_length=150)
+
+
+class QuadsGroupUpdate(BaseModel):
+    short: str | None = Field(default=None, min_length=1, max_length=50)
+    long: str | None = Field(default=None, min_length=1, max_length=150)
+
+
+class QuadsGroupOut(BaseModel):
+    id: int
+    short: str
+    long: str
+    uae: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QuadsTypeCreate(BaseModel):
+    short: str = Field(min_length=1, max_length=50)
+    long: str = Field(min_length=1, max_length=150)
+
+
+class QuadsTypeUpdate(BaseModel):
+    short: str | None = Field(default=None, min_length=1, max_length=50)
+    long: str | None = Field(default=None, min_length=1, max_length=150)
+
+
+class QuadsTypeOut(BaseModel):
+    id: int
+    group_id: int
+    short: str
+    long: str
+    funcs_list: list[str]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QuadsFuncsSet(BaseModel):
+    """Define o conjunto de funções que concorrem a um tipo.
+
+    Substitui a associação inteira (operação declarativa). Qualquer função
+    do enum é aceita — funções esporádicas (ml/md) simplesmente não são
+    cadastradas na prática.
+    """
+
+    funcs: list[FuncLiteral] = Field(default_factory=list)
 
 
 class TripQuadInfo(BaseModel):

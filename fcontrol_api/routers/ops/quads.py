@@ -10,7 +10,12 @@ from sqlalchemy.orm import contains_eager, selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.shared.funcoes import Funcao
-from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
+from fcontrol_api.models.shared.quads import (
+    Quad,
+    QuadsFunc,
+    QuadsGroup,
+    QuadsType,
+)
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
@@ -18,14 +23,21 @@ from fcontrol_api.schemas.ops.quads import (
     QuadBatchDelete,
     QuadPublic,
     QuadSchema,
+    QuadsFuncsSet,
+    QuadsGroupCreate,
+    QuadsGroupOut,
     QuadsGroupSchema,
+    QuadsGroupUpdate,
+    QuadsTypeCreate,
+    QuadsTypeOut,
+    QuadsTypeUpdate,
     QuadUpdate,
     TripQuadEntry,
     TripQuadInfo,
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
 router = APIRouter()
@@ -280,7 +292,252 @@ async def get_quads_type(session: Session, active_org: ActiveOrg):
         group.types = sorted(group.types, key=lambda x: x.id)
 
         for type_quad in group.types:
-            funcs = [e.func for e in type_quad.funcs]
+            # Dedup defensivo: dados legados podem ter linhas duplicadas em
+            # quads_func (mesmo type_id + func). dict.fromkeys preserva ordem.
+            funcs = list(dict.fromkeys(e.func for e in type_quad.funcs))
             setattr(type_quad, 'funcs_list', funcs)
 
     return success_response(data=list(quads))
+
+
+# ===========================================================================
+# Gerenciamento da estrutura de quadrinhos (Group -> Type -> Func)
+#
+# Escopo: usuário com permissão `quad_ops.create`, restrito à organização
+# ativa (QuadsGroup.uae). Deleções bloqueiam quando há dependências (409),
+# sem cascade. A associação de funções é declarativa (substitui o conjunto).
+# ===========================================================================
+
+ManageQuads = Depends(permission_checker('quad_ops', 'create'))
+
+
+async def _get_group_scoped(
+    group_id: int, session: AsyncSession, active_org: str
+) -> QuadsGroup:
+    group = await session.get(QuadsGroup, group_id)
+    if not group or group.uae != active_org:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Grupo de quadrinhos não encontrado',
+        )
+    return group
+
+
+async def _get_type_scoped(
+    type_id: int, session: AsyncSession, active_org: str
+) -> QuadsType:
+    type_db = await session.scalar(
+        select(QuadsType)
+        .join(QuadsGroup, QuadsType.group_id == QuadsGroup.id)
+        .where(QuadsType.id == type_id, QuadsGroup.uae == active_org)
+    )
+    if not type_db:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tipo de quadrinho não encontrado',
+        )
+    return type_db
+
+
+async def _type_funcs(type_id: int, session: AsyncSession) -> list[str]:
+    rows = await session.scalars(
+        select(QuadsFunc.func).where(QuadsFunc.type_id == type_id)
+    )
+    return list(rows)
+
+
+def _type_out(type_db: QuadsType, funcs_list: list[str]) -> QuadsTypeOut:
+    # funcs_list não é atributo do model (QuadsType expõe a relationship
+    # `funcs`), por isso o Out é montado explicitamente.
+    return QuadsTypeOut(
+        id=type_db.id,
+        group_id=type_db.group_id,
+        short=type_db.short,
+        long=type_db.long,
+        funcs_list=funcs_list,
+    )
+
+
+@router.post(
+    '/groups',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[QuadsGroupOut],
+    dependencies=[ManageQuads],
+)
+async def create_quads_group(
+    body: QuadsGroupCreate, session: Session, active_org: ActiveOrg
+):
+    group = QuadsGroup(short=body.short, long=body.long, uae=active_org)
+    session.add(group)
+    await session.commit()
+    await session.refresh(group)
+
+    return success_response(
+        data=QuadsGroupOut.model_validate(group),
+        message='Grupo de quadrinhos criado',
+    )
+
+
+@router.put(
+    '/groups/{group_id}',
+    response_model=ApiResponse[QuadsGroupOut],
+    dependencies=[ManageQuads],
+)
+async def update_quads_group(
+    group_id: int,
+    body: QuadsGroupUpdate,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    group = await _get_group_scoped(group_id, session, active_org)
+
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(group, key, value)
+
+    await session.commit()
+    await session.refresh(group)
+
+    return success_response(
+        data=QuadsGroupOut.model_validate(group),
+        message='Grupo de quadrinhos atualizado',
+    )
+
+
+@router.delete(
+    '/groups/{group_id}',
+    response_model=ApiResponse[None],
+    dependencies=[ManageQuads],
+)
+async def delete_quads_group(
+    group_id: int, session: Session, active_org: ActiveOrg
+):
+    group = await _get_group_scoped(group_id, session, active_org)
+
+    has_type = await session.scalar(
+        select(QuadsType.id).where(QuadsType.group_id == group_id).limit(1)
+    )
+    if has_type:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Grupo possui tipos de quadrinho. Remova os tipos antes '
+                'de excluir o grupo.'
+            ),
+        )
+
+    await session.delete(group)
+    await session.commit()
+
+    return success_response(message='Grupo de quadrinhos removido')
+
+
+@router.post(
+    '/groups/{group_id}/types',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[QuadsTypeOut],
+    dependencies=[ManageQuads],
+)
+async def create_quads_type(
+    group_id: int,
+    body: QuadsTypeCreate,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    await _get_group_scoped(group_id, session, active_org)
+
+    type_db = QuadsType(group_id=group_id, short=body.short, long=body.long)
+    session.add(type_db)
+    await session.commit()
+    await session.refresh(type_db)
+
+    return success_response(
+        data=_type_out(type_db, []),
+        message='Tipo de quadrinho criado',
+    )
+
+
+@router.put(
+    '/types/{type_id}',
+    response_model=ApiResponse[QuadsTypeOut],
+    dependencies=[ManageQuads],
+)
+async def update_quads_type(
+    type_id: int,
+    body: QuadsTypeUpdate,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    type_db = await _get_type_scoped(type_id, session, active_org)
+
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(type_db, key, value)
+
+    await session.commit()
+    await session.refresh(type_db)
+    funcs_list = await _type_funcs(type_id, session)
+
+    return success_response(
+        data=_type_out(type_db, funcs_list),
+        message='Tipo de quadrinho atualizado',
+    )
+
+
+@router.delete(
+    '/types/{type_id}',
+    response_model=ApiResponse[None],
+    dependencies=[ManageQuads],
+)
+async def delete_quads_type(
+    type_id: int, session: Session, active_org: ActiveOrg
+):
+    type_db = await _get_type_scoped(type_id, session, active_org)
+
+    has_quad = await session.scalar(
+        select(Quad.id).where(Quad.type_id == type_id).limit(1)
+    )
+    if has_quad:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Tipo possui quadrinhos registrados de tripulantes. '
+                'Remova-os antes de excluir o tipo.'
+            ),
+        )
+
+    await session.execute(
+        delete(QuadsFunc).where(QuadsFunc.type_id == type_id)
+    )
+    await session.delete(type_db)
+    await session.commit()
+
+    return success_response(message='Tipo de quadrinho removido')
+
+
+@router.put(
+    '/types/{type_id}/funcs',
+    response_model=ApiResponse[QuadsTypeOut],
+    dependencies=[ManageQuads],
+)
+async def set_quads_type_funcs(
+    type_id: int,
+    body: QuadsFuncsSet,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    type_db = await _get_type_scoped(type_id, session, active_org)
+
+    # Dedup preservando a ordem informada.
+    novas_funcs = list(dict.fromkeys(body.funcs))
+
+    await session.execute(
+        delete(QuadsFunc).where(QuadsFunc.type_id == type_id)
+    )
+    session.add_all(
+        [QuadsFunc(type_id=type_id, func=f) for f in novas_funcs]
+    )
+    await session.commit()
+
+    return success_response(
+        data=_type_out(type_db, novas_funcs),
+        message='Funções do quadrinho atualizadas',
+    )
