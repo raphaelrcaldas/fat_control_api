@@ -130,8 +130,13 @@ async def require_admin(
     )
 
     if not ur or not ur.role or (ur.role.name.lower() != 'admin'):
+        # 'SCOPE_FORBIDDEN' é um código de contrato com o frontend:
+        # o interceptor (services/Api.ts) o lê em `message` e redireciona
+        # para /403. Sinaliza "rota proibida neste contexto" — distinto de
+        # 403 de ação (ex.: _ensure_org_in_scope), que mantêm mensagem
+        # humana e são tratados pelo caller (toast).
         raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail='Permissão negada'
+            status_code=HTTPStatus.FORBIDDEN, detail='SCOPE_FORBIDDEN'
         )
 
     return user
@@ -153,7 +158,7 @@ async def require_system_admin(
 
     if active_org is not None:
         raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail='Permissão negada'
+            status_code=HTTPStatus.FORBIDDEN, detail='SCOPE_FORBIDDEN'
         )
 
     ur = await session.scalar(
@@ -167,7 +172,7 @@ async def require_system_admin(
 
     if not ur or not ur.role or ur.role.name.lower() != 'admin':
         raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail='Permissão negada'
+            status_code=HTTPStatus.FORBIDDEN, detail='SCOPE_FORBIDDEN'
         )
 
     return user

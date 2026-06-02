@@ -170,7 +170,7 @@ async def test_require_admin_user_not_admin(session):
         await require_admin(session, user)
 
     assert exc_info.value.status_code == HTTPStatus.FORBIDDEN
-    assert exc_info.value.detail == 'Permissão negada'
+    assert exc_info.value.detail == 'SCOPE_FORBIDDEN'
 
 
 # Linhas 119-130: require_admin quando usuário não tem role
@@ -186,7 +186,7 @@ async def test_require_admin_no_role(session):
         await require_admin(session, user)
 
     assert exc_info.value.status_code == HTTPStatus.FORBIDDEN
-    assert exc_info.value.detail == 'Permissão negada'
+    assert exc_info.value.detail == 'SCOPE_FORBIDDEN'
 
 
 # Linha 144: permission_checker quando user_data é None
