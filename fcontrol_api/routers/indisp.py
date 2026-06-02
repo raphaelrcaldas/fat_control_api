@@ -11,7 +11,6 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
@@ -37,31 +36,6 @@ from fcontrol_api.utils.responses import success_response
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/indisp', tags=['indisp'])
-
-CEMAL = IndispEnum.cemal
-
-
-async def _sync_ag_cemal(
-    session: AsyncSession,
-    user_id: int,
-    ag_cemal: date | None,
-) -> None:
-    """Atualiza ag_cemal no CartaoSaude do tripulante."""
-    cartao = await session.scalar(
-        select(CartaoSaude).where(CartaoSaude.user_id == user_id)
-    )
-    if cartao:
-        cartao.ag_cemal = ag_cemal
-    elif ag_cemal is not None:
-        session.add(
-            CartaoSaude(
-                user_id=user_id,
-                ag_cemal=ag_cemal,
-                cemal=None,
-                tovn=None,
-                imae=None,
-            )
-        )
 
 
 @router.get('/', response_model=ApiResponse[list[IndispCrewEntry]])
@@ -222,9 +196,6 @@ async def create_indisp(
 
     session.add(new_indisp)
 
-    if indisp.mtv == CEMAL:
-        await _sync_ag_cemal(session, indisp.user_id, indisp.date_start)
-
     await session.commit()
 
     return success_response(
@@ -277,9 +248,6 @@ async def delete_indisp(
 
     # Soft delete - setar deleted_at
     indisp.deleted_at = datetime.now(timezone.utc)
-
-    if indisp.mtv == CEMAL.value:
-        await _sync_ag_cemal(session, indisp.user_id, None)
 
     # Log de deleção
     await log_user_action(
@@ -362,25 +330,6 @@ async def update_indisp(
             )
             after[key] = str(value) if hasattr(value, 'isoformat') else value
             setattr(db_indisp, key, value)
-
-    # Side-effect: sincronizar ag_cemal
-    old_mtv = before.get('mtv')
-    new_mtv = after.get('mtv')
-    was_cemal = old_mtv == CEMAL.value
-    is_cemal = (
-        new_mtv == CEMAL.value
-        if new_mtv is not None
-        else db_indisp.mtv == CEMAL.value
-    )
-
-    if was_cemal and not is_cemal:
-        await _sync_ag_cemal(session, db_indisp.user_id, None)
-    elif is_cemal and (new_mtv or 'date_start' in after):
-        await _sync_ag_cemal(
-            session,
-            db_indisp.user_id,
-            db_indisp.date_start,
-        )
 
     await log_user_action(
         session=session,

@@ -9,7 +9,6 @@ from fcontrol_api.schemas.users import UserPublic
 class CartaoSaudeBase(BaseModel):
     prontuario: str | None = None
     cemal: date | None = None
-    ag_cemal: date | None = None
     tovn: date | None = None
     imae: date | None = None
 
@@ -23,7 +22,6 @@ class CartaoSaudeCreate(CartaoSaudeBase):
 class CartaoSaudeUpdate(CartaoSaudeBase):
     prontuario: str | None = None
     cemal: Optional[date] = None
-    ag_cemal: Optional[date] = None
     tovn: Optional[date] = None
     imae: Optional[date] = None
 

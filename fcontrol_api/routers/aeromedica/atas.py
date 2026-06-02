@@ -277,14 +277,12 @@ async def upload_ata(
                 cartao = CartaoSaude(
                     user_id=user_id,
                     cemal=dados['validade_inspsau'],
-                    ag_cemal=None,
                     tovn=None,
                     imae=None,
                 )
                 session.add(cartao)
             else:
                 cartao.cemal = dados['validade_inspsau']
-                cartao.ag_cemal = None
             cemal_atualizado = True
 
         await session.commit()
@@ -440,14 +438,12 @@ async def update_ata(
             cartao = CartaoSaude(
                 user_id=ata.user_id,
                 cemal=body.validade_inspsau,
-                ag_cemal=None,
                 tovn=None,
                 imae=None,
             )
             session.add(cartao)
         else:
             cartao.cemal = body.validade_inspsau
-            cartao.ag_cemal = None
 
     await session.commit()
     await session.refresh(ata)

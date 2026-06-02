@@ -14,7 +14,6 @@ class CartaoSaude(Base):
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id), unique=True)
     cemal: Mapped[date | None]
-    ag_cemal: Mapped[date | None]
     tovn: Mapped[date | None]
     imae: Mapped[date | None]
     prontuario: Mapped[str | None] = mapped_column(String(20), default=None)
