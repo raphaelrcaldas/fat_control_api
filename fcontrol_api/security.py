@@ -203,6 +203,33 @@ async def get_admin_scope(
     return AdminScope(user=user, active_org=active_org)
 
 
+async def get_active_org(request: Request) -> str | None:
+    """Org ativa do token (sigla). None = contexto 'Sistema' (sem lente)."""
+    return getattr(request.state, 'active_org', None)
+
+
+ActiveOrgOptional = Annotated[str | None, Depends(get_active_org)]
+
+
+async def require_active_org(active_org: ActiveOrgOptional) -> str:
+    """Exige uma org ativa no token.
+
+    O data-plane (tripulantes, quadrinhos, escala, indisponibilidades,
+    cartões de saúde, ordens de missão) é sempre escopado por unidade.
+    Sem org ativa (contexto 'Sistema', sigla NULL) não há lente de unidade,
+    então estas rotas respondem 400.
+    """
+    if active_org is None:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Selecione uma organização ativa para acessar estes dados',
+        )
+    return active_org
+
+
+ActiveOrg = Annotated[str, Depends(require_active_org)]
+
+
 async def has_permission(
     user: User,
     session: AsyncSession,

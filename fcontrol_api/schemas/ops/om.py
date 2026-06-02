@@ -127,7 +127,6 @@ class OrdemMissaoCore(BaseModel):
     status: str
     doc_ref: Annotated[str | None, Field(max_length=100, default=None)] = None
     data_saida: date | None = None
-    uae: str
     esf_aer: int = 0
 
 
@@ -151,7 +150,6 @@ class OrdemMissaoUpdate(BaseModel):
     status: str | None = None
     doc_ref: Annotated[str | None, Field(max_length=100)] = None
     data_saida: date | None = None
-    uae: str | None = None
     esf_aer: int | None = None
     campos_especiais: list[CampoEspecial] | None = None
     etapas: list[EtapaCreate] | None = None
@@ -165,6 +163,7 @@ class OrdemMissaoOut(OrdemMissaoCore):
 
     id: int
     numero: str
+    uae: str
     campos_especiais: list[CampoEspecial] = []
     etapas: list[EtapaOut] = []
     tripulacao: list[TripulacaoOrdemOut] = []
@@ -183,6 +182,7 @@ class OrdemMissaoList(OrdemMissaoCore):
 
     id: int
     numero: str
+    uae: str
     esf_aer: int
     etapas: list[EtapaListItem] = []
     etiquetas: list[EtiquetaSchema] = []

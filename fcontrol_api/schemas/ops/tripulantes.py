@@ -20,6 +20,12 @@ class BaseTrip(BaseModel):
         return v.lower()
 
 
+class TripCreate(BaseTrip):
+    """Entrada de criação. A UAE vem da org ativa do token, não do body."""
+
+    user_id: int
+
+
 class TripSchema(BaseTrip):
     user_id: int
     uae: str

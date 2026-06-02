@@ -9,13 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.security.resources import Roles, UserRole
-from fcontrol_api.models.shared.organizacao import Organizacao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.users import (
-    OrgScope,
     PwdSchema,
     UserFull,
     UserProfile,
@@ -30,7 +27,7 @@ from fcontrol_api.security import (
     permission_checker,
     require_admin,
 )
-from fcontrol_api.services.auth import get_user_roles
+from fcontrol_api.services.auth import get_user_roles, list_user_orgs
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.users import check_user_conflicts
 from fcontrol_api.settings import Settings
@@ -48,25 +45,14 @@ async def read_users_me(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     active_org = getattr(request.state, 'active_org', None)
-    permissions = await get_user_roles(current_user.id, session, active_org)
-
-    # Orgs onde o usuário tem vínculo (NULL = escopo de sistema)
-    orgs_rows = await session.execute(
-        select(
-            UserRole.organizacao_id,
-            Organizacao.sigla,
-            Organizacao.nome,
-            Roles.name,
-        )
-        .join(Roles, Roles.id == UserRole.role_id)
-        .outerjoin(Organizacao, Organizacao.sigla == UserRole.organizacao_id)
-        .where(UserRole.user_id == current_user.id)
-        .order_by(UserRole.organizacao_id.asc().nulls_first())
+    app_client = getattr(request.state, 'app_client', None)
+    permissions = await get_user_roles(
+        current_user.id, session, active_org, app_client
     )
-    orgs = [
-        OrgScope(organizacao_id=oid, sigla=sigla, nome=nome, role=role)
-        for oid, sigla, nome, role in orgs_rows.all()
-    ]
+
+    # Escopos de org disponíveis: vínculos (fatcontrol) ou lotações de
+    # tripulante (fatbird). A fonte depende do cliente OAuth do token.
+    orgs = await list_user_orgs(current_user.id, session, app_client)
 
     profile = UserProfile(
         id=current_user.id,

@@ -13,11 +13,16 @@ from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.ops.tripulantes import (
     BaseTrip,
+    TripCreate,
     TripSchema,
     TripWithFuncs,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
-from fcontrol_api.security import get_current_user
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -28,10 +33,15 @@ router = APIRouter(prefix='/trips', tags=['trips'])
 @router.post(
     '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[TripSchema]
 )
-async def create_trip(trip: TripSchema, session: Session):
+async def create_trip(
+    trip: TripCreate,
+    session: Session,
+    active_org: ActiveOrg,
+    _: User = Depends(permission_checker('trips', 'create')),
+):
     db_trig = await session.scalar(
         select(Tripulante).where(
-            (Tripulante.trig == trip.trig) & (Tripulante.uae == trip.uae)
+            (Tripulante.trig == trip.trig) & (Tripulante.uae == active_org)
         )
     )
 
@@ -43,7 +53,8 @@ async def create_trip(trip: TripSchema, session: Session):
 
     db_trip = await session.scalar(
         select(Tripulante).where(
-            (Tripulante.user_id == trip.user_id) & (Tripulante.uae == trip.uae)
+            (Tripulante.user_id == trip.user_id)
+            & (Tripulante.uae == active_org)
         )
     )
 
@@ -57,7 +68,7 @@ async def create_trip(trip: TripSchema, session: Session):
         user_id=trip.user_id,
         trig=trip.trig,
         active=trip.active,
-        uae=trip.uae,
+        uae=active_org,
     )
 
     session.add(tripulante)
@@ -75,8 +86,8 @@ async def create_trip(trip: TripSchema, session: Session):
 )
 async def get_my_trip(
     session: Session,
+    active_org: ActiveOrg,
     current_user: User = Depends(get_current_user),
-    uae: str = '11gt',
 ):
     """
     Retorna o tripulante do usuário autenticado.
@@ -84,7 +95,7 @@ async def get_my_trip(
     trip = await session.scalar(
         select(Tripulante).where(
             Tripulante.user_id == current_user.id,
-            Tripulante.uae == uae,
+            Tripulante.uae == active_org,
         )
     )
 
@@ -102,10 +113,10 @@ async def get_my_trip(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[list[int]],
 )
-async def get_trip_user_ids(session: Session, uae: str = '11gt'):
+async def get_trip_user_ids(session: Session, active_org: ActiveOrg):
     """Retorna os user_ids de todos os tripulantes da UAE."""
     result = await session.scalars(
-        select(Tripulante.user_id).where(Tripulante.uae == uae)
+        select(Tripulante.user_id).where(Tripulante.uae == active_org)
     )
     return success_response(data=list(result.all()))
 
@@ -133,7 +144,7 @@ async def get_trip(id: int, session: Session):
 )
 async def list_trips(
     session: Session,
-    uae: str = '11gt',
+    active_org: ActiveOrg,
     active: bool = True,
     page: int = 1,
     per_page: int = 10,
@@ -153,7 +164,7 @@ async def list_trips(
         .where(
             User.active,
             Tripulante.active == active,
-            Tripulante.uae == uae,
+            Tripulante.uae == active_org,
         )
     )
 

@@ -21,7 +21,6 @@ from fcontrol_api.models.security.auth import (
     OAuth2AuthorizationCode,
     OAuth2Client,
 )
-from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.auth import DevTokenResponse, SwitchOrg, Token
 from fcontrol_api.schemas.response import ApiResponse
@@ -34,6 +33,7 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.auth import (
     resolve_default_org,
+    user_has_org_access,
     validate_user_client_access,
 )
 from fcontrol_api.services.logs import log_user_action
@@ -237,7 +237,7 @@ async def exchange_code_for_token(
 
     await session.commit()
 
-    active_org = await resolve_default_org(user.id, session)
+    active_org = await resolve_default_org(user.id, session, client_id)
     data = token_data(user, client_id, active_org)
     access_token = create_access_token(data=data)
 
@@ -277,16 +277,14 @@ async def switch_org(
 ):
     """Alterna a org ativa do usuário, reemitindo o token.
 
-    Valida que o usuário possui um vínculo (UserRole) na org escolhida
-    (organizacao_id NULL = escopo de sistema).
+    Valida que o usuário pode assumir a org no contexto do cliente:
+    no FATBIRD, ter lotação ativa de tripulante naquela sigla; nos
+    demais, um vínculo (UserRole) na org (NULL = escopo de sistema).
     """
-    vinculo = await session.scalar(
-        select(UserRole).where(
-            UserRole.user_id == user.id,
-            UserRole.organizacao_id.is_not_distinct_from(body.organizacao_id),
-        )
+    allowed = await user_has_org_access(
+        user.id, body.organizacao_id, session, request.state.app_client
     )
-    if not vinculo:
+    if not allowed:
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN,
             detail='Usuário não possui vínculo nessa organização',
@@ -373,7 +371,9 @@ async def dev_login(
     await session.commit()
 
     # Gerar token com expiração de 7 dias
-    active_org = await resolve_default_org(db_user.id, session)
+    active_org = await resolve_default_org(
+        db_user.id, session, request.state.app_client
+    )
     data = token_data(db_user, request.state.app_client, active_org)
     access_token = create_access_token(data=data, dev=True)
 

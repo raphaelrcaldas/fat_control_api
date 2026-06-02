@@ -33,7 +33,7 @@ from fcontrol_api.schemas.ops.om import (
     RouteSuggestionOut,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
-from fcontrol_api.security import get_current_user
+from fcontrol_api.security import ActiveOrg, get_current_user
 from fcontrol_api.services.om import criar_tripulacao_batch
 from fcontrol_api.utils.responses import paginated_response, success_response
 from fcontrol_api.utils.strings import escape_like
@@ -279,7 +279,10 @@ async def get_ordem(id: int, session: Session):
     response_model=ApiResponse[OrdemMissaoOut],
 )
 async def create_ordem(
-    ordem_data: OrdemMissaoCreate, session: Session, current_user: CurrentUser
+    ordem_data: OrdemMissaoCreate,
+    session: Session,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     """Cria uma nova ordem de missão"""
 
@@ -301,7 +304,7 @@ async def create_ordem(
         ],
         doc_ref=ordem_data.doc_ref,
         data_saida=data_saida,
-        uae=ordem_data.uae,
+        uae=active_org,
     )
 
     session.add(ordem)
@@ -507,7 +510,7 @@ async def update_ordem(
 
         # Validar unicidade do novo número (ano + UAE)
         target_year = None
-        target_uae = ordem_data.uae or ordem.uae
+        target_uae = ordem.uae
         if ordem_data.etapas:
             target_year = min(e.dt_dep for e in ordem_data.etapas).year
         elif ordem.data_saida:

@@ -29,7 +29,7 @@ from fcontrol_api.schemas.indisp import (
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import get_current_user
+from fcontrol_api.security import ActiveOrg, get_current_user
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
 
@@ -39,7 +39,9 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 
 @router.get('/', response_model=ApiResponse[list[IndispCrewEntry]])
-async def get_crew_indisp(session: Session, funcao: str, uae: str):
+async def get_crew_indisp(
+    session: Session, funcao: str, active_org: ActiveOrg
+):
     date_ini = date.today() - timedelta(days=30)
 
     # 1. Query principal para buscar os tripulantes e seus dados
@@ -56,7 +58,7 @@ async def get_crew_indisp(session: Session, funcao: str, uae: str):
         .where(
             and_(
                 (Funcao.func == funcao),
-                (Tripulante.uae == uae),
+                (Tripulante.uae == active_org),
                 (Tripulante.active),
                 (User.active),
             )

@@ -21,6 +21,7 @@ from fcontrol_api.schemas.aeromedica.cartoes import (
     UserCartaoSaude,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -34,6 +35,7 @@ router = APIRouter(prefix='/cartoes-saude', tags=['Aeromedica'])
 )
 async def get_cartoes_saude(
     session: Session,
+    active_org: ActiveOrg,
     search: str | None = None,
     p_g: str | None = None,
     funcao: str | None = None,
@@ -84,19 +86,19 @@ async def get_cartoes_saude(
         )
     )
 
-    # Filtro base: tripulantes + nao-tripulantes do 11gt
+    # Filtro base: tripulantes + nao-tripulantes lotados na org ativa
     if tripulante is True:
         query = query.where(Tripulante.id.isnot(None))
     elif tripulante is False:
         query = query.where(
             Tripulante.id.is_(None),
-            User.unidade == '11gt',
+            User.unidade == active_org,
         )
     else:
         query = query.where(
             or_(
                 Tripulante.id.isnot(None),
-                User.unidade == '11gt',
+                User.unidade == active_org,
             )
         )
 

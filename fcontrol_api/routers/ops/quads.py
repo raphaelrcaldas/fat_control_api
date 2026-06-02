@@ -25,6 +25,7 @@ from fcontrol_api.schemas.ops.quads import (
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import success_response
 
 router = APIRouter()
@@ -97,9 +98,9 @@ async def quads_by_trip(trip_id: int, type_id: int, session: Session):
 )
 async def list_quads(
     session: Session,
+    active_org: ActiveOrg,
     tipo_quad: int = 1,  # sobr preto
     funcao: funcs = 'mc',
-    uae: str = '11gt',
     proj: proj = 'kc-390',
 ):
     # 1. CTE para obter os IDs dos tripulantes que correspondem aos filtros
@@ -107,7 +108,7 @@ async def list_quads(
         select(Tripulante.id)
         .join(Funcao)
         .where(
-            Tripulante.uae == uae,
+            Tripulante.uae == active_org,
             Tripulante.active,
             Funcao.func == funcao,
             Funcao.oper != 'al',
@@ -267,10 +268,10 @@ async def update_quad(id: int, quad: QuadUpdate, session: Session):
 
 
 @router.get('/types', response_model=ApiResponse[list[QuadsGroupSchema]])
-async def get_quads_type(uae: str, session: Session):
+async def get_quads_type(session: Session, active_org: ActiveOrg):
     quads = await session.scalars(
         select(QuadsGroup)
-        .where(QuadsGroup.uae == uae)
+        .where(QuadsGroup.uae == active_org)
         .options(selectinload(QuadsGroup.types).selectinload(QuadsType.funcs))
     )
     quads = quads.all()  # type: ignore
