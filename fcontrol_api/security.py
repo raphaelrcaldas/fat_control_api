@@ -57,8 +57,17 @@ def token_data(user: User, client: str, active_org: str | None = None):
 
 def create_access_token(data: dict, dev: bool = False):
     to_encode = data.copy()
+
+    # Primeiro login: token de curta duração. A sessão só serve para a
+    # troca de senha obrigatória; após a troca, o cliente reemite o token
+    # (já com first_login=False) com a expiração normal.
+    expire_minutes = (
+        settings.FIRST_LOGIN_TOKEN_EXPIRE_MINUTES
+        if data.get('first_login')
+        else settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    )
     expire = datetime.now(tz=ZoneInfo('UTC')) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes=expire_minutes
     )
 
     if dev:
