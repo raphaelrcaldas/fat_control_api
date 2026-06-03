@@ -127,3 +127,17 @@ class TripQuadEntry(BaseModel):
     trip: TripQuadInfo
     quads: list[QuadPublic]
     quads_len: int
+
+
+class QuadsOrfaoEntry(BaseModel):
+    trip: TripQuadInfo
+    quads_count: int
+
+
+class QuadsOrfaosDelete(BaseModel):
+    trip_ids: list[int] = Field(min_length=1)
+
+
+class QuadsOrfaosDeleteResponse(BaseModel):
+    deleted: int
+    trips: int

@@ -28,6 +28,9 @@ from fcontrol_api.schemas.ops.quads import (
     QuadsGroupOut,
     QuadsGroupSchema,
     QuadsGroupUpdate,
+    QuadsOrfaoEntry,
+    QuadsOrfaosDelete,
+    QuadsOrfaosDeleteResponse,
     QuadsTypeCreate,
     QuadsTypeOut,
     QuadsTypeUpdate,
@@ -40,11 +43,11 @@ from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
-router = APIRouter()
-
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/quads', tags=['quads'])
+
+ManageQuads = Depends(permission_checker('quad_ops', 'create'))
 
 
 @router.post(
@@ -230,6 +233,78 @@ async def list_quads(
     return success_response(data=response)
 
 
+@router.get(
+    '/orfaos',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[list[QuadsOrfaoEntry]],
+    dependencies=[ManageQuads],
+)
+async def list_orphan_quads(session: Session, active_org: ActiveOrg):
+    query = (
+        select(Tripulante, func.count(Quad.id).label('quads_count'))
+        .join(Quad, Quad.trip_id == Tripulante.id)
+        .where(
+            Tripulante.uae == active_org,
+            Tripulante.active.is_(False),
+        )
+        .group_by(Tripulante.id)
+        .options(selectinload(Tripulante.user).selectinload(User.posto))
+        .order_by(Tripulante.id)
+    )
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    # func é intencionalmente omitido (None): tripulante desativado não
+    # tem função operacional relevante no contexto de limpeza de órfãos.
+    response = [
+        QuadsOrfaoEntry(
+            trip=TripQuadInfo(
+                id=trip.id,
+                trig=trip.trig,
+                user=UserPublic.model_validate(trip.user),
+                func=None,
+            ),
+            quads_count=quads_count,
+        )
+        for trip, quads_count in rows
+    ]
+
+    return success_response(data=response)
+
+
+@router.delete(
+    '/orfaos',
+    response_model=ApiResponse[QuadsOrfaosDeleteResponse],
+    dependencies=[ManageQuads],
+)
+async def delete_orphan_quads(
+    payload: QuadsOrfaosDelete, session: Session, active_org: ActiveOrg
+):
+    valid_ids_q = select(Tripulante.id).where(
+        Tripulante.id.in_(payload.trip_ids),
+        Tripulante.uae == active_org,
+        Tripulante.active.is_(False),
+    )
+    valid_ids = (await session.execute(valid_ids_q)).scalars().all()
+
+    deleted = 0
+    if valid_ids:
+        result = await session.execute(
+            delete(Quad).where(Quad.trip_id.in_(valid_ids))
+        )
+        await session.commit()
+        deleted = result.rowcount
+
+    return success_response(
+        data=QuadsOrfaosDeleteResponse(deleted=deleted, trips=len(valid_ids)),
+        message=(
+            f'{deleted} quadrinho(s) de {len(valid_ids)} '
+            f'tripulante(s) removido(s)'
+        ),
+    )
+
+
 @router.delete('/', response_model=ApiResponse[None])
 async def delete_quads(body: QuadBatchDelete, session: Session):
     result = await session.execute(delete(Quad).where(Quad.id.in_(body.ids)))
@@ -307,9 +382,6 @@ async def get_quads_type(session: Session, active_org: ActiveOrg):
 # ativa (QuadsGroup.uae). Deleções bloqueiam quando há dependências (409),
 # sem cascade. A associação de funções é declarativa (substitui o conjunto).
 # ===========================================================================
-
-ManageQuads = Depends(permission_checker('quad_ops', 'create'))
-
 
 async def _get_group_scoped(
     group_id: int, session: AsyncSession, active_org: str
