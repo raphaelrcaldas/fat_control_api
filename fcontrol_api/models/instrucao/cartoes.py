@@ -8,14 +8,15 @@ from fcontrol_api.models.shared.users import User
 from .base import Base
 
 
-class IdiomasHabilidade(Base):
-    __tablename__ = 'idiomas_habilidades'
+class Cartao(Base):
+    __tablename__ = 'cartoes'
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id), unique=True)
     ptai_validade: Mapped[date | None]
     tai_s_validade: Mapped[date | None]
     tai_s1_validade: Mapped[date | None]
+    cvi_validade: Mapped[date | None]
     hab_espanhol: Mapped[str | None] = mapped_column(String(2))
     val_espanhol: Mapped[date | None]
     hab_ingles: Mapped[str | None] = mapped_column(String(2))
@@ -23,7 +24,7 @@ class IdiomasHabilidade(Base):
 
     user = relationship(
         User,
-        backref='idiomas_habilidade',
+        backref='cartao',
         lazy='selectin',
         uselist=False,
     )

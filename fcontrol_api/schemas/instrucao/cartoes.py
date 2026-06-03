@@ -6,10 +6,11 @@ from pydantic import BaseModel, ConfigDict, model_validator
 NivelIdioma = Literal['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 
 
-class IdiomasBase(BaseModel):
+class CartoesBase(BaseModel):
     ptai_validade: date | None = None
     tai_s_validade: date | None = None
     tai_s1_validade: date | None = None
+    cvi_validade: date | None = None
     hab_espanhol: NivelIdioma | None = None
     val_espanhol: date | None = None
     hab_ingles: NivelIdioma | None = None
@@ -18,9 +19,9 @@ class IdiomasBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class IdiomasUpdate(IdiomasBase):
+class CartoesUpdate(CartoesBase):
     @model_validator(mode='after')
-    def validade_requer_habilitacao(self) -> 'IdiomasUpdate':
+    def validade_requer_habilitacao(self) -> 'CartoesUpdate':
         if self.val_espanhol is not None and self.hab_espanhol is None:
             raise ValueError('val_espanhol requer hab_espanhol preenchido')
         if self.val_ingles is not None and self.hab_ingles is None:
@@ -28,18 +29,18 @@ class IdiomasUpdate(IdiomasBase):
         return self
 
 
-class IdiomasPublic(IdiomasBase):
+class CartoesPublic(CartoesBase):
     id: int
     user_id: int
 
 
-class TripIdiomasOut(BaseModel):
+class TripCartoesOut(BaseModel):
     trip_id: int
     user_id: int
     p_g: str
     nome_guerra: str
     nome_completo: str | None
     saram: str | None
-    idiomas: IdiomasPublic | None = None
+    cartao: CartoesPublic | None = None
 
     model_config = ConfigDict(from_attributes=True)

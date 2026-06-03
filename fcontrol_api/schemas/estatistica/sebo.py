@@ -12,7 +12,7 @@ class SeboVoo(BaseModel):
 
 
 class SeboCartoes(BaseModel):
-    """Cartoes de validade (Aeromedica, SegVoo, Inteligencia)."""
+    """Cartoes de validade (Aeromedica, SegVoo, Inteligencia, Instrucao)."""
 
     # Aeromedica
     cemal: date | None = None
@@ -25,6 +25,10 @@ class SeboCartoes(BaseModel):
     # Inteligencia
     val_pass: date | None = None
     val_visa: date | None = None
+
+    # Instrucao (pilotos)
+    cvi: date | None = None
+    ptai: date | None = None
 
 
 class SeboTripOut(BaseModel):

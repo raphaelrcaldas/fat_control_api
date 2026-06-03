@@ -1,1 +1,1 @@
-from . import idiomas
+from . import cartoes

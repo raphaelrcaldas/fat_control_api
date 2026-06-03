@@ -11,6 +11,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
+from fcontrol_api.models.instrucao.cartoes import Cartao
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
 from fcontrol_api.models.seg_voo.crm import CrmCertificado
 from fcontrol_api.models.shared.funcoes import Funcao
@@ -94,6 +95,8 @@ async def list_sebo(
             CrmCertificado.data_validade.label('cartao_crm'),
             Passaporte.validade_passaporte.label('cartao_val_pass'),
             Passaporte.validade_visa.label('cartao_val_visa'),
+            Cartao.cvi_validade.label('cartao_cvi'),
+            Cartao.ptai_validade.label('cartao_ptai'),
         )
         .select_from(Tripulante)
         .join(User, User.id == Tripulante.user_id)
@@ -108,6 +111,10 @@ async def list_sebo(
         .outerjoin(
             Passaporte,
             Passaporte.user_id == User.id,
+        )
+        .outerjoin(
+            Cartao,
+            Cartao.user_id == User.id,
         )
         .join(
             Funcao,
@@ -140,6 +147,8 @@ async def list_sebo(
             CrmCertificado.data_validade,
             Passaporte.validade_passaporte,
             Passaporte.validade_visa,
+            Cartao.cvi_validade,
+            Cartao.ptai_validade,
         )
         .order_by(
             text('h_ano DESC'),
@@ -171,6 +180,8 @@ async def list_sebo(
                 crm=r.cartao_crm,
                 val_pass=r.cartao_val_pass,
                 val_visa=r.cartao_val_visa,
+                cvi=r.cartao_cvi,
+                ptai=r.cartao_ptai,
             ),
         )
         for r in rows.all()
