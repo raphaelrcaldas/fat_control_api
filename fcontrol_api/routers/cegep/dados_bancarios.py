@@ -5,6 +5,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -12,6 +13,8 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.dados_bancarios import DadosBancarios
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.dados_bancarios import (
+    DadosBancariosBulkDelete,
+    DadosBancariosBulkDeleteResponse,
     DadosBancariosCreate,
     DadosBancariosPublic,
     DadosBancariosUpdate,
@@ -64,6 +67,67 @@ async def get_dados_bancarios(
     dados = result.scalars().all()
 
     return success_response(data=list(dados))
+
+
+@router.get(
+    '/orfaos',
+    response_model=ApiResponse[list[DadosBancariosWithUser]],
+)
+async def get_dados_bancarios_orfaos(
+    session: Session,
+):
+    """Lista dados bancários cujo usuário está desativado (órfãos)"""
+    query = (
+        select(DadosBancarios)
+        .join(User)
+        .where(User.active.is_(False))
+        .order_by(DadosBancarios.id)
+    )
+
+    result = await session.execute(query)
+    dados = result.scalars().all()
+
+    return success_response(data=list(dados))
+
+
+@router.delete(
+    '/orfaos',
+    response_model=ApiResponse[DadosBancariosBulkDeleteResponse],
+)
+async def delete_dados_bancarios_orfaos(
+    session: Session,
+    payload: DadosBancariosBulkDelete,
+):
+    """Remove dados bancários órfãos selecionados.
+
+    Por segurança, deleta apenas a interseção entre os ids recebidos e
+    os registros realmente órfãos (usuário desativado), recomputando o
+    conjunto órfão dentro do handler. Nunca remove dados de usuário ativo.
+    """
+    ids_query = (
+        select(DadosBancarios.id)
+        .join(User)
+        .where(
+            DadosBancarios.id.in_(payload.ids),
+            User.active.is_(False),
+        )
+    )
+
+    result = await session.execute(ids_query)
+    orfaos_ids = result.scalars().all()
+
+    if orfaos_ids:
+        await session.execute(
+            delete(DadosBancarios).where(DadosBancarios.id.in_(orfaos_ids))
+        )
+        await session.commit()
+
+    deleted = len(orfaos_ids)
+
+    return success_response(
+        data=DadosBancariosBulkDeleteResponse(deleted=deleted),
+        message=f'{deleted} registros removidos com sucesso',
+    )
 
 
 @router.get('/{dados_id}', response_model=ApiResponse[DadosBancariosWithUser])

@@ -44,3 +44,11 @@ class DadosBancariosPublic(DadosBancariosBase):
 
 class DadosBancariosWithUser(DadosBancariosPublic):
     user: UserPublic
+
+
+class DadosBancariosBulkDelete(BaseModel):
+    ids: list[int] = Field(min_length=1)
+
+
+class DadosBancariosBulkDeleteResponse(BaseModel):
+    deleted: int
