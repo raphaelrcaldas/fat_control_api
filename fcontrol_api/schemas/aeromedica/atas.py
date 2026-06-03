@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DadosExtraidos(BaseModel):
@@ -77,3 +77,11 @@ class AtasOrfasResumo(BaseModel):
     total_atas: int
     total_size: int
     atas: list[AtaOrfaPublic]
+
+
+class AtasOrfasDelete(BaseModel):
+    ids: list[int] = Field(min_length=1)
+
+
+class AtasOrfasDeleteResponse(BaseModel):
+    deleted: int

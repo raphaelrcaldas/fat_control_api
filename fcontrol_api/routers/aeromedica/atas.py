@@ -20,6 +20,8 @@ from fcontrol_api.schemas.aeromedica.atas import (
     AtaInspecaoPublic,
     AtaInspecaoWithUrl,
     AtaOrfaPublic,
+    AtasOrfasDelete,
+    AtasOrfasDeleteResponse,
     AtasOrfasResumo,
     AtaUpdate,
     AtaUploadResponse,
@@ -31,6 +33,7 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
     ResponseStatus,
 )
+from fcontrol_api.security import permission_checker
 from fcontrol_api.services.aeromedica_extracao import (
     extrair_dados_ata_bytes,
 )
@@ -123,6 +126,8 @@ async def _verificar_duplicata(
 
 
 router = APIRouter(prefix='/atas', tags=['Atas de Inspeção'])
+
+ManageCartoes = Depends(permission_checker('cartoes-saude', 'create'))
 
 
 @router.post(
@@ -346,6 +351,7 @@ async def get_atas_by_user(
 @router.get(
     '/orfas',
     response_model=ApiResponse[AtasOrfasResumo],
+    dependencies=[ManageCartoes],
 )
 async def get_atas_orfas(session: Session):
     """Lista atas de usuarios inativos."""
@@ -384,25 +390,43 @@ async def get_atas_orfas(session: Session):
 
 @router.delete(
     '/orfas',
-    response_model=ApiResponse[None],
+    response_model=ApiResponse[AtasOrfasDeleteResponse],
+    dependencies=[ManageCartoes],
 )
-async def delete_atas_orfas(session: Session):
-    """Remove todas as atas de usuarios inativos."""
+async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
+    """Remove atas orfas selecionadas (apenas de usuarios inativos)."""
     result = await session.execute(
         select(AtaInspecao)
         .join(User, AtaInspecao.user_id == User.id)
-        .where(User.active.is_(False))
+        .where(
+            AtaInspecao.id.in_(payload.ids),
+            User.active.is_(False),
+        )
     )
     atas = result.scalars().all()
 
     for ata in atas:
-        delete_file(ata.file_path)
+        # Tolera falha ao remover o arquivo (ex.: já ausente no storage)
+        # para garantir consistência banco↔storage: o registro é sempre
+        # removido do banco mesmo que o objeto físico não exista mais.
+        try:
+            delete_file(ata.file_path)
+        except Exception:
+            logger.warning(
+                'Falha ao remover arquivo da ata órfã %s (%s)',
+                ata.id,
+                ata.file_path,
+                exc_info=True,
+            )
         await session.delete(ata)
 
     await session.commit()
 
+    deleted = len(atas)
+
     return success_response(
-        message=f'{len(atas)} ata(s) órfã(s) removida(s)',
+        data=AtasOrfasDeleteResponse(deleted=deleted),
+        message=f'{deleted} ata(s) órfã(s) removida(s)',
     )
 
 
