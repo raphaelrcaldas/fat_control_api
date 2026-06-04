@@ -1,13 +1,24 @@
 import time
 from datetime import datetime, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.cleanup.models.cleanup_result import CleanupTaskResult
 from fcontrol_api.models.security.auth import OAuth2AuthorizationCode
 
 TASK_NAME = 'cleanup_expired_auth_codes'
+DESCRIPTION = 'Códigos OAuth2 expirados (nunca trocados por token)'
+
+
+async def count(session: AsyncSession) -> int:
+    now = datetime.now(timezone.utc)
+    result = await session.execute(
+        select(func.count())
+        .select_from(OAuth2AuthorizationCode)
+        .where(OAuth2AuthorizationCode.expires_at < now)
+    )
+    return result.scalar() or 0
 
 
 async def run(session: AsyncSession) -> CleanupTaskResult:

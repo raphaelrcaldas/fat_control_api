@@ -41,6 +41,40 @@ async def run_all_tasks(
     return results
 
 
+async def preview_all_tasks(session: AsyncSession) -> list[dict]:
+    """Retorna contagem de candidatos por task, sem executar nenhum delete."""
+    previews: list[dict] = []
+
+    for module_info in pkgutil.iter_modules(tasks_package.__path__):
+        if module_info.name not in ALLOWED_TASKS:
+            logger.warning('Modulo inesperado ignorado: %s', module_info.name)
+            continue
+
+        module = importlib.import_module(
+            f'fcontrol_api.cleanup.tasks.{module_info.name}'
+        )
+
+        count_fn = getattr(module, 'count', None)
+        if count_fn is None:
+            logger.warning(
+                'Modulo %s sem funcao count, ignorado',
+                module_info.name,
+            )
+            continue
+
+        description = getattr(module, 'DESCRIPTION', module_info.name)
+        candidate_count = await count_fn(session)
+        previews.append(
+            {
+                'task_name': module_info.name,
+                'description': description,
+                'count': candidate_count,
+            }
+        )
+
+    return previews
+
+
 def log_report(results: list[CleanupTaskResult]) -> None:
     """Loga relatorio consolidado das cleanup tasks."""
     separator = '=' * 60

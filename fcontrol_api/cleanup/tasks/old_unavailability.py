@@ -1,7 +1,7 @@
 import time
 from datetime import date, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.cleanup.models.cleanup_result import CleanupTaskResult
@@ -9,6 +9,17 @@ from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.indisp import Indisp
 
 TASK_NAME = 'cleanup_old_unavailability'
+DESCRIPTION = 'Indisponibilidades encerradas há mais de 60 dias'
+
+
+async def count(session: AsyncSession, days_threshold: int = 60) -> int:
+    cutoff_date = date.today() - timedelta(days=days_threshold)
+    result = await session.execute(
+        select(func.count())
+        .select_from(Indisp)
+        .where(Indisp.date_end < cutoff_date)
+    )
+    return result.scalar() or 0
 
 
 async def run(
