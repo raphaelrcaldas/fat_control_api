@@ -31,6 +31,7 @@ from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
 from fcontrol_api.services.comis import (
+    recalcular_cache_comiss,
     validar_fechamento_comiss,
     verificar_conflito_comiss,
 )
@@ -387,6 +388,8 @@ async def create_cmto(
 
     if new_comiss.status == 'fechado':
         await validar_fechamento_comiss(new_comiss, session)
+    else:
+        await recalcular_cache_comiss(new_comiss.id, session)
 
     await log_user_action(
         session=session,
@@ -491,8 +494,13 @@ async def update_cmto(
 
     await session.flush()
 
+    # Recalcula o cache (completude, etc.) para refletir mudanças em
+    # dias_cumprir/datas. No fechamento, validar_fechamento_comiss já
+    # recalcula antes de validar.
     if db_comiss.status == 'fechado':
         await validar_fechamento_comiss(db_comiss, session)
+    else:
+        await recalcular_cache_comiss(comiss_id, session)
 
     after = _comiss_to_dict(db_comiss)
 
