@@ -30,7 +30,10 @@ from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import get_current_user
-from fcontrol_api.services.comis import verificar_conflito_comiss
+from fcontrol_api.services.comis import (
+    validar_fechamento_comiss,
+    verificar_conflito_comiss,
+)
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.financeiro import custo_missao
 from fcontrol_api.utils.responses import success_response
@@ -382,6 +385,9 @@ async def create_cmto(
     session.add(new_comiss)
     await session.flush()
 
+    if new_comiss.status == 'fechado':
+        await validar_fechamento_comiss(new_comiss, session)
+
     await log_user_action(
         session=session,
         user_id=current_user.id,
@@ -484,6 +490,10 @@ async def update_cmto(
         setattr(db_comiss, key, value)
 
     await session.flush()
+
+    if db_comiss.status == 'fechado':
+        await validar_fechamento_comiss(db_comiss, session)
+
     after = _comiss_to_dict(db_comiss)
 
     if before != after:

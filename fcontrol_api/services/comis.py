@@ -1,8 +1,8 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from http import HTTPStatus
 
 from fastapi import HTTPException
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -200,6 +200,72 @@ async def recalcular_cache_comiss(
     await session.flush()
 
     return cache_data
+
+
+async def validar_fechamento_comiss(
+    comiss: Comissionamento,
+    session: AsyncSession,
+) -> None:
+    """
+    Valida as regras de fechamento de um comissionamento. Deve ser chamada
+    sempre que o status passar a 'fechado'. Recalcula o cache (garantindo
+    valores frescos) e levanta HTTPException 400 com todos os motivos
+    acumulados se alguma regra não for satisfeita.
+
+    Regras:
+    - deve haver ao menos uma missão vinculada;
+    - completude deve estar em 100%;
+    - data_fc deve ser o dia seguinte à última missão (maior regres).
+    """
+    cache = await recalcular_cache_comiss(comiss.id, session)
+
+    if cache['missoes_count'] == 0:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=(
+                'Não há missões vinculadas para fechar o comissionamento.'
+            ),
+        )
+
+    errors: list[str] = []
+
+    if cache['completude'] < 100:
+        errors.append(
+            f'- Completude está em {cache["completude"]}%; '
+            'o fechamento exige 100%'
+        )
+
+    # Última missão = maior regresso entre as vinculadas (sit='c', no
+    # período). data_fc deve ser o dia seguinte.
+    ultima_regres = await session.scalar(
+        select(func.max(FragMis.regres))
+        .join(
+            UserFrag,
+            and_(
+                UserFrag.frag_id == FragMis.id,
+                UserFrag.user_id == comiss.user_id,
+                UserFrag.sit == 'c',
+            ),
+        )
+        .where(
+            and_(
+                FragMis.afast >= comiss.data_ab,
+                FragMis.regres <= comiss.data_fc,
+            )
+        )
+    )
+    esperada = ultima_regres.date() + timedelta(days=1)
+    if comiss.data_fc != esperada:
+        errors.append(
+            f'- Data de fechamento deve ser {esperada.strftime("%d/%m/%Y")} '
+            '(dia seguinte à última missão)'
+        )
+
+    if errors:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='\n'.join(errors),
+        )
 
 
 async def localizar_comiss_por_missao(
