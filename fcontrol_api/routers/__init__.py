@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from fcontrol_api.routers import (
+    admin_cleanup,
     aeromedica,
     auth,
     cegep,
@@ -21,6 +22,7 @@ from fcontrol_api.routers import (
 )
 
 router = APIRouter()
+router.include_router(admin_cleanup.router)
 router.include_router(aeromedica.router)
 router.include_router(auth.router)
 router.include_router(cegep.router)

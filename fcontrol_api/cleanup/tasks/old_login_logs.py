@@ -1,13 +1,30 @@
 import time
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.cleanup.models.cleanup_result import CleanupTaskResult
 from fcontrol_api.models.security.logs import UserActionLog
 
 TASK_NAME = 'cleanup_old_login_logs'
+DESCRIPTION = 'Logs de login com mais de 30 dias'
+
+
+async def count(session: AsyncSession, days_threshold: int = 30) -> int:
+    cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        days=days_threshold
+    )
+    result = await session.execute(
+        select(func.count())
+        .select_from(UserActionLog)
+        .where(
+            UserActionLog.action == 'login',
+            UserActionLog.resource == 'auth',
+            UserActionLog.timestamp < cutoff_date,
+        )
+    )
+    return result.scalar() or 0
 
 
 async def run(
