@@ -26,7 +26,7 @@ from fcontrol_api.utils.validators import (
 class UserSchema(BaseModel):
     p_g: PostoGradEnum
     quadro: str | None = None
-    esp: str
+    esp: str | None = None
     nome_guerra: str
     nome_completo: str
     id_fab: str | None = Field(default=None, min_length=6, max_length=6)
@@ -217,7 +217,7 @@ class UserPublic(BaseModel):
     p_g: PostoGradEnum
     posto: PostoGradSchema
     quadro: str | None = None
-    esp: str
+    esp: str | None = None
     id_fab: str | None
     nome_guerra: str
     saram: str
