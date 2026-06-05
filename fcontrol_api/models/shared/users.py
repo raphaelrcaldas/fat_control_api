@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, Identity, String, func
+from sqlalchemy import ForeignKey, Identity, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
@@ -18,6 +18,7 @@ class User(Base):
     p_g: Mapped[PostoGradEnum] = mapped_column(
         String(2), ForeignKey(PostoGrad.short)
     )
+    quadro: Mapped[str] = mapped_column(nullable=True)
     esp: Mapped[str] = mapped_column(nullable=True)
     nome_guerra: Mapped[str]
     nome_completo: Mapped[str] = mapped_column(nullable=True)
@@ -46,3 +47,34 @@ class User(Base):
     posto = relationship(
         'PostoGrad', backref='users', lazy='selectin', uselist=False
     )
+    promocoes = relationship(
+        'UserPromo',
+        init=False,
+        lazy='selectin',
+        order_by='UserPromo.data_promo.desc()',
+        cascade='all, delete-orphan',
+        passive_deletes=True,
+    )
+
+
+class UserPromo(Base):
+    __tablename__ = 'promo_users'
+    __table_args__ = (
+        UniqueConstraint('user_id', 'p_g', name='uq_promo_users_user_pg'),
+        UniqueConstraint(
+            'user_id', 'data_promo', name='uq_promo_users_user_data'
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Identity(), init=False, primary_key=True, nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(User.id, ondelete='CASCADE')
+    )
+    p_g: Mapped[PostoGradEnum] = mapped_column(
+        String(2), ForeignKey(PostoGrad.short)
+    )
+    data_promo: Mapped[date] = mapped_column(nullable=False)
+
+    posto = relationship('PostoGrad', lazy='joined', uselist=False)

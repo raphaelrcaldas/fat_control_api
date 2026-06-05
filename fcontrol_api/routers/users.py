@@ -10,12 +10,14 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.shared.posto_grad import PostoGrad
-from fcontrol_api.models.shared.users import User
+from fcontrol_api.models.shared.users import User, UserPromo
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.users import (
     PwdSchema,
     UserFull,
     UserProfile,
+    UserPromoCreate,
+    UserPromoPublic,
     UserPublic,
     UserSchema,
     UserUpdate,
@@ -29,7 +31,10 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.auth import get_user_roles, list_user_orgs
 from fcontrol_api.services.logs import log_user_action
-from fcontrol_api.services.users import check_user_conflicts
+from fcontrol_api.services.users import (
+    check_user_conflicts,
+    validate_promo_hierarchy,
+)
 from fcontrol_api.settings import Settings
 from fcontrol_api.utils.responses import paginated_response, success_response
 
@@ -147,6 +152,7 @@ async def create_user(
 
     db_user = User(
         p_g=payload.p_g,
+        quadro=payload.quadro,
         esp=payload.esp,
         nome_guerra=payload.nome_guerra,
         nome_completo=payload.nome_completo,
@@ -391,3 +397,124 @@ async def delete_user(
         )
 
     return success_response(message='Usuario deletado com sucesso')
+
+
+@router.get(
+    '/{user_id}/promocoes',
+    response_model=ApiResponse[list[UserPromoPublic]],
+)
+async def list_user_promos(
+    user_id: int,
+    session: Session,
+    user: User = Depends(get_current_user),
+):
+    db_user = await session.scalar(select(User).where(User.id == user_id))
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+        )
+
+    await ensure_permission_or_owner(user, session, 'user', 'view', user_id)
+
+    promos = await session.scalars(
+        select(UserPromo)
+        .where(UserPromo.user_id == user_id)
+        .order_by(UserPromo.data_promo.desc(), UserPromo.id.desc())
+    )
+
+    return success_response(
+        data=[UserPromoPublic.model_validate(p) for p in promos.all()]
+    )
+
+
+@router.post(
+    '/{user_id}/promocoes',
+    status_code=HTTPStatus.CREATED,
+    response_model=ApiResponse[UserPromoPublic],
+)
+async def create_user_promo(
+    user_id: int,
+    payload: UserPromoCreate,
+    session: Session,
+    user: User = Depends(permission_checker('user', 'update')),
+):
+    db_user = await session.scalar(select(User).where(User.id == user_id))
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+        )
+
+    await validate_promo_hierarchy(
+        session, user_id, payload.p_g, payload.data_promo
+    )
+
+    db_promo = UserPromo(
+        user_id=user_id,
+        p_g=payload.p_g,
+        data_promo=payload.data_promo,
+    )
+    session.add(db_promo)
+    await session.flush()
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='create',
+        resource='user_promo',
+        resource_id=db_promo.id,
+        before=None,
+        after={
+            'user_id': user_id,
+            'p_g': payload.p_g.value,
+            'data_promo': payload.data_promo.isoformat(),
+        },
+    )
+
+    await session.commit()
+    await session.refresh(db_promo, ['posto'])
+
+    return success_response(
+        data=UserPromoPublic.model_validate(db_promo),
+        message='Promoção registrada com sucesso',
+    )
+
+
+@router.delete(
+    '/{user_id}/promocoes/{promo_id}',
+    response_model=ApiResponse[None],
+)
+async def delete_user_promo(
+    user_id: int,
+    promo_id: int,
+    session: Session,
+    user: User = Depends(permission_checker('user', 'update')),
+):
+    db_promo = await session.scalar(
+        select(UserPromo).where(
+            UserPromo.id == promo_id, UserPromo.user_id == user_id
+        )
+    )
+    if not db_promo:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Promoção não encontrada',
+        )
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='delete',
+        resource='user_promo',
+        resource_id=promo_id,
+        before={
+            'user_id': user_id,
+            'p_g': db_promo.p_g,
+            'data_promo': db_promo.data_promo.isoformat(),
+        },
+        after=None,
+    )
+
+    await session.delete(db_promo)
+    await session.commit()
+
+    return success_response(message='Promoção removida com sucesso')

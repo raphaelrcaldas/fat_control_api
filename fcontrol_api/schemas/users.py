@@ -17,6 +17,7 @@ from fcontrol_api.utils.validators import (
 
 class UserSchema(BaseModel):
     p_g: PostoGradEnum
+    quadro: str | None = None
     esp: str
     nome_guerra: str
     nome_completo: str
@@ -99,6 +100,7 @@ class UserUpdate(BaseModel):
     """
 
     p_g: PostoGradEnum | None = None
+    quadro: str | None = None
     esp: str | None = None
     nome_guerra: str | None = None
     nome_completo: str | None = None
@@ -175,6 +177,23 @@ class UserUpdate(BaseModel):
         return v
 
 
+class UserPromoCreate(BaseModel):
+    """Lançamento de uma promoção no histórico de carreira."""
+
+    p_g: PostoGradEnum
+    data_promo: date
+
+
+class UserPromoPublic(BaseModel):
+    id: int
+    user_id: int
+    p_g: PostoGradEnum
+    posto: PostoGradSchema
+    data_promo: date
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserFull(UserSchema):
     posto: PostoGradSchema
 
@@ -183,6 +202,7 @@ class UserPublic(BaseModel):
     id: int
     p_g: PostoGradEnum
     posto: PostoGradSchema
+    quadro: str | None = None
     esp: str
     id_fab: str | None
     nome_guerra: str
@@ -193,6 +213,7 @@ class UserPublic(BaseModel):
     telefone: str | None = None
     ult_promo: Annotated[date | None, Body()]
     ant_rel: int | None = Field(gt=0)
+    promocoes: list[UserPromoPublic] = []
     model_config = ConfigDict(from_attributes=True)
 
 
