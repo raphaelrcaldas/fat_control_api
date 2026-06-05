@@ -3,11 +3,19 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
+from fcontrol_api.services.users import get_campos_pendentes
 from fcontrol_api.utils.validators import (
     validar_cpf,
     validar_saram,
@@ -196,6 +204,12 @@ class UserPromoPublic(BaseModel):
 
 class UserFull(UserSchema):
     posto: PostoGradSchema
+
+    @computed_field
+    @property
+    def campos_pendentes(self) -> list[str]:
+        """Campos de cadastro ainda não preenchidos (vide service)."""
+        return get_campos_pendentes(self)
 
 
 class UserPublic(BaseModel):

@@ -2,12 +2,35 @@ from datetime import date
 from http import HTTPStatus
 
 from fastapi import HTTPException
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.users import User, UserPromo
+
+
+def get_campos_pendentes(obj: object) -> list[str]:
+    """
+    Retorna os campos de cadastro ainda não preenchidos do militar.
+
+    A completude é derivada do próprio Model: toda coluna `nullable` do
+    `User` é um dado de cadastro que pode estar pendente. As colunas
+    obrigatórias (NOT NULL) — sejam de cadastro (p_g, nome_guerra,
+    saram, unidade) ou internas (id, password, active, first_login,
+    created_at) — ficam de fora naturalmente, sem lista manual.
+
+    Fonte da verdade da completude, reutilizável tanto na página do
+    usuário quanto no futuro agregador de avisos do dashboard. Aceita
+    tanto a instância ORM `User` quanto o schema Pydantic equivalente
+    (ambos expõem os mesmos atributos por nome).
+    """
+    return [
+        col.key
+        for col in inspect(User).columns
+        if col.nullable and not getattr(obj, col.key, None)
+    ]
 
 
 async def check_user_conflicts(
