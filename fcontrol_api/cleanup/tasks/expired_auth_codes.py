@@ -8,7 +8,7 @@ from fcontrol_api.cleanup.models.cleanup_result import CleanupTaskResult
 from fcontrol_api.models.security.auth import OAuth2AuthorizationCode
 
 TASK_NAME = 'cleanup_expired_auth_codes'
-DESCRIPTION = 'Códigos OAuth2 expirados (nunca trocados por token)'
+DESCRIPTION = 'Códigos OAuth2 expirados'
 
 
 async def count(session: AsyncSession) -> int:
