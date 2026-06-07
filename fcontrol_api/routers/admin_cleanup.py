@@ -26,7 +26,10 @@ router = APIRouter(
 async def preview_cleanup(
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse[CleanupPreviewResponse]:
-    """Retorna a contagem de registros candidatos para limpeza, sem executar."""
+    """Retorna a contagem de registros candidatos para limpeza.
+
+    Não executa nenhuma remoção.
+    """
     previews = await preview_all_tasks(session)
     tasks = [CleanupTaskPreview(**p) for p in previews]
     total = sum(t.count for t in tasks)
