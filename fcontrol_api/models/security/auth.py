@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.models.shared.users import User
@@ -12,7 +12,7 @@ from .base import Base
 class OAuth2Client(Base):
     __tablename__ = 'oauth2_clients'
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     client_id: Mapped[str] = mapped_column(
         String(100), unique=True, index=True
     )
@@ -33,7 +33,7 @@ class OAuth2Client(Base):
 class OAuth2AuthorizationCode(Base):
     __tablename__ = 'oauth2_authorization_codes'
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     code: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     client_id: Mapped[int] = mapped_column(ForeignKey(OAuth2Client.id))
@@ -54,7 +54,7 @@ class OAuth2AuthorizationCode(Base):
 class OAuth2Token(Base):
     __tablename__ = 'oauth2_tokens'
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     access_token: Mapped[str] = mapped_column(
         String(255), unique=True, index=True
     )

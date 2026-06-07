@@ -21,7 +21,7 @@ class Etiqueta(Base):
 
     __tablename__ = 'om_etiquetas'
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     nome: Mapped[str] = mapped_column(String(100), nullable=False)
     cor: Mapped[str] = mapped_column(
         String(7), nullable=False

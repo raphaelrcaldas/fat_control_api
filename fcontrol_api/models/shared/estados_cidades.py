@@ -15,7 +15,7 @@ class Estado(Base):
 class Cidade(Base):
     __tablename__ = 'cidades'
 
-    codigo: Mapped[int] = mapped_column(primary_key=True)
+    codigo: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
     nome: Mapped[str] = mapped_column(nullable=False)
     uf: Mapped[str] = mapped_column(ForeignKey('estados.uf'), nullable=False)
 
