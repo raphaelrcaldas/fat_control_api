@@ -13,6 +13,7 @@ import fcontrol_api.models.instrucao
 import fcontrol_api.models.inteligencia
 import fcontrol_api.models.nav
 import fcontrol_api.models.shared
+import fcontrol_api.models.shared.operacao  # fora do __init__ (ver módulo)
 import fcontrol_api.models.security
 import fcontrol_api.models.seg_voo
 from fcontrol_api.models.aeromedica.base import Base as BaseAeromedica

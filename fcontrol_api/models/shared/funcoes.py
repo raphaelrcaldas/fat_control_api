@@ -15,5 +15,11 @@ class Funcao(Base):
     trip_id: Mapped[int] = mapped_column(ForeignKey('tripulantes.id'))
     func: Mapped[str] = mapped_column(String(3))
     oper: Mapped[str] = mapped_column(String(2))
-    proj: Mapped[str]
+    proj: Mapped[str] = mapped_column(
+        ForeignKey(
+            'projetos_anvs.modelo',
+            onupdate='CASCADE',
+            name='fk_trip_funcs_proj',
+        )
+    )
     data_op: Mapped[date] = mapped_column(nullable=True)
