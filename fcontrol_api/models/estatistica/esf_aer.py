@@ -6,8 +6,12 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     SmallInteger,
+    String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+
+from fcontrol_api.models.shared.tenant import Tenant
 
 from .base import Base
 
@@ -47,12 +51,26 @@ class EsfAerAloc(Base):
             )
             for i in range(1, 13)
         ),
+        UniqueConstraint(
+            'esfaer_id',
+            'ano_ref',
+            'uae',
+            name='uq_esf_aer_aloc_org_ano',
+        ),
         {'schema': 'estatistica'},
     )
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     esfaer_id: Mapped[int] = mapped_column(ForeignKey(EsforcoAereo.id))
     ano_ref: Mapped[int]
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            Tenant.organizacao_id,
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+        ),
+    )
     alocado: Mapped[int]
     m1: Mapped[int] = mapped_column(SmallInteger, default=0)
     m2: Mapped[int] = mapped_column(SmallInteger, default=0)

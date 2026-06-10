@@ -228,7 +228,8 @@ class HeavyCdsEtapaIn(BaseModel):
 class EtapaCreate(EtapaBase):
     """Schema de criacao de etapa com tripulantes."""
 
-    missao_id: int
+    # Missao.id e SMALLINT: fora do int16 estoura no asyncpg (500)
+    missao_id: int = Field(gt=0, le=32767)
     tripulantes: list[TripEtapaIn] = []
     oi_etapas: list[OIEtapaIn] = []
     pqd: list[PqdEtapaIn] = []

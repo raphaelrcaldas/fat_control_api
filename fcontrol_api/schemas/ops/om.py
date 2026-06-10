@@ -163,7 +163,6 @@ class OrdemMissaoOut(OrdemMissaoCore):
 
     id: int
     numero: str
-    uae: str
     campos_especiais: list[CampoEspecial] = []
     etapas: list[EtapaOut] = []
     tripulacao: list[TripulacaoOrdemOut] = []
@@ -182,7 +181,6 @@ class OrdemMissaoList(OrdemMissaoCore):
 
     id: int
     numero: str
-    uae: str
     esf_aer: int
     etapas: list[EtapaListItem] = []
     etiquetas: list[EtiquetaSchema] = []

@@ -38,6 +38,7 @@ from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
 )
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.services.etapas import (
     add_especificos,
     assert_no_anv_collision,
@@ -88,6 +89,7 @@ _ETAPA_UPDATE_FIELDS = frozenset({
 )
 async def list_etapas(
     session: Session,
+    active_org: ActiveOrg,
     data_ini: Annotated[date | None, Query()] = None,
     data_fim: Annotated[date | None, Query()] = None,
     origem: Annotated[str | None, Query(max_length=4)] = None,
@@ -112,8 +114,13 @@ async def list_etapas(
     `trip_search`, ambas as condicoes precisam ser satisfeitas
     pelo MESMO TripEtapa (AND na mesma linha do JOIN).
     """
-    # Passo 1: subquery de etapa_ids validos
-    etapa_filter = select(Etapa.id)
+    # Passo 1: subquery de etapa_ids validos, escopada pela org ativa
+    # via missao-pai (cobre tambem o modo flat, que parte deste filtro).
+    etapa_filter = (
+        select(Etapa.id)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(Missao.uae == active_org)
+    )
 
     if data_ini:
         etapa_filter = etapa_filter.where(Etapa.data >= data_ini)
@@ -255,9 +262,13 @@ async def list_etapas(
     response_model=ApiResponse[EtapaDetailOut],
 )
 async def get_etapa_detail(
-    id: EtapaId, session: Session
+    id: EtapaId, session: Session, active_org: ActiveOrg
 ) -> ApiResponse[EtapaDetailOut]:
-    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
+    etapa = await session.scalar(
+        select(Etapa)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(Etapa.id == id, Missao.uae == active_org)
+    )
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -290,13 +301,27 @@ async def get_etapa_detail(
     response_model=ApiResponse[EtapaPublic],
 )
 async def create_etapa(
-    data: EtapaCreate, session: Session
+    data: EtapaCreate, session: Session, active_org: ActiveOrg
 ) -> ApiResponse[EtapaPublic]:
     """Cria uma nova etapa com tripulantes e OIs.
 
     tvoo eh campo Computed (arr - dep) — validamos o tvoo
     enviado pelo cliente para checar a soma das OIs.
     """
+    # A etapa herda o escopo da missão-pai: a missão precisa pertencer
+    # à org ativa (impede anexar etapa à missão de outra unidade).
+    missao = await session.scalar(
+        select(Missao).where(
+            Missao.id == data.missao_id,
+            Missao.uae == active_org,
+        )
+    )
+    if not missao:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Missão não encontrada',
+        )
+
     if data.oi_etapas:
         soma_oi = sum(oi.tvoo for oi in data.oi_etapas)
         if soma_oi != data.tvoo:
@@ -395,7 +420,7 @@ async def create_etapa(
     response_model=ApiResponse[EtapaPublic],
 )
 async def update_etapa(
-    id: EtapaId, data: EtapaUpdate, session: Session
+    id: EtapaId, data: EtapaUpdate, session: Session, active_org: ActiveOrg
 ) -> ApiResponse[EtapaPublic]:
     """Atualiza uma etapa existente.
 
@@ -403,7 +428,11 @@ async def update_etapa(
     diretamente. Se oi_etapas fornecido, valida soma
     contra tvoo do payload ou do banco.
     """
-    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
+    etapa = await session.scalar(
+        select(Etapa)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(Etapa.id == id, Missao.uae == active_org)
+    )
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -544,9 +573,15 @@ async def update_etapa(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
 )
-async def delete_etapa(id: EtapaId, session: Session) -> ApiResponse[None]:
+async def delete_etapa(
+    id: EtapaId, session: Session, active_org: ActiveOrg
+) -> ApiResponse[None]:
     """Remove uma etapa e seus dados vinculados."""
-    etapa = await session.scalar(select(Etapa).where(Etapa.id == id))
+    etapa = await session.scalar(
+        select(Etapa)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(Etapa.id == id, Missao.uae == active_org)
+    )
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -570,11 +605,13 @@ async def delete_etapa(id: EtapaId, session: Session) -> ApiResponse[None]:
 async def export_etapas(
     data: EtapaExportRequest,
     session: Session,
+    active_org: ActiveOrg,
 ) -> StreamingResponse:
-    """Exporta etapas selecionadas para Excel."""
+    """Exporta etapas selecionadas para Excel (escopadas pela org ativa)."""
     etapas_result = await session.scalars(
         select(Etapa)
-        .where(Etapa.id.in_(data.ids))
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(Etapa.id.in_(data.ids), Missao.uae == active_org)
         .order_by(Etapa.data, Etapa.dep, Etapa.id)
     )
     etapas = list(etapas_result.all())

@@ -290,17 +290,6 @@ async def switch_org(
             detail='Usuário não possui vínculo nessa organização',
         )
 
-    await log_user_action(
-        session=session,
-        user_id=user.id,
-        action='switch_org',
-        resource='auth',
-        resource_id=None,
-        before={'active_org': request.state.active_org},
-        after={'active_org': body.organizacao_id},
-    )
-    await session.commit()
-
     data = token_data(user, request.state.app_client, body.organizacao_id)
     access_token = create_access_token(data=data)
     return success_response(

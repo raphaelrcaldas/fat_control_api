@@ -71,7 +71,7 @@ class Operacao(Base):
     )
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
 
-    documento_diretriz: Mapped[str | None] = mapped_column(
+    documento_referencia: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None
     )
     obs: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
@@ -88,20 +88,8 @@ class Operacao(Base):
         default=None,
         onupdate=lambda: datetime.now(timezone.utc),
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        init=False,
-        default=None,
-    )
 
     cidade: Mapped[Cidade] = relationship(Cidade, lazy='selectin', init=False)
-    pessoal: Mapped[list['OperacaoPessoal']] = relationship(
-        'OperacaoPessoal',
-        lazy='selectin',
-        cascade='all, delete-orphan',
-        init=False,
-        default_factory=list,
-    )
 
 
 class OperacaoEtapa(Base):
@@ -136,6 +124,11 @@ class OperacaoPessoal(Base):
         CheckConstraint(
             'data_regresso >= data_ingresso',
             name='ck_operacao_pessoal_periodo',
+        ),
+        UniqueConstraint(
+            'operacao_id',
+            'user_id',
+            name='uq_operacao_pessoal_user',
         ),
     )
 

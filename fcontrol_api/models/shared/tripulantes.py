@@ -18,7 +18,9 @@ class Tripulante(Base):
     active: Mapped[bool]
     uae: Mapped[str] = mapped_column(
         ForeignKey(
-            'organizacoes.sigla', ondelete='RESTRICT', onupdate='CASCADE'
+            'tenants.organizacao_id',
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
         )
     )
 

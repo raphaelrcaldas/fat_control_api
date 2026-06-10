@@ -29,7 +29,7 @@ from fcontrol_api.schemas.cegep.comiss import (
 from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import get_current_user
+from fcontrol_api.security import ActiveOrg, get_current_user
 from fcontrol_api.services.comis import (
     recalcular_cache_comiss,
     validar_fechamento_comiss,
@@ -57,6 +57,7 @@ def _comiss_to_dict(c: Comissionamento) -> dict:
 @router.get('/', response_model=ApiResponse[list[ComissPublic]])
 async def get_cmtos(
     session: Session,
+    active_org: ActiveOrg,
     user_id: int = None,
     status: str = None,
     search: str = None,
@@ -76,6 +77,7 @@ async def get_cmtos(
     query = (
         select(Comissionamento)
         .join(User)
+        .where(Comissionamento.uae == active_org)
         .order_by(Comissionamento.data_ab.desc())
     )
 
@@ -157,6 +159,7 @@ async def get_cmtos(
 async def get_summary(
     session: Session,
     ano: int,
+    active_org: ActiveOrg,
 ):
     """
     Retorna o summary orçamentário dos comissionamentos do ano escolhido.
@@ -165,8 +168,9 @@ async def get_summary(
         select(Comissionamento)
         .join(User)
         .where(
+            Comissionamento.uae == active_org,
             (func.extract('year', Comissionamento.data_ab) == ano)
-            | (func.extract('year', Comissionamento.data_fc) == ano)
+            | (func.extract('year', Comissionamento.data_fc) == ano),
         )
         .order_by(Comissionamento.data_ab.desc())
     )
@@ -249,12 +253,16 @@ async def get_summary(
 async def get_cmto_by_id(
     comiss_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """
     Retorna um comissionamento com todas as missões e o histórico de auditoria.
     """
     comiss = await session.scalar(
-        select(Comissionamento).where(Comissionamento.id == comiss_id)
+        select(Comissionamento).where(
+            Comissionamento.id == comiss_id,
+            Comissionamento.uae == active_org,
+        )
     )
 
     if not comiss:
@@ -278,6 +286,7 @@ async def get_cmto_by_id(
         )
         .where(
             and_(
+                FragMis.uae == comiss.uae,
                 FragMis.afast >= comiss.data_ab,
                 FragMis.regres <= comiss.data_fc,
             )
@@ -361,6 +370,7 @@ async def get_cmto_by_id(
 async def create_cmto(
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     comiss: ComissSchema,
 ):
     db_comiss = await session.scalar(
@@ -382,7 +392,7 @@ async def create_cmto(
     comiss_data = ComissSchema.model_validate(comiss).model_dump(
         exclude={'id'}
     )
-    new_comiss = Comissionamento(**comiss_data)
+    new_comiss = Comissionamento(**comiss_data, uae=active_org)
     session.add(new_comiss)
     await session.flush()
 
@@ -411,10 +421,14 @@ async def update_cmto(
     comiss_id: int,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     comiss: ComissSchema,
 ):
     db_comiss = await session.scalar(
-        select(Comissionamento).where((Comissionamento.id == comiss_id))
+        select(Comissionamento).where(
+            Comissionamento.id == comiss_id,
+            Comissionamento.uae == active_org,
+        )
     )
 
     if not db_comiss:
@@ -440,6 +454,7 @@ async def update_cmto(
             FragMis,
             and_(
                 FragMis.id == UserFrag.frag_id,
+                FragMis.uae == Comissionamento.uae,
                 FragMis.afast >= Comissionamento.data_ab,
                 FragMis.regres <= Comissionamento.data_fc,
             ),
@@ -461,6 +476,7 @@ async def update_cmto(
             FragMis,
             and_(
                 FragMis.id == UserFrag.frag_id,
+                FragMis.uae == Comissionamento.uae,
                 FragMis.afast >= comiss.data_ab,
                 FragMis.regres <= comiss.data_fc,
             ),
@@ -528,10 +544,14 @@ async def update_cmto(
 async def delete_cmto(
     comiss_id: int,
     session: Session,
+    active_org: ActiveOrg,
     confirm: bool = False,
 ):
     db_comiss = await session.scalar(
-        select(Comissionamento).where(Comissionamento.id == comiss_id)
+        select(Comissionamento).where(
+            Comissionamento.id == comiss_id,
+            Comissionamento.uae == active_org,
+        )
     )
 
     if not db_comiss:
@@ -552,6 +572,7 @@ async def delete_cmto(
         )
         .where(
             and_(
+                FragMis.uae == db_comiss.uae,
                 FragMis.afast >= db_comiss.data_ab,
                 FragMis.regres <= db_comiss.data_fc,
             )

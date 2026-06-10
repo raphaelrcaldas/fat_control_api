@@ -78,7 +78,6 @@ class QuadsGroupOut(BaseModel):
     id: int
     short: str
     long: str
-    uae: str
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -21,7 +21,7 @@ class OperacaoCreate(BaseModel):
     data_inicio: date
     data_fim: date
     status: OperStatus = 'planejada'
-    documento_diretriz: str | None = Field(default=None, max_length=100)
+    documento_referencia: str | None = Field(default=None, max_length=100)
     obs: str | None = None
 
     @model_validator(mode='after')
@@ -38,12 +38,34 @@ class OperacaoUpdate(BaseModel):
     data_inicio: date | None = None
     data_fim: date | None = None
     status: OperStatus | None = None
-    documento_diretriz: str | None = None
+    documento_referencia: str | None = Field(default=None, max_length=100)
     obs: str | None = None
+
+    @model_validator(mode='after')
+    def _sem_null_explicito(self) -> 'OperacaoUpdate':
+        # PATCH parcial: campo ausente = não alterar. `null` explícito
+        # em coluna NOT NULL estouraria no banco (500) — rejeita aqui.
+        nao_nulaveis = (
+            'nome',
+            'tipo',
+            'cidade_id',
+            'data_inicio',
+            'data_fim',
+            'status',
+        )
+        for campo in nao_nulaveis:
+            if campo in self.model_fields_set and getattr(self, campo) is None:
+                raise ValueError(f'{campo} não pode ser nulo')
+        return self
 
 
 class AssociarEtapas(BaseModel):
     etapa_ids: list[int] = Field(min_length=1)
+
+
+class AssociarResult(BaseModel):
+    associadas: int
+    bloqueadas: list[int]  # já vinculadas a outra operação
 
 
 class OperacaoPessoalIn(BaseModel):
@@ -81,7 +103,7 @@ class OperacaoListItem(BaseModel):
     nome: str
     tipo: str
     status: str
-    documento_diretriz: str | None
+    documento_referencia: str | None
     cidade: CidadeMini | None
     data_inicio: date
     data_fim: date
@@ -142,7 +164,7 @@ class OperacaoDetail(BaseModel):
     nome: str
     tipo: str
     status: str
-    documento_diretriz: str | None
+    documento_referencia: str | None
     cidade: CidadeMini | None
     data_inicio: date
     data_fim: date
@@ -154,31 +176,18 @@ class OperacaoDetail(BaseModel):
     sebo: list[SeboRow]
 
 
-class EtapaTripMini(BaseModel):
-    nome: str
-    func: str
-
-
 class OperacaoEtapaRow(BaseModel):
-    """Etapa associada (linha da tabela + dados do drawer)."""
+    """Etapa associada (linha da tabela de etapas)."""
 
     id: int
     data: date
     origem: str
     destino: str
     anv: str
-    modelo: str | None
     esforco: str | None  # descrição(ões) de esforço aéreo
-    missao_id: int
     tvoo: int
     dep: time
     arr: time
-    nivel: str | None
-    pousos: int
-    pax: int | None
-    carga: int | None
-    comb: int | None
-    trip: list[EtapaTripMini]
 
 
 class EtapaCandidata(BaseModel):
@@ -189,6 +198,8 @@ class EtapaCandidata(BaseModel):
     anv: str
     missao_id: int
     tvoo: int
+    dep: time
+    arr: time
     bloqueada: bool  # já vinculada a outra operação (1:N)
     operacao_atual: int | None
 

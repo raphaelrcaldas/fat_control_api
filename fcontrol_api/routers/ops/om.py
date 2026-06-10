@@ -51,6 +51,7 @@ router = APIRouter(prefix='/om', tags=['ordens-missao'])
 )
 async def list_ordens(
     session: Session,
+    active_org: ActiveOrg,
     page: int = 1,
     per_page: int = 20,
     status: Annotated[list[str] | None, Query()] = None,
@@ -68,8 +69,11 @@ async def list_ordens(
     - **data_inicio/data_fim**: Filtro por data de decolagem da primeira etapa
     - **busca**: Busca por número, localidade, tipo ou nome de guerra
     """
-    # Query base: apenas ordens não deletadas
-    query = select(OrdemMissao).where(OrdemMissao.deleted_at.is_(None))
+    # Query base: ordens da org ativa, não deletadas
+    query = select(OrdemMissao).where(
+        OrdemMissao.uae == active_org,
+        OrdemMissao.deleted_at.is_(None),
+    )
 
     # Filtro por status (inclusão ou exclusão)
     if status:
@@ -168,6 +172,7 @@ async def get_route_suggestion(
     dest: str,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     """
     Busca sugestão de rota baseada em missões anteriores (não rascunho).
@@ -186,8 +191,9 @@ async def get_route_suggestion(
     origem_upper = origem.upper()
     dest_upper = dest.upper()
 
-    # Filtro comum: ordens não-rascunho e não-deletadas
+    # Filtro comum: ordens da org ativa, não-rascunho e não-deletadas
     base_filter = [
+        OrdemMissao.uae == active_org,
         OrdemMissao.status != 'rascunho',
         OrdemMissao.deleted_at.is_(None),
     ]
@@ -252,11 +258,15 @@ async def get_route_suggestion(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[OrdemMissaoOut],
 )
-async def get_ordem(id: int, session: Session):
+async def get_ordem(id: int, session: Session, active_org: ActiveOrg):
     """Busca uma ordem de missão por ID"""
     ordem = await session.scalar(
         select(OrdemMissao)
-        .where(OrdemMissao.id == id, OrdemMissao.deleted_at.is_(None))
+        .where(
+            OrdemMissao.id == id,
+            OrdemMissao.uae == active_org,
+            OrdemMissao.deleted_at.is_(None),
+        )
         .options(
             selectinload(OrdemMissao.tripulacao).selectinload(
                 OrdemTripulacao.tripulante
@@ -334,10 +344,13 @@ async def create_ordem(
     if ordem_data.tripulacao:
         await criar_tripulacao_batch(session, ordem.id, ordem_data.tripulacao)
 
-    # Vincular etiquetas
+    # Vincular etiquetas (somente da org ativa)
     if ordem_data.etiquetas_ids:
         etiquetas_result = await session.execute(
-            select(Etiqueta).where(Etiqueta.id.in_(ordem_data.etiquetas_ids))
+            select(Etiqueta).where(
+                Etiqueta.id.in_(ordem_data.etiquetas_ids),
+                Etiqueta.uae == active_org,
+            )
         )
         ordem.etiquetas = list(etiquetas_result.scalars().all())
 
@@ -370,11 +383,14 @@ async def update_ordem(
     ordem_data: OrdemMissaoUpdate,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     """Atualiza uma ordem de missão existente"""
     ordem = await session.scalar(
         select(OrdemMissao).where(
-            OrdemMissao.id == id, OrdemMissao.deleted_at.is_(None)
+            OrdemMissao.id == id,
+            OrdemMissao.uae == active_org,
+            OrdemMissao.deleted_at.is_(None),
         )
     )
 
@@ -593,12 +609,13 @@ async def update_ordem(
 
         del update_data['tripulacao']
 
-    # Atualizar etiquetas se fornecidas
+    # Atualizar etiquetas se fornecidas (somente da org ativa)
     if 'etiquetas_ids' in update_data:
         if ordem_data.etiquetas_ids is not None:
             etiquetas_result = await session.execute(
                 select(Etiqueta).where(
-                    Etiqueta.id.in_(ordem_data.etiquetas_ids)
+                    Etiqueta.id.in_(ordem_data.etiquetas_ids),
+                    Etiqueta.uae == active_org,
                 )
             )
             ordem.etiquetas = list(etiquetas_result.scalars().all())
@@ -637,11 +654,18 @@ async def update_ordem(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
 )
-async def delete_ordem(id: int, session: Session, current_user: CurrentUser):
+async def delete_ordem(
+    id: int,
+    session: Session,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+):
     """Soft delete de uma ordem de missão"""
     ordem = await session.scalar(
         select(OrdemMissao).where(
-            OrdemMissao.id == id, OrdemMissao.deleted_at.is_(None)
+            OrdemMissao.id == id,
+            OrdemMissao.uae == active_org,
+            OrdemMissao.deleted_at.is_(None),
         )
     )
 
@@ -663,9 +687,13 @@ async def delete_ordem(id: int, session: Session, current_user: CurrentUser):
 
 
 @router.get('/etiquetas/', response_model=ApiResponse[list[EtiquetaSchema]])
-async def list_etiquetas(session: Session):
-    """Lista todas as etiquetas cadastradas"""
-    result = await session.execute(select(Etiqueta).order_by(Etiqueta.nome))
+async def list_etiquetas(session: Session, active_org: ActiveOrg):
+    """Lista as etiquetas da org ativa"""
+    result = await session.execute(
+        select(Etiqueta)
+        .where(Etiqueta.uae == active_org)
+        .order_by(Etiqueta.nome)
+    )
     return success_response(data=list(result.scalars().all()))
 
 
@@ -675,13 +703,17 @@ async def list_etiquetas(session: Session):
     status_code=HTTPStatus.CREATED,
 )
 async def create_etiqueta(
-    etiqueta_data: EtiquetaCreate, session: Session, current_user: CurrentUser
+    etiqueta_data: EtiquetaCreate,
+    session: Session,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     """Cria uma nova etiqueta"""
     etiqueta = Etiqueta(
         nome=etiqueta_data.nome,
         cor=etiqueta_data.cor,
         descricao=etiqueta_data.descricao,
+        uae=active_org,
     )
     session.add(etiqueta)
     await session.commit()
@@ -698,9 +730,14 @@ async def update_etiqueta(
     etiqueta_data: EtiquetaUpdate,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     """Atualiza uma etiqueta existente"""
-    etiqueta = await session.get(Etiqueta, id)
+    etiqueta = await session.scalar(
+        select(Etiqueta).where(
+            Etiqueta.id == id, Etiqueta.uae == active_org
+        )
+    )
     if not etiqueta:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Etiqueta não encontrada'
@@ -724,10 +761,17 @@ async def update_etiqueta(
     response_model=ApiResponse[None],
 )
 async def delete_etiqueta(
-    id: int, session: Session, current_user: CurrentUser
+    id: int,
+    session: Session,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     """Remove uma etiqueta"""
-    etiqueta = await session.get(Etiqueta, id)
+    etiqueta = await session.scalar(
+        select(Etiqueta).where(
+            Etiqueta.id == id, Etiqueta.uae == active_org
+        )
+    )
     if not etiqueta:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Etiqueta não encontrada'

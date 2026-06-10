@@ -23,6 +23,7 @@ from fcontrol_api.schemas.estatistica.sebo import (
     SeboVoo,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.params import parse_str_list
 from fcontrol_api.utils.responses import success_response
 
@@ -38,6 +39,7 @@ router = APIRouter(prefix='/sebo', tags=['estatistica'])
 )
 async def list_sebo(
     session: Session,
+    active_org: ActiveOrg,
     func: Annotated[str, Query()],
     oper: Annotated[str | None, Query()] = None,
     func_bordo: Annotated[str | None, Query()] = None,
@@ -133,7 +135,10 @@ async def list_sebo(
             Etapa,
             Etapa.id == TripEtapa.etapa_id,
         )
-        .where(Tripulante.active.is_(True))
+        .where(
+            Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
+        )
         .group_by(
             Tripulante.id,
             User.p_g,

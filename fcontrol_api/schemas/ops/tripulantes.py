@@ -28,14 +28,12 @@ class TripCreate(BaseTrip):
 
 class TripSchema(BaseTrip):
     user_id: int
-    uae: str
     model_config = ConfigDict(from_attributes=True)
 
 
 class TripBasicInfo(BaseModel):
     id: int
     trig: str = Field(min_length=3, max_length=3)
-    uae: str
     active: bool
     user: UserPublic
     model_config = ConfigDict(from_attributes=True)

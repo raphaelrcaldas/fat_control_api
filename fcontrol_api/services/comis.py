@@ -17,6 +17,7 @@ async def verificar_usrs_comiss(
     afast: datetime,
     regres: datetime,
     session: AsyncSession,
+    active_org: str,
 ) -> None:
     """
     Recebe uma lista de usuários na missão e
@@ -24,9 +25,11 @@ async def verificar_usrs_comiss(
     se a data da missão está contida na data do
     comissionamento
     """
-    # procura comissionamentos abertos dos usuários envolvidos na missão
+    # procura comissionamentos da org ativa dos usuários da missão
+    # (missão da org A só conta para comissionamento da org A)
     query_comiss = select(Comissionamento).where(
-        Comissionamento.user_id.in_([u.user_id for u in users])
+        Comissionamento.user_id.in_([u.user_id for u in users]),
+        Comissionamento.uae == active_org,
     )
     result_comiss = (await session.scalars(query_comiss)).all()
 
@@ -121,7 +124,7 @@ async def recalcular_cache_comiss(
         select(Comissionamento).where(Comissionamento.id == comiss_id)
     )
 
-    # Buscar missões do comissionamento
+    # Buscar missões do comissionamento (mesma org do comissionamento)
     query = (
         select(FragMis, UserFrag)
         .join(
@@ -134,6 +137,7 @@ async def recalcular_cache_comiss(
         )
         .where(
             and_(
+                FragMis.uae == comiss.uae,
                 FragMis.afast >= comiss.data_ab,
                 FragMis.regres <= comiss.data_fc,
             )
@@ -249,6 +253,7 @@ async def validar_fechamento_comiss(
         )
         .where(
             and_(
+                FragMis.uae == comiss.uae,
                 FragMis.afast >= comiss.data_ab,
                 FragMis.regres <= comiss.data_fc,
             )
@@ -273,13 +278,18 @@ async def localizar_comiss_por_missao(
     data_afast: date,
     data_regres: date,
     session: AsyncSession,
+    uae: str,
 ) -> list[int]:
     """
     Localiza IDs de comissionamentos afetados por uma missão.
+
+    Escopado por `uae`: missão de uma org só afeta comissionamentos
+    da mesma org.
     """
     query = select(Comissionamento.id).where(
         and_(
             Comissionamento.user_id == user_id,
+            Comissionamento.uae == uae,
             Comissionamento.data_ab <= data_afast,
             Comissionamento.data_fc >= data_regres,
         )
@@ -294,13 +304,14 @@ async def recalcular_comiss_afetados(
     data_afast: date,
     data_regres: date,
     session: AsyncSession,
+    uae: str,
 ) -> int:
     """
     Recalcula todos os comissionamentos afetados por uma missão.
     Retorna a quantidade de comissionamentos recalculados.
     """
     comiss_ids = await localizar_comiss_por_missao(
-        user_id, data_afast, data_regres, session
+        user_id, data_afast, data_regres, session, uae
     )
 
     for comiss_id in comiss_ids:

@@ -31,7 +31,9 @@ class QuadsGroup(Base):
     long: Mapped[str] = mapped_column(nullable=False)
     uae: Mapped[str] = mapped_column(
         ForeignKey(
-            'organizacoes.sigla', ondelete='RESTRICT', onupdate='CASCADE'
+            'tenants.organizacao_id',
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
         )
     )
     types = relationship('QuadsType', backref='quads_group', uselist=True)

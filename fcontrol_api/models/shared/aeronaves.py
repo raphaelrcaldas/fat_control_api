@@ -1,6 +1,12 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Identity,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -9,9 +15,45 @@ from .base import Base
 class ProjetoAnv(Base):
     __tablename__ = 'projetos_anvs'
 
-    id_projeto: Mapped[str] = mapped_column(String(10), primary_key=True)
+    id_projeto: Mapped[str] = mapped_column(String(2), primary_key=True)
     modelo: Mapped[str] = mapped_column(
         String(20), nullable=False, unique=True
+    )
+
+
+class TenantProjeto(Base):
+    """Projetos (modelos de aeronave) operados por cada tenant.
+
+    Associativa N:M entre `tenants` e `projetos_anvs`. As aeronaves são um
+    diretório global (sem `uae`); o escopo por organização é feito por aqui:
+    uma org só enxerga/cadastra a frota dos projetos que opera.
+    """
+
+    __tablename__ = 'tenant_projetos'
+    __table_args__ = (
+        UniqueConstraint('uae', 'projeto', name='uq_tenant_projeto'),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Identity(), primary_key=True, init=False
+    )
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            'tenants.organizacao_id',
+            ondelete='CASCADE',
+            onupdate='CASCADE',
+            name='fk_tenant_projetos_uae',
+        ),
+    )
+    projeto: Mapped[str] = mapped_column(
+        String(2),
+        ForeignKey(
+            'projetos_anvs.id_projeto',
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+            name='fk_tenant_projetos_projeto',
+        ),
     )
 
 
@@ -23,7 +65,7 @@ class Aeronave(Base):
     sit: Mapped[str] = mapped_column(String(2))
     obs: Mapped[str | None]
     projeto: Mapped[str] = mapped_column(
-        String(10),
+        String(2),
         ForeignKey(
             'projetos_anvs.id_projeto',
             onupdate='CASCADE',

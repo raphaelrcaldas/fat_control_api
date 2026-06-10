@@ -35,6 +35,7 @@ class UserSchema(BaseModel):
     telefone: str | None = None
     ult_promo: Annotated[date | None, Body()]
     nasc: Annotated[date | None, Body()]
+    data_praca: Annotated[date | None, Body()]
     email_pess: EmailStr | None
     email_fab: EmailStr | None
     active: bool
@@ -118,6 +119,7 @@ class UserUpdate(BaseModel):
     telefone: str | None = None
     ult_promo: date | None = None
     nasc: date | None = None
+    data_praca: date | None = None
     email_pess: EmailStr | None = None
     email_fab: EmailStr | None = None
     active: bool | None = None

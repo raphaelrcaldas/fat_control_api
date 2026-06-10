@@ -161,6 +161,7 @@ async def create_user(
         saram=payload.saram,
         cpf=payload.cpf,
         nasc=payload.nasc,
+        data_praca=payload.data_praca,
         email_pess=payload.email_pess,
         email_fab=payload.email_fab,
         telefone=payload.telefone,

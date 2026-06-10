@@ -12,7 +12,7 @@ from fcontrol_api.models.estatistica.esf_aer import (
     EsfAerAlocHist,
     EsforcoAereo,
 )
-from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa
+from fcontrol_api.models.estatistica.etapa import Etapa, Missao, OIEtapa
 from fcontrol_api.schemas.estatistica.esf_aer import (
     EsfAerDiffRow,
     EsfAerImportResponse,
@@ -22,6 +22,7 @@ from fcontrol_api.schemas.estatistica.esf_aer import (
     EsfAerUpdateRequest,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -60,9 +61,10 @@ async def list_esf_aer_items(session: Session):
 )
 async def get_esf_aer_resumo(
     session: Session,
+    active_org: ActiveOrg,
     ano_ref: AnoRef,
 ):
-    # Subquery: OIEtapa filtrada por ano via Etapa
+    # Subquery: OIEtapa filtrada por ano e pela unidade ativa (via Missao).
     oi_sub = (
         select(
             OIEtapa.esf_aer_id,
@@ -70,7 +72,11 @@ async def get_esf_aer_resumo(
             extract('month', Etapa.data).label('mes'),
         )
         .join(Etapa, Etapa.id == OIEtapa.etapa_id)
-        .where(extract('year', Etapa.data) == ano_ref)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(
+            extract('year', Etapa.data) == ano_ref,
+            Missao.uae == active_org,
+        )
         .subquery('oi_ano')
     )
 
@@ -103,7 +109,8 @@ async def get_esf_aer_resumo(
         .outerjoin(
             EsfAerAloc,
             (EsfAerAloc.esfaer_id == EsforcoAereo.id)
-            & (EsfAerAloc.ano_ref == ano_ref),
+            & (EsfAerAloc.ano_ref == ano_ref)
+            & (EsfAerAloc.uae == active_org),
         )
         .outerjoin(
             oi_sub,
@@ -195,9 +202,15 @@ def _esf_aer_key(
 )
 async def update_esf_aer(
     session: Session,
+    active_org: ActiveOrg,
     payload: EsfAerUpdateRequest,
 ):
-    """Importa/atualiza Esforco Aereo em lote."""
+    """Importa/atualiza Esforco Aereo em lote (escopado pela org ativa).
+
+    O catalogo `EsforcoAereo` e compartilhado entre unidades; apenas as
+    alocacoes (`EsfAerAloc`) sao por unidade. So as alocacoes da org ativa
+    sao lidas, atualizadas, criadas ou zeradas.
+    """
     ano_ref = payload.ano_ref
 
     # 1. Buscar todos os EsforcoAereo existentes
@@ -217,9 +230,12 @@ async def update_esf_aer(
         for r in existing_rows
     }
 
-    # 2. Buscar alocacoes existentes para o ano
+    # 2. Buscar alocacoes existentes para o ano (apenas da org ativa)
     aloc_result = await session.execute(
-        select(EsfAerAloc).where(EsfAerAloc.ano_ref == ano_ref)
+        select(EsfAerAloc).where(
+            EsfAerAloc.ano_ref == ano_ref,
+            EsfAerAloc.uae == active_org,
+        )
     )
     aloc_rows = aloc_result.scalars().all()
 
@@ -275,6 +291,7 @@ async def update_esf_aer(
             nova_aloc = EsfAerAloc(
                 esfaer_id=novo.id,
                 ano_ref=ano_ref,
+                uae=active_org,
                 alocado=item.horas_alocadas,
                 **meses_kw,
             )
@@ -305,6 +322,7 @@ async def update_esf_aer(
             nova_aloc = EsfAerAloc(
                 esfaer_id=esf.id,
                 ano_ref=ano_ref,
+                uae=active_org,
                 alocado=item.horas_alocadas,
                 **meses_kw,
             )

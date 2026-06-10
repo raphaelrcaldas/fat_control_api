@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.models.shared.estados_cidades import Cidade
 from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.tenant import Tenant
 from fcontrol_api.models.shared.users import User
 
 from .base import Base
@@ -34,6 +35,16 @@ class Etiqueta(Base):
     cor: Mapped[str] = mapped_column(
         String(7), nullable=False
     )  # Hex color #RRGGBB
+    # Etiquetas são customizadas por unidade tenant (FK cross-Base
+    # usa o objeto-Column)
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            Tenant.organizacao_id,
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+        ),
+    )
     descricao: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None
     )
@@ -61,6 +72,15 @@ class FragMis(Base):
     acrec_desloc: Mapped[bool] = mapped_column(server_default='false')
     obs: Mapped[str] = mapped_column(nullable=True)
     indenizavel: Mapped[bool] = mapped_column(nullable=False)
+    # Escopo multi-tenant: FK cross-Base usa o objeto-Column
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            Tenant.organizacao_id,
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+        ),
+    )
     custos: Mapped[dict] = mapped_column(
         JSONB, server_default='{}', nullable=False, init=False
     )

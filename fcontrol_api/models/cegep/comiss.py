@@ -1,9 +1,10 @@
 from datetime import date
 
-from sqlalchemy import ForeignKey, Identity
+from sqlalchemy import ForeignKey, Identity, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from fcontrol_api.models.shared.tenant import Tenant
 from fcontrol_api.models.shared.users import User
 
 from .base import Base
@@ -16,6 +17,15 @@ class Comissionamento(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     status: Mapped[str]
     dep: Mapped[bool]
+    # Escopo multi-tenant: FK cross-Base usa o objeto-Column
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            Tenant.organizacao_id,
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+        ),
+    )
     cache_calc: Mapped[dict] = mapped_column(
         JSONB, server_default='{}', nullable=False, init=False
     )

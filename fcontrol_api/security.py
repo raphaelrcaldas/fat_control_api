@@ -258,11 +258,28 @@ async def has_permission(
 def permission_checker(resource: str, action: str):
     async def check_permission(
         session: Session,
+        active_org: ActiveOrgOptional,
         user: User = Depends(get_current_user),
     ) -> User:
         "Verifica se usuário tem permissão necessária."
 
-        if not await has_permission(user, session, resource, action):
+        # Admin da organização ativa tem acesso total ao escopo dela: os
+        # handlers de data-plane já filtram por `active_org`, então o
+        # bypass não vaza dados de outras unidades. Resolve o vínculo pela
+        # org ativa (não o de sistema), garantindo "só da org dele".
+        roles = await get_user_roles(user.id, session, active_org)
+        if roles.get('role') == 'admin':
+            return user
+
+        # Checa a permissão no MESMO vínculo resolvido pela org ativa.
+        # `has_permission` re-consultaria sem org e o fallback de
+        # `get_user_roles` aceitaria vínculo de outra organização —
+        # permissão da org A autorizaria escrita na org B.
+        allowed = any(
+            perm['resource'] == resource and perm['name'] == action
+            for perm in roles.get('perms', [])
+        )
+        if not allowed:
             await log_user_action(
                 session=session,
                 user_id=user.id,

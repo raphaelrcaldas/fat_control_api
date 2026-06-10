@@ -149,12 +149,15 @@ async def get_user_roles(
 
     result = await session.scalar(query)
 
-    # Fallback: token sem claim (antigo) ou org inexistente -> primeiro
-    # vínculo do usuário, evitando travar a autenticação na transição.
-    # NÃO aplica ao FATBIRD: a org do crew vem da lotação (tripulantes),
+    # Fallback: token sem claim (antigo) -> primeiro vínculo do usuário,
+    # evitando travar a autenticação na transição.
+    # NÃO aplica quando o token traz org explícita: sem vínculo nela
+    # (ex.: revogado após a emissão), resolver outro vínculo emprestaria
+    # role/permissões de OUTRA organização ao contexto ativo.
+    # Tampouco ao FATBIRD: a org do crew vem da lotação (tripulantes),
     # que não corresponde a `user_roles`; cair no fallback resolveria um
     # vínculo não relacionado (ex.: admin de sistema) para o tripulante.
-    if not result and app_client != FATBIRD_CLIENT:
+    if not result and active_org is None and app_client != FATBIRD_CLIENT:
         result = await session.scalar(
             select(UserRole)
             .where(UserRole.user_id == user_id)

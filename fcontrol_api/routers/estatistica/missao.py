@@ -30,6 +30,7 @@ from fcontrol_api.schemas.estatistica.etapa import (
     MissaoUpdate,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.services.etapas import (
     add_especificos,
     assert_no_anv_collision,
@@ -56,8 +57,13 @@ router = APIRouter(prefix='/missao', tags=['estatistica'])
 async def get_missao(
     missao_id: MissaoId,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[MissaoComEtapasDetailOut]:
-    missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
+    missao = await session.scalar(
+        select(Missao).where(
+            Missao.id == missao_id, Missao.uae == active_org
+        )
+    )
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -109,10 +115,12 @@ async def get_missao(
 async def create_missao(
     missao: MissaoCreate,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[MissaoPublic]:
     new_missao = Missao(
         titulo=missao.titulo,
         obs=missao.obs,
+        uae=active_org,
         is_simulador=missao.is_simulador,
     )
     session.add(new_missao)
@@ -133,6 +141,7 @@ async def create_missao(
 async def create_missao_with_etapas(
     data: MissaoComEtapasCreate,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[MissaoPublic]:
     """Cria missao + etapas (com OIs e tripulantes) atomicamente.
 
@@ -181,6 +190,7 @@ async def create_missao_with_etapas(
     new_missao = Missao(
         titulo=data.titulo,
         obs=data.obs,
+        uae=active_org,
         is_simulador=data.is_simulador,
     )
     session.add(new_missao)
@@ -256,6 +266,7 @@ async def update_missao_with_etapas(
     missao_id: MissaoId,
     payload: MissaoComEtapasUpdate,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[MissaoComEtapasDetailOut]:
     """Atualiza missao + etapas atomicamente.
 
@@ -263,7 +274,11 @@ async def update_missao_with_etapas(
     SQLAlchemy faz rollback total da transacao. `is_simulador`
     e imutavel apos a criacao — nao e aceito no payload.
     """
-    missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
+    missao = await session.scalar(
+        select(Missao).where(
+            Missao.id == missao_id, Missao.uae == active_org
+        )
+    )
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -556,8 +571,13 @@ async def update_missao(
     missao_id: MissaoId,
     missao_data: MissaoUpdate,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[MissaoPublic]:
-    missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
+    missao = await session.scalar(
+        select(Missao).where(
+            Missao.id == missao_id, Missao.uae == active_org
+        )
+    )
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -586,8 +606,13 @@ async def update_missao(
 async def delete_missao_com_etapas(
     missao_id: MissaoId,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[None]:
-    missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
+    missao = await session.scalar(
+        select(Missao).where(
+            Missao.id == missao_id, Missao.uae == active_org
+        )
+    )
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -634,8 +659,13 @@ async def delete_missao_com_etapas(
 async def delete_missao(
     missao_id: MissaoId,
     session: Session,
+    active_org: ActiveOrg,
 ) -> ApiResponse[None]:
-    missao = await session.scalar(select(Missao).where(Missao.id == missao_id))
+    missao = await session.scalar(
+        select(Missao).where(
+            Missao.id == missao_id, Missao.uae == active_org
+        )
+    )
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,

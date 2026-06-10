@@ -1,7 +1,7 @@
 """Router do módulo Operações / Manobras / Exercícios."""
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date
 from http import HTTPStatus
 from typing import Annotated
 
@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
-from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
+from fcontrol_api.models.estatistica.etapa import (
+    Etapa,
+    Missao,
+    OIEtapa,
+    TripEtapa,
+)
 from fcontrol_api.models.shared.aeronaves import Aeronave, ProjetoAnv
 from fcontrol_api.models.shared.operacao import (
     Operacao,
@@ -24,11 +29,11 @@ from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.ops.operacao import (
     AssociarEtapas,
+    AssociarResult,
     CidadeMini,
     EsforcoBloco,
     EsforcoRow,
     EtapaCandidata,
-    EtapaTripMini,
     OperacaoCreate,
     OperacaoDetail,
     OperacaoEtapaRow,
@@ -52,8 +57,9 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/operacoes', tags=['operacoes'])
 
 ViewOper = Depends(permission_checker('operacoes', 'view'))
+# Todas as escritas do módulo (criar/editar/associar/pessoal) exigem
+# `operacoes.create`, espelhando o gating do frontend (PermBased).
 CreateOper = permission_checker('operacoes', 'create')
-UpdateOper = permission_checker('operacoes', 'update')
 DeleteOper = permission_checker('operacoes', 'delete')
 
 
@@ -77,7 +83,6 @@ async def _get_op(
         select(Operacao).where(
             Operacao.id == op_id,
             Operacao.uae == active_org,
-            Operacao.deleted_at.is_(None),
         )
     )
     if not op:
@@ -86,6 +91,25 @@ async def _get_op(
             detail='Operação não encontrada',
         )
     return op
+
+
+def _erro_operacao(exc: IntegrityError) -> HTTPException:
+    """Mapeia a violação de constraint para uma resposta legível."""
+    msg = str(exc.orig)
+    if 'uq_operacao_uae_nome' in msg:
+        return HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail='Já existe uma operação com esse nome nesta unidade',
+        )
+    if 'cidade_id' in msg:
+        return HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Cidade inválida',
+        )
+    return HTTPException(
+        status_code=HTTPStatus.CONFLICT,
+        detail='Conflito ao salvar a operação; tente novamente',
+    )
 
 
 def _list_item(
@@ -97,7 +121,7 @@ def _list_item(
         nome=op.nome,
         tipo=op.tipo,
         status=op.status,
-        documento_diretriz=op.documento_diretriz,
+        documento_referencia=op.documento_referencia,
         cidade=CidadeMini.model_validate(op.cidade) if op.cidade else None,
         data_inicio=op.data_inicio,
         data_fim=op.data_fim,
@@ -133,11 +157,11 @@ async def list_operacoes(
     active_org: ActiveOrg,
     status: Annotated[str | None, Query()] = None,
     tipo: Annotated[str | None, Query()] = None,
-    date_start: Annotated[str | None, Query()] = None,
-    date_end: Annotated[str | None, Query()] = None,
+    date_start: Annotated[date | None, Query()] = None,
+    date_end: Annotated[date | None, Query()] = None,
     q: Annotated[str | None, Query()] = None,
 ):
-    base = (Operacao.uae == active_org) & Operacao.deleted_at.is_(None)
+    base = Operacao.uae == active_org
 
     # Contadores por status (independentes dos filtros de status)
     counts_rows = await session.execute(
@@ -168,7 +192,7 @@ async def list_operacoes(
         query = query.where(
             or_(
                 Operacao.nome.ilike(like),
-                Operacao.documento_diretriz.ilike(like),
+                Operacao.documento_referencia.ilike(like),
             )
         )
     query = query.order_by(Operacao.numero.desc(), Operacao.id.desc())
@@ -212,31 +236,38 @@ async def create_operacao(
     active_org: ActiveOrg,
     user: Annotated[User, Depends(CreateOper)],
 ):
-    max_num = await session.scalar(
-        select(sql_func.max(Operacao.numero)).where(Operacao.uae == active_org)
-    )
-    op = Operacao(
-        numero=(max_num or 0) + 1,
-        nome=payload.nome,
-        tipo=payload.tipo,
-        cidade_id=payload.cidade_id,
-        data_inicio=payload.data_inicio,
-        data_fim=payload.data_fim,
-        status=payload.status,
-        uae=active_org,
-        created_by=user.id,
-        documento_diretriz=payload.documento_diretriz,
-        obs=payload.obs,
-    )
-    session.add(op)
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Já existe uma operação com esse nome nesta unidade',
-        ) from exc
+    # `numero` é max+1 por org: creates concorrentes podem colidir no
+    # uq_operacao_uae_numero — nesse caso recalcula e tenta de novo.
+    tentativas = 3
+    for tentativa in range(tentativas):
+        max_num = await session.scalar(
+            select(sql_func.max(Operacao.numero)).where(
+                Operacao.uae == active_org
+            )
+        )
+        op = Operacao(
+            numero=(max_num or 0) + 1,
+            nome=payload.nome,
+            tipo=payload.tipo,
+            cidade_id=payload.cidade_id,
+            data_inicio=payload.data_inicio,
+            data_fim=payload.data_fim,
+            status=payload.status,
+            uae=active_org,
+            created_by=user.id,
+            documento_referencia=payload.documento_referencia,
+            obs=payload.obs,
+        )
+        session.add(op)
+        try:
+            await session.commit()
+            break
+        except IntegrityError as exc:
+            await session.rollback()
+            colidiu_numero = 'uq_operacao_uae_numero' in str(exc.orig)
+            if colidiu_numero and tentativa < tentativas - 1:
+                continue
+            raise _erro_operacao(exc) from exc
 
     await session.refresh(op)
     await log_user_action(
@@ -374,7 +405,7 @@ async def get_operacao(op_id: int, session: Session, active_org: ActiveOrg):
         nome=op.nome,
         tipo=op.tipo,
         status=op.status,
-        documento_diretriz=op.documento_diretriz,
+        documento_referencia=op.documento_referencia,
         cidade=CidadeMini.model_validate(op.cidade) if op.cidade else None,
         data_inicio=op.data_inicio,
         data_fim=op.data_fim,
@@ -397,7 +428,7 @@ async def update_operacao(
     payload: OperacaoUpdate,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(UpdateOper)],
+    user: Annotated[User, Depends(CreateOper)],
 ):
     op = await _get_op(session, op_id, active_org)
     changes = payload.model_dump(exclude_unset=True)
@@ -409,6 +440,25 @@ async def update_operacao(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='data_fim deve ser maior ou igual a data_inicio',
         )
+    # Encurtar o período não pode deixar etapa associada fora dele
+    # (mesmo contrato imposto nas candidatas e no associar).
+    if (nova_ini, nova_fim) != (op.data_inicio, op.data_fim):
+        fora = await session.scalar(
+            select(sql_func.count())
+            .select_from(Etapa)
+            .where(
+                Etapa.id.in_(_etapa_ids_subq(op.id)),
+                ~Etapa.data.between(nova_ini, nova_fim),
+            )
+        )
+        if fora:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=(
+                    f'{fora} etapa(s) associada(s) ficariam fora do novo '
+                    'período; desassocie-as antes de alterar as datas'
+                ),
+            )
 
     before: dict = {}
     after: dict = {}
@@ -423,10 +473,7 @@ async def update_operacao(
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail='Já existe uma operação com esse nome nesta unidade',
-        ) from exc
+        raise _erro_operacao(exc) from exc
 
     await log_user_action(
         session=session,
@@ -449,11 +496,9 @@ async def delete_operacao(
     user: Annotated[User, Depends(DeleteOper)],
 ):
     op = await _get_op(session, op_id, active_org)
-    op.deleted_at = datetime.now(timezone.utc)
-    # Remove os vínculos de etapa (preserva os registros de voo)
-    await session.execute(
-        delete(OperacaoEtapa).where(OperacaoEtapa.operacao_id == op.id)
-    )
+    # Hard delete: o ON DELETE CASCADE remove vínculos de etapa e o
+    # pessoal; os registros de voo (etapas) são preservados.
+    await session.delete(op)
     await log_user_action(
         session=session,
         user_id=user.id,
@@ -487,19 +532,6 @@ async def list_etapas(op_id: int, session: Session, active_org: ActiveOrg):
         return success_response(data=[])
 
     ids = [e.id for e in etapas]
-    anvs = {e.anv for e in etapas}
-
-    trips_map: dict[int, list[EtapaTripMini]] = defaultdict(list)
-    trip_rows = await session.execute(
-        select(TripEtapa.etapa_id, TripEtapa.func, User.p_g, User.nome_guerra)
-        .join(Tripulante, Tripulante.id == TripEtapa.trip_id)
-        .join(User, User.id == Tripulante.user_id)
-        .where(TripEtapa.etapa_id.in_(ids))
-    )
-    for etapa_id, func, p_g, ng in trip_rows.all():
-        trips_map[etapa_id].append(
-            EtapaTripMini(nome=f'{p_g} {ng}', func=func)
-        )
 
     esf_map: dict[int, list[str]] = defaultdict(list)
     esf_rows = await session.execute(
@@ -510,13 +542,6 @@ async def list_etapas(op_id: int, session: Session, active_org: ActiveOrg):
     for etapa_id, desc in esf_rows.all():
         esf_map[etapa_id].append(desc)
 
-    modelo_rows = await session.execute(
-        select(Aeronave.matricula, ProjetoAnv.modelo)
-        .join(ProjetoAnv, ProjetoAnv.id_projeto == Aeronave.projeto)
-        .where(Aeronave.matricula.in_(anvs))
-    )
-    modelo_map = {m: mod for m, mod in modelo_rows.all()}
-
     rows = [
         OperacaoEtapaRow(
             id=e.id,
@@ -524,18 +549,10 @@ async def list_etapas(op_id: int, session: Session, active_org: ActiveOrg):
             origem=e.origem,
             destino=e.destino,
             anv=e.anv,
-            modelo=modelo_map.get(e.anv),
             esforco=', '.join(esf_map.get(e.id, [])) or None,
-            missao_id=e.missao_id,
             tvoo=e.tvoo,
             dep=e.dep,
             arr=e.arr,
-            nivel=e.nivel,
-            pousos=e.pousos,
-            pax=e.pax,
-            carga=e.carga,
-            comb=e.comb,
-            trip=trips_map.get(e.id, []),
         )
         for e in etapas
     ]
@@ -549,10 +566,14 @@ async def list_etapas(op_id: int, session: Session, active_org: ActiveOrg):
 )
 async def list_candidatas(op_id: int, session: Session, active_org: ActiveOrg):
     op = await _get_op(session, op_id, active_org)
+    # Só etapas de missões da org ativa (escopo via missão, já que
+    # Etapa não tem `uae` próprio): evita listar voos de outra unidade.
     rows = await session.execute(
         select(Etapa, OperacaoEtapa.operacao_id)
+        .join(Missao, Missao.id == Etapa.missao_id)
         .outerjoin(OperacaoEtapa, OperacaoEtapa.etapa_id == Etapa.id)
         .where(
+            Missao.uae == active_org,
             Etapa.data.between(op.data_inicio, op.data_fim),
             or_(
                 OperacaoEtapa.operacao_id.is_(None),
@@ -571,6 +592,8 @@ async def list_candidatas(op_id: int, session: Session, active_org: ActiveOrg):
             anv=e.anv,
             missao_id=e.missao_id,
             tvoo=e.tvoo,
+            dep=e.dep,
+            arr=e.arr,
             bloqueada=cur_op is not None,
             operacao_atual=cur_op,
         )
@@ -579,21 +602,29 @@ async def list_candidatas(op_id: int, session: Session, active_org: ActiveOrg):
     return success_response(data=cands)
 
 
-@router.post('/{op_id}/etapas', response_model=ApiResponse[dict])
+@router.post('/{op_id}/etapas', response_model=ApiResponse[AssociarResult])
 async def associar_etapas(
     op_id: int,
     payload: AssociarEtapas,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(UpdateOper)],
+    user: Annotated[User, Depends(CreateOper)],
 ):
     op = await _get_op(session, op_id, active_org)
 
-    # Apenas etapas existentes
+    # Apenas etapas existentes, de missões da org ativa (bloqueia voos
+    # de outra unidade — escopo herdado da missão) e dentro do período
+    # da operação (mesmo contrato das candidatas).
     validos = set(
         (
             await session.scalars(
-                select(Etapa.id).where(Etapa.id.in_(payload.etapa_ids))
+                select(Etapa.id)
+                .join(Missao, Missao.id == Etapa.missao_id)
+                .where(
+                    Etapa.id.in_(payload.etapa_ids),
+                    Missao.uae == active_org,
+                    Etapa.data.between(op.data_inicio, op.data_fim),
+                )
             )
         ).all()
     )
@@ -631,9 +662,21 @@ async def associar_etapas(
         resource_id=op.id,
         after={'associadas': associadas, 'bloqueadas': bloqueadas},
     )
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        # Corrida: outra requisição associou a mesma etapa entre o
+        # check e o INSERT (a PK etapa_id garante a consistência).
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Alguma etapa acabou de ser associada a outra operação; '
+                'recarregue a lista e tente novamente'
+            ),
+        ) from exc
     return success_response(
-        data={'associadas': associadas, 'bloqueadas': bloqueadas},
+        data=AssociarResult(associadas=associadas, bloqueadas=bloqueadas),
         message=f'{associadas} etapa(s) associada(s)',
     )
 
@@ -644,7 +687,7 @@ async def desassociar_etapa(
     etapa_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(UpdateOper)],
+    user: Annotated[User, Depends(CreateOper)],
 ):
     op = await _get_op(session, op_id, active_org)
     result = await session.execute(
@@ -680,8 +723,32 @@ async def desassociar_etapa(
 )
 async def list_pessoal(op_id: int, session: Session, active_org: ActiveOrg):
     op = await _get_op(session, op_id, active_org)
-    pessoal = sorted(op.pessoal, key=lambda p: p.data_ingresso)
+    pessoal = (
+        await session.scalars(
+            select(OperacaoPessoal)
+            .where(OperacaoPessoal.operacao_id == op.id)
+            .order_by(OperacaoPessoal.data_ingresso, OperacaoPessoal.id)
+        )
+    ).all()
     return success_response(data=[_pessoal_out(p) for p in pessoal])
+
+
+def _erro_pessoal(exc: IntegrityError) -> HTTPException:
+    msg = str(exc.orig)
+    if 'uq_operacao_pessoal_user' in msg:
+        return HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail='Militar já associado a esta operação',
+        )
+    if 'user_id' in msg:
+        return HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Usuário inválido',
+        )
+    return HTTPException(
+        status_code=HTTPStatus.CONFLICT,
+        detail='Conflito ao salvar o militar; tente novamente',
+    )
 
 
 @router.post(
@@ -694,7 +761,7 @@ async def add_pessoal(
     payload: OperacaoPessoalIn,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(UpdateOper)],
+    user: Annotated[User, Depends(CreateOper)],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = OperacaoPessoal(
@@ -706,7 +773,11 @@ async def add_pessoal(
         data_regresso=payload.data_regresso,
     )
     session.add(pessoa)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise _erro_pessoal(exc) from exc
     await session.refresh(pessoa, ['user'])
     await log_user_action(
         session=session,
@@ -729,7 +800,7 @@ async def update_pessoal(
     payload: OperacaoPessoalIn,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(UpdateOper)],
+    user: Annotated[User, Depends(CreateOper)],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = await session.scalar(
@@ -756,7 +827,11 @@ async def update_pessoal(
         resource_id=op.id,
         after={'pessoal_update': pessoal_id},
     )
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise _erro_pessoal(exc) from exc
     return success_response(message='Pessoa atualizada')
 
 
@@ -768,7 +843,7 @@ async def remove_pessoal(
     pessoal_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(UpdateOper)],
+    user: Annotated[User, Depends(CreateOper)],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = await session.scalar(

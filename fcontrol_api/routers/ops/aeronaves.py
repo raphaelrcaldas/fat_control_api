@@ -7,16 +7,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.shared.aeronaves import Aeronave
+from fcontrol_api.models.shared.aeronaves import (
+    Aeronave,
+    ProjetoAnv,
+    TenantProjeto,
+)
 from fcontrol_api.schemas.ops.aeronave import (
     AeronaveCreate,
     AeronavePublic,
     AeronaveUpdate,
+    ProjetoAnvOut,
 )
 from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
 )
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import (
     paginated_response,
     success_response,
@@ -27,6 +33,13 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/aeronaves', tags=['aeronaves'])
 
 
+def _projetos_da_org(active_org: str):
+    """Subquery com os projetos operados pela org ativa."""
+    return select(TenantProjeto.projeto).where(
+        TenantProjeto.uae == active_org
+    )
+
+
 @router.post(
     '/',
     status_code=HTTPStatus.CREATED,
@@ -35,6 +48,7 @@ router = APIRouter(prefix='/aeronaves', tags=['aeronaves'])
 async def create_aeronave(
     aeronave: AeronaveCreate,
     session: Session,
+    active_org: ActiveOrg,
 ):
     db_aeronave = await session.scalar(
         select(Aeronave).where(Aeronave.matricula == aeronave.matricula)
@@ -46,12 +60,25 @@ async def create_aeronave(
             detail='Aeronave com esta matrícula já existe',
         )
 
+    # O projeto precisa ser operado pela org ativa.
+    autorizado = await session.scalar(
+        _projetos_da_org(active_org).where(
+            TenantProjeto.projeto == aeronave.projeto
+        )
+    )
+    if not autorizado:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Projeto não disponível para a organização',
+        )
+
     new_aeronave = Aeronave(
         matricula=aeronave.matricula,
         active=aeronave.active,
         sit=aeronave.sit,
         obs=aeronave.obs,
         is_sim=aeronave.is_sim,
+        projeto=aeronave.projeto,
     )
 
     session.add(new_aeronave)
@@ -71,6 +98,7 @@ async def create_aeronave(
 )
 async def list_aeronaves(
     session: Session,
+    active_org: ActiveOrg,
     sit: str | None = None,
     active: bool | None = None,
     is_sim: bool | None = None,
@@ -84,7 +112,8 @@ async def list_aeronaves(
     base_query = select(Aeronave).order_by(Aeronave.matricula)
     count_query = select(func.count()).select_from(Aeronave)
 
-    filters = []
+    # Escopo por org: só a frota dos projetos operados pela org ativa.
+    filters = [Aeronave.projeto.in_(_projetos_da_org(active_org))]
 
     if sit:
         sit_list = [s.strip() for s in sit.split(',') if s.strip()]
@@ -116,13 +145,39 @@ async def list_aeronaves(
 
 
 @router.get(
+    '/projetos',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[list[ProjetoAnvOut]],
+)
+async def list_org_projetos(session: Session, active_org: ActiveOrg):
+    """Projetos operados pela org ativa (opções do formulário)."""
+    rows = await session.execute(
+        select(ProjetoAnv.id_projeto, ProjetoAnv.modelo)
+        .join(TenantProjeto, TenantProjeto.projeto == ProjetoAnv.id_projeto)
+        .where(TenantProjeto.uae == active_org)
+        .order_by(ProjetoAnv.modelo)
+    )
+    return success_response(
+        data=[
+            ProjetoAnvOut(id_projeto=r.id_projeto, modelo=r.modelo)
+            for r in rows
+        ],
+    )
+
+
+@router.get(
     '/{matricula}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[AeronavePublic],
 )
-async def get_aeronave(matricula: str, session: Session):
+async def get_aeronave(
+    matricula: str, session: Session, active_org: ActiveOrg
+):
     db_aeronave = await session.scalar(
-        select(Aeronave).where(Aeronave.matricula == matricula)
+        select(Aeronave).where(
+            Aeronave.matricula == matricula,
+            Aeronave.projeto.in_(_projetos_da_org(active_org)),
+        )
     )
 
     if not db_aeronave:
@@ -145,9 +200,13 @@ async def update_aeronave(
     matricula: str,
     aeronave: AeronaveUpdate,
     session: Session,
+    active_org: ActiveOrg,
 ):
     db_aeronave = await session.scalar(
-        select(Aeronave).where(Aeronave.matricula == matricula)
+        select(Aeronave).where(
+            Aeronave.matricula == matricula,
+            Aeronave.projeto.in_(_projetos_da_org(active_org)),
+        )
     )
 
     if not db_aeronave:
@@ -156,7 +215,23 @@ async def update_aeronave(
             detail='Aeronave não encontrada',
         )
 
-    for key, value in aeronave.model_dump(exclude_unset=True).items():
+    dados = aeronave.model_dump(exclude_unset=True)
+
+    # Troca de projeto: o novo destino também precisa ser da org ativa.
+    novo_projeto = dados.get('projeto')
+    if novo_projeto is not None and novo_projeto != db_aeronave.projeto:
+        autorizado = await session.scalar(
+            _projetos_da_org(active_org).where(
+                TenantProjeto.projeto == novo_projeto
+            )
+        )
+        if not autorizado:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Projeto não disponível para a organização',
+            )
+
+    for key, value in dados.items():
         setattr(db_aeronave, key, value)
 
     await session.commit()

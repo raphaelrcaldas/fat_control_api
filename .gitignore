@@ -189,3 +189,6 @@ pyrightconfig.json
 
 database.db
 .vercel
+
+# Grafo de conhecimento gerado (graphify) — artefato, nao versionar
+graphify-out/

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.shared.aeronaves import Aeronave
+from fcontrol_api.models.shared.tenant import Tenant
 from fcontrol_api.models.shared.tripulantes import Tripulante
 
 from .base import Base
@@ -29,6 +30,14 @@ class Missao(Base):
     )
     titulo: Mapped[str | None] = mapped_column(nullable=True)
     obs: Mapped[str | None] = mapped_column(nullable=True)
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            Tenant.organizacao_id,
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+        ),
+    )
     is_simulador: Mapped[bool] = mapped_column(
         default=False,
         server_default='false',

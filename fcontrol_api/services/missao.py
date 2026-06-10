@@ -117,14 +117,14 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
 
 
 async def adicionar_missao(
-    payload: FragMisSchema, session: AsyncSession
+    payload: FragMisSchema, session: AsyncSession, active_org: str
 ) -> FragMis:
     if payload.id:
-        # Atualização
+        # Atualização (escopada: missão de outra org -> 404)
         missao: FragMis = await session.scalar(
             select(FragMis)
             .options(selectinload(FragMis.etiquetas))
-            .filter(FragMis.id == payload.id)
+            .filter(FragMis.id == payload.id, FragMis.uae == active_org)
         )
         if not missao:
             raise HTTPException(
@@ -168,6 +168,7 @@ async def adicionar_missao(
             tipo_doc=payload.tipo_doc,
             obs=payload.obs,
             acrec_desloc=payload.acrec_desloc,
+            uae=active_org,
         )
         session.add(missao)
         await session.flush()
@@ -177,10 +178,13 @@ async def adicionar_missao(
     if payload.etiquetas:
         etiqueta_ids = [e.id for e in payload.etiquetas if e.id]
         if etiqueta_ids:
-            # Verifica se etiquetas existem
+            # Verifica se etiquetas existem (somente da org ativa)
             db_etiquetas = (
                 await session.scalars(
-                    select(Etiqueta).where(Etiqueta.id.in_(etiqueta_ids))
+                    select(Etiqueta).where(
+                        Etiqueta.id.in_(etiqueta_ids),
+                        Etiqueta.uae == active_org,
+                    )
                 )
             ).all()
             # Insere diretamente na tabela de associacao
@@ -297,6 +301,7 @@ async def recalcular_custos_missoes(
                     afast_date,
                     regres_date,
                     session,
+                    uae=missao.uae,
                 )
                 comiss_ids.update(ids)
 

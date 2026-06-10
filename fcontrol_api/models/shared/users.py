@@ -36,6 +36,7 @@ class User(Base):
     email_fab: Mapped[str] = mapped_column(nullable=True)
     email_pess: Mapped[str] = mapped_column(nullable=True)
     nasc: Mapped[date] = mapped_column(nullable=True)
+    data_praca: Mapped[date] = mapped_column(nullable=True)
     ult_promo: Mapped[date] = mapped_column(nullable=True)
     password: Mapped[str]
     ant_rel: Mapped[int] = mapped_column(nullable=True)

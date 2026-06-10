@@ -26,6 +26,15 @@ class Etiqueta(Base):
     cor: Mapped[str] = mapped_column(
         String(7), nullable=False
     )  # Hex color #RRGGBB
+    # Etiquetas são customizadas por unidade tenant
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            'tenants.organizacao_id',
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+        ),
+    )
     descricao: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None
     )
@@ -77,7 +86,9 @@ class OrdemMissao(Base):
     uae: Mapped[str] = mapped_column(
         String(20),
         ForeignKey(
-            'organizacoes.sigla', ondelete='RESTRICT', onupdate='CASCADE'
+            'tenants.organizacao_id',
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
         ),
         nullable=False,
     )

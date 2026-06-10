@@ -11,6 +11,7 @@ from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.financeiro import PagamentoItem, UserFragPublic
 from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.response import ApiPaginatedResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.financeiro import custo_missao
 from fcontrol_api.utils.responses import paginated_response
 
@@ -22,6 +23,7 @@ router = APIRouter(prefix='/financeiro', tags=['CEGEP'])
 @router.get('/pgts', response_model=ApiPaginatedResponse[PagamentoItem])
 async def get_pgto(
     session: Session,
+    active_org: ActiveOrg,
     tipo_doc: list[str] = Query(None, description='Tipos de documento'),
     n_doc: int = None,
     sit: list[str] = Query(None, description='Situações'),
@@ -33,11 +35,12 @@ async def get_pgto(
     page: int = Query(1, ge=1, description='Número da página'),
     limit: int = Query(20, ge=1, le=100, description='Itens por página'),
 ):
-    # Query base com joins
+    # Query base com joins (missões da org ativa)
     base_query = (
         select(UserFrag, FragMis)
         .join(FragMis, (FragMis.id == UserFrag.frag_id))
         .join(User, (User.id == UserFrag.user_id))
+        .where(FragMis.uae == active_org)
     )
 
     # Query para contagem
@@ -46,6 +49,7 @@ async def get_pgto(
         .select_from(UserFrag)
         .join(FragMis, (FragMis.id == UserFrag.frag_id))
         .join(User, (User.id == UserFrag.user_id))
+        .where(FragMis.uae == active_org)
     )
 
     # Aplicar filtros em ambas as queries

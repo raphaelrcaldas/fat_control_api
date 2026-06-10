@@ -40,7 +40,7 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
 )
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import get_current_user
+from fcontrol_api.security import ActiveOrg, get_current_user
 from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
@@ -81,6 +81,7 @@ def _missao_to_dict(m: FragMis) -> dict:
 @router.get('/', response_model=ApiPaginatedResponse[FragMisSchema])
 async def get_fragmentos(
     session: Session,
+    active_org: ActiveOrg,
     params: MissoesFilterParams = Depends(),
 ):
     """
@@ -130,7 +131,11 @@ async def get_fragmentos(
     base_query = (
         select(FragMis)
         .options(selectinload(FragMis.users))
-        .filter(FragMis.afast >= ini, FragMis.regres <= fim)
+        .filter(
+            FragMis.uae == active_org,
+            FragMis.afast >= ini,
+            FragMis.regres <= fim,
+        )
         .order_by(FragMis.afast.desc(), FragMis.id.desc())
     )
 
@@ -138,7 +143,11 @@ async def get_fragmentos(
     count_query = (
         select(func.count())
         .select_from(FragMis)
-        .filter(FragMis.afast >= ini, FragMis.regres <= fim)
+        .filter(
+            FragMis.uae == active_org,
+            FragMis.afast >= ini,
+            FragMis.regres <= fim,
+        )
     )
 
     # Aplica filtros validados em ambas as queries
@@ -232,20 +241,28 @@ async def get_fragmentos(
 
 
 @router.get('/etiquetas', response_model=ApiResponse[list[EtiquetaSchema]])
-async def get_etiquetas(session: Session):
-    """Lista todas as etiquetas disponíveis"""
-    stmt = select(Etiqueta).order_by(Etiqueta.nome)
+async def get_etiquetas(session: Session, active_org: ActiveOrg):
+    """Lista as etiquetas da org ativa"""
+    stmt = (
+        select(Etiqueta)
+        .where(Etiqueta.uae == active_org)
+        .order_by(Etiqueta.nome)
+    )
     db_etiquetas = (await session.scalars(stmt)).all()
     return success_response(data=list(db_etiquetas))
 
 
 @router.post('/etiquetas', response_model=ApiResponse[EtiquetaSchema])
-async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
+async def create_or_update_etiqueta(
+    payload: EtiquetaInput, session: Session, active_org: ActiveOrg
+):
     """Cria ou atualiza uma etiqueta"""
     if payload.id:
-        # Atualização
+        # Atualização (escopada: etiqueta de outra org -> 404)
         db_etiqueta = await session.scalar(
-            select(Etiqueta).where(Etiqueta.id == payload.id)
+            select(Etiqueta).where(
+                Etiqueta.id == payload.id, Etiqueta.uae == active_org
+            )
         )
         if not db_etiqueta:
             raise HTTPException(
@@ -262,6 +279,7 @@ async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
             nome=payload.nome,
             cor=payload.cor,
             descricao=payload.descricao,
+            uae=active_org,
         )
         session.add(db_etiqueta)
         msg = 'Etiqueta criada com sucesso'
@@ -276,10 +294,14 @@ async def create_or_update_etiqueta(payload: EtiquetaInput, session: Session):
 
 
 @router.delete('/etiquetas/{etiqueta_id}', response_model=ApiResponse[None])
-async def delete_etiqueta(etiqueta_id: int, session: Session):
+async def delete_etiqueta(
+    etiqueta_id: int, session: Session, active_org: ActiveOrg
+):
     """Remove uma etiqueta"""
     db_etiqueta = await session.scalar(
-        select(Etiqueta).where(Etiqueta.id == etiqueta_id)
+        select(Etiqueta).where(
+            Etiqueta.id == etiqueta_id, Etiqueta.uae == active_org
+        )
     )
     if not db_etiqueta:
         raise HTTPException(
@@ -294,12 +316,12 @@ async def delete_etiqueta(etiqueta_id: int, session: Session):
 
 
 @router.get('/{id}', response_model=ApiResponse[MissaoDetail])
-async def get_missao(id: int, session: Session):
+async def get_missao(id: int, session: Session, active_org: ActiveOrg):
     """Obter uma missão específica pelo ID, com histórico de auditoria."""
     missao = await session.scalar(
         select(FragMis)
         .options(selectinload(FragMis.users))
-        .where(FragMis.id == id)
+        .where(FragMis.id == id, FragMis.uae == active_org)
     )
     if not missao:
         raise HTTPException(
@@ -360,6 +382,7 @@ async def create_or_update_missao(
     payload: FragMisSchema,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     # Capturar snapshot anterior e usuários antigos ANTES de deletar
     usuarios_antigos_comiss: list[tuple[int, date, date]] = []
@@ -368,7 +391,7 @@ async def create_or_update_missao(
         missao_antiga = await session.scalar(
             select(FragMis)
             .options(selectinload(FragMis.users))
-            .where(FragMis.id == payload.id)
+            .where(FragMis.id == payload.id, FragMis.uae == active_org)
         )
         if missao_antiga:
             before_snapshot = _missao_to_dict(missao_antiga)
@@ -382,7 +405,7 @@ async def create_or_update_missao(
                 if u.sit == 'c'
             ]
 
-    missao = await adicionar_missao(payload, session)
+    missao = await adicionar_missao(payload, session, active_org)
 
     await verificar_conflitos(payload, session)
 
@@ -391,6 +414,7 @@ async def create_or_update_missao(
         payload.afast,
         payload.regres,
         session,
+        active_org,
     )
 
     # Adiciona pernoites e prepara inputs validados
@@ -484,7 +508,7 @@ async def create_or_update_missao(
 
     for user_id in usuarios_envolvidos:
         await recalcular_comiss_afetados(
-            user_id, afast_date, regres_date, session
+            user_id, afast_date, regres_date, session, active_org
         )
 
     # Log de auditoria
@@ -505,11 +529,11 @@ async def create_or_update_missao(
 
 
 @router.delete('/{id}', response_model=ApiResponse[None])
-async def delete_fragmis(id: int, session: Session):
+async def delete_fragmis(id: int, session: Session, active_org: ActiveOrg):
     db_frag = await session.scalar(
         select(FragMis)
         .options(selectinload(FragMis.users))
-        .where((FragMis.id == id))
+        .where(FragMis.id == id, FragMis.uae == active_org)
     )
     if not db_frag:
         raise HTTPException(
@@ -539,7 +563,9 @@ async def delete_fragmis(id: int, session: Session):
 
     # Recalcular cache dos comissionamentos afetados após deletar
     for user_id, afast, regres in comiss_users:
-        await recalcular_comiss_afetados(user_id, afast, regres, session)
+        await recalcular_comiss_afetados(
+            user_id, afast, regres, session, active_org
+        )
 
     await session.commit()
 
