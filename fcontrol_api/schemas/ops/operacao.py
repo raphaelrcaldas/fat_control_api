@@ -68,10 +68,15 @@ class AssociarResult(BaseModel):
     bloqueadas: list[int]  # já vinculadas a outra operação
 
 
+FuncPessoal = Literal['Tripulante', 'Apoio', 'Manutenção']
+# Situação financeira — códigos herdados do cegep (d/g/c).
+SitPessoal = Literal['d', 'g', 'c']
+
+
 class OperacaoPessoalIn(BaseModel):
     user_id: int
-    func: str = Field(min_length=1, max_length=80)
-    om: str = Field(min_length=1, max_length=60)
+    func: FuncPessoal
+    sit: SitPessoal
     data_ingresso: date
     data_regresso: date
 
@@ -207,8 +212,8 @@ class EtapaCandidata(BaseModel):
 class OperacaoPessoalOut(BaseModel):
     id: int
     user: UserPublic
-    func: str
-    om: str
+    func: FuncPessoal
+    sit: SitPessoal
     data_ingresso: date
     data_regresso: date
     dias: int

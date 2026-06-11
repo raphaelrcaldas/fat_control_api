@@ -125,6 +125,14 @@ class OperacaoPessoal(Base):
             'data_regresso >= data_ingresso',
             name='ck_operacao_pessoal_periodo',
         ),
+        CheckConstraint(
+            "func IN ('Tripulante', 'Apoio', 'Manutenção')",
+            name='ck_operacao_pessoal_func',
+        ),
+        CheckConstraint(
+            "sit IN ('d', 'g', 'c')",
+            name='ck_operacao_pessoal_sit',
+        ),
         UniqueConstraint(
             'operacao_id',
             'user_id',
@@ -137,8 +145,8 @@ class OperacaoPessoal(Base):
         ForeignKey('operacoes.id', ondelete='CASCADE'), index=True
     )
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
-    func: Mapped[str] = mapped_column(String(80))
-    om: Mapped[str] = mapped_column(String(60))
+    func: Mapped[str] = mapped_column(String(20))
+    sit: Mapped[str] = mapped_column(String(1))
     data_ingresso: Mapped[date] = mapped_column(Date)
     data_regresso: Mapped[date] = mapped_column(Date)
 

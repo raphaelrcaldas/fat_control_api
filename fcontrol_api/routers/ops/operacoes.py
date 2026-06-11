@@ -137,7 +137,7 @@ def _pessoal_out(p: OperacaoPessoal) -> OperacaoPessoalOut:
         id=p.id,
         user=UserPublic.model_validate(p.user),
         func=p.func,
-        om=p.om,
+        sit=p.sit,
         data_ingresso=p.data_ingresso,
         data_regresso=p.data_regresso,
         dias=_dias(p.data_ingresso, p.data_regresso),
@@ -195,7 +195,7 @@ async def list_operacoes(
                 Operacao.documento_referencia.ilike(like),
             )
         )
-    query = query.order_by(Operacao.numero.desc(), Operacao.id.desc())
+    query = query.order_by(Operacao.data_inicio.desc(), Operacao.id.desc())
 
     ops = (await session.scalars(query)).unique().all()
 
@@ -768,7 +768,7 @@ async def add_pessoal(
         operacao_id=op.id,
         user_id=payload.user_id,
         func=payload.func,
-        om=payload.om,
+        sit=payload.sit,
         data_ingresso=payload.data_ingresso,
         data_regresso=payload.data_regresso,
     )
@@ -816,7 +816,7 @@ async def update_pessoal(
         )
     pessoa.user_id = payload.user_id
     pessoa.func = payload.func
-    pessoa.om = payload.om
+    pessoa.sit = payload.sit
     pessoa.data_ingresso = payload.data_ingresso
     pessoa.data_regresso = payload.data_regresso
     await log_user_action(
