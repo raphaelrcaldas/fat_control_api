@@ -1,7 +1,7 @@
 """Schemas Pydantic para Ordem de Missão (OM)"""
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Body
 from pydantic import (
@@ -19,6 +19,9 @@ from fcontrol_api.schemas.ops.tripulantes import TripBasicInfo
 # Constantes de validação
 TVOO_MINIMO = 5  # Tempo mínimo de voo em minutos
 ICAO_CODE_LENGTH = 4  # Código ICAO de aeródromo
+
+# Status válidos de uma OM (whitelist aplicada na entrada de updates)
+StatusOrdem = Literal['rascunho', 'aprovada', 'cancelada']
 
 
 # --- Campo Especial (usado como JSONB) ---
@@ -147,7 +150,7 @@ class OrdemMissaoUpdate(BaseModel):
     matricula_anv: str | None = None
     tipo: Annotated[str | None, Field(max_length=100)] = None
     projeto: str | None = None
-    status: str | None = None
+    status: StatusOrdem | None = None
     doc_ref: Annotated[str | None, Field(max_length=100)] = None
     data_saida: date | None = None
     esf_aer: int | None = None

@@ -43,6 +43,14 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/om', tags=['ordens-missao'])
 
+# Máquina de estados: transições de status permitidas a partir de cada
+# status (espelha STATUS_TRANSITIONS do frontend)
+STATUS_TRANSITIONS: dict[str, set[str]] = {
+    'rascunho': {'aprovada'},
+    'aprovada': {'cancelada'},
+    'cancelada': set(),
+}
+
 
 @router.get(
     '/',
@@ -407,13 +415,23 @@ async def update_ordem(
             detail='Ordem cancelada não pode ser editada',
         )
 
-    # Validar transição para cancelada (somente aprovada -> cancelada)
+    # Validar mudança de status contra a máquina de estados
+    # (bloqueia ex: aprovada -> rascunho)
+    if (
+        ordem_data.status is not None
+        and ordem_data.status != ordem.status
+        and ordem_data.status
+        not in STATUS_TRANSITIONS.get(ordem.status, set())
+    ):
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=(
+                f'Transição de status inválida: '
+                f'{ordem.status} -> {ordem_data.status}'
+            ),
+        )
+
     if ordem_data.status == 'cancelada':
-        if ordem.status != 'aprovada':
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail=('Somente ordens aprovadas podem ser canceladas'),
-            )
         # Cancelamento: atualizar apenas o status
         ordem.status = 'cancelada'
         await session.commit()
