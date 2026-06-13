@@ -30,90 +30,92 @@ from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
 
 
 async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
+    user_ids = [u.user_id for u in payload.users]
+    if not user_ids:
+        return
+
     afast_date = payload.afast.date()
     regres_date = payload.regres.date()
 
-    check_md_ult_pnt: bool
-    try:
-        ult_pnt = list(
-            filter(
-                lambda p: p.data_fim == regres_date,
-                payload.pernoites,
-            )
-        )[0]
-        check_md_ult_pnt = ult_pnt.meia_diaria
-    except IndexError:
-        check_md_ult_pnt = False
-
-    query_conf = (
-        select(UserFrag, FragMis, PernoiteFrag)
-        .join(
-            FragMis,
-            FragMis.id == UserFrag.frag_id,
-        )
-        .join(
-            PernoiteFrag,
-            PernoiteFrag.frag_id == FragMis.id,
-        )
-        .options(selectinload(UserFrag.user))
-        .where(
-            and_(
-                UserFrag.user_id.in_([u.user_id for u in payload.users]),
-                or_(
-                    and_(
-                        FragMis.afast < payload.regres,
-                        payload.afast < FragMis.regres,
-                    ),
-                    or_(
-                        and_(
-                            PernoiteFrag.meia_diaria,
-                            PernoiteFrag.data_fim == afast_date,
-                        ),
-                        and_(
-                            check_md_ult_pnt,
-                            PernoiteFrag.data_ini == regres_date,
-                        ),
-                    ),
-                ),
-            )
-        )
+    # O payload encerra com meia diária no dia do regresso?
+    check_md_ult_pnt = any(
+        p.meia_diaria and p.data_fim == regres_date for p in payload.pernoites
     )
 
-    if payload.id:
-        query_conf = query_conf.where(FragMis.id != payload.id)
+    # Agrega conflitos por (missão, militar), acumulando os motivos para
+    # evitar linhas repetidas quando a missão tem vários pernoites.
+    conflitos: dict[tuple[int, int], dict] = {}
 
-    result = await session.execute(query_conf)
-    conflitos: list[tuple[UserFrag, FragMis, PernoiteFrag]] = result.all()
-
-    if conflitos:
-        msg = '\nVerifique o seguinte conflito:'
-        for uf, fm, pn in conflitos:
-            c1 = (fm.afast < payload.regres) and (payload.afast < fm.regres)
-            c2 = bool(pn.meia_diaria and pn.data_fim == afast_date)
-            c3 = bool(check_md_ult_pnt and pn.data_ini == regres_date)
-
-            motivo = []
-            if c1:
-                motivo.append('sobreposição de datas')
-            if c2:
-                motivo.append('afastamento em conflito com meia diária')
-            if c3:
-                motivo.append('meia diária em conflito com o afastamento')
-
-            motivo_txt = (
-                ' / '.join(motivo) if motivo else 'condição desconhecida'
-            )
-
-            row = (
-                f'\n - {fm.tipo_doc} {fm.n_doc} '
-                f'{uf.user.p_g} {uf.user.nome_guerra} -> {motivo_txt}'
-            ).upper()
-            msg += row
-
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=msg,
+    def _registrar(uf: UserFrag, fm: FragMis, motivo: str):
+        chave = (fm.id, uf.user_id)
+        item = conflitos.setdefault(
+            chave, {'uf': uf, 'fm': fm, 'motivos': set()}
         )
+        item['motivos'].add(motivo)
+
+    # (1) Sobreposição de datas — independe de a missão ter pernoites.
+    overlap_query = (
+        select(UserFrag, FragMis)
+        .join(FragMis, FragMis.id == UserFrag.frag_id)
+        .options(selectinload(UserFrag.user))
+        .where(
+            UserFrag.user_id.in_(user_ids),
+            FragMis.afast < payload.regres,
+            payload.afast < FragMis.regres,
+        )
+    )
+    if payload.id:
+        overlap_query = overlap_query.where(FragMis.id != payload.id)
+
+    for uf, fm in (await session.execute(overlap_query)).all():
+        _registrar(uf, fm, 'sobreposição de datas')
+
+    # (2) Conflitos de meia diária adjacente — dependem dos pernoites.
+    md_conds = [
+        and_(
+            PernoiteFrag.meia_diaria,
+            PernoiteFrag.data_fim == afast_date,
+        )
+    ]
+    if check_md_ult_pnt:
+        md_conds.append(PernoiteFrag.data_ini == regres_date)
+
+    md_query = (
+        select(UserFrag, FragMis, PernoiteFrag)
+        .join(FragMis, FragMis.id == UserFrag.frag_id)
+        .join(PernoiteFrag, PernoiteFrag.frag_id == FragMis.id)
+        .options(selectinload(UserFrag.user))
+        .where(
+            UserFrag.user_id.in_(user_ids),
+            or_(*md_conds),
+        )
+    )
+    if payload.id:
+        md_query = md_query.where(FragMis.id != payload.id)
+
+    for uf, fm, pn in (await session.execute(md_query)).all():
+        if pn.meia_diaria and pn.data_fim == afast_date:
+            _registrar(uf, fm, 'afastamento em conflito com meia diária')
+        if check_md_ult_pnt and pn.data_ini == regres_date:
+            _registrar(uf, fm, 'meia diária em conflito com o afastamento')
+
+    if not conflitos:
+        return
+
+    msg = '\nVerifique o seguinte conflito:'
+    for item in conflitos.values():
+        uf, fm = item['uf'], item['fm']
+        motivo_txt = ' / '.join(sorted(item['motivos']))
+        row = (
+            f'\n - {fm.tipo_doc} {fm.n_doc} '
+            f'{uf.user.p_g} {uf.user.nome_guerra} -> {motivo_txt}'
+        ).upper()
+        msg += row
+
+    raise HTTPException(
+        status_code=HTTPStatus.BAD_REQUEST,
+        detail=msg,
+    )
 
 
 async def adicionar_missao(
