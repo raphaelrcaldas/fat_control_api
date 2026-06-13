@@ -1,16 +1,17 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.utils.sanitize import TextoLivre
 
 
 class ComissSchema(BaseModel):
     id: Optional[int] = None
     user_id: int
-    status: str
+    status: Literal['aberto', 'fechado']
     dep: bool = False
 
     data_ab: date
@@ -23,9 +24,9 @@ class ComissSchema(BaseModel):
 
     dias_cumprir: int | None
 
-    doc_prop: str
-    doc_aut: str
-    doc_enc: str | None
+    doc_prop: TextoLivre
+    doc_aut: TextoLivre
+    doc_enc: TextoLivre | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,7 +108,7 @@ class ComissMissaoPreview(BaseModel):
 
     id: int
     tipo_doc: str
-    n_doc: int
+    n_doc: str
     desc: str
     afast: datetime
     regres: datetime

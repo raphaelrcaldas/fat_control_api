@@ -9,7 +9,8 @@ from sqlalchemy.future import select
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.schemas.cegep.missoes import FragMisSchema, UserFragMis
-from fcontrol_api.utils.financeiro import custo_missao, verificar_modulo
+from fcontrol_api.services.custos import custo_missao
+from fcontrol_api.utils.datas import listar_datas_entre
 
 
 async def verificar_usrs_comiss(
@@ -109,6 +110,40 @@ async def verificar_conflito_comiss(
 # ============================================================
 # Funções de cache para comissionamento
 # ============================================================
+
+
+def verificar_modulo(missoes: list[dict]) -> bool:
+    """Recebe uma lista de missões e verifica
+    se houve um afastamento maior que 15 dias
+    em alguma delas.
+    """
+    DIAS_MODULO = 16
+
+    datas: list[date] = []
+    for m in missoes:
+        datas_missao = listar_datas_entre(
+            m['afast'].date(), m['regres'].date()
+        )
+        datas.extend(datas_missao)
+    datas.sort()
+
+    dias_consec = 1
+    for i, _ in enumerate(datas):
+        anterior = datas[i - 1]
+        atual = datas[i]
+
+        dif = (atual - anterior).days
+
+        if dif != 1:
+            dias_consec = 1
+            continue
+
+        dias_consec += 1
+
+        if dias_consec >= DIAS_MODULO:
+            return True
+
+    return False
 
 
 async def recalcular_cache_comiss(

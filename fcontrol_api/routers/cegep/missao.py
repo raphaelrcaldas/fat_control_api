@@ -44,6 +44,7 @@ from fcontrol_api.services.missao import (
     adicionar_missao,
     sincronizar_custos_missao,
     verificar_conflitos,
+    verificar_integridade_missao,
 )
 from fcontrol_api.utils.responses import paginated_response, success_response
 
@@ -383,6 +384,11 @@ async def get_missao(id: int, session: Session, active_org: ActiveOrg):
 
     missao_detail = MissaoDetail.model_validate(missao)
     missao_detail.logs = logs
+    # Verificação de integridade ao abrir a missão: compara o hash dos
+    # inputs atuais com o gravado no cache de custos (detecta drift).
+    missao_detail.custo_inconsistente = not verificar_integridade_missao(
+        missao
+    )
 
     return success_response(data=missao_detail)
 

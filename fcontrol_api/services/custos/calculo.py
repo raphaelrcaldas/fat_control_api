@@ -1,4 +1,13 @@
-import logging
+"""Cálculo puro dos custos de uma missão (materialização do cache JSONB).
+
+Funções sem I/O: recebem os inputs validados (schemas) e os caches de
+referência já carregados, e produzem o dict `custos` que é gravado em
+`FragMis.custos`. O formato desse JSONB está documentado em
+`calcular_custos_frag_mis`. A chave canônica pg+sit e o hash de
+integridade vêm de `integridade` — fonte única compartilhada com a
+leitura (`leitura.custo_missao`).
+"""
+
 from datetime import date
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
@@ -8,9 +17,11 @@ from fcontrol_api.schemas.cegep.custos import (
     CustoPernoiteInput,
     CustoUserFragInput,
 )
+from fcontrol_api.services.custos.integridade import (
+    chave_pg_sit,
+    gerar_hash_custos,
+)
 from fcontrol_api.utils.datas import listar_datas_entre
-
-logger = logging.getLogger(__name__)
 
 
 def _buscar_valor_por_dia(
@@ -103,119 +114,6 @@ def _custo_pernoite(
     return custo
 
 
-def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
-    """
-    Lê custos do JSONB pré-calculado e monta estrutura para o frontend.
-
-    O campo `custos` é um cache materializado na escrita. Quando a chave
-    pg+sit pedida não está presente (cache desatualizado em relação aos
-    militares/pernoites da missão), os valores retornam zerados — mas o
-    fato é registrado em log e sinalizado via `custo_inconsistente`, em
-    vez de produzir dinheiro errado silenciosamente.
-    """
-    chave_pg_sit = f'pg_{p_g}_sit_{sit}'
-    custos_jsonb = mis.get('custos', {})
-
-    # Cache vazio. É esperado em missão sem custo, mas suspeito quando há
-    # pernoites (indica recálculo pendente) — nesse caso, sinaliza.
-    if not custos_jsonb or not isinstance(custos_jsonb, dict):
-        if mis.get('pernoites'):
-            logger.warning(
-                'Custos ausentes na missão id=%s n_doc=%s: cache vazio '
-                'com pernoites presentes (recálculo pendente). '
-                'Valores retornados como zero.',
-                mis.get('id'),
-                mis.get('n_doc'),
-            )
-            mis['custo_inconsistente'] = True
-        mis['dias'] = 0
-        mis['diarias'] = 0
-        mis['valor_total'] = 0
-        mis['qtd_ac'] = 0
-        return mis
-
-    # Extrair totais gerais
-    mis['dias'] = custos_jsonb.get('total_dias', 0)
-    mis['diarias'] = custos_jsonb.get('total_diarias', 0)
-    acrec_desloc = custos_jsonb.get('acrec_desloc_missao', 0)
-    mis['qtd_ac'] = 1 if acrec_desloc > 0 else 0
-
-    # Extrair total de valor para este pg+sit
-    totais_pg_sit = custos_jsonb.get('totais_pg_sit', {})
-    if chave_pg_sit not in totais_pg_sit:
-        logger.warning(
-            'Custo inconsistente na missão id=%s n_doc=%s: combinação %s '
-            'ausente no cache (disponíveis: %s). '
-            'valor_total retornado como zero.',
-            mis.get('id'),
-            mis.get('n_doc'),
-            chave_pg_sit,
-            list(totais_pg_sit.keys()),
-        )
-        mis['custo_inconsistente'] = True
-    total_valor = totais_pg_sit.get(chave_pg_sit, {}).get('total_valor', 0)
-    mis['valor_total'] = total_valor
-
-    # Popular custos de cada pernoite
-    for pnt in mis.get('pernoites', []):
-        pernoite_key = f'pernoite_{pnt["id"]}'
-        pernoite_custos = custos_jsonb.get(pernoite_key, {})
-
-        # Grupo da cidade
-        pnt['gp_cid'] = pernoite_custos.get('grupo_cid', 3)
-
-        # Custos específicos para este pg+sit
-        pg_sit_custos = pernoite_custos.get(chave_pg_sit, {})
-
-        # Montar estrutura de custo compatível
-        pnt['custo'] = {
-            'subtotal': pg_sit_custos.get('subtotal', 0),
-            'ac_desloc': pernoite_custos.get('ac_desloc', 0),
-            'vals': pg_sit_custos.get('vals', []),
-            'dias': pernoite_custos.get('dias', 0),
-        }
-
-        # Contar acréscimos de deslocamento
-        if pernoite_custos.get('ac_desloc', 0) > 0:
-            mis['qtd_ac'] += 1
-
-    return mis
-
-
-def verificar_modulo(missoes: list[dict]) -> bool:
-    """Recebe uma lista de missões e verifica
-    se houve um afastamento maior que 15 dias
-    em alguma delas.
-    """
-    DIAS_MODULO = 16
-
-    datas: list[date] = []
-    for m in missoes:
-        datas_missao = listar_datas_entre(
-            m['afast'].date(), m['regres'].date()
-        )
-        datas.extend(datas_missao)
-    datas.sort()
-
-    dias_consec = 1
-    for i, _ in enumerate(datas):
-        anterior = datas[i - 1]
-        atual = datas[i]
-
-        dif = (atual - anterior).days
-
-        if dif != 1:
-            dias_consec = 1
-            continue
-
-        dias_consec += 1
-
-        if dias_consec >= DIAS_MODULO:
-            return True
-
-    return False
-
-
 def calcular_custos_frag_mis(
     frag_mis: CustoFragMisInput,
     users_frag: list[CustoUserFragInput],
@@ -247,7 +145,8 @@ def calcular_custos_frag_mis(
       },
       "total_dias": int,
       "total_diarias": float,
-      "acrec_desloc_missao": int
+      "acrec_desloc_missao": int,
+      "_input_hash": str
     }
 
     Args:
@@ -291,7 +190,7 @@ def calcular_custos_frag_mis(
         diarias_pernoite = 0
 
         for p_g, sit in combinacoes_pg_sit:
-            pg_sit_key = f'pg_{p_g.value}_sit_{sit}'
+            pg_sit_key = chave_pg_sit(p_g, sit)
             grupo_pg = grupos_pg.get(p_g.value)
 
             # Calcular custo do pernoite para este pg+sit
@@ -330,7 +229,7 @@ def calcular_custos_frag_mis(
         # Se todos forem gratificação, usar dias do primeiro
         if dias_pernoite == 0 and combinacoes_pg_sit:
             p_g, sit = next(iter(combinacoes_pg_sit))
-            pg_sit_key = f'pg_{p_g.value}_sit_{sit}'
+            pg_sit_key = chave_pg_sit(p_g, sit)
             # Recalcular dias para gratificação (todos os dias)
             dias_pernoite = len(listar_datas_entre(pnt.data_ini, pnt.data_fim))
 
@@ -352,5 +251,11 @@ def calcular_custos_frag_mis(
     custos_jsonb['total_dias'] = total_dias_missao
     custos_jsonb['total_diarias'] = total_diarias_missao
     custos_jsonb['acrec_desloc_missao'] = acrec_desloc_missao
+
+    # 7. Hash de integridade dos inputs locais (detecção de drift na
+    # leitura — ver verificar_integridade_custos)
+    custos_jsonb['_input_hash'] = gerar_hash_custos(
+        frag_mis, users_frag, pernoites
+    )
 
     return custos_jsonb

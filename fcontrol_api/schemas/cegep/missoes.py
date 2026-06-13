@@ -1,12 +1,35 @@
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.schemas.cidade import CidadeSchema
 from fcontrol_api.schemas.etiquetas import EtiquetaSchema
 from fcontrol_api.schemas.users import UserPublic
+from fcontrol_api.utils.sanitize import TextoLivre, TextoMultilinha
+
+# O número do documento é armazenado com zero-padding à esquerda de no
+# mínimo 3 dígitos (ex.: '036'), sem truncar os maiores (ex.: '1999') —
+# há ordens reais de 4 dígitos. Espelha o padStart(3) do frontend.
+N_DOC_WIDTH = 3
+
+
+def normalizar_n_doc(v) -> str:
+    """Normaliza o número do documento para string com zero-padding.
+
+    Aceita int ou str, valida que são apenas dígitos e aplica padding à
+    esquerda de no mínimo `N_DOC_WIDTH` (sem truncar valores maiores).
+    Fonte única usada na escrita e nos filtros, garantindo que o valor
+    persistido e o buscado coincidam.
+    """
+    s = str(v).strip()
+    if not s.isdigit():
+        raise ValueError('Número do documento deve conter apenas dígitos')
+    return s.zfill(N_DOC_WIDTH)
+
+
+NumDoc = Annotated[str, BeforeValidator(normalizar_n_doc)]
 
 
 class MissoesFilterParams(BaseModel):
@@ -23,7 +46,7 @@ class MissoesFilterParams(BaseModel):
         description="Tipo(s) do documento (ex: 'om,os')",
     )
 
-    n_doc: Optional[int] = Field(None, ge=1, description='Número do documento')
+    n_doc: Optional[NumDoc] = Field(None, description='Número do documento')
 
     tipo: Optional[str] = Field(
         None,
@@ -78,7 +101,7 @@ class PernoiteFragMis(BaseModel):
     data_ini: date
     data_fim: date
     meia_diaria: bool
-    obs: str
+    obs: TextoMultilinha
     cidade_id: int
     cidade: CidadeSchema
     model_config = ConfigDict(from_attributes=True)
@@ -118,14 +141,14 @@ class UserFragMis(BaseModel):
 
 class FragMisSchema(BaseModel):
     id: Optional[int] = None
-    n_doc: int
+    n_doc: NumDoc
     tipo_doc: Literal['os', 'om']
     indenizavel: bool
     acrec_desloc: bool
     afast: datetime
     regres: datetime
-    desc: str
-    obs: str
+    desc: TextoLivre
+    obs: TextoMultilinha
     tipo: Literal['adm', 'tal', 'opr']
     pernoites: list[PernoiteFragMis]
     users: list[UserFragMis] = []
@@ -162,3 +185,6 @@ class MissaoDetail(FragMisSchema):
     """FragMis com histórico de auditoria."""
 
     logs: list[MissaoLogOut] = []
+    # True quando o cache de custos não reflete os inputs atuais da
+    # missão (hash de integridade divergente — ver verificar_integridade).
+    custo_inconsistente: bool = False

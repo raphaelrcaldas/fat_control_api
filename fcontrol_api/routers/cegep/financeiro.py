@@ -9,10 +9,14 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.financeiro import PagamentoItem, UserFragPublic
-from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
+from fcontrol_api.schemas.cegep.missoes import (
+    FragMisEmbed,
+    FragMisSchema,
+    normalizar_n_doc,
+)
 from fcontrol_api.schemas.response import ApiPaginatedResponse
 from fcontrol_api.security import ActiveOrg
-from fcontrol_api.utils.financeiro import custo_missao
+from fcontrol_api.services.custos import custo_missao
 from fcontrol_api.utils.responses import paginated_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -25,7 +29,7 @@ async def get_pgto(
     session: Session,
     active_org: ActiveOrg,
     tipo_doc: list[str] = Query(None, description='Tipos de documento'),
-    n_doc: int = None,
+    n_doc: str = None,
     sit: list[str] = Query(None, description='Situações'),
     user: str = None,
     user_id: int = None,
@@ -57,9 +61,10 @@ async def get_pgto(
         base_query = base_query.where(FragMis.tipo_doc.in_(tipo_doc))
         count_query = count_query.where(FragMis.tipo_doc.in_(tipo_doc))
 
-    if n_doc:
-        base_query = base_query.where(FragMis.n_doc == n_doc)
-        count_query = count_query.where(FragMis.n_doc == n_doc)
+    if n_doc and n_doc.strip().isdigit():
+        nd = normalizar_n_doc(n_doc)
+        base_query = base_query.where(FragMis.n_doc == nd)
+        count_query = count_query.where(FragMis.n_doc == nd)
 
     if sit:
         base_query = base_query.where(UserFrag.sit.in_(sit))

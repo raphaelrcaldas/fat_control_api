@@ -35,8 +35,9 @@ from fcontrol_api.services.comis import (
     validar_fechamento_comiss,
     verificar_conflito_comiss,
 )
+from fcontrol_api.services.custos import custo_missao
 from fcontrol_api.services.logs import log_user_action
-from fcontrol_api.utils.financeiro import custo_missao
+from fcontrol_api.services.missao import verificar_integridade_missao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -284,6 +285,9 @@ async def get_cmto_by_id(
                 UserFrag.frag_id == FragMis.id,
             ),
         )
+        # users carregados (selectin) para a verificação de integridade
+        # por hash de cada missão na abertura do comissionamento
+        .options(selectinload(FragMis.users))
         .where(
             and_(
                 FragMis.uae == comiss.uae,
@@ -303,6 +307,10 @@ async def get_cmto_by_id(
             exclude={'users'}
         )
         mis_dict = custo_missao(user_frag.p_g, user_frag.sit, mis_dict)
+        # Verificação por hash além da heurística de chave faltante: marca
+        # drift do cache frente aos inputs atuais da missão.
+        if not verificar_integridade_missao(missao):
+            mis_dict['custo_inconsistente'] = True
         missoes.append(FragMisEmbed.model_validate(mis_dict))
 
     logs_query = (

@@ -20,9 +20,12 @@ from fcontrol_api.schemas.cegep.custos import (
     CustoPernoiteInput,
     CustoUserFragInput,
 )
-from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
+from fcontrol_api.services.custos import (
+    cache_diarias,
+    cache_soldos,
+    calcular_custos_frag_mis,
+)
 from fcontrol_api.settings import Settings
-from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
 
 
 async def popular_custos():

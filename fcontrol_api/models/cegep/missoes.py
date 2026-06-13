@@ -64,7 +64,7 @@ class FragMis(Base):
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     tipo_doc: Mapped[str] = mapped_column(nullable=False)
-    n_doc: Mapped[int] = mapped_column(nullable=False)
+    n_doc: Mapped[str] = mapped_column(String(10), nullable=False)
     desc: Mapped[str] = mapped_column(nullable=False)
     tipo: Mapped[str] = mapped_column(nullable=False)
     afast: Mapped[datetime] = mapped_column(nullable=False)
@@ -132,7 +132,7 @@ class UserFrag(Base):
     frag_id: Mapped[int] = mapped_column(ForeignKey(FragMis.id))
     sit: Mapped[str] = mapped_column(nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
-    p_g: Mapped[int] = mapped_column(ForeignKey(PostoGrad.short))
+    p_g: Mapped[str] = mapped_column(ForeignKey(PostoGrad.short))
     posto: PostoGrad = relationship(
         PostoGrad,
         init=False,

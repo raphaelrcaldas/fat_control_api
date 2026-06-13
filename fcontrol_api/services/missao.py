@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import (
     Etiqueta,
     FragEtiqueta,
@@ -25,8 +24,11 @@ from fcontrol_api.services.comis import (
     localizar_comiss_por_missao,
     recalcular_cache_comiss,
 )
-from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
-from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
+from fcontrol_api.services.custos import (
+    calcular_custos_frag_mis,
+    carregar_caches_custo,
+    verificar_integridade_custos,
+)
 
 
 async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
@@ -201,34 +203,20 @@ async def adicionar_missao(
     return missao
 
 
-async def _carregar_caches_custo(session: AsyncSession) -> tuple:
-    """Carrega de uma vez os caches de referência usados no cálculo de
-    custos (diárias, soldos, grupos de pg e de cidade)."""
-    valores_cache = await cache_diarias(session)
-    soldos_cache = await cache_soldos(session)
-    grupos_pg = dict(
-        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
-    )
-    grupos_cidade = dict(
-        (
-            await session.execute(
-                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
-            )
-        ).all()
-    )
-    return valores_cache, soldos_cache, grupos_pg, grupos_cidade
-
-
-def aplicar_custos_missao(
+def _inputs_custo(
     missao: FragMis,
     users_frag: list[UserFrag],
     pernoites: list[PernoiteFrag],
-    caches: tuple,
-) -> None:
-    """Calcula e grava o JSONB `custos` da missão a partir de seus
-    militares e pernoites (objetos ORM) e dos caches de referência."""
-    valores_cache, soldos_cache, grupos_pg, grupos_cidade = caches
-
+) -> tuple[
+    CustoFragMisInput,
+    list[CustoUserFragInput],
+    list[CustoPernoiteInput],
+]:
+    """Converte os objetos ORM da missão nos schemas validados de input de
+    custo. Fonte única usada tanto pelo cálculo/gravação do cache quanto
+    pela verificação de integridade — assim ambos derivam o hash da mesma
+    representação canônica e não divergem."""
+    frag_mis_input = CustoFragMisInput(acrec_desloc=missao.acrec_desloc)
     users_input = [
         CustoUserFragInput(p_g=uf.p_g, sit=uf.sit) for uf in users_frag
     ]
@@ -243,7 +231,22 @@ def aplicar_custos_missao(
         )
         for pnt in pernoites
     ]
-    frag_mis_input = CustoFragMisInput(acrec_desloc=missao.acrec_desloc)
+    return frag_mis_input, users_input, pernoites_input
+
+
+def aplicar_custos_missao(
+    missao: FragMis,
+    users_frag: list[UserFrag],
+    pernoites: list[PernoiteFrag],
+    caches: tuple,
+) -> None:
+    """Calcula e grava o JSONB `custos` da missão a partir de seus
+    militares e pernoites (objetos ORM) e dos caches de referência."""
+    valores_cache, soldos_cache, grupos_pg, grupos_cidade = caches
+
+    frag_mis_input, users_input, pernoites_input = _inputs_custo(
+        missao, users_frag, pernoites
+    )
 
     missao.custos = calcular_custos_frag_mis(
         frag_mis_input,
@@ -253,6 +256,20 @@ def aplicar_custos_missao(
         grupos_cidade,
         valores_cache,
         soldos_cache,
+    )
+
+
+def verificar_integridade_missao(missao: FragMis) -> bool:
+    """True se o cache de custos da missão está íntegro frente aos seus
+    militares e pernoites atuais (fase 1: inputs locais).
+
+    Requer `missao.users` e `missao.pernoites` já carregados na instância.
+    """
+    frag_mis_input, users_input, pernoites_input = _inputs_custo(
+        missao, missao.users, missao.pernoites
+    )
+    return verificar_integridade_custos(
+        frag_mis_input, users_input, pernoites_input, missao.custos
     )
 
 
@@ -272,7 +289,7 @@ async def sincronizar_custos_missao(
     informados (militares/datas removidos numa edição). Assim nenhum
     caminho de escrita precisa lembrar de invalidar os dois níveis.
     """
-    caches = await _carregar_caches_custo(session)
+    caches = await carregar_caches_custo(session)
     aplicar_custos_missao(missao, users_frag, pernoites, caches)
 
     afast = missao.afast.date()
@@ -323,7 +340,7 @@ async def recalcular_custos_missoes(
         return {'missoes': 0, 'comissionamentos': 0}
 
     # 2. Carregar caches de referencia (1x so)
-    caches = await _carregar_caches_custo(session)
+    caches = await carregar_caches_custo(session)
 
     # 3. Set para coletar comissionamentos afetados
     comiss_ids: set[int] = set()
