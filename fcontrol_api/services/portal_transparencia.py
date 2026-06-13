@@ -105,9 +105,7 @@ def _parse_sk_mes_referencia(sk: object) -> Optional[date]:
     return None
 
 
-async def buscar_remuneracao(
-    cpf: str, mes_ano: date
-) -> RemuneracaoPortal:
+async def buscar_remuneracao(cpf: str, mes_ano: date) -> RemuneracaoPortal:
     """Busca a remuneracao de um servidor por CPF em um mes especifico.
 
     :param cpf: CPF com 11 digitos numericos.
@@ -129,9 +127,7 @@ async def buscar_remuneracao(
 
     mes_ano_int = mes_ano.year * 100 + mes_ano.month
     cpf_mask = f'***.***.{cpf[6:9]}-**'
-    logger.info(
-        'Portal query cpf=%s mesAno=%d', cpf_mask, mes_ano_int
-    )
+    logger.info('Portal query cpf=%s mesAno=%d', cpf_mask, mes_ano_int)
 
     async with portal_client() as client:
         try:
@@ -155,9 +151,7 @@ async def buscar_remuneracao(
             if upstream == HTTPStatus.NOT_FOUND:
                 raise HTTPException(
                     status_code=HTTPStatus.NOT_FOUND,
-                    detail=(
-                        'CPF não encontrado no Portal da Transparência'
-                    ),
+                    detail=('CPF não encontrado no Portal da Transparência'),
                 ) from e
             if upstream in {
                 HTTPStatus.UNAUTHORIZED,
@@ -219,9 +213,9 @@ async def buscar_remuneracao(
 
     # `skMesReferencia` (ISO) e a chave oficial do mes na resposta.
     # Fallback para o mes_ano do request se ausente.
-    mes_ref = _parse_sk_mes_referencia(
-        dto.get('skMesReferencia')
-    ) or date(mes_ano.year, mes_ano.month, 1)
+    mes_ref = _parse_sk_mes_referencia(dto.get('skMesReferencia')) or date(
+        mes_ano.year, mes_ano.month, 1
+    )
 
     return RemuneracaoPortal(
         mes_ano=mes_ref,

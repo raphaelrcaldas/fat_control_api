@@ -34,9 +34,7 @@ class TenantProjeto(Base):
         UniqueConstraint('uae', 'projeto', name='uq_tenant_projeto'),
     )
 
-    id: Mapped[int] = mapped_column(
-        Identity(), primary_key=True, init=False
-    )
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True, init=False)
     uae: Mapped[str] = mapped_column(
         String(20),
         ForeignKey(

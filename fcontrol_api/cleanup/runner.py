@@ -64,13 +64,11 @@ async def preview_all_tasks(session: AsyncSession) -> list[dict]:
 
         description = getattr(module, 'DESCRIPTION', module_info.name)
         candidate_count = await count_fn(session)
-        previews.append(
-            {
-                'task_name': module_info.name,
-                'description': description,
-                'count': candidate_count,
-            }
-        )
+        previews.append({
+            'task_name': module_info.name,
+            'description': description,
+            'count': candidate_count,
+        })
 
     return previews
 

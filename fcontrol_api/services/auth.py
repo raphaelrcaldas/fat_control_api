@@ -161,9 +161,7 @@ async def get_user_roles(
         result = await session.scalar(
             select(UserRole)
             .where(UserRole.user_id == user_id)
-            .order_by(
-                UserRole.organizacao_id.asc().nulls_first(), UserRole.id
-            )
+            .order_by(UserRole.organizacao_id.asc().nulls_first(), UserRole.id)
             .options(perms_load)
         )
 

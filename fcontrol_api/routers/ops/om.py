@@ -752,9 +752,7 @@ async def update_etiqueta(
 ):
     """Atualiza uma etiqueta existente"""
     etiqueta = await session.scalar(
-        select(Etiqueta).where(
-            Etiqueta.id == id, Etiqueta.uae == active_org
-        )
+        select(Etiqueta).where(Etiqueta.id == id, Etiqueta.uae == active_org)
     )
     if not etiqueta:
         raise HTTPException(
@@ -786,9 +784,7 @@ async def delete_etiqueta(
 ):
     """Remove uma etiqueta"""
     etiqueta = await session.scalar(
-        select(Etiqueta).where(
-            Etiqueta.id == id, Etiqueta.uae == active_org
-        )
+        select(Etiqueta).where(Etiqueta.id == id, Etiqueta.uae == active_org)
     )
     if not etiqueta:
         raise HTTPException(

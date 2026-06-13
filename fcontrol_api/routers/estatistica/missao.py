@@ -60,9 +60,7 @@ async def get_missao(
     active_org: ActiveOrg,
 ) -> ApiResponse[MissaoComEtapasDetailOut]:
     missao = await session.scalar(
-        select(Missao).where(
-            Missao.id == missao_id, Missao.uae == active_org
-        )
+        select(Missao).where(Missao.id == missao_id, Missao.uae == active_org)
     )
     if not missao:
         raise HTTPException(
@@ -275,9 +273,7 @@ async def update_missao_with_etapas(
     e imutavel apos a criacao — nao e aceito no payload.
     """
     missao = await session.scalar(
-        select(Missao).where(
-            Missao.id == missao_id, Missao.uae == active_org
-        )
+        select(Missao).where(Missao.id == missao_id, Missao.uae == active_org)
     )
     if not missao:
         raise HTTPException(
@@ -574,9 +570,7 @@ async def update_missao(
     active_org: ActiveOrg,
 ) -> ApiResponse[MissaoPublic]:
     missao = await session.scalar(
-        select(Missao).where(
-            Missao.id == missao_id, Missao.uae == active_org
-        )
+        select(Missao).where(Missao.id == missao_id, Missao.uae == active_org)
     )
     if not missao:
         raise HTTPException(
@@ -609,9 +603,7 @@ async def delete_missao_com_etapas(
     active_org: ActiveOrg,
 ) -> ApiResponse[None]:
     missao = await session.scalar(
-        select(Missao).where(
-            Missao.id == missao_id, Missao.uae == active_org
-        )
+        select(Missao).where(Missao.id == missao_id, Missao.uae == active_org)
     )
     if not missao:
         raise HTTPException(
@@ -662,9 +654,7 @@ async def delete_missao(
     active_org: ActiveOrg,
 ) -> ApiResponse[None]:
     missao = await session.scalar(
-        select(Missao).where(
-            Missao.id == missao_id, Missao.uae == active_org
-        )
+        select(Missao).where(Missao.id == missao_id, Missao.uae == active_org)
     )
     if not missao:
         raise HTTPException(

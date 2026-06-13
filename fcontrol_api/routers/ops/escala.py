@@ -121,9 +121,9 @@ async def get_escala_disponiveis(
         .subquery()
     )
 
-    tvoo_year_expr = sql_func.coalesce(
-        tvoo_year_subq.c.tvoo_year, 0
-    ).label('tvoo_year')
+    tvoo_year_expr = sql_func.coalesce(tvoo_year_subq.c.tvoo_year, 0).label(
+        'tvoo_year'
+    )
 
     # 4. Query principal: tripulantes elegíveis
     trips_query = (

@@ -35,9 +35,7 @@ router = APIRouter(prefix='/aeronaves', tags=['aeronaves'])
 
 def _projetos_da_org(active_org: str):
     """Subquery com os projetos operados pela org ativa."""
-    return select(TenantProjeto.projeto).where(
-        TenantProjeto.uae == active_org
-    )
+    return select(TenantProjeto.projeto).where(TenantProjeto.uae == active_org)
 
 
 @router.post(

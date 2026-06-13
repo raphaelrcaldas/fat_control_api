@@ -115,9 +115,7 @@ async def list_users_roles(session: Session, scope: Scope):
     # daquela org. "Sistema" (NULL) mostra apenas os vínculos de sistema.
     stmt = (
         select(UserRole)
-        .where(
-            UserRole.organizacao_id.is_not_distinct_from(scope.active_org)
-        )
+        .where(UserRole.organizacao_id.is_not_distinct_from(scope.active_org))
         .options(joinedload(UserRole.user))
     )
 

@@ -184,9 +184,7 @@ async def sync_remuneracao_portal(
     Funciona em modo create (sem registro ainda) e edit. NAO persiste
     no banco — o frontend decide se preenche o formulario e salva.
     """
-    user = await session.scalar(
-        select(User).where(User.id == payload.user_id)
-    )
+    user = await session.scalar(select(User).where(User.id == payload.user_id))
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,

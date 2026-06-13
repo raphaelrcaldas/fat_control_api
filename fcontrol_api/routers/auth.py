@@ -255,9 +255,7 @@ async def refresh_access_token(
     request: Request,
     user: User = Depends(get_current_user),
 ):
-    data = token_data(
-        user, request.state.app_client, request.state.active_org
-    )
+    data = token_data(user, request.state.app_client, request.state.active_org)
     new_access_token = create_access_token(data=data)
     return success_response(
         data=Token(

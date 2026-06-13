@@ -139,16 +139,13 @@ async def list_tenant_projetos(organizacao_id: str, session: Session):
 
     rows = await session.execute(
         select(ProjetoAnv.id_projeto, ProjetoAnv.modelo)
-        .join(
-            TenantProjeto, TenantProjeto.projeto == ProjetoAnv.id_projeto
-        )
+        .join(TenantProjeto, TenantProjeto.projeto == ProjetoAnv.id_projeto)
         .where(TenantProjeto.uae == organizacao_id)
         .order_by(ProjetoAnv.modelo)
     )
     return success_response(
         data=[
-            ProjetoOut(id_projeto=r.id_projeto, modelo=r.modelo)
-            for r in rows
+            ProjetoOut(id_projeto=r.id_projeto, modelo=r.modelo) for r in rows
         ]
     )
 

@@ -383,6 +383,7 @@ async def get_quads_type(session: Session, active_org: ActiveOrg):
 # sem cascade. A associação de funções é declarativa (substitui o conjunto).
 # ===========================================================================
 
+
 async def _get_group_scoped(
     group_id: int, session: AsyncSession, active_org: str
 ) -> QuadsGroup:
@@ -604,9 +605,7 @@ async def set_quads_type_funcs(
     await session.execute(
         delete(QuadsFunc).where(QuadsFunc.type_id == type_id)
     )
-    session.add_all(
-        [QuadsFunc(type_id=type_id, func=f) for f in novas_funcs]
-    )
+    session.add_all([QuadsFunc(type_id=type_id, func=f) for f in novas_funcs])
     await session.commit()
 
     return success_response(
