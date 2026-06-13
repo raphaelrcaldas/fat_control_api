@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
@@ -8,6 +9,8 @@ from fcontrol_api.schemas.cegep.custos import (
     CustoUserFragInput,
 )
 from fcontrol_api.utils.datas import listar_datas_entre
+
+logger = logging.getLogger(__name__)
 
 
 def _buscar_valor_por_dia(
@@ -104,19 +107,32 @@ def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
     """
     Lê custos do JSONB pré-calculado e monta estrutura para o frontend.
 
-    Se o JSONB estiver vazio, retorna valores zerados (missão sem custos).
+    O campo `custos` é um cache materializado na escrita. Quando a chave
+    pg+sit pedida não está presente (cache desatualizado em relação aos
+    militares/pernoites da missão), os valores retornam zerados — mas o
+    fato é registrado em log e sinalizado via `custo_inconsistente`, em
+    vez de produzir dinheiro errado silenciosamente.
     """
+    chave_pg_sit = f'pg_{p_g}_sit_{sit}'
     custos_jsonb = mis.get('custos', {})
 
-    # Se não tem custos, retorna zeros
+    # Cache vazio. É esperado em missão sem custo, mas suspeito quando há
+    # pernoites (indica recálculo pendente) — nesse caso, sinaliza.
     if not custos_jsonb or not isinstance(custos_jsonb, dict):
+        if mis.get('pernoites'):
+            logger.warning(
+                'Custos ausentes na missão id=%s n_doc=%s: cache vazio '
+                'com pernoites presentes (recálculo pendente). '
+                'Valores retornados como zero.',
+                mis.get('id'),
+                mis.get('n_doc'),
+            )
+            mis['custo_inconsistente'] = True
         mis['dias'] = 0
         mis['diarias'] = 0
         mis['valor_total'] = 0
         mis['qtd_ac'] = 0
         return mis
-
-    chave_pg_sit = f'pg_{p_g}_sit_{sit}'
 
     # Extrair totais gerais
     mis['dias'] = custos_jsonb.get('total_dias', 0)
@@ -126,6 +142,17 @@ def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
 
     # Extrair total de valor para este pg+sit
     totais_pg_sit = custos_jsonb.get('totais_pg_sit', {})
+    if chave_pg_sit not in totais_pg_sit:
+        logger.warning(
+            'Custo inconsistente na missão id=%s n_doc=%s: combinação %s '
+            'ausente no cache (disponíveis: %s). '
+            'valor_total retornado como zero.',
+            mis.get('id'),
+            mis.get('n_doc'),
+            chave_pg_sit,
+            list(totais_pg_sit.keys()),
+        )
+        mis['custo_inconsistente'] = True
     total_valor = totais_pg_sit.get(chave_pg_sit, {}).get('total_valor', 0)
     mis['valor_total'] = total_valor
 
