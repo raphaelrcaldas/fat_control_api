@@ -20,7 +20,7 @@ class MissoesFilterParams(BaseModel):
     tipo_doc: Optional[str] = Field(
         None,
         max_length=50,
-        description="Tipo(s) do documento, separados por vírgula (ex: 'om,os')",
+        description="Tipo(s) do documento (ex: 'om,os')",
     )
 
     n_doc: Optional[int] = Field(None, ge=1, description='Número do documento')

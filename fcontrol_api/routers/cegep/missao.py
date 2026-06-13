@@ -10,7 +10,6 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.cegep.diarias import GrupoCidade, GrupoPg
 from fcontrol_api.models.cegep.missoes import (
     Etiqueta,
     FragEtiqueta,
@@ -21,11 +20,6 @@ from fcontrol_api.models.cegep.missoes import (
 from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.estados_cidades import Cidade
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.cegep.custos import (
-    CustoFragMisInput,
-    CustoPernoiteInput,
-    CustoUserFragInput,
-)
 from fcontrol_api.schemas.cegep.missoes import (
     FragMisSchema,
     MissaoDetail,
@@ -45,10 +39,12 @@ from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
 )
-from fcontrol_api.services.financeiro import cache_diarias, cache_soldos
 from fcontrol_api.services.logs import log_user_action
-from fcontrol_api.services.missao import adicionar_missao, verificar_conflitos
-from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
+from fcontrol_api.services.missao import (
+    adicionar_missao,
+    sincronizar_custos_missao,
+    verificar_conflitos,
+)
 from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -160,7 +156,9 @@ async def get_fragmentos(
     # tipo_doc e tipo aceitam múltiplos valores separados por vírgula
     # (multi-select do front), portanto usamos IN ao invés de igualdade.
     if params.tipo_doc:
-        tipos_doc = [t.strip() for t in params.tipo_doc.split(',') if t.strip()]
+        tipos_doc = [
+            t.strip() for t in params.tipo_doc.split(',') if t.strip()
+        ]
         if tipos_doc:
             base_query = base_query.where(FragMis.tipo_doc.in_(tipos_doc))
             count_query = count_query.where(FragMis.tipo_doc.in_(tipos_doc))
@@ -429,99 +427,37 @@ async def create_or_update_missao(
         active_org,
     )
 
-    # Adiciona pernoites e prepara inputs validados
-    pernoites_input: list[CustoPernoiteInput] = []
+    # Adiciona pernoites (flush para obter os IDs usados no cálculo)
+    pernoites: list[PernoiteFrag] = []
     for p in payload.pernoites:
         pnt_data = PernoiteFragMis.model_validate(p).model_dump(
             exclude={'cidade', 'id', 'frag_id'}
         )
         pernoite = PernoiteFrag(**pnt_data, frag_id=missao.id)
         session.add(pernoite)
-        await session.flush()  # Flush para obter o ID do pernoite
+        await session.flush()
+        pernoites.append(pernoite)
 
-        # Criar input validado com Pydantic
-        pernoite_input = CustoPernoiteInput(
-            id=pernoite.id,
-            data_ini=pernoite.data_ini,
-            data_fim=pernoite.data_fim,
-            meia_diaria=pernoite.meia_diaria,
-            acrec_desloc=pernoite.acrec_desloc,
-            cidade_codigo=p.cidade.codigo,  # Extrai código diretamente
-        )
-        pernoites_input.append(pernoite_input)
-
-    # Adiciona militares e prepara inputs validados
-    users_frag_input: list[CustoUserFragInput] = []
+    # Adiciona militares
+    users_frag: list[UserFrag] = []
     for u in payload.users:
         user_data = UserFragMis.model_validate(u).model_dump(
             exclude={'user', 'id', 'frag_id'}
         )
-        session.add(UserFrag(**user_data, frag_id=missao.id))
+        user_frag = UserFrag(**user_data, frag_id=missao.id)
+        session.add(user_frag)
+        users_frag.append(user_frag)
 
-        # Criar input validado com Pydantic
-        user_input = CustoUserFragInput(
-            p_g=user_data['p_g'],
-            sit=user_data['sit'],
-        )
-        users_frag_input.append(user_input)
-
-    # Carregar caches necessários para cálculo de custos
-    valores_cache = await cache_diarias(session)
-    soldos_cache = await cache_soldos(session)
-
-    # Carregar grupos_pg e grupos_cidade
-    grupos_pg = dict(
-        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
+    # Ponto único de invalidação: recalcula o cache de custos da missão e
+    # dos comissionamentos afetados (situação nova + footprints antigos).
+    await sincronizar_custos_missao(
+        missao,
+        users_frag,
+        pernoites,
+        session,
+        active_org,
+        footprints_antigos=tuple(usuarios_antigos_comiss),
     )
-    grupos_cidade = dict(
-        (
-            await session.execute(
-                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
-            )
-        ).all()
-    )
-
-    # Criar input validado da missão
-    frag_mis_input = CustoFragMisInput(acrec_desloc=missao.acrec_desloc)
-
-    # Calcular custos com inputs validados e tipados
-    custos = calcular_custos_frag_mis(
-        frag_mis_input,
-        users_frag_input,
-        pernoites_input,
-        grupos_pg,
-        grupos_cidade,
-        valores_cache,
-        soldos_cache,
-    )
-
-    # Atualizar campo custos na missão
-    missao.custos = custos
-
-    # Recalcular comissionamentos de todos os usuários envolvidos
-    # (antigos removidos + novos/mantidos com sit='c')
-    usuarios_envolvidos = {
-        user_id for user_id, _, _ in usuarios_antigos_comiss
-    }
-    usuarios_envolvidos.update(
-        u.user_id for u in payload.users if u.sit == 'c'
-    )
-
-    afast_date = (
-        payload.afast.date()
-        if hasattr(payload.afast, 'date')
-        else payload.afast
-    )
-    regres_date = (
-        payload.regres.date()
-        if hasattr(payload.regres, 'date')
-        else payload.regres
-    )
-
-    for user_id in usuarios_envolvidos:
-        await recalcular_comiss_afetados(
-            user_id, afast_date, regres_date, session, active_org
-        )
 
     # Log de auditoria
     after_snapshot = _missao_to_dict(missao)

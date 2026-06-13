@@ -201,6 +201,100 @@ async def adicionar_missao(
     return missao
 
 
+async def _carregar_caches_custo(session: AsyncSession) -> tuple:
+    """Carrega de uma vez os caches de referência usados no cálculo de
+    custos (diárias, soldos, grupos de pg e de cidade)."""
+    valores_cache = await cache_diarias(session)
+    soldos_cache = await cache_soldos(session)
+    grupos_pg = dict(
+        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
+    )
+    grupos_cidade = dict(
+        (
+            await session.execute(
+                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
+            )
+        ).all()
+    )
+    return valores_cache, soldos_cache, grupos_pg, grupos_cidade
+
+
+def aplicar_custos_missao(
+    missao: FragMis,
+    users_frag: list[UserFrag],
+    pernoites: list[PernoiteFrag],
+    caches: tuple,
+) -> None:
+    """Calcula e grava o JSONB `custos` da missão a partir de seus
+    militares e pernoites (objetos ORM) e dos caches de referência."""
+    valores_cache, soldos_cache, grupos_pg, grupos_cidade = caches
+
+    users_input = [
+        CustoUserFragInput(p_g=uf.p_g, sit=uf.sit) for uf in users_frag
+    ]
+    pernoites_input = [
+        CustoPernoiteInput(
+            id=pnt.id,
+            data_ini=pnt.data_ini,
+            data_fim=pnt.data_fim,
+            meia_diaria=pnt.meia_diaria,
+            acrec_desloc=pnt.acrec_desloc,
+            cidade_codigo=pnt.cidade_id,
+        )
+        for pnt in pernoites
+    ]
+    frag_mis_input = CustoFragMisInput(acrec_desloc=missao.acrec_desloc)
+
+    missao.custos = calcular_custos_frag_mis(
+        frag_mis_input,
+        users_input,
+        pernoites_input,
+        grupos_pg,
+        grupos_cidade,
+        valores_cache,
+        soldos_cache,
+    )
+
+
+async def sincronizar_custos_missao(
+    missao: FragMis,
+    users_frag: list[UserFrag],
+    pernoites: list[PernoiteFrag],
+    session: AsyncSession,
+    active_org: str,
+    footprints_antigos: tuple[tuple[int, date, date], ...] = (),
+) -> None:
+    """Ponto único de invalidação após criar/atualizar uma missão.
+
+    Recalcula o cache de custos da missão e, em seguida, o cache de todos
+    os comissionamentos afetados — tanto pela situação nova (militares
+    sit='c' com as datas atuais) quanto pelos footprints antigos
+    informados (militares/datas removidos numa edição). Assim nenhum
+    caminho de escrita precisa lembrar de invalidar os dois níveis.
+    """
+    caches = await _carregar_caches_custo(session)
+    aplicar_custos_missao(missao, users_frag, pernoites, caches)
+
+    afast = missao.afast.date()
+    regres = missao.regres.date()
+
+    footprints: list[tuple[int, date, date]] = list(footprints_antigos)
+    footprints.extend(
+        (uf.user_id, afast, regres) for uf in users_frag if uf.sit == 'c'
+    )
+
+    comiss_ids: set[int] = set()
+    for user_id, f_afast, f_regres in footprints:
+        comiss_ids.update(
+            await localizar_comiss_por_missao(
+                user_id, f_afast, f_regres, session, uae=active_org
+            )
+        )
+
+    for comiss_id in comiss_ids:
+        await recalcular_cache_comiss(comiss_id, session)
+
+
 async def recalcular_custos_missoes(
     data_inicio: date,
     data_fim: date | None,
@@ -229,19 +323,7 @@ async def recalcular_custos_missoes(
         return {'missoes': 0, 'comissionamentos': 0}
 
     # 2. Carregar caches de referencia (1x so)
-    valores_cache = await cache_diarias(session)
-    soldos_cache = await cache_soldos(session)
-
-    grupos_pg = dict(
-        (await session.execute(select(GrupoPg.pg_short, GrupoPg.grupo))).all()
-    )
-    grupos_cidade = dict(
-        (
-            await session.execute(
-                select(GrupoCidade.cidade_id, GrupoCidade.grupo)
-            )
-        ).all()
-    )
+    caches = await _carregar_caches_custo(session)
 
     # 3. Set para coletar comissionamentos afetados
     comiss_ids: set[int] = set()
@@ -256,42 +338,10 @@ async def recalcular_custos_missoes(
         # Pernoites ja vem via selectin
         pernoites = missao.pernoites
 
-        # Montar inputs validados
-        pernoites_input = [
-            CustoPernoiteInput(
-                id=pnt.id,
-                data_ini=pnt.data_ini,
-                data_fim=pnt.data_fim,
-                meia_diaria=pnt.meia_diaria,
-                acrec_desloc=pnt.acrec_desloc,
-                cidade_codigo=pnt.cidade_id,
-            )
-            for pnt in pernoites
-        ]
-
-        users_input = [
-            CustoUserFragInput(p_g=uf.p_g, sit=uf.sit) for uf in users_frag
-        ]
-
-        if not users_input or not pernoites_input:
+        if not users_frag or not pernoites:
             continue
 
-        frag_mis_input = CustoFragMisInput(
-            acrec_desloc=missao.acrec_desloc,
-        )
-
-        # Calcular custos
-        custos = calcular_custos_frag_mis(
-            frag_mis_input,
-            users_input,
-            pernoites_input,
-            grupos_pg,
-            grupos_cidade,
-            valores_cache,
-            soldos_cache,
-        )
-
-        missao.custos = custos
+        aplicar_custos_missao(missao, users_frag, pernoites, caches)
 
         # Coletar comissionamentos afetados
         afast_date = missao.afast.date()
