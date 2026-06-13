@@ -143,6 +143,8 @@ class FragMisEmbed(FragMisSchema):
     diarias: float = 0
     valor_total: float = 0
     qtd_ac: int = 0
+    # True quando o cache de custos não cobre o pg+sit lido (drift).
+    custo_inconsistente: bool = False
 
 
 class MissaoLogOut(BaseModel):
