@@ -18,13 +18,17 @@ class MissoesFilterParams(BaseModel):
     """
 
     tipo_doc: Optional[str] = Field(
-        None, max_length=10, description="Tipo do documento (ex: 'BI', 'OM')"
+        None,
+        max_length=50,
+        description="Tipo(s) do documento, separados por vírgula (ex: 'om,os')",
     )
 
     n_doc: Optional[int] = Field(None, ge=1, description='Número do documento')
 
     tipo: Optional[str] = Field(
-        None, max_length=10, description='Tipo da missão'
+        None,
+        max_length=50,
+        description="Tipo(s) da missão, separados por vírgula (ex: 'adm,opr')",
     )
 
     user_search: Optional[str] = Field(
