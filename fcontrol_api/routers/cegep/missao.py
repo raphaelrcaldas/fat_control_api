@@ -99,7 +99,8 @@ async def get_fragmentos(
     - tipo: Tipo da missão
     - user_search: Nome de guerra (busca parcial case-insensitive)
     - city: Nome da cidade (busca parcial case-insensitive)
-    - ini/fim: Intervalo de datas (afastamento/regresso)
+    - ini/fim: Janela de datas (sobreposição: inclui missões cujo
+      intervalo afast-regres intersecta [ini, fim])
     - etiqueta_ids: IDs de etiquetas separados por vírgula
 
     **Paginação:**
@@ -127,41 +128,52 @@ async def get_fragmentos(
         # Data máxima que captura todas as missões
         fim = datetime(2100, 12, 31, 23, 59, 59)
 
-    # Query base com ordenação determinística (afast + id)
+    # Query base com ordenação determinística (afast + id).
+    # Filtro de datas por SOBREPOSIÇÃO: inclui toda missão cujo intervalo
+    # [afast, regres] intersecta a janela [ini, fim]. Assim missões em
+    # andamento ou que cruzam a borda da janela continuam visíveis.
     base_query = (
         select(FragMis)
         .options(selectinload(FragMis.users))
         .filter(
             FragMis.uae == active_org,
-            FragMis.afast >= ini,
-            FragMis.regres <= fim,
+            FragMis.afast <= fim,
+            FragMis.regres >= ini,
         )
         .order_by(FragMis.afast.desc(), FragMis.id.desc())
     )
 
-    # Query de contagem (sem options e sem ordenação para performance)
+    # Query de contagem. Usa COUNT(DISTINCT id) porque os filtros de
+    # cidade/militar/etiqueta abaixo adicionam JOINs que multiplicam linhas;
+    # sem o distinct o total ficaria inflado e quebraria a paginação.
     count_query = (
-        select(func.count())
+        select(func.count(FragMis.id.distinct()))
         .select_from(FragMis)
         .filter(
             FragMis.uae == active_org,
-            FragMis.afast >= ini,
-            FragMis.regres <= fim,
+            FragMis.afast <= fim,
+            FragMis.regres >= ini,
         )
     )
 
-    # Aplica filtros validados em ambas as queries
+    # Aplica filtros validados em ambas as queries.
+    # tipo_doc e tipo aceitam múltiplos valores separados por vírgula
+    # (multi-select do front), portanto usamos IN ao invés de igualdade.
     if params.tipo_doc:
-        base_query = base_query.where(FragMis.tipo_doc == params.tipo_doc)
-        count_query = count_query.where(FragMis.tipo_doc == params.tipo_doc)
+        tipos_doc = [t.strip() for t in params.tipo_doc.split(',') if t.strip()]
+        if tipos_doc:
+            base_query = base_query.where(FragMis.tipo_doc.in_(tipos_doc))
+            count_query = count_query.where(FragMis.tipo_doc.in_(tipos_doc))
 
     if params.n_doc:
         base_query = base_query.where(FragMis.n_doc == params.n_doc)
         count_query = count_query.where(FragMis.n_doc == params.n_doc)
 
     if params.tipo:
-        base_query = base_query.where(FragMis.tipo == params.tipo)
-        count_query = count_query.where(FragMis.tipo == params.tipo)
+        tipos = [t.strip() for t in params.tipo.split(',') if t.strip()]
+        if tipos:
+            base_query = base_query.where(FragMis.tipo.in_(tipos))
+            count_query = count_query.where(FragMis.tipo.in_(tipos))
 
     # Filtro por cidade (busca parcial case-insensitive)
     # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
@@ -529,7 +541,12 @@ async def create_or_update_missao(
 
 
 @router.delete('/{id}', response_model=ApiResponse[None])
-async def delete_fragmis(id: int, session: Session, active_org: ActiveOrg):
+async def delete_fragmis(
+    id: int,
+    session: Session,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+):
     db_frag = await session.scalar(
         select(FragMis)
         .options(selectinload(FragMis.users))
@@ -548,18 +565,27 @@ async def delete_fragmis(id: int, session: Session, active_org: ActiveOrg):
         if u.sit == 'c'
     ]
 
+    # Snapshot para auditoria antes de remover (acessa só escalares)
+    before_snapshot = _missao_to_dict(db_frag)
+
     await session.execute(
         delete(PernoiteFrag).where(PernoiteFrag.frag_id == id)
     )
     await session.execute(delete(UserFrag).where(UserFrag.frag_id == id))
-    await session.execute(
-        delete(UserActionLog).where(
-            UserActionLog.resource == RESOURCE,
-            UserActionLog.resource_id == id,
-        )
-    )
 
     await session.delete(db_frag)
+
+    # Registra a exclusão. Os logs anteriores da missão são preservados
+    # para manter a trilha de auditoria mesmo após a remoção.
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='delete',
+        resource=RESOURCE,
+        resource_id=id,
+        before=before_snapshot,
+        after=None,
+    )
 
     # Recalcular cache dos comissionamentos afetados após deletar
     for user_id, afast, regres in comiss_users:
