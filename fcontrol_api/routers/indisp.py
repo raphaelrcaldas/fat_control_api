@@ -40,9 +40,17 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 @router.get('/', response_model=ApiResponse[list[IndispCrewEntry]])
 async def get_crew_indisp(
-    session: Session, funcao: str, active_org: ActiveOrg
+    session: Session,
+    funcao: str,
+    active_org: ActiveOrg,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ):
-    date_ini = date.today() - timedelta(days=30)
+    # Janela de dados. O client (Opção A) envia [date_from, date_to] e
+    # navega apenas dentro dela. Sem date_from, preserva o comportamento
+    # antigo (últimos 30 dias em diante).
+    if date_from is None:
+        date_from = date.today() - timedelta(days=30)
 
     # 1. Query principal para buscar os tripulantes e seus dados
     # relacionados (exceto indisps)
@@ -114,10 +122,18 @@ async def get_crew_indisp(
 
     # 4. Uma única query para buscar todas as indisponibilidades relevantes,
     #    já carregando o usuário que a criou e o posto desse usuário.
+    #    Traz tudo que sobrepõe a janela [date_from, date_to].
+    indisp_filters = [
+        Indisp.user_id.in_(user_ids),
+        Indisp.date_end >= date_from,
+    ]
+    if date_to is not None:
+        indisp_filters.append(Indisp.date_start <= date_to)
+
     indisp_query = (
         select(Indisp)
         .options(selectinload(Indisp.user_created).selectinload(User.posto))
-        .where(Indisp.user_id.in_(user_ids), Indisp.date_end >= date_ini)
+        .where(*indisp_filters)
     )
     indisps_result = await session.scalars(indisp_query)
 
