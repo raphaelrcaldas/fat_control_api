@@ -31,6 +31,7 @@ from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import ActiveOrg, get_current_user
 from fcontrol_api.services.comis import (
+    filtro_missoes_periodo,
     recalcular_cache_comiss,
     validar_fechamento_comiss,
     verificar_conflito_comiss,
@@ -289,10 +290,8 @@ async def get_cmto_by_id(
         # por hash de cada missão na abertura do comissionamento
         .options(selectinload(FragMis.users))
         .where(
-            and_(
-                FragMis.uae == comiss.uae,
-                FragMis.afast >= comiss.data_ab,
-                FragMis.regres <= comiss.data_fc,
+            filtro_missoes_periodo(
+                comiss.uae, comiss.data_ab, comiss.data_fc
             )
         )
         .order_by(FragMis.afast)
@@ -312,6 +311,24 @@ async def get_cmto_by_id(
         if not verificar_integridade_missao(missao):
             mis_dict['custo_inconsistente'] = True
         missoes.append(FragMisEmbed.model_validate(mis_dict))
+
+    # Integridade dos agregados: o cache persistido (vals_comp/dias_comp/
+    # diarias_comp/missoes_count) deve coincidir com a soma ao vivo das
+    # missões recém-computadas. Divergência => cache obsoleto (ex.:
+    # recálculo não disparado após mudança numa missão) ou alguma missão
+    # com custo individual desatualizado. A verificação é do backend (dono
+    # do cache); o frontend apenas exibe a flag resultante.
+    vals_live = round(sum(m.valor_total for m in missoes), 2)
+    dias_live = sum(m.dias for m in missoes)
+    diarias_live = sum(m.diarias for m in missoes)
+
+    cache_inconsistente = (
+        any(m.custo_inconsistente for m in missoes)
+        or cache.get('missoes_count', 0) != len(missoes)
+        or dias_live != cache.get('dias_comp', 0)
+        or abs(vals_live - cache.get('vals_comp', 0)) > 0.01
+        or abs(diarias_live - cache.get('diarias_comp', 0)) > 0.01
+    )
 
     logs_query = (
         select(UserActionLog)
@@ -367,6 +384,7 @@ async def get_cmto_by_id(
         modulo=cache.get('modulo', False),
         completude=cache.get('completude', 0),
         missoes_count=len(missoes),
+        cache_inconsistente=cache_inconsistente,
         missoes=missoes,
         logs=logs,
     )
@@ -385,6 +403,7 @@ async def create_cmto(
         select(Comissionamento).where(
             (Comissionamento.user_id == comiss.user_id)
             & (Comissionamento.status == 'aberto')
+            & (Comissionamento.uae == active_org)
         )
     )
     if db_comiss:
@@ -394,7 +413,7 @@ async def create_cmto(
         )
 
     await verificar_conflito_comiss(
-        comiss.user_id, comiss.data_ab, comiss.data_fc, session
+        comiss.user_id, comiss.data_ab, comiss.data_fc, session, active_org
     )
 
     comiss_data = ComissSchema.model_validate(comiss).model_dump(
@@ -446,7 +465,12 @@ async def update_cmto(
         )
 
     await verificar_conflito_comiss(
-        comiss.user_id, comiss.data_ab, comiss.data_fc, session, comiss_id
+        comiss.user_id,
+        comiss.data_ab,
+        comiss.data_fc,
+        session,
+        active_org,
+        comiss_id,
     )
 
     mis_comiss = await session.scalars(
@@ -462,9 +486,11 @@ async def update_cmto(
             FragMis,
             and_(
                 FragMis.id == UserFrag.frag_id,
-                FragMis.uae == Comissionamento.uae,
-                FragMis.afast >= Comissionamento.data_ab,
-                FragMis.regres <= Comissionamento.data_fc,
+                filtro_missoes_periodo(
+                    Comissionamento.uae,
+                    Comissionamento.data_ab,
+                    Comissionamento.data_fc,
+                ),
             ),
         )
         .where(Comissionamento.id == comiss_id)
@@ -484,9 +510,9 @@ async def update_cmto(
             FragMis,
             and_(
                 FragMis.id == UserFrag.frag_id,
-                FragMis.uae == Comissionamento.uae,
-                FragMis.afast >= comiss.data_ab,
-                FragMis.regres <= comiss.data_fc,
+                filtro_missoes_periodo(
+                    Comissionamento.uae, comiss.data_ab, comiss.data_fc
+                ),
             ),
         )
         .where(Comissionamento.id == comiss_id)
@@ -579,10 +605,8 @@ async def delete_cmto(
             ),
         )
         .where(
-            and_(
-                FragMis.uae == db_comiss.uae,
-                FragMis.afast >= db_comiss.data_ab,
-                FragMis.regres <= db_comiss.data_fc,
+            filtro_missoes_periodo(
+                db_comiss.uae, db_comiss.data_ab, db_comiss.data_fc
             )
         )
         .order_by(FragMis.afast)

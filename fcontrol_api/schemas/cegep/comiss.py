@@ -65,6 +65,9 @@ class ComissPublic(BaseModel):
     modulo: bool = False
     completude: float = 0
     missoes_count: int = 0
+    # True quando algum custo de missão agregado está desatualizado, de
+    # modo que os totais podem estar subestimados (ver recalcular_cache).
+    cache_inconsistente: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

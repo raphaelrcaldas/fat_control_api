@@ -86,11 +86,16 @@ async def verificar_conflito_comiss(
     data_ab: date,
     data_fc: date,
     session: AsyncSession,
-    comiss_id: int = None,
+    uae: str,
+    comiss_id: int | None = None,
 ):
+    # Escopo multi-tenant: conflito de datas é avaliado apenas dentro da
+    # org ativa. Usuários são diretório universal, mas comissionamentos são
+    # por unidade — um aberto em outra org não deve bloquear esta.
     query = select(Comissionamento).where(
         and_(
             (Comissionamento.user_id == user_id),
+            (Comissionamento.uae == uae),
             (Comissionamento.data_ab <= data_fc),
             (data_ab <= Comissionamento.data_fc),
         )
@@ -110,6 +115,31 @@ async def verificar_conflito_comiss(
 # ============================================================
 # Funções de cache para comissionamento
 # ============================================================
+
+
+def filtro_missoes_periodo(uae, data_ab, data_fc):
+    """Filtro canônico das missões que pertencem ao período de um
+    comissionamento.
+
+    Compara em granularidade de DATA (`afast.date()`/`regres.date()`), com
+    `data_ab` e `data_fc` **inclusivos** — a mesma fronteira usada por
+    `verificar_usrs_comiss` (gate ao salvar a missão) e por
+    `localizar_comiss_por_missao` (gatilho de recálculo). As queries de
+    agregação/leitura usavam `FragMis.regres <= data_fc`, que coage o
+    `date` para 00:00 e excluía missões que regressam no próprio
+    `data_fc` — divergindo dos demais pontos e fazendo a missão sumir do
+    cache mesmo tendo sido validada para dentro do comissionamento.
+    Centralizar a fronteira aqui evita que esses pontos voltem a divergir.
+
+    `uae`/`data_ab`/`data_fc` aceitam valores Python ou colunas SQL (ex.:
+    `Comissionamento.data_fc`), servindo tanto ao recálculo quanto aos
+    joins correlacionados do update.
+    """
+    return and_(
+        FragMis.uae == uae,
+        func.date(FragMis.afast) >= data_ab,
+        func.date(FragMis.regres) <= data_fc,
+    )
 
 
 def verificar_modulo(missoes: list[dict]) -> bool:
@@ -171,10 +201,8 @@ async def recalcular_cache_comiss(
             ),
         )
         .where(
-            and_(
-                FragMis.uae == comiss.uae,
-                FragMis.afast >= comiss.data_ab,
-                FragMis.regres <= comiss.data_fc,
+            filtro_missoes_periodo(
+                comiss.uae, comiss.data_ab, comiss.data_fc
             )
         )
         .order_by(FragMis.afast)
@@ -287,10 +315,8 @@ async def validar_fechamento_comiss(
             ),
         )
         .where(
-            and_(
-                FragMis.uae == comiss.uae,
-                FragMis.afast >= comiss.data_ab,
-                FragMis.regres <= comiss.data_fc,
+            filtro_missoes_periodo(
+                comiss.uae, comiss.data_ab, comiss.data_fc
             )
         )
     )
