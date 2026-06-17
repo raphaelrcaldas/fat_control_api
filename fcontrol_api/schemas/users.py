@@ -12,7 +12,9 @@ from pydantic import (
     field_validator,
 )
 
+from fcontrol_api.enums.especialidade import EspecialidadeEnum
 from fcontrol_api.enums.posto_grad import PostoGradEnum
+from fcontrol_api.enums.quadro import QuadroEnum
 from fcontrol_api.schemas.pagination import PaginatedResponse
 from fcontrol_api.schemas.posto_grad import PostoGradSchema
 from fcontrol_api.services.users import get_campos_pendentes
@@ -25,8 +27,8 @@ from fcontrol_api.utils.validators import (
 
 class UserSchema(BaseModel):
     p_g: PostoGradEnum
-    quadro: str | None = None
-    esp: str | None = None
+    quadro: QuadroEnum | None = None
+    esp: EspecialidadeEnum | None = None
     nome_guerra: str
     nome_completo: str
     id_fab: str | None = Field(default=None, min_length=6, max_length=6)
@@ -109,8 +111,8 @@ class UserUpdate(BaseModel):
     """
 
     p_g: PostoGradEnum | None = None
-    quadro: str | None = None
-    esp: str | None = None
+    quadro: QuadroEnum | None = None
+    esp: EspecialidadeEnum | None = None
     nome_guerra: str | None = None
     nome_completo: str | None = None
     id_fab: str | None = Field(default=None, min_length=6, max_length=6)
@@ -218,8 +220,8 @@ class UserPublic(BaseModel):
     id: int
     p_g: PostoGradEnum
     posto: PostoGradSchema
-    quadro: str | None = None
-    esp: str | None = None
+    quadro: QuadroEnum | None = None
+    esp: EspecialidadeEnum | None = None
     id_fab: str | None
     nome_guerra: str
     saram: str

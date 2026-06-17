@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
+from fcontrol_api.enums.especialidade import EspecialidadeEnum
+from fcontrol_api.enums.quadro import QuadroEnum
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.users import User, UserPromo
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
@@ -197,6 +199,9 @@ async def read_users(
     session: Session,
     search: str | None = None,
     p_g: str | None = None,
+    quadro: QuadroEnum | None = None,
+    esp: EspecialidadeEnum | None = None,
+    unidade: str | None = None,
     active: bool | None = None,
     page: int = 1,
     per_page: int = 15,
@@ -242,6 +247,15 @@ async def read_users(
             filters.append(User.p_g == pg_list[0])
         elif len(pg_list) > 1:
             filters.append(User.p_g.in_(pg_list))
+
+    if quadro:
+        filters.append(User.quadro == quadro.value)
+
+    if esp:
+        filters.append(User.esp == esp.value)
+
+    if unidade:
+        filters.append(User.unidade == unidade)
 
     if active is not None:
         filters.append(User.active == active)
