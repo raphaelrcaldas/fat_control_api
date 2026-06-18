@@ -46,6 +46,17 @@ class UserSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator('esp', 'quadro', mode='before')
+    @classmethod
+    def normalize_upper(cls, v: str | None) -> str | None:
+        """
+        Normaliza especialidade/quadro para uppercase antes da validação
+        do enum.
+        """
+        if isinstance(v, str):
+            return v.strip().upper()
+        return v
+
     @field_validator('id_fab')
     @classmethod
     def validate_id_fab(cls, v: str | None) -> str | None:
@@ -129,6 +140,17 @@ class UserUpdate(BaseModel):
     ant_rel: int | None = Field(default=None, gt=0)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator('esp', 'quadro', mode='before')
+    @classmethod
+    def normalize_upper(cls, v: str | None) -> str | None:
+        """
+        Normaliza especialidade/quadro para uppercase antes da validação
+        do enum.
+        """
+        if isinstance(v, str):
+            return v.strip().upper()
+        return v
 
     @field_validator('id_fab')
     @classmethod
