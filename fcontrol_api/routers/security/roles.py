@@ -253,6 +253,12 @@ async def delete_user_role(
 ):
     _ensure_org_in_scope(scope, role_body.organizacao_id)
 
+    if role_body.user_id == scope.user.id:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Você não pode remover o próprio acesso',
+        )
+
     user_reg = await session.scalar(
         select(UserRole).where(
             UserRole.user_id == role_body.user_id,
