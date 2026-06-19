@@ -3,7 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -12,6 +12,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.enums.especialidade import EspecialidadeEnum
 from fcontrol_api.enums.quadro import QuadroEnum
 from fcontrol_api.models.shared.posto_grad import PostoGrad
+from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User, UserPromo
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.users import (
@@ -343,6 +344,21 @@ async def update_user(
     # Aplica a atualização no objeto
     for key, value in patch.items():
         setattr(db_user, key, value)
+
+    # Invariante: User.active=False ⇒ Tripulante.active=False em toda
+    # unidade. O User é diretório global; desativá-lo cascateia para os
+    # vínculos operacionais de todas as UAEs, evitando o estado órfão
+    # invisível (user inativo + tripulante ativo) que sumiria das telas
+    # de quads/escala sem deixar onde corrigir o flag.
+    if patch.get('active') is False:
+        await session.execute(
+            update(Tripulante)
+            .where(
+                Tripulante.user_id == user_id,
+                Tripulante.active.is_(True),
+            )
+            .values(active=False)
+        )
 
     # Prepara o estado DEPOIS da atualização para o log
     after_patch: dict = {}
