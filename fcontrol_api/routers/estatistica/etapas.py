@@ -41,6 +41,7 @@ from fcontrol_api.schemas.response import (
 from fcontrol_api.security import ActiveOrg
 from fcontrol_api.services.etapas import (
     add_especificos,
+    assert_anv_simulador_consistency,
     assert_no_anv_collision,
     assert_no_trip_collision,
     fetch_especificos_data,
@@ -335,6 +336,10 @@ async def create_etapa(
             )
 
     try:
+        await assert_anv_simulador_consistency(
+            session,
+            pairs=[(data.anv, missao.is_simulador)],
+        )
         await assert_no_anv_collision(
             session,
             data=data.data,
@@ -428,16 +433,19 @@ async def update_etapa(
     diretamente. Se oi_etapas fornecido, valida soma
     contra tvoo do payload ou do banco.
     """
-    etapa = await session.scalar(
-        select(Etapa)
-        .join(Missao, Missao.id == Etapa.missao_id)
-        .where(Etapa.id == id, Missao.uae == active_org)
-    )
-    if not etapa:
+    row = (
+        await session.execute(
+            select(Etapa, Missao.is_simulador)
+            .join(Missao, Missao.id == Etapa.missao_id)
+            .where(Etapa.id == id, Missao.uae == active_org)
+        )
+    ).first()
+    if not row:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Etapa nao encontrada',
         )
+    etapa, is_simulador = row
 
     if data.oi_etapas is not None:
         tvoo_ref = data.tvoo if data.tvoo is not None else etapa.tvoo
@@ -466,6 +474,10 @@ async def update_etapa(
         new_trip_ids = list(existing_trips.all())
 
     try:
+        await assert_anv_simulador_consistency(
+            session,
+            pairs=[(new_anv, is_simulador)],
+        )
         await assert_no_anv_collision(
             session,
             data=new_data,

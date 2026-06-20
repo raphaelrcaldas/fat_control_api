@@ -19,6 +19,7 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
+from fcontrol_api.models.shared.aeronaves import Aeronave
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -184,6 +185,53 @@ def assert_no_internal_anv_collision(
                     f'({anva}) em {da.isoformat()}'
                 )
                 raise ValueError(msg)
+
+
+async def assert_anv_simulador_consistency(
+    session: AsyncSession,
+    *,
+    pairs: Iterable[tuple[str, bool]],
+) -> None:
+    """Valida que o tipo da aeronave casa com o tipo da missao.
+
+    `pairs` e uma colecao de (anv, is_simulador). Regras:
+    - Missao de simulador (is_simulador=True) exige aeronave com
+      `is_sim=True`.
+    - Aeronave de simulador so pode ser usada em missao de
+      simulador (impede usar o simulador em voo real e vice-versa).
+
+    A consistencia se apoia em `Aeronave.is_sim` (fonte de verdade),
+    nao numa matricula fixa. Levanta ValueError no primeiro conflito.
+    """
+    anvs = {anv.upper() for anv, _ in pairs}
+    if not anvs:
+        return
+
+    rows = await session.execute(
+        select(Aeronave.matricula, Aeronave.is_sim).where(
+            Aeronave.matricula.in_(anvs)
+        )
+    )
+    is_sim_by_anv = {matricula: is_sim for matricula, is_sim in rows.all()}
+
+    for anv, is_simulador in pairs:
+        key = anv.upper()
+        anv_is_sim = is_sim_by_anv.get(key)
+        if anv_is_sim is None:
+            msg = f'Aeronave {key} nao encontrada'
+            raise ValueError(msg)
+        if is_simulador and not anv_is_sim:
+            msg = (
+                f'Missao de simulador exige aeronave de simulador; '
+                f'{key} nao e simulador.'
+            )
+            raise ValueError(msg)
+        if not is_simulador and anv_is_sim:
+            msg = (
+                f'Aeronave de simulador ({key}) so pode ser usada '
+                f'em missao de simulador.'
+            )
+            raise ValueError(msg)
 
 
 async def fetch_collision_candidates(

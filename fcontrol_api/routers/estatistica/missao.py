@@ -33,6 +33,7 @@ from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg
 from fcontrol_api.services.etapas import (
     add_especificos,
+    assert_anv_simulador_consistency,
     assert_no_anv_collision,
     assert_no_internal_anv_collision,
     fetch_collision_candidates,
@@ -172,6 +173,10 @@ async def create_missao_with_etapas(
 
     for idx, etapa_in in enumerate(data.etapas):
         try:
+            await assert_anv_simulador_consistency(
+                session,
+                pairs=[(etapa_in.anv, data.is_simulador)],
+            )
             await assert_no_anv_collision(
                 session,
                 data=etapa_in.data,
@@ -338,6 +343,20 @@ async def update_missao_with_etapas(
     payload_etapas = [
         (f'create[{i}]', e) for i, e in enumerate(payload.create)
     ] + [(f'update[{i}](id={e.id})', e) for i, e in enumerate(payload.update)]
+
+    # Consistencia anv x tipo da missao (simulador usa aeronave is_sim).
+    for label, e in payload_etapas:
+        try:
+            await assert_anv_simulador_consistency(
+                session,
+                pairs=[(e.anv, missao.is_simulador)],
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=f'{label}: {exc}',
+            ) from exc
+
     pairs = {(e.data, e.anv) for _, e in payload_etapas}
     candidates_by_key = await fetch_collision_candidates(
         session,
