@@ -96,6 +96,9 @@ async def get_esf_aer_resumo(
         func.coalesce(getattr(EsfAerAloc, f'm{i}'), 0).label(f'sagem_m{i}')
         for i in range(1, 13)
     ]
+    sagem_total = func.coalesce(EsfAerAloc.m1, 0)
+    for i in range(2, 13):
+        sagem_total += func.coalesce(getattr(EsfAerAloc, f'm{i}'), 0)
 
     query = (
         select(
@@ -126,6 +129,7 @@ async def get_esf_aer_resumo(
             or_(
                 func.coalesce(EsfAerAloc.alocado, 0) > 0,
                 func.coalesce(func.sum(oi_sub.c.tvoo), 0) > 0,
+                sagem_total > 0,
             )
         )
         .order_by(EsforcoAereo.descricao)
