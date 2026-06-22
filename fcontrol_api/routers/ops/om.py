@@ -5,7 +5,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Date, cast, extract, func
+from sqlalchemy import Date, Integer, cast, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -471,13 +471,18 @@ async def update_ordem(
                 detail='A ordem deve ter pelo menos uma etapa',
             )
 
-        # 2. Consultar quantas OMs numeradas existem no ano/UAE
+        # 2. Buscar o maior número já atribuído no ano/UAE.
+        # Usamos MAX(numero)+1 (e não COUNT+1) para que a numeração seja
+        # permanente: um número emitido nunca é reusado, mesmo que a OM
+        # seja cancelada. O filtro regex '^[0-9]+$' descarta 'auto'
+        # (rascunhos) e números editados manualmente que não sejam
+        # numéricos, e deleted_at IS NULL ignora OMs excluídas.
         year = ordem.data_saida.year
         target_uae = ordem.uae
 
-        count = await session.scalar(
-            select(func.count(OrdemMissao.id)).where(
-                OrdemMissao.numero != 'auto',
+        max_seq = await session.scalar(
+            select(func.max(cast(OrdemMissao.numero, Integer))).where(
+                OrdemMissao.numero.op('~')('^[0-9]+$'),
                 OrdemMissao.deleted_at.is_(None),
                 extract('year', OrdemMissao.data_saida) == year,
                 OrdemMissao.uae == target_uae,
@@ -485,7 +490,7 @@ async def update_ordem(
         )
 
         # 3. Atribuir número sequencial
-        seq = (count or 0) + 1
+        seq = (max_seq or 0) + 1
         ordem.numero = f'{seq:03d}'
 
         # Garantir que temos o target_year e target_uae
