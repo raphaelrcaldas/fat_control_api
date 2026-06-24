@@ -1,9 +1,9 @@
 import json
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -21,6 +21,7 @@ from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.estados_cidades import Cidade
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.cegep.missoes import (
+    CidadePernoiteSchema,
     FragMisSchema,
     MissaoDetail,
     MissaoLogOut,
@@ -324,6 +325,71 @@ async def delete_etiqueta(
     await session.commit()
 
     return success_response(message='Etiqueta removida com sucesso')
+
+
+@router.get(
+    '/pernoites/cidades',
+    response_model=ApiResponse[list[CidadePernoiteSchema]],
+)
+async def buscar_cidades_pernoite(
+    session: Session,
+    active_org: ActiveOrg,
+    search: Annotated[str, Query()] = '',
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    dias: Annotated[int, Query(ge=1, le=3650)] = 180,
+):
+    """Busca cidades para pernoites com ranking por uso recente.
+
+    As cidades mais usadas em pernoites da org ativa (janela dos últimos
+    `dias`, por `data_ini`) vêm no topo e marcadas com `mais_usada`. Usa
+    OUTER JOIN para preservar cidades nunca usadas (`usos=0`) como opção.
+    """
+    # Só vira "mais usada" (destaque) acima deste número de usos na janela.
+    min_usos_destaque = 3
+
+    corte = date.today() - timedelta(days=dias)
+
+    usos_sub = (
+        select(
+            PernoiteFrag.cidade_id.label('cidade_id'),
+            func.count(PernoiteFrag.id).label('usos'),
+        )
+        .join(FragMis, FragMis.id == PernoiteFrag.frag_id)
+        .where(
+            FragMis.uae == active_org,
+            PernoiteFrag.data_ini >= corte,
+        )
+        .group_by(PernoiteFrag.cidade_id)
+        .subquery()
+    )
+
+    usos = func.coalesce(usos_sub.c.usos, 0).label('usos')
+
+    stmt = (
+        select(Cidade, usos)
+        .outerjoin(usos_sub, usos_sub.c.cidade_id == Cidade.codigo)
+        .order_by(usos.desc(), Cidade.nome.asc(), Cidade.codigo)
+        .limit(limit)
+    )
+
+    termo = search.strip()
+    if termo:
+        stmt = stmt.where(Cidade.nome.ilike(f'%{termo}%'))
+
+    rows = (await session.execute(stmt)).all()
+
+    data = [
+        CidadePernoiteSchema(
+            codigo=cidade.codigo,
+            nome=cidade.nome,
+            uf=cidade.uf,
+            usos=total,
+            mais_usada=total > min_usos_destaque,
+        )
+        for cidade, total in rows
+    ]
+
+    return success_response(data=data)
 
 
 @router.get('/{id}', response_model=ApiResponse[MissaoDetail])

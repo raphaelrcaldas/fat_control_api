@@ -107,6 +107,13 @@ class PernoiteFragMis(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CidadePernoiteSchema(CidadeSchema):
+    """Cidade com métricas de uso em pernoites (busca ranqueada)."""
+
+    usos: int
+    mais_usada: bool
+
+
 class CustoVal(BaseModel):
     valor: float
     qtd: float
