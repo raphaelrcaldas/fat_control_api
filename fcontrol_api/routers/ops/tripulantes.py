@@ -26,6 +26,7 @@ from fcontrol_api.security import (
 from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
 
@@ -37,7 +38,7 @@ async def create_trip(
     trip: TripCreate,
     session: Session,
     active_org: ActiveOrg,
-    _: User = Depends(permission_checker('trips', 'create')),
+    _: Annotated[User, Depends(permission_checker('trips', 'create'))],
 ):
     db_trig = await session.scalar(
         select(Tripulante).where(
@@ -87,7 +88,7 @@ async def create_trip(
 async def get_my_trip(
     session: Session,
     active_org: ActiveOrg,
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser,
 ):
     """
     Retorna o tripulante do usuário autenticado.
@@ -131,7 +132,8 @@ async def get_trip(id: int, session: Session):
 
     if not trip:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante não encontrado',
         )
 
     return success_response(data=TripWithFuncs.model_validate(trip))
@@ -248,7 +250,8 @@ async def update_trip(id: int, trip: BaseTrip, session: Session):
 
     if not trip_search:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante não encontrado',
         )
 
     db_trig = await session.scalar(
@@ -275,20 +278,3 @@ async def update_trip(id: int, trip: BaseTrip, session: Session):
         data=TripSchema.model_validate(trip_search),
         message='Tripulante atualizado com sucesso',
     )
-
-
-# @router.delete('/{id}')
-# def delete_trip(id: int, session: Session):
-#     query = select(Tripulante).where(Tripulante.id == id)
-
-#     trip: Tripulante = session.scalar(query)
-
-#     if not trip:
-#         raise HTTPException(
-#             status_code=HTTPStatus.NOT_FOUND, detail='Crew member not found'
-#         )
-
-#     session.delete(trip)
-#     session.commit()
-
-#     return {'detail': 'Crew member deleted'}

@@ -13,7 +13,7 @@ from tests.factories import TripFactory, UserFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_trip_success(client, session, token):
+async def test_create_trip_success(client, session, org_admin_token):
     """Testa criação de tripulante com sucesso."""
     # Cria um usuário que não tem tripulante
     user = UserFactory()
@@ -25,12 +25,11 @@ async def test_create_trip_success(client, session, token):
         'user_id': user.id,
         'trig': 'abc',
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
@@ -41,11 +40,12 @@ async def test_create_trip_success(client, session, token):
     assert 'message' in data
     assert 'data' in data
     assert data['data']['trig'] == 'abc'
-    assert data['data']['uae'] == '11gt'
     assert data['data']['active'] is True
 
 
-async def test_create_trip_returns_correct_message(client, session, token):
+async def test_create_trip_returns_correct_message(
+    client, session, org_admin_token
+):
     """Testa que a mensagem de sucesso está correta."""
     user = UserFactory()
     session.add(user)
@@ -56,12 +56,11 @@ async def test_create_trip_returns_correct_message(client, session, token):
         'user_id': user.id,
         'trig': 'xyz',
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
@@ -73,7 +72,7 @@ async def test_create_trip_returns_correct_message(client, session, token):
 
 
 async def test_create_trip_duplicate_trig_same_uae_fails(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Testa que não permite trigrama duplicado na mesma UAE."""
     user, other_user = users
@@ -88,12 +87,11 @@ async def test_create_trip_duplicate_trig_same_uae_fails(
         'user_id': other_user.id,
         'trig': 'dup',
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
@@ -104,7 +102,7 @@ async def test_create_trip_duplicate_trig_same_uae_fails(
 
 
 async def test_create_trip_duplicate_user_same_uae_fails(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Testa que não permite mesmo usuário duplicado na mesma UAE."""
     user, _ = users
@@ -119,12 +117,11 @@ async def test_create_trip_duplicate_user_same_uae_fails(
         'user_id': user.id,
         'trig': 'bbb',
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
@@ -134,7 +131,9 @@ async def test_create_trip_duplicate_user_same_uae_fails(
     assert data['message'] == 'Tripulante já registrado'
 
 
-async def test_create_trip_trig_too_short_fails(client, session, token):
+async def test_create_trip_trig_too_short_fails(
+    client, session, org_admin_token
+):
     """Testa que trigrama com menos de 3 caracteres falha."""
     user = UserFactory()
     session.add(user)
@@ -145,19 +144,20 @@ async def test_create_trip_trig_too_short_fails(client, session, token):
         'user_id': user.id,
         'trig': 'ab',  # Menos de 3 caracteres
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_trip_trig_too_long_fails(client, session, token):
+async def test_create_trip_trig_too_long_fails(
+    client, session, org_admin_token
+):
     """Testa que trigrama com mais de 3 caracteres falha."""
     user = UserFactory()
     session.add(user)
@@ -168,36 +168,36 @@ async def test_create_trip_trig_too_long_fails(client, session, token):
         'user_id': user.id,
         'trig': 'abcd',  # Mais de 3 caracteres
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_trip_missing_user_id_fails(client, token):
+async def test_create_trip_missing_user_id_fails(client, org_admin_token):
     """Testa que user_id é obrigatório."""
     trip_data = {
         'trig': 'abc',
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_trip_missing_trig_fails(client, session, token):
+async def test_create_trip_missing_trig_fails(
+    client, session, org_admin_token
+):
     """Testa que trig é obrigatório."""
     user = UserFactory()
     session.add(user)
@@ -207,20 +207,23 @@ async def test_create_trip_missing_trig_fails(client, session, token):
     trip_data = {
         'user_id': user.id,
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_trip_missing_uae_fails(client, session, token):
-    """Testa que uae é obrigatório."""
+async def test_create_trip_missing_active_org_fails(client, session, token):
+    """Sem org ativa no token, criar tripulante responde 400.
+
+    A UAE deixou de ser campo do body e passou a vir do active_org do
+    token (a fixture `token` não define org ativa).
+    """
     user = UserFactory()
     session.add(user)
     await session.commit()
@@ -238,10 +241,10 @@ async def test_create_trip_missing_uae_fails(client, session, token):
         json=trip_data,
     )
 
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_create_trip_with_active_false(client, session, token):
+async def test_create_trip_with_active_false(client, session, org_admin_token):
     """Testa criação de tripulante inativo."""
     user = UserFactory()
     session.add(user)
@@ -252,12 +255,11 @@ async def test_create_trip_with_active_false(client, session, token):
         'user_id': user.id,
         'trig': 'def',
         'active': False,
-        'uae': '11gt',
     }
 
     response = await client.post(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=trip_data,
     )
 
@@ -274,7 +276,6 @@ async def test_create_trip_without_authentication_fails(client):
         'user_id': 1,
         'trig': 'abc',
         'active': True,
-        'uae': '11gt',
     }
 
     response = await client.post('/ops/trips/', json=trip_data)

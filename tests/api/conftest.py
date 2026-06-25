@@ -239,6 +239,38 @@ async def org_token(users, make_org_token):
 
 
 @pytest.fixture
+async def org_admin_token(users, session, make_org_token):
+    """
+    Token com org ativa '11gt' e vínculo admin NA org '11gt'.
+
+    Diferente de `org_token` (cujo vínculo admin não tem org e só satisfaz
+    rotas que exigem apenas `active_org`), este liga o usuário como admin de
+    '11gt'. O `permission_checker` resolve a role pela org ativa
+    (organizacao_id IS NOT DISTINCT FROM active_org), então o bypass de
+    admin só vale com o vínculo escopado à unidade — necessário nas rotas de
+    escrita do data-plane (ex.: POST /ops/trips, permission trips.create).
+
+    Returns:
+        str: Token JWT com active_org='11gt' e admin scoped à '11gt'
+    """
+    user, _ = users
+
+    existing = await session.scalar(
+        select(UserRole).where(
+            UserRole.user_id == user.id,
+            UserRole.organizacao_id == '11gt',
+        )
+    )
+    if not existing:
+        session.add(
+            UserRole(user_id=user.id, role_id=1, organizacao_id='11gt')
+        )
+        await session.commit()
+
+    return await make_org_token(user)
+
+
+@pytest.fixture
 def make_token(session):
     """
     Factory fixture para criar tokens JWT customizados.

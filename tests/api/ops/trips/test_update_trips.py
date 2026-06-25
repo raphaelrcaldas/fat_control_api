@@ -112,7 +112,7 @@ async def test_update_trip_not_found(client, token):
     assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
-    assert resp['message'] == 'Crew member not found'
+    assert resp['message'] == 'Tripulante não encontrado'
 
 
 async def test_update_trip_duplicate_trig_same_uae_fails(

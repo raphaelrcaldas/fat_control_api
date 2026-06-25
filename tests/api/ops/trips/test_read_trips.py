@@ -24,11 +24,11 @@ DEFAULT_UAE = '11gt'
 # --- Testes para GET /ops/trips/ (list_trips) ---
 
 
-async def test_list_trips_returns_paginated_list(client, trips, token):
+async def test_list_trips_returns_paginated_list(client, trips, org_token):
     """Testa que o endpoint retorna uma lista paginada."""
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -44,11 +44,11 @@ async def test_list_trips_returns_paginated_list(client, trips, token):
     assert len(resp['data']) >= MIN_TRIPS_FROM_FIXTURE
 
 
-async def test_list_trips_returns_correct_fields(client, trips, token):
+async def test_list_trips_returns_correct_fields(client, trips, org_token):
     """Testa que cada tripulante retornado tem os campos esperados."""
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -59,7 +59,6 @@ async def test_list_trips_returns_correct_fields(client, trips, token):
         # Campos de TripWithFuncs
         assert 'id' in trip
         assert 'trig' in trip
-        assert 'uae' in trip
         assert 'active' in trip
         assert 'user' in trip
         assert 'funcs' in trip
@@ -69,13 +68,13 @@ async def test_list_trips_returns_correct_fields(client, trips, token):
         assert 'p_g' in trip['user']
 
 
-async def test_list_trips_with_search_by_trig(client, trips, token):
+async def test_list_trips_with_search_by_trig(client, trips, org_token):
     """Testa busca por trigrama."""
     trip, _ = trips
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'search': trip.trig},
     )
 
@@ -88,7 +87,7 @@ async def test_list_trips_with_search_by_trig(client, trips, token):
 
 
 async def test_list_trips_with_search_by_nome_guerra(
-    client, session, trips, users, token
+    client, session, trips, users, org_token
 ):
     """Testa busca por nome de guerra do usuário."""
     trip, _ = trips
@@ -96,7 +95,7 @@ async def test_list_trips_with_search_by_nome_guerra(
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'search': user.nome_guerra},
     )
 
@@ -110,13 +109,13 @@ async def test_list_trips_with_search_by_nome_guerra(
     assert found
 
 
-async def test_list_trips_search_case_insensitive(client, trips, token):
+async def test_list_trips_search_case_insensitive(client, trips, org_token):
     """Testa que a busca é case-insensitive."""
     trip, _ = trips
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'search': trip.trig.upper()},
     )
 
@@ -127,11 +126,13 @@ async def test_list_trips_search_case_insensitive(client, trips, token):
     assert found
 
 
-async def test_list_trips_search_no_match_returns_empty(client, trips, token):
+async def test_list_trips_search_no_match_returns_empty(
+    client, trips, org_token
+):
     """Testa que busca sem match retorna lista vazia."""
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'search': 'xyz_inexistente'},
     )
 
@@ -142,7 +143,9 @@ async def test_list_trips_search_no_match_returns_empty(client, trips, token):
     assert len(resp['data']) == 0
 
 
-async def test_list_trips_filter_by_active_true(client, session, users, token):
+async def test_list_trips_filter_by_active_true(
+    client, session, users, org_token
+):
     """Testa filtro por tripulantes ativos."""
     user, other_user = users
 
@@ -156,7 +159,7 @@ async def test_list_trips_filter_by_active_true(client, session, users, token):
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'active': True},
     )
 
@@ -170,7 +173,7 @@ async def test_list_trips_filter_by_active_true(client, session, users, token):
 
 
 async def test_list_trips_filter_by_active_false(
-    client, session, users, token
+    client, session, users, org_token
 ):
     """Testa filtro por tripulantes inativos."""
     user, other_user = users
@@ -184,7 +187,7 @@ async def test_list_trips_filter_by_active_false(
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'active': False},
     )
 
@@ -197,7 +200,7 @@ async def test_list_trips_filter_by_active_false(
     assert any(t['id'] == inactive_trip.id for t in resp['data'])
 
 
-async def test_list_trips_filter_by_single_pg(client, session, token):
+async def test_list_trips_filter_by_single_pg(client, session, org_token):
     """Testa filtro por um único posto/graduação."""
     # Cria usuários com p_g específicos
     user_2s = UserFactory(p_g='2s')
@@ -215,7 +218,7 @@ async def test_list_trips_filter_by_single_pg(client, session, token):
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'p_g': '2s'},
     )
 
@@ -226,7 +229,7 @@ async def test_list_trips_filter_by_single_pg(client, session, token):
     assert all(t['user']['p_g'] == '2s' for t in resp['data'])
 
 
-async def test_list_trips_filter_by_multiple_pg(client, session, token):
+async def test_list_trips_filter_by_multiple_pg(client, session, org_token):
     """Testa filtro por múltiplos p_g separados por vírgula."""
     # Cria usuários com p_g específicos
     user_2s = UserFactory(p_g='2s')
@@ -247,7 +250,7 @@ async def test_list_trips_filter_by_multiple_pg(client, session, token):
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'p_g': '2s, 3s'},
     )
 
@@ -260,7 +263,7 @@ async def test_list_trips_filter_by_multiple_pg(client, session, token):
     assert not any(t['user']['p_g'] == 'cb' for t in resp['data'])
 
 
-async def test_list_trips_filter_by_func(client, session, users, token):
+async def test_list_trips_filter_by_func(client, session, users, org_token):
     """Testa filtro por função."""
     user, other_user = users
 
@@ -280,7 +283,7 @@ async def test_list_trips_filter_by_func(client, session, users, token):
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'func': 'pil'},
     )
 
@@ -291,7 +294,7 @@ async def test_list_trips_filter_by_func(client, session, users, token):
     assert any(t['id'] == trip_pil.id for t in resp['data'])
 
 
-async def test_list_trips_filter_by_oper(client, session, users, token):
+async def test_list_trips_filter_by_oper(client, session, users, org_token):
     """Testa filtro por operacionalidade."""
     user, other_user = users
 
@@ -311,7 +314,7 @@ async def test_list_trips_filter_by_oper(client, session, users, token):
 
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'oper': 'op'},
     )
 
@@ -322,11 +325,11 @@ async def test_list_trips_filter_by_oper(client, session, users, token):
     assert any(t['id'] == trip_op.id for t in resp['data'])
 
 
-async def test_list_trips_pagination_page_1(client, trips, token):
+async def test_list_trips_pagination_page_1(client, trips, org_token):
     """Testa paginação - primeira página."""
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'page': 1, 'per_page': 1},
     )
 
@@ -338,11 +341,13 @@ async def test_list_trips_pagination_page_1(client, trips, token):
     assert len(resp['data']) <= 1
 
 
-async def test_list_trips_pagination_respects_per_page(client, trips, token):
+async def test_list_trips_pagination_respects_per_page(
+    client, trips, org_token
+):
     """Testa que a paginação respeita o per_page."""
     response = await client.get(
         '/ops/trips/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         params={'per_page': 5},
     )
 
@@ -363,11 +368,11 @@ async def test_list_trips_without_authentication_fails(client):
 # --- Testes para GET /ops/trips/{id} (get_trip) ---
 
 
-async def test_get_trip_returns_trip(client, trip, token):
+async def test_get_trip_returns_trip(client, trip, org_token):
     """Testa que retorna um tripulante específico."""
     response = await client.get(
         f'/ops/trips/{trip.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -377,15 +382,14 @@ async def test_get_trip_returns_trip(client, trip, token):
     data = resp['data']
     assert data['id'] == trip.id
     assert data['trig'] == trip.trig
-    assert data['uae'] == trip.uae
     assert data['active'] == trip.active
 
 
-async def test_get_trip_returns_correct_fields(client, trip, token):
+async def test_get_trip_returns_correct_fields(client, trip, org_token):
     """Testa que o tripulante retornado tem os campos esperados."""
     response = await client.get(
         f'/ops/trips/{trip.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -396,17 +400,16 @@ async def test_get_trip_returns_correct_fields(client, trip, token):
     # Campos de TripWithFuncs
     assert 'id' in data
     assert 'trig' in data
-    assert 'uae' in data
     assert 'active' in data
     assert 'user' in data
     assert 'funcs' in data
 
 
-async def test_get_trip_not_found(client, token):
+async def test_get_trip_not_found(client, org_token):
     """Testa que retorna 404 para tripulante inexistente."""
     response = await client.get(
         '/ops/trips/99999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -423,7 +426,7 @@ async def test_get_trip_without_authentication_fails(client, trip):
 
 
 async def test_get_my_trip_returns_current_user_trip(
-    client, session, users, token
+    client, session, users, org_token
 ):
     """Testa que retorna o tripulante do usuário autenticado."""
     user, _ = users
@@ -436,8 +439,7 @@ async def test_get_my_trip_returns_current_user_trip(
 
     response = await client.get(
         '/ops/trips/me',
-        headers={'Authorization': f'Bearer {token}'},
-        params={'uae': '11gt'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -449,13 +451,12 @@ async def test_get_my_trip_returns_current_user_trip(
     assert data['user']['id'] == user.id
 
 
-async def test_get_my_trip_not_found_when_no_trip(client, users, token):
+async def test_get_my_trip_not_found_when_no_trip(client, users, org_token):
     """Testa que retorna 404 se usuário não tem tripulante."""
     # Usuário autenticado mas sem tripulante associado na uae especificada
     response = await client.get(
         '/ops/trips/me',
-        headers={'Authorization': f'Bearer {token}'},
-        params={'uae': '11gt'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     # Pode ser NOT_FOUND se não existir tripulante
