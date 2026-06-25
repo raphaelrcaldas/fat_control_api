@@ -34,6 +34,7 @@ from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/indisp', tags=['indisp'])
 
@@ -179,7 +180,7 @@ async def get_crew_indisp(
 async def create_indisp(
     indisp: IndispSchema,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: CurrentUser,
 ):
     if indisp.date_end < indisp.date_start:
         raise HTTPException(
@@ -254,7 +255,7 @@ async def get_indisp_user(
 async def delete_indisp(
     id: int,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: CurrentUser,
 ):
     indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
 
@@ -286,7 +287,7 @@ async def update_indisp(
     id: int,
     indisp: BaseIndisp,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: CurrentUser,
 ):
     db_indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
 
