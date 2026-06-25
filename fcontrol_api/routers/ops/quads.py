@@ -327,7 +327,8 @@ async def update_quad(id: int, quad: QuadUpdate, session: Session):
 
     if not db_quad:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Quad not found'
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Quadrinho não encontrado',
         )
 
     ss_quad = await session.scalar(

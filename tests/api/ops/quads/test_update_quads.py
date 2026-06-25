@@ -166,7 +166,7 @@ async def test_update_quad_not_found(client, trip, token):
     assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
-    assert resp['message'] == 'Quad not found'
+    assert resp['message'] == 'Quadrinho não encontrado'
 
 
 async def test_update_quad_duplicate_fails(client, session, trip, token):

@@ -1,8 +1,8 @@
 """
 Testes para o endpoint GET /ops/quads/types.
 
-Este endpoint lista os tipos de quadrinhos agrupados,
-filtrados por UAE. Requer autenticação.
+Este endpoint lista os tipos de quadrinhos agrupados, escopados pela
+unidade ativa do token (active_org). Requer autenticação e org ativa.
 """
 
 from http import HTTPStatus
@@ -12,11 +12,11 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_get_quads_types_success(client, token):
+async def test_get_quads_types_success(client, org_token):
     """Testa listagem de tipos de quadrinhos com sucesso."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -28,11 +28,11 @@ async def test_get_quads_types_success(client, token):
     assert isinstance(data, list)
 
 
-async def test_get_quads_types_returns_groups(client, token):
+async def test_get_quads_types_returns_groups(client, org_token):
     """Testa que retorna grupos de quadrinhos do seed."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -51,11 +51,11 @@ async def test_get_quads_types_returns_groups(client, token):
     assert 'types' in group
 
 
-async def test_get_quads_types_group_contains_types(client, token):
+async def test_get_quads_types_group_contains_types(client, org_token):
     """Testa que cada grupo contém seus tipos."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -75,11 +75,11 @@ async def test_get_quads_types_group_contains_types(client, token):
     assert 'funcs_list' in quad_type
 
 
-async def test_get_quads_types_type_has_funcs_list(client, token):
+async def test_get_quads_types_type_has_funcs_list(client, org_token):
     """Testa que tipos têm lista de funções."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -100,50 +100,49 @@ async def test_get_quads_types_type_has_funcs_list(client, token):
     # Isso é ok se o seed não tiver funções
 
 
-async def test_get_quads_types_filters_by_uae(client, token):
-    """Testa que filtra por UAE corretamente."""
+async def test_get_quads_types_scoped_by_active_org(
+    client, users, org_token, make_org_token
+):
+    """Testa que o escopo segue a org ativa do token, não um query param.
+
+    O seed só tem grupos na '11gt'; um token com active_org='1gt' enxerga
+    lista vazia, enquanto o '11gt' enxerga os grupos.
+    """
+    user, _ = users
+    token_1gt = await make_org_token(user, active_org='1gt')
+
     response_11gt = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
-    response_other = await client.get(
-        '/ops/quads/types?uae=1gt',
-        headers={'Authorization': f'Bearer {token}'},
+    response_1gt = await client.get(
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {token_1gt}'},
     )
 
     assert response_11gt.status_code == HTTPStatus.OK
-    assert response_other.status_code == HTTPStatus.OK
+    assert response_1gt.status_code == HTTPStatus.OK
 
-    # Verifica que os resultados são diferentes
-    # (ou vazios para UAEs sem dados)
-    resp_11gt = response_11gt.json()
-    resp_other = response_other.json()
-
-    assert resp_11gt['status'] == 'success'
-    assert resp_other['status'] == 'success'
-
-    # 11gt tem dados do seed
-    assert len(resp_11gt['data']) > 0
-
-    # Outra UAE pode não ter dados
-    # (depende do seed)
+    # 11gt tem dados do seed; 1gt não tem grupos semeados
+    assert len(response_11gt.json()['data']) > 0
+    assert response_1gt.json()['data'] == []
 
 
-async def test_get_quads_types_missing_uae_fails(client, token):
-    """Testa que requisição sem UAE falha."""
+async def test_get_quads_types_missing_active_org_fails(client, token):
+    """Sem org ativa no token (fixture `token`), o data-plane responde 400."""
     response = await client.get(
         '/ops/quads/types',
         headers={'Authorization': f'Bearer {token}'},
     )
 
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_get_quads_types_types_ordered_by_id(client, token):
+async def test_get_quads_types_types_ordered_by_id(client, org_token):
     """Testa que tipos são ordenados por ID."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -159,11 +158,11 @@ async def test_get_quads_types_types_ordered_by_id(client, token):
             assert type_ids == sorted(type_ids)
 
 
-async def test_get_quads_types_response_schema(client, token):
+async def test_get_quads_types_response_schema(client, org_token):
     """Testa o schema completo da resposta (QuadsGroupSchema)."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -186,11 +185,11 @@ async def test_get_quads_types_response_schema(client, token):
             assert isinstance(quad_type['funcs_list'], list)
 
 
-async def test_get_quads_types_known_groups_exist(client, token):
+async def test_get_quads_types_known_groups_exist(client, org_token):
     """Testa que grupos conhecidos do seed existem."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -211,11 +210,11 @@ async def test_get_quads_types_known_groups_exist(client, token):
     )
 
 
-async def test_get_quads_types_known_types_exist(client, token):
+async def test_get_quads_types_known_types_exist(client, org_token):
     """Testa que tipos conhecidos do seed existem."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -238,11 +237,11 @@ async def test_get_quads_types_known_types_exist(client, token):
     )
 
 
-async def test_get_quads_types_known_funcs_exist(client, token):
+async def test_get_quads_types_known_funcs_exist(client, org_token):
     """Testa que funções conhecidas do seed existem."""
     response = await client.get(
-        '/ops/quads/types?uae=11gt',
-        headers={'Authorization': f'Bearer {token}'},
+        '/ops/quads/types',
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK

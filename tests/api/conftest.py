@@ -162,15 +162,65 @@ async def token(users, session):
 
 
 @pytest.fixture
-async def org_token(users, session):
+def make_org_token(session):
     """
-    Token JWT com organização ativa '11gt' para o primeiro usuário.
+    Factory de token JWT com organização ativa arbitrária.
 
     As rotas de data-plane (tripulantes, quadrinhos, escala,
     indisponibilidades, cartões de saúde, ordens de missão) são escopadas
     por unidade e exigem `active_org` no token (dependência ActiveOrg). A
     fixture `token` não define org ativa, então essas rotas respondem 400.
-    Os tripulantes/seeds de teste vivem na uae '11gt', então a lente é '11gt'.
+    Use este factory quando precisar de uma org específica (ex.: '1gt' para
+    testar isolamento cross-org); para o caso comum '11gt' use `org_token`.
+
+    Uso:
+        async def test_cross_org(client, users, make_org_token):
+            _, other = users
+            token_1gt = await make_org_token(other, active_org='1gt')
+
+    Args:
+        user: Objeto User para o qual criar o token
+        active_org: Sigla da organização ativa (default '11gt')
+        client_id: ID do cliente OAuth2 (default 'test-client')
+
+    Returns:
+        Callable: Função assíncrona que retorna um token JWT
+    """
+
+    async def _make_org_token(
+        user, active_org='11gt', client_id='test-client'
+    ):
+        existing_role = await session.scalar(
+            select(UserRole).where(UserRole.user_id == user.id)
+        )
+        if not existing_role:
+            session.add(UserRole(user_id=user.id, role_id=1))
+            await session.commit()
+
+        db_user = await session.scalar(
+            select(User)
+            .where(User.id == user.id)
+            .options(selectinload(User.posto))
+        )
+
+        data = {
+            'sub': f'{db_user.posto.short} {db_user.nome_guerra}',
+            'user_id': db_user.id,
+            'app_client': client_id,
+            'active_org': active_org,
+        }
+        return create_access_token(data=data)
+
+    return _make_org_token
+
+
+@pytest.fixture
+async def org_token(users, make_org_token):
+    """
+    Token JWT com organização ativa '11gt' para o primeiro usuário.
+
+    Conveniência sobre `make_org_token` para o caso mais comum (a unidade
+    canônica dos seeds/factories de teste). Para outra org, use o factory.
 
     Uso:
         async def test_data_plane(client, org_token):
@@ -185,27 +235,7 @@ async def org_token(users, session):
         str: Token JWT válido com active_org='11gt'
     """
     user, _ = users
-
-    existing_role = await session.scalar(
-        select(UserRole).where(UserRole.user_id == user.id)
-    )
-    if not existing_role:
-        session.add(UserRole(user_id=user.id, role_id=1))
-        await session.commit()
-
-    db_user = await session.scalar(
-        select(User)
-        .where(User.id == user.id)
-        .options(selectinload(User.posto))
-    )
-
-    data = {
-        'sub': f'{db_user.posto.short} {db_user.nome_guerra}',
-        'user_id': db_user.id,
-        'app_client': 'test-client',
-        'active_org': '11gt',
-    }
-    return create_access_token(data=data)
+    return await make_org_token(user)
 
 
 @pytest.fixture
