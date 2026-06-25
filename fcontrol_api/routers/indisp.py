@@ -261,7 +261,7 @@ async def delete_indisp(
     if not indisp:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Indisponibilidade not found',
+            detail='Indisponibilidade não encontrada',
         )
 
     # Soft delete - setar deleted_at

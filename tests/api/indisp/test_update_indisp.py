@@ -103,7 +103,7 @@ async def test_update_indisp_not_found(client, token):
     assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
-    assert 'not found' in resp['message']
+    assert 'não encontrada' in resp['message']
 
 
 async def test_update_indisp_without_token_fails(client, indisp):

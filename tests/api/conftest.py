@@ -162,6 +162,53 @@ async def token(users, session):
 
 
 @pytest.fixture
+async def org_token(users, session):
+    """
+    Token JWT com organização ativa '11gt' para o primeiro usuário.
+
+    As rotas de data-plane (tripulantes, quadrinhos, escala,
+    indisponibilidades, cartões de saúde, ordens de missão) são escopadas
+    por unidade e exigem `active_org` no token (dependência ActiveOrg). A
+    fixture `token` não define org ativa, então essas rotas respondem 400.
+    Os tripulantes/seeds de teste vivem na uae '11gt', então a lente é '11gt'.
+
+    Uso:
+        async def test_data_plane(client, org_token):
+            response = await client.get(
+                '/indisp/',
+                params={'funcao': 'pil'},
+                headers={'Authorization': f'Bearer {org_token}'},
+            )
+            assert response.status_code == 200
+
+    Returns:
+        str: Token JWT válido com active_org='11gt'
+    """
+    user, _ = users
+
+    existing_role = await session.scalar(
+        select(UserRole).where(UserRole.user_id == user.id)
+    )
+    if not existing_role:
+        session.add(UserRole(user_id=user.id, role_id=1))
+        await session.commit()
+
+    db_user = await session.scalar(
+        select(User)
+        .where(User.id == user.id)
+        .options(selectinload(User.posto))
+    )
+
+    data = {
+        'sub': f'{db_user.posto.short} {db_user.nome_guerra}',
+        'user_id': db_user.id,
+        'app_client': 'test-client',
+        'active_org': '11gt',
+    }
+    return create_access_token(data=data)
+
+
+@pytest.fixture
 def make_token(session):
     """
     Factory fixture para criar tokens JWT customizados.

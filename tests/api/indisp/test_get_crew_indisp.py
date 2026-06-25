@@ -2,8 +2,8 @@
 Testes para o endpoint GET /indisp/.
 
 Este endpoint retorna indisponibilidades de tripulantes filtrados por
-função (funcao) e unidade aérea (uae).
-Requer autenticação (middleware global).
+função (funcao) e pela unidade ativa do token (active_org).
+Requer autenticação (middleware global) e organização ativa no token.
 """
 
 from datetime import date, timedelta
@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_get_crew_indisp_success(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa listagem de indisponibilidades de tripulantes com sucesso."""
     user, _ = users
@@ -35,8 +35,8 @@ async def test_get_crew_indisp_success(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -48,7 +48,7 @@ async def test_get_crew_indisp_success(
 
 
 async def test_get_crew_indisp_response_structure(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa estrutura correta da resposta (trip, indisps)."""
     user, _ = users
@@ -63,8 +63,8 @@ async def test_get_crew_indisp_response_structure(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -90,12 +90,12 @@ async def test_get_crew_indisp_response_structure(
     assert 'nome_guerra' in user_data
 
 
-async def test_get_crew_indisp_no_trips_returns_empty(client, token):
+async def test_get_crew_indisp_no_trips_returns_empty(client, org_token):
     """Testa que sem tripulantes retorna lista vazia."""
     response = await client.get(
         '/indisp/',
-        params={'funcao': 'pil', 'uae': '11gt'},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': 'pil'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -105,7 +105,7 @@ async def test_get_crew_indisp_no_trips_returns_empty(client, token):
 
 
 async def test_get_crew_indisp_excludes_inactive_users(
-    client, session, users, token
+    client, session, users, org_token
 ):
     """Testa que usuários inativos não são retornados."""
     user, other_user = users
@@ -125,8 +125,8 @@ async def test_get_crew_indisp_excludes_inactive_users(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': 'pil', 'uae': '11gt'},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': 'pil'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -136,7 +136,7 @@ async def test_get_crew_indisp_excludes_inactive_users(
 
 
 async def test_get_crew_indisp_excludes_inactive_trips(
-    client, session, users, token
+    client, session, users, org_token
 ):
     """Testa que tripulantes inativos não são retornados."""
     user, _ = users
@@ -152,8 +152,8 @@ async def test_get_crew_indisp_excludes_inactive_trips(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': 'pil', 'uae': '11gt'},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': 'pil'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -163,7 +163,7 @@ async def test_get_crew_indisp_excludes_inactive_trips(
 
 
 async def test_get_crew_indisp_filters_old_indisps(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa que indisps com mais de 30 dias são filtradas."""
     user, _ = users
@@ -189,8 +189,8 @@ async def test_get_crew_indisp_filters_old_indisps(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -208,15 +208,15 @@ async def test_get_crew_indisp_filters_old_indisps(
 
 
 async def test_get_crew_indisp_trip_without_indisps(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa que tripulante sem indisps retorna lista vazia de indisps."""
     trip, func = trip_with_func
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -228,7 +228,7 @@ async def test_get_crew_indisp_trip_without_indisps(
 
 
 async def test_get_crew_indisp_groups_indisps_by_user(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa que múltiplas indisps de um usuário são agrupadas."""
     user, _ = users
@@ -255,8 +255,8 @@ async def test_get_crew_indisp_groups_indisps_by_user(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -270,7 +270,7 @@ async def test_get_crew_indisp_groups_indisps_by_user(
 
 
 async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa que indisps são ordenadas por date_end desc dentro do grupo."""
     user, _ = users
@@ -294,8 +294,8 @@ async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -310,7 +310,7 @@ async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
 
 
 async def test_get_crew_indisp_filters_by_funcao(
-    client, session, users, token
+    client, session, users, org_token
 ):
     """Testa que filtro por funcao funciona corretamente."""
     user, other_user = users
@@ -338,8 +338,8 @@ async def test_get_crew_indisp_filters_by_funcao(
     # Busca apenas pilotos
     response = await client.get(
         '/indisp/',
-        params={'funcao': 'pil', 'uae': '11gt'},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': 'pil'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -350,11 +350,17 @@ async def test_get_crew_indisp_filters_by_funcao(
     assert data[0]['trip']['id'] == trip_pil.id
 
 
-async def test_get_crew_indisp_filters_by_uae(client, session, users, token):
-    """Testa que filtro por uae funciona corretamente."""
+async def test_get_crew_indisp_scoped_by_active_org(
+    client, session, users, org_token
+):
+    """Testa que a lente por active_org isola tripulantes de outra unidade.
+
+    O org_token carrega active_org='11gt', então apenas tripulantes dessa
+    unidade são retornados — os da '1gt' ficam de fora.
+    """
     user, other_user = users
 
-    # Tripulante na UAE '11gt'
+    # Tripulante na unidade ativa ('11gt') — deve aparecer
     trip_11gt = TripFactory(user_id=user.id, uae='11gt', active=True)
     session.add(trip_11gt)
     await session.commit()
@@ -364,10 +370,20 @@ async def test_get_crew_indisp_filters_by_uae(client, session, users, token):
     session.add(func_11gt)
     await session.commit()
 
+    # Tripulante em outra unidade ('1gt') — deve ser excluído
+    trip_1gt = TripFactory(user_id=other_user.id, uae='1gt', active=True)
+    session.add(trip_1gt)
+    await session.commit()
+    await session.refresh(trip_1gt)
+
+    func_1gt = FuncFactory(trip_id=trip_1gt.id, func='pil')
+    session.add(func_1gt)
+    await session.commit()
+
     response = await client.get(
         '/indisp/',
-        params={'funcao': 'pil', 'uae': '11gt'},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': 'pil'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -379,15 +395,15 @@ async def test_get_crew_indisp_filters_by_uae(client, session, users, token):
 
 
 async def test_get_crew_indisp_func_in_response(
-    client, session, users, trip_with_func, token
+    client, session, users, trip_with_func, org_token
 ):
     """Testa que a função é incluída na resposta."""
     trip, func = trip_with_func
 
     response = await client.get(
         '/indisp/',
-        params={'funcao': func.func, 'uae': trip.uae},
-        headers={'Authorization': f'Bearer {token}'},
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -405,7 +421,7 @@ async def test_get_crew_indisp_without_token_fails(client):
     """Testa que requisição sem token falha."""
     response = await client.get(
         '/indisp/',
-        params={'funcao': 'pil', 'uae': '11gt'},
+        params={'funcao': 'pil'},
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
