@@ -2,9 +2,7 @@
 
 from datetime import date
 
-from fcontrol_api.utils.financeiro import (
-    _custo_pernoite,  # noqa: PLC2701
-)
+from fcontrol_api.services.custos.calculo import _custo_pernoite
 
 
 def test_diaria_3_dias_sem_meia_sem_acrescimo(

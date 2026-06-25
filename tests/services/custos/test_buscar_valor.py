@@ -3,9 +3,9 @@
 from datetime import date
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
-from fcontrol_api.utils.financeiro import (
-    _buscar_soldo_por_dia,  # noqa: PLC2701
-    _buscar_valor_por_dia,  # noqa: PLC2701
+from fcontrol_api.services.custos.calculo import (
+    _buscar_soldo_por_dia,
+    _buscar_valor_por_dia,
 )
 
 # --- _buscar_valor_por_dia ---

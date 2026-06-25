@@ -232,3 +232,70 @@ async def user_with_update_permission(session, users):
     await session.refresh(user)
 
     return user
+
+
+@pytest.fixture
+async def user_with_view_permission(session, users):
+    """Retorna o primeiro usuário da fixture 'users' com a permissão
+    'user:view' (necessária para visualizar usuários que não são o dono).
+    """
+    user, _ = users
+
+    admin_role = await session.scalar(
+        select(Roles).where(Roles.name == 'admin')
+    )
+    if not admin_role:
+        admin_role = Roles(name='admin', description='Administrator')
+        session.add(admin_role)
+        await session.flush()
+
+    user_resource = await session.scalar(
+        select(Resources).where(Resources.name == 'user')
+    )
+    if not user_resource:
+        user_resource = Resources(name='user', description='User resource')
+        session.add(user_resource)
+        await session.flush()
+
+    view_permission = await session.scalar(
+        select(Permissions).where(
+            Permissions.resource_id == user_resource.id,
+            Permissions.name == 'view',
+        )
+    )
+    if not view_permission:
+        view_permission = Permissions(
+            resource_id=user_resource.id,
+            name='view',
+            description='View users',
+        )
+        session.add(view_permission)
+        await session.flush()
+
+    role_perm = await session.scalar(
+        select(RolePermissions).where(
+            RolePermissions.role_id == admin_role.id,
+            RolePermissions.permission_id == view_permission.id,
+        )
+    )
+    if not role_perm:
+        session.add(
+            RolePermissions(
+                role_id=admin_role.id,
+                permission_id=view_permission.id,
+            )
+        )
+
+    user_role = await session.scalar(
+        select(UserRole).where(
+            UserRole.user_id == user.id,
+            UserRole.role_id == admin_role.id,
+        )
+    )
+    if not user_role:
+        session.add(UserRole(user_id=user.id, role_id=admin_role.id))
+
+    await session.commit()
+    await session.refresh(user)
+
+    return user

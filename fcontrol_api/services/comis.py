@@ -144,7 +144,7 @@ def filtro_missoes_periodo(uae, data_ab, data_fc):
 
 def verificar_modulo(missoes: list[dict]) -> bool:
     """Recebe uma lista de missões e verifica
-    se houve um afastamento maior que 15 dias
+    se houve um afastamento de 16 dias ou mais
     em alguma delas.
     """
     DIAS_MODULO = 16

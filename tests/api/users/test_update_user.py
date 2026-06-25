@@ -27,7 +27,7 @@ async def test_update_user_success(
 
     update_data = {
         'nome_guerra': 'atualizado',
-        'unidade': 'NOVA_UNIDADE',
+        'unidade': '1gt',
     }
 
     response = await client.put(
@@ -64,7 +64,7 @@ async def test_update_user_partial_update(
     original_nome_guerra = other_user.nome_guerra
 
     # Atualiza apenas a unidade
-    update_data = {'unidade': 'NOVA_UNIDADE'}
+    update_data = {'unidade': '1gt'}
 
     response = await client.put(
         f'/users/{other_user.id}',
@@ -272,7 +272,7 @@ async def test_update_user_can_update_same_user_unique_fields(
     # Atualiza mantendo o mesmo saram mas mudando outro campo
     update_data = {
         'saram': other_user.saram,  # Mantém o mesmo
-        'unidade': 'NOVA_UNIDADE',  # Muda outro campo
+        'unidade': '1gt',  # Muda outro campo
     }
 
     response = await client.put(
@@ -284,7 +284,7 @@ async def test_update_user_can_update_same_user_unique_fields(
     assert response.status_code == HTTPStatus.OK
 
     await session.refresh(other_user)
-    assert other_user.unidade == 'NOVA_UNIDADE'
+    assert other_user.unidade == '1gt'
 
 
 async def test_update_user_with_date_field(

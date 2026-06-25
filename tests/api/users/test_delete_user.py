@@ -42,7 +42,9 @@ async def test_delete_user_success(
 async def test_delete_user_without_permission_fails(client, users, make_token):
     """Testa que usuário sem permissão recebe 403."""
     user, other_user = users
-    token = await make_token(user)
+    # ensure_role=False: sem a role default (admin), o usuário fica de fato
+    # sem permissão de delete.
+    token = await make_token(user, ensure_role=False)
 
     response = await client.delete(
         f'/users/{other_user.id}',

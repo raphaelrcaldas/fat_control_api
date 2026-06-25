@@ -8,7 +8,7 @@ from fcontrol_api.schemas.cegep.custos import (
     CustoPernoiteInput,
     CustoUserFragInput,
 )
-from fcontrol_api.utils.financeiro import calcular_custos_frag_mis
+from fcontrol_api.services.custos.calculo import calcular_custos_frag_mis
 
 
 def test_missao_simples_um_usuario_um_pernoite(

@@ -33,10 +33,11 @@ async def test_create_user_success(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -67,7 +68,9 @@ async def test_create_user_without_permission_fails(client, users, make_token):
     Testa que usuário sem permissão não pode criar usuários.
     """
     user, _ = users
-    token = await make_token(user)
+    # ensure_role=False: o teste valida ausência de permissão, então NÃO
+    # pode receber a role default (admin) que make_token atribuiria.
+    token = await make_token(user, ensure_role=False)
 
     user_data = {
         'p_g': '2s',
@@ -79,10 +82,11 @@ async def test_create_user_without_permission_fails(client, users, make_token):
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -114,10 +118,11 @@ async def test_create_user_duplicate_saram_fails(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -152,10 +157,11 @@ async def test_create_user_duplicate_cpf_fails(
         'cpf': existing_user.cpf,  # CPF duplicado
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -190,10 +196,11 @@ async def test_create_user_duplicate_id_fab_fails(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -228,10 +235,11 @@ async def test_create_user_duplicate_zimbra_fails(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.mil.br',
         'email_fab': existing_user.email_fab,
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -266,10 +274,11 @@ async def test_create_user_duplicate_email_pess_fails(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': existing_user.email_pess,
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -299,10 +308,11 @@ async def test_create_user_without_token_fails(client):
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -330,10 +340,11 @@ async def test_create_user_with_invalid_data_fails(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 
@@ -365,10 +376,11 @@ async def test_create_user_with_invalid_saram_dv_fails(
         'cpf': '52998224725',
         'ult_promo': '2020-01-15',
         'nasc': '1990-05-20',
+        'data_praca': '2015-03-10',
         'email_pess': 'novo@email.com',
         'email_fab': 'novo@fab.mil.br',
         'active': True,
-        'unidade': 'TEST',
+        'unidade': '11gt',
         'ant_rel': 100,
     }
 

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,7 @@ from fcontrol_api.settings import Settings
 from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/users', tags=['users'])
 
@@ -50,7 +51,7 @@ router = APIRouter(prefix='/users', tags=['users'])
 async def read_users_me(
     request: Request,
     session: Session,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: CurrentUser,
 ):
     active_org = getattr(request.state, 'active_org', None)
     app_client = getattr(request.state, 'app_client', None)
@@ -79,7 +80,7 @@ async def read_users_me(
 async def change_pwd(
     pwd_schema: PwdSchema,
     session: Session,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: CurrentUser,
 ):
     current_user.first_login = False
     current_user.password = get_password_hash(pwd_schema.new_pwd)
@@ -139,7 +140,7 @@ async def reset_pwd(
 async def create_user(
     payload: UserSchema,
     session: Session,
-    user: User = Depends(permission_checker('user', 'create')),
+    user: Annotated[User, Depends(permission_checker('user', 'create'))],
 ):
     # Verifica conflitos de unicidade
     await check_user_conflicts(
@@ -198,19 +199,16 @@ async def create_user(
 @router.get('/', response_model=ApiPaginatedResponse[UserPublic])
 async def read_users(
     session: Session,
+    _: Annotated[User, Depends(permission_checker('user', 'view'))],
     search: str | None = None,
     p_g: str | None = None,
     quadro: QuadroEnum | None = None,
     esp: EspecialidadeEnum | None = None,
     unidade: str | None = None,
     active: bool | None = None,
-    page: int = 1,
-    per_page: int = 15,
-    _: User = Depends(permission_checker('user', 'view')),
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 15,
 ):
-    # Limita per_page para evitar queries muito pesadas
-    per_page = min(per_page, 100)
-    page = max(page, 1)
     offset = (page - 1) * per_page
 
     # Query base ordenada (determinística com User.id como critério final)
@@ -285,7 +283,7 @@ async def read_users(
 async def get_user(
     user_id: int,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: CurrentUser,
 ):
     query = select(User).where(User.id == user_id)
     db_user = await session.scalar(query)
@@ -305,7 +303,7 @@ async def update_user(
     user_id: int,
     user_patch: UserUpdate,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: CurrentUser,
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
 
@@ -391,7 +389,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     session: Session,
-    user: User = Depends(permission_checker('user', 'delete')),
+    user: Annotated[User, Depends(permission_checker('user', 'delete'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
 
@@ -437,7 +435,7 @@ async def delete_user(
 async def list_user_promos(
     user_id: int,
     session: Session,
-    user: User = Depends(get_current_user),
+    user: CurrentUser,
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
@@ -467,7 +465,7 @@ async def create_user_promo(
     user_id: int,
     payload: UserPromoCreate,
     session: Session,
-    user: User = Depends(permission_checker('user', 'update')),
+    user: Annotated[User, Depends(permission_checker('user', 'update'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
@@ -518,7 +516,7 @@ async def delete_user_promo(
     user_id: int,
     promo_id: int,
     session: Session,
-    user: User = Depends(permission_checker('user', 'update')),
+    user: Annotated[User, Depends(permission_checker('user', 'update'))],
 ):
     db_promo = await session.scalar(
         select(UserPromo).where(

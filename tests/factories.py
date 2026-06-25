@@ -29,7 +29,6 @@ from fcontrol_api.models.shared.quads import Quad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.funcoes import funcs, opers, proj
-from fcontrol_api.schemas.ops.tripulantes import uaes
 from fcontrol_api.utils.validators import calcular_dv_saram
 
 
@@ -87,13 +86,17 @@ class UserFactory(factory.Factory):
         model = User
 
     p_g = factory.fuzzy.FuzzyChoice(['2s', '3s', 'cb'])
-    esp = factory.fuzzy.FuzzyText(length=3)
+    quadro = factory.fuzzy.FuzzyChoice(['QOAV', 'QSS', 'QCB'])
+    # esp precisa ser um EspecialidadeEnum válido (response schema valida)
+    esp = factory.fuzzy.FuzzyChoice(['ADM', 'AER', 'ARM'])
     nome_guerra = factory.Sequence(lambda n: f'fulano{n}')
     nome_completo = factory.Sequence(lambda n: f'fulano{n} da silva')
     id_fab = factory.Sequence(lambda n: str(100000 + n))
     saram = factory.Sequence(gerar_saram_valido)
-    unidade = factory.fuzzy.FuzzyText(length=5)
-    cpf = factory.Sequence(gerar_cpf_valido)
+    unidade = '11gt'  # FK -> organizacoes.sigla (org semeada nos testes)
+    # Offset evita CPF degenerado de dígitos repetidos (ex: n=0 -> inválido)
+    cpf = factory.Sequence(lambda n: gerar_cpf_valido(n + 100000000))
+    telefone = factory.Sequence(lambda n: str(11900000000 + n))
     email_fab = factory.LazyAttribute(
         lambda obj: f'{obj.nome_guerra}@fab.mil.br'
     )
@@ -102,6 +105,7 @@ class UserFactory(factory.Factory):
     )
     ant_rel = factory.fuzzy.FuzzyInteger(1, 999)
     nasc = factory.fuzzy.FuzzyDate(datetime.date(1970, 1, 1))
+    data_praca = factory.fuzzy.FuzzyDate(datetime.date(2005, 1, 1))
     ult_promo = factory.fuzzy.FuzzyDate(datetime.date(2010, 1, 1))
     password = factory.LazyAttribute(lambda obj: f'{obj.nome_guerra}-secret')
 
@@ -122,7 +126,9 @@ class TripFactory(factory.Factory):
         )
     )
     active = True  # Padrão ativo (mais comum em testes)
-    uae = factory.fuzzy.FuzzyChoice(typing.get_args(uaes))
+    # UAE agora é string livre (sigla da org, via JWT) após a tenantização;
+    # default no sigla canônico dos testes. Casos cross-org passam outro valor.
+    uae = '11gt'
 
 
 class FuncFactory(factory.Factory):

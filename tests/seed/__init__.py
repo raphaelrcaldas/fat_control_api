@@ -10,10 +10,16 @@ from tests.seed.posto_grad import POSTOS_GRAD
 from tests.seed.quads import QUADS_FUNCS, QUADS_GROUPS, QUADS_TYPES
 from tests.seed.roles import ROLES
 from tests.seed.soldos import SOLDOS
+from tests.seed.tenants import ORGANIZACOES, TENANTS
 
 # Grupos de seed ordenados por dependencia de FK
 # Cada grupo deve ser inserido e commitado/flushed antes do proximo
 SEED_GROUPS = [
+    # Grupo 0: organizacoes (control-plane), sem dependencias
+    [*ORGANIZACOES],
+    # Grupo 0.1: tenants (data-plane), dependem de organizacoes; quads_group
+    # e tripulantes referenciam tenants.organizacao_id via `uae`
+    [*TENANTS],
     # Grupo 1: Tabelas base sem dependencias
     [*ESTADOS, *POSTOS_GRAD, *ROLES, *QUADS_GROUPS],
     # Grupo 2: Dependem do Grupo 1

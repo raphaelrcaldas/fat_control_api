@@ -83,11 +83,18 @@ async def test_get_user_not_found(client, token):
     assert 'nao encontrado' in resp['message'].lower()
 
 
-async def test_get_user_with_different_users(client, users, token):
+async def test_get_user_with_different_users(
+    client, users, user_with_view_permission, make_token
+):
     """
     Testa que cada ID retorna o usuário correto.
+
+    Visualizar um usuário que não é o próprio exige a permissão
+    'user:view' (ownership OR permission), por isso o solicitante usa
+    a fixture user_with_view_permission.
     """
     user1, user2 = users
+    token = await make_token(user_with_view_permission)
 
     response1 = await client.get(
         f'/users/{user1.id}',

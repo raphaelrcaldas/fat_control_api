@@ -1,6 +1,6 @@
 """Testes para custo_missao (leitura de JSONB)."""
 
-from fcontrol_api.utils.financeiro import custo_missao
+from fcontrol_api.services.custos.leitura import custo_missao
 
 
 def test_missao_sem_custos():

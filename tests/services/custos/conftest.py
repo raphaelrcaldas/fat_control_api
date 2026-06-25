@@ -1,4 +1,4 @@
-"""Fixtures compartilhadas para testes de fcontrol_api/utils/financeiro.py.
+"""Fixtures compartilhadas para testes de fcontrol_api/services/custos/.
 
 Dados reais extraídos do Supabase (seed data) para cálculos verificáveis.
 """
