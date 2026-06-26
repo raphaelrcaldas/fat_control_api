@@ -8,8 +8,10 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.tripulantes import Tripulante
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.funcoes import BaseFunc, FuncUpdate
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -20,15 +22,23 @@ router = APIRouter(prefix='/trips/func', tags=['func'])
 @router.post(
     '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[None]
 )
-async def create_funcao(trip_id: int, funcao: BaseFunc, session: Session):
+async def create_funcao(
+    trip_id: int,
+    funcao: BaseFunc,
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('trips', 'create'))],
+):
     db_trip = await session.scalar(
-        select(Tripulante).where((Tripulante.id == trip_id))
+        select(Tripulante).where(
+            (Tripulante.id == trip_id) & (Tripulante.uae == active_org)
+        )
     )
 
     if not db_trip:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Crew member not found',
+            detail='Tripulante não encontrado',
         )
 
     db_func = await session.scalar(
@@ -58,8 +68,18 @@ async def create_funcao(trip_id: int, funcao: BaseFunc, session: Session):
 
 
 @router.put('/{id}', response_model=ApiResponse[None])
-async def update_funcao(id: int, funcao: FuncUpdate, session: Session):
-    db_func = await session.scalar(select(Funcao).where(Funcao.id == id))
+async def update_funcao(
+    id: int,
+    funcao: FuncUpdate,
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('trips', 'update'))],
+):
+    db_func = await session.scalar(
+        select(Funcao)
+        .join(Tripulante, Funcao.trip_id == Tripulante.id)
+        .where((Funcao.id == id) & (Tripulante.uae == active_org))
+    )
 
     if not db_func:
         raise HTTPException(
@@ -75,8 +95,17 @@ async def update_funcao(id: int, funcao: FuncUpdate, session: Session):
 
 
 @router.delete('/{id}', response_model=ApiResponse[None])
-async def delete_func(id: int, session: Session):
-    db_func = await session.scalar(select(Funcao).where(Funcao.id == id))
+async def delete_func(
+    id: int,
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('trips', 'delete'))],
+):
+    db_func = await session.scalar(
+        select(Funcao)
+        .join(Tripulante, Funcao.trip_id == Tripulante.id)
+        .where((Funcao.id == id) & (Tripulante.uae == active_org))
+    )
 
     if not db_func:
         raise HTTPException(
