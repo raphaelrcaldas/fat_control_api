@@ -36,6 +36,7 @@ from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.security import (
     ActiveOrg,
     get_current_user,
+    has_org_permission,
     permission_checker,
 )
 from fcontrol_api.services.om import criar_tripulacao_batch
@@ -419,6 +420,25 @@ async def update_ordem(
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Ordem cancelada não pode ser editada',
+        )
+
+    # Transitar status (aprovar/cancelar) exige a permissão granular
+    # `ordem_missao.status.update`, separada de `ordem_missao.update`:
+    # ops_basico edita campos da OM mas não pode mudar seu status.
+    if (
+        ordem_data.status is not None
+        and ordem_data.status != ordem.status
+        and not await has_org_permission(
+            current_user,
+            session,
+            active_org,
+            'ordem_missao.status',
+            'update',
+        )
+    ):
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Permissão negada: ordem_missao.status.update',
         )
 
     # Validar mudança de status contra a máquina de estados

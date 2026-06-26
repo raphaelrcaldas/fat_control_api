@@ -255,6 +255,30 @@ async def has_permission(
     )
 
 
+async def has_org_permission(
+    user: User,
+    session: AsyncSession,
+    active_org: str | None,
+    resource: str,
+    action: str,
+) -> bool:
+    """Checa a permissão (resource.action) no vínculo da org ativa.
+
+    Mesma resolução do `permission_checker`: admin da org tem bypass;
+    senão, valida o grant no vínculo resolvido por `active_org` (não cai
+    no fallback sem org, que emprestaria permissões de outra unidade).
+    Use dentro do handler quando o gate depende do payload — ex.: exigir
+    `ordem_missao.status.update` apenas quando há troca de status.
+    """
+    roles = await get_user_roles(user.id, session, active_org)
+    if roles.get('role') == 'admin':
+        return True
+    return any(
+        perm['resource'] == resource and perm['name'] == action
+        for perm in roles.get('perms', [])
+    )
+
+
 def permission_checker(resource: str, action: str):
     async def check_permission(
         session: Session,

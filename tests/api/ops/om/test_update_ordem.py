@@ -398,6 +398,64 @@ async def test_update_manual_numero_duplicate_fails(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+async def test_update_status_requires_status_permission(
+    client, session, users, om_editor_token
+):
+    """Transitar status sem `ordem_missao.status.update` retorna 403.
+
+    `om_editor_token` tem `ordem_missao.update` (edita campos) mas não a
+    permissão granular de status. O payload aprovaria a OM se o gate não
+    existisse (etapa válida + transição válida), então o 403 isola a
+    permissão granular, não uma falha de validação.
+    """
+    user, _ = users
+
+    ordem = OrdemMissaoFactory(
+        created_by=user.id,
+        status='rascunho',
+        numero='auto',
+        uae='11gt',
+    )
+    session.add(ordem)
+    await session.commit()
+    await session.refresh(ordem)
+
+    response = await client.put(
+        f'{BASE_URL}/{ordem.id}',
+        json={'status': 'aprovada', 'etapas': [_make_etapa()]},
+        headers={'Authorization': f'Bearer {om_editor_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert 'ordem_missao.status.update' in response.json()['message']
+
+
+async def test_update_fields_without_status_permission_ok(
+    client, session, users, om_editor_token
+):
+    """Editar campos (sem trocar status) só exige `ordem_missao.update`."""
+    user, _ = users
+
+    ordem = OrdemMissaoFactory(
+        created_by=user.id,
+        status='rascunho',
+        tipo='instrucao',
+        uae='11gt',
+    )
+    session.add(ordem)
+    await session.commit()
+    await session.refresh(ordem)
+
+    response = await client.put(
+        f'{BASE_URL}/{ordem.id}',
+        json={'tipo': 'transporte'},
+        headers={'Authorization': f'Bearer {om_editor_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['data']['tipo'] == 'transporte'
+
+
 async def test_update_ordem_requires_auth(client):
     """Endpoint requer autenticacao."""
     response = await client.put(f'{BASE_URL}/1', json={'tipo': 'transporte'})
