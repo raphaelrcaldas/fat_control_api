@@ -10,7 +10,12 @@ from tests.seed.posto_grad import POSTOS_GRAD
 from tests.seed.quads import QUADS_FUNCS, QUADS_GROUPS, QUADS_TYPES
 from tests.seed.roles import ROLES
 from tests.seed.soldos import SOLDOS
-from tests.seed.tenants import ORGANIZACOES, PROJETOS, TENANTS
+from tests.seed.tenants import (
+    ORGANIZACOES,
+    PROJETOS,
+    TENANT_PROJETOS,
+    TENANTS,
+)
 
 # Grupos de seed ordenados por dependencia de FK
 # Cada grupo deve ser inserido e commitado/flushed antes do proximo
@@ -23,7 +28,7 @@ SEED_GROUPS = [
     # Grupo 1: Tabelas base sem dependencias
     [*ESTADOS, *POSTOS_GRAD, *ROLES, *QUADS_GROUPS, *PROJETOS],
     # Grupo 2: Dependem do Grupo 1
-    [*CIDADES, *SOLDOS, *QUADS_TYPES],
+    [*CIDADES, *SOLDOS, *QUADS_TYPES, *TENANT_PROJETOS],
     # Grupo 3: Dependem do Grupo 2
     [*GRUPOS_CIDADE, *GRUPOS_PG, *QUADS_FUNCS],
     # Grupo 4: Dependem do Grupo 3
