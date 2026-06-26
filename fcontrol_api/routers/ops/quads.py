@@ -48,6 +48,8 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix='/quads', tags=['quads'])
 
 ManageQuads = Depends(permission_checker('quad_ops', 'create'))
+UpdateQuads = Depends(permission_checker('quad_ops', 'update'))
+DeleteQuads = Depends(permission_checker('quad_ops', 'delete'))
 
 
 @router.post(
@@ -57,7 +59,7 @@ async def create_quad(
     quads: list[QuadSchema],
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('quad_ops', 'create'))],
+    _: Annotated[User, ManageQuads],
 ):
     # Escopo multi-tenant: todo trip_id do lote deve ser de tripulante da
     # org ativa — bloqueia gravar quadrinho em tripulante de outra unidade.
@@ -121,7 +123,7 @@ async def quads_by_trip(trip_id: int, type_id: int, session: Session):
         .where((Quad.trip_id == trip_id) & (Quad.type_id == type_id))
         .order_by(
             Quad.value.desc().nulls_last()
-        )  # ordena NULLs primeiro, depois valores em DESC
+        )  # valores em DESC, NULLs por último
     )
 
     result = await session.scalars(query)
@@ -334,7 +336,7 @@ async def delete_quads(
     body: QuadBatchDelete,
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('quad_ops', 'delete'))],
+    _: Annotated[User, DeleteQuads],
 ):
     # Só remove quadrinhos de tripulantes da org ativa: ids de outra
     # unidade são ignorados (não entram no rowcount) -> 404 se nenhum casa.
@@ -365,7 +367,7 @@ async def update_quad(
     quad: QuadUpdate,
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('quad_ops', 'update'))],
+    _: Annotated[User, UpdateQuads],
 ):
     # Escopo: o quadrinho deve pertencer a tripulante da org ativa.
     db_quad = await session.scalar(
@@ -419,14 +421,14 @@ async def update_quad(
 
 @router.get('/types', response_model=ApiResponse[list[QuadsGroupSchema]])
 async def get_quads_type(session: Session, active_org: ActiveOrg):
-    quads = await session.scalars(
+    result = await session.scalars(
         select(QuadsGroup)
         .where(QuadsGroup.uae == active_org)
         .options(selectinload(QuadsGroup.types).selectinload(QuadsType.funcs))
     )
-    quads = quads.all()  # type: ignore
+    groups = result.all()
 
-    for group in quads:
+    for group in groups:
         group.types = sorted(group.types, key=lambda x: x.id)
 
         for type_quad in group.types:
@@ -435,7 +437,7 @@ async def get_quads_type(session: Session, active_org: ActiveOrg):
             funcs = list(dict.fromkeys(e.func for e in type_quad.funcs))
             setattr(type_quad, 'funcs_list', funcs)
 
-    return success_response(data=list(quads))
+    return success_response(data=list(groups))
 
 
 # ===========================================================================

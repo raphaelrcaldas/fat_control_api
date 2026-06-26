@@ -6,10 +6,11 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import delete, distinct, or_, select
+from sqlalchemy import delete, distinct, or_
 from sqlalchemy import func as sql_func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
@@ -59,8 +60,8 @@ router = APIRouter(prefix='/operacoes', tags=['operacoes'])
 ViewOper = Depends(permission_checker('operacoes', 'view'))
 # Todas as escritas do módulo (criar/editar/associar/pessoal) exigem
 # `operacoes.create`, espelhando o gating do frontend (PermBased).
-CreateOper = permission_checker('operacoes', 'create')
-DeleteOper = permission_checker('operacoes', 'delete')
+CreateOper = Depends(permission_checker('operacoes', 'create'))
+DeleteOper = Depends(permission_checker('operacoes', 'delete'))
 
 
 def _dias(inicio, fim) -> int:
@@ -234,7 +235,7 @@ async def create_operacao(
     payload: OperacaoCreate,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     # `numero` é max+1 por org: creates concorrentes podem colidir no
     # uq_operacao_uae_numero — nesse caso recalcula e tenta de novo.
@@ -428,7 +429,7 @@ async def update_operacao(
     payload: OperacaoUpdate,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     op = await _get_op(session, op_id, active_org)
     changes = payload.model_dump(exclude_unset=True)
@@ -493,7 +494,7 @@ async def delete_operacao(
     op_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(DeleteOper)],
+    user: Annotated[User, DeleteOper],
 ):
     op = await _get_op(session, op_id, active_org)
     # Hard delete: o ON DELETE CASCADE remove vínculos de etapa e o
@@ -608,7 +609,7 @@ async def associar_etapas(
     payload: AssociarEtapas,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     op = await _get_op(session, op_id, active_org)
 
@@ -687,7 +688,7 @@ async def desassociar_etapa(
     etapa_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     op = await _get_op(session, op_id, active_org)
     result = await session.execute(
@@ -761,7 +762,7 @@ async def add_pessoal(
     payload: OperacaoPessoalIn,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = OperacaoPessoal(
@@ -800,7 +801,7 @@ async def update_pessoal(
     payload: OperacaoPessoalIn,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = await session.scalar(
@@ -843,7 +844,7 @@ async def remove_pessoal(
     pessoal_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(CreateOper)],
+    user: Annotated[User, CreateOper],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = await session.scalar(

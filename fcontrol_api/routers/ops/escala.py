@@ -51,7 +51,7 @@ async def get_escala_disponiveis(
     sort: Annotated[Literal['horas_voo', 'quads_asc'], Query()],
     active_org: ActiveOrg,
     proj_param: Annotated[proj, Query(alias='proj')] = 'kc-390',
-) -> ApiResponse[EscalaResponse]:
+):
     """Tripulantes disponíveis para escala em uma janela de datas."""
     if date_end < date_start:
         raise HTTPException(

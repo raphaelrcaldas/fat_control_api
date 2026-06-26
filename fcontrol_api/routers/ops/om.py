@@ -56,6 +56,12 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
     'cancelada': set(),
 }
 
+# Guardas reutilizáveis: as rotas de OM e de etiqueta compartilham o
+# mesmo recurso `ordem_missao` (etiquetas herdam a permissão da OM).
+CreateOM = Depends(permission_checker('ordem_missao', 'create'))
+UpdateOM = Depends(permission_checker('ordem_missao', 'update'))
+DeleteOM = Depends(permission_checker('ordem_missao', 'delete'))
+
 
 @router.get(
     '/',
@@ -306,7 +312,7 @@ async def create_ordem(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('ordem_missao', 'create'))],
+    _: Annotated[User, CreateOM],
 ):
     """Cria uma nova ordem de missão"""
 
@@ -398,7 +404,7 @@ async def update_ordem(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('ordem_missao', 'update'))],
+    _: Annotated[User, UpdateOM],
 ):
     """Atualiza uma ordem de missão existente"""
     ordem = await session.scalar(
@@ -708,7 +714,7 @@ async def delete_ordem(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('ordem_missao', 'delete'))],
+    _: Annotated[User, DeleteOM],
 ):
     """Soft delete de uma ordem de missão"""
     ordem = await session.scalar(
@@ -757,7 +763,7 @@ async def create_etiqueta(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('ordem_missao', 'create'))],
+    _: Annotated[User, CreateOM],
 ):
     """Cria uma nova etiqueta"""
     etiqueta = Etiqueta(
@@ -782,7 +788,7 @@ async def update_etiqueta(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('ordem_missao', 'update'))],
+    _: Annotated[User, UpdateOM],
 ):
     """Atualiza uma etiqueta existente"""
     etiqueta = await session.scalar(
@@ -815,7 +821,7 @@ async def delete_etiqueta(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('ordem_missao', 'delete'))],
+    _: Annotated[User, DeleteOM],
 ):
     """Remove uma etiqueta"""
     etiqueta = await session.scalar(
