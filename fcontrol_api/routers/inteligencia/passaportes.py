@@ -17,11 +17,22 @@ from fcontrol_api.schemas.inteligencia.passaportes import (
     TripPassaporteOut,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import (
+    ActiveOrgOptional,
+    get_current_user,
+    has_org_permission,
+    permission_checker,
+)
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/passaportes', tags=['Inteligencia'])
+
+# Guardas reutilizáveis do recurso `passaportes`. O upsert (PUT) resolve
+# create-vs-update no handler, então não tem alias (ver has_org_permission).
+ViewPassaportes = Depends(permission_checker('passaportes', 'view'))
+DeletePassaportes = Depends(permission_checker('passaportes', 'delete'))
 
 
 @router.get(
@@ -30,6 +41,7 @@ router = APIRouter(prefix='/passaportes', tags=['Inteligencia'])
 )
 async def list_passaportes(
     session: Session,
+    _: Annotated[User, ViewPassaportes],
     p_g: Annotated[str | None, Query()] = None,
     funcao: Annotated[str | None, Query()] = None,
 ):
@@ -118,7 +130,11 @@ async def list_passaportes(
     '/user/{user_id}',
     response_model=ApiResponse[PassaportePublic | None],
 )
-async def get_passaporte_by_user(user_id: int, session: Session):
+async def get_passaporte_by_user(
+    user_id: int,
+    session: Session,
+    _: Annotated[User, ViewPassaportes],
+):
     passaporte = await session.scalar(
         select(Passaporte).where(Passaporte.user_id == user_id)
     )
@@ -133,6 +149,8 @@ async def upsert_passaporte(
     trip_id: int,
     session: Session,
     dados: PassaporteUpdate,
+    active_org: ActiveOrgOptional,
+    user: Annotated[User, Depends(get_current_user)],
 ):
     """Cria ou atualiza passaporte de um tripulante."""
     tripulante = await session.scalar(
@@ -150,6 +168,17 @@ async def upsert_passaporte(
     passaporte = await session.scalar(
         select(Passaporte).where(Passaporte.user_id == tripulante.user_id)
     )
+
+    # Granularidade real: editar exige 'update'; cadastrar novo exige
+    # 'create'. A ação é decidida pela existência do passaporte.
+    action = 'update' if passaporte else 'create'
+    if not await has_org_permission(
+        user, session, active_org, 'passaportes', action
+    ):
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail=f'Permissão negada: passaportes.{action}',
+        )
 
     if passaporte:
         for key, value in dados.model_dump(exclude_unset=True).items():
@@ -180,6 +209,7 @@ async def upsert_passaporte(
 async def delete_passaporte(
     trip_id: int,
     session: Session,
+    _: Annotated[User, DeletePassaportes],
 ):
     """Remove passaporte de um tripulante."""
     tripulante = await session.scalar(
