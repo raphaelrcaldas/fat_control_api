@@ -13,12 +13,12 @@ import pytest
 from sqlalchemy.future import select
 
 from fcontrol_api.models.shared.quads import Quad
-from tests.factories import QuadFactory
+from tests.factories import QuadFactory, TripFactory
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_delete_quads_success(client, session, trip, token):
+async def test_delete_quads_success(client, session, trip, org_admin_token):
     """Testa deleção em lote de um quadrinho com sucesso."""
     quad = QuadFactory(
         trip_id=trip.id,
@@ -37,7 +37,7 @@ async def test_delete_quads_success(client, session, trip, token):
         'DELETE',
         '/ops/quads/',
         json={'ids': [quad_id]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -50,7 +50,7 @@ async def test_delete_quads_success(client, session, trip, token):
     assert db_quad is None
 
 
-async def test_delete_quads_multiple(client, session, trip, token):
+async def test_delete_quads_multiple(client, session, trip, org_admin_token):
     """Testa deleção em lote de múltiplos quadrinhos."""
     quad1 = QuadFactory(trip_id=trip.id, type_id=1, value=date(2024, 1, 1))
     quad2 = QuadFactory(trip_id=trip.id, type_id=1, value=date(2024, 1, 2))
@@ -64,7 +64,7 @@ async def test_delete_quads_multiple(client, session, trip, token):
         'DELETE',
         '/ops/quads/',
         json={'ids': [quad1.id, quad2.id]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -76,13 +76,13 @@ async def test_delete_quads_multiple(client, session, trip, token):
     assert remaining.all() == []
 
 
-async def test_delete_quads_not_found(client, token):
+async def test_delete_quads_not_found(client, org_admin_token):
     """Testa que IDs inexistentes retornam 404."""
     response = await client.request(
         'DELETE',
         '/ops/quads/',
         json={'ids': [999999]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -91,7 +91,9 @@ async def test_delete_quads_not_found(client, token):
     assert resp['message'] == 'Nenhum quadrinho encontrado'
 
 
-async def test_delete_quads_partial_match(client, session, trip, token):
+async def test_delete_quads_partial_match(
+    client, session, trip, org_admin_token
+):
     """Testa que IDs mistos removem apenas os existentes (rowcount > 0)."""
     quad = QuadFactory(trip_id=trip.id, type_id=1, value=date.today())
     session.add(quad)
@@ -102,7 +104,7 @@ async def test_delete_quads_partial_match(client, session, trip, token):
         'DELETE',
         '/ops/quads/',
         json={'ids': [quad.id, 999999]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -112,20 +114,20 @@ async def test_delete_quads_partial_match(client, session, trip, token):
     assert db_quad is None
 
 
-async def test_delete_quads_invalid_id_format(client, token):
+async def test_delete_quads_invalid_id_format(client, org_admin_token):
     """Testa que IDs em formato inválido falham na validação."""
     response = await client.request(
         'DELETE',
         '/ops/quads/',
         json={'ids': ['invalid']},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def test_delete_quads_only_deletes_specified(
-    client, session, trip, token
+    client, session, trip, org_admin_token
 ):
     """Testa que apenas os quadrinhos informados são deletados."""
     quad1 = QuadFactory(trip_id=trip.id, type_id=1, value=date(2024, 1, 1))
@@ -141,7 +143,7 @@ async def test_delete_quads_only_deletes_specified(
         'DELETE',
         '/ops/quads/',
         json={'ids': [quad1.id]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
     assert response.status_code == HTTPStatus.OK
 
@@ -153,11 +155,13 @@ async def test_delete_quads_only_deletes_specified(
 
 
 async def test_delete_quads_from_different_trip(
-    client, session, trips, token
+    client, session, trips, org_admin_token
 ):
-    """Testa deleção de quadrinho de outro tripulante.
+    """Testa deleção de quadrinho de outro tripulante da MESMA org.
 
-    O endpoint não verifica ownership, apenas deleta pelos IDs informados.
+    Não há checagem de ownership por tripulante: dentro da org ativa,
+    qualquer quadrinho é deletável pelos IDs informados (o escopo é por
+    `uae`, coberto em test_delete_quads_cross_org_not_deleted).
     """
     _, other_trip = trips
 
@@ -175,14 +179,14 @@ async def test_delete_quads_from_different_trip(
         'DELETE',
         '/ops/quads/',
         json={'ids': [quad_other.id]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
 
 
 async def test_delete_quads_without_token_fails(client, session, trip):
-    """Testa que requisição sem token falha."""
+    """Testa que requisição sem org_admin_token falha."""
     quad = QuadFactory(trip_id=trip.id, type_id=1, value=date.today())
     session.add(quad)
     await session.commit()
@@ -195,3 +199,47 @@ async def test_delete_quads_without_token_fails(client, session, trip):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def test_delete_quads_without_permission_forbidden(
+    client, session, trip, org_token
+):
+    """Sem grant quad_ops.delete na org ativa → 403."""
+    quad = QuadFactory(trip_id=trip.id, type_id=1, value=date.today())
+    session.add(quad)
+    await session.commit()
+    await session.refresh(quad)
+
+    response = await client.request(
+        'DELETE',
+        '/ops/quads/',
+        json={'ids': [quad.id]},
+        headers={'Authorization': f'Bearer {org_token}'},
+    )
+    assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_delete_quads_cross_org_not_deleted(
+    client, session, users, org_admin_token
+):
+    """Quadrinho de tripulante de outra org não é deletado (404)."""
+    _, other = users
+    foreign = TripFactory(user_id=other.id, uae='1gt')
+    session.add(foreign)
+    await session.flush()
+    quad = QuadFactory(trip_id=foreign.id, type_id=1, value=date.today())
+    session.add(quad)
+    await session.commit()
+    await session.refresh(quad)
+
+    response = await client.request(
+        'DELETE',
+        '/ops/quads/',
+        json={'ids': [quad.id]},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+    # O quadrinho da outra org permanece
+    still = await session.scalar(select(Quad).where(Quad.id == quad.id))
+    assert still is not None

@@ -9,12 +9,12 @@ from http import HTTPStatus
 
 import pytest
 
-from tests.factories import QuadFactory
+from tests.factories import QuadFactory, TripFactory
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_update_quad_success(client, session, trip, token):
+async def test_update_quad_success(client, session, trip, org_admin_token):
     """Testa atualização de quadrinho com sucesso."""
     quad = QuadFactory(
         trip_id=trip.id,
@@ -37,7 +37,7 @@ async def test_update_quad_success(client, session, trip, token):
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -51,7 +51,7 @@ async def test_update_quad_success(client, session, trip, token):
     assert quad.description == 'Atualizado'
 
 
-async def test_update_quad_value_only(client, session, trip, token):
+async def test_update_quad_value_only(client, session, trip, org_admin_token):
     """Testa atualização apenas do valor."""
     quad = QuadFactory(
         trip_id=trip.id,
@@ -74,7 +74,7 @@ async def test_update_quad_value_only(client, session, trip, token):
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -84,7 +84,9 @@ async def test_update_quad_value_only(client, session, trip, token):
     assert quad.description == 'Manter'
 
 
-async def test_update_quad_description_only(client, session, trip, token):
+async def test_update_quad_description_only(
+    client, session, trip, org_admin_token
+):
     """Testa atualização apenas da descrição."""
     quad = QuadFactory(
         trip_id=trip.id,
@@ -107,7 +109,7 @@ async def test_update_quad_description_only(client, session, trip, token):
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -116,7 +118,9 @@ async def test_update_quad_description_only(client, session, trip, token):
     assert quad.description == 'Nova descricao'
 
 
-async def test_update_quad_to_null_value(client, session, trip, token):
+async def test_update_quad_to_null_value(
+    client, session, trip, org_admin_token
+):
     """Testa atualização do valor para NULL."""
     quad = QuadFactory(
         trip_id=trip.id,
@@ -139,7 +143,7 @@ async def test_update_quad_to_null_value(client, session, trip, token):
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -148,7 +152,7 @@ async def test_update_quad_to_null_value(client, session, trip, token):
     assert quad.value is None
 
 
-async def test_update_quad_not_found(client, trip, token):
+async def test_update_quad_not_found(client, trip, org_admin_token):
     """Testa atualização de quadrinho inexistente."""
     update_data = {
         'id': 999999,
@@ -160,7 +164,7 @@ async def test_update_quad_not_found(client, trip, token):
     response = await client.put(
         '/ops/quads/999999',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -169,7 +173,9 @@ async def test_update_quad_not_found(client, trip, token):
     assert resp['message'] == 'Quadrinho não encontrado'
 
 
-async def test_update_quad_duplicate_fails(client, session, trip, token):
+async def test_update_quad_duplicate_fails(
+    client, session, trip, org_admin_token
+):
     """Testa que atualizar para duplicata falha."""
     # Cria dois quadrinhos
     quad1 = QuadFactory(
@@ -201,7 +207,7 @@ async def test_update_quad_duplicate_fails(client, session, trip, token):
     response = await client.put(
         f'/ops/quads/{quad2.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
@@ -210,7 +216,9 @@ async def test_update_quad_duplicate_fails(client, session, trip, token):
     assert 'já registrado' in resp['message']
 
 
-async def test_update_quad_same_value_allowed(client, session, trip, token):
+async def test_update_quad_same_value_allowed(
+    client, session, trip, org_admin_token
+):
     """Testa que manter o mesmo valor não é considerado duplicata."""
     quad = QuadFactory(
         trip_id=trip.id,
@@ -234,14 +242,14 @@ async def test_update_quad_same_value_allowed(client, session, trip, token):
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
 
 
 async def test_update_quad_different_type_not_duplicate(
-    client, session, trip, token
+    client, session, trip, org_admin_token
 ):
     """Testa que mesmo valor com tipo diferente não é duplicata."""
     quad_type1 = QuadFactory(
@@ -273,7 +281,7 @@ async def test_update_quad_different_type_not_duplicate(
     response = await client.put(
         f'/ops/quads/{quad_type2.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     # O tipo é mantido (não pode ser alterado), então verifica duplicidade
@@ -281,7 +289,9 @@ async def test_update_quad_different_type_not_duplicate(
     assert response.status_code == HTTPStatus.OK
 
 
-async def test_update_quad_change_trip_id(client, session, trips, token):
+async def test_update_quad_change_trip_id(
+    client, session, trips, org_admin_token
+):
     """Testa mudança de tripulante associado."""
     trip, other_trip = trips
 
@@ -307,7 +317,7 @@ async def test_update_quad_change_trip_id(client, session, trips, token):
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -317,7 +327,7 @@ async def test_update_quad_change_trip_id(client, session, trips, token):
 
 
 async def test_update_quad_invalid_date_format_fails(
-    client, session, trip, token
+    client, session, trip, org_admin_token
 ):
     """Testa que formato de data inválido falha."""
     quad = QuadFactory(
@@ -340,14 +350,14 @@ async def test_update_quad_invalid_date_format_fails(
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def test_update_quad_missing_required_field_fails(
-    client, session, trip, token
+    client, session, trip, org_admin_token
 ):
     """Testa que campo obrigatório faltando falha."""
     quad = QuadFactory(
@@ -370,14 +380,14 @@ async def test_update_quad_missing_required_field_fails(
     response = await client.put(
         f'/ops/quads/{quad.id}',
         json=update_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def test_update_quad_without_token_fails(client, session, trip):
-    """Testa que requisição sem token falha."""
+    """Testa que requisição sem org_admin_token falha."""
     quad = QuadFactory(trip_id=trip.id, type_id=1, value=date.today())
     session.add(quad)
     await session.commit()
@@ -393,3 +403,51 @@ async def test_update_quad_without_token_fails(client, session, trip):
     response = await client.put(f'/ops/quads/{quad.id}', json=update_data)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def test_update_quad_without_permission_forbidden(
+    client, session, trip, org_token
+):
+    """Sem grant quad_ops.update na org ativa → 403."""
+    quad = QuadFactory(trip_id=trip.id, type_id=1, value=date(2024, 1, 1))
+    session.add(quad)
+    await session.commit()
+    await session.refresh(quad)
+
+    response = await client.put(
+        f'/ops/quads/{quad.id}',
+        json={
+            'id': quad.id,
+            'trip_id': trip.id,
+            'value': '2024-06-15',
+            'description': 'x',
+        },
+        headers={'Authorization': f'Bearer {org_token}'},
+    )
+    assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_update_quad_cross_org_404(
+    client, session, users, org_admin_token
+):
+    """Quadrinho de tripulante de outra org não é atualizável → 404."""
+    _, other = users
+    foreign = TripFactory(user_id=other.id, uae='1gt')
+    session.add(foreign)
+    await session.flush()
+    quad = QuadFactory(trip_id=foreign.id, type_id=1, value=date(2024, 1, 1))
+    session.add(quad)
+    await session.commit()
+    await session.refresh(quad)
+
+    response = await client.put(
+        f'/ops/quads/{quad.id}',
+        json={
+            'id': quad.id,
+            'trip_id': foreign.id,
+            'value': '2024-06-15',
+            'description': 'x',
+        },
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND

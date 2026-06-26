@@ -53,7 +53,31 @@ ManageQuads = Depends(permission_checker('quad_ops', 'create'))
 @router.post(
     '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[None]
 )
-async def create_quad(quads: list[QuadSchema], session: Session):
+async def create_quad(
+    quads: list[QuadSchema],
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('quad_ops', 'create'))],
+):
+    # Escopo multi-tenant: todo trip_id do lote deve ser de tripulante da
+    # org ativa — bloqueia gravar quadrinho em tripulante de outra unidade.
+    trip_ids = {quad.trip_id for quad in quads}
+    validos = set(
+        (
+            await session.scalars(
+                select(Tripulante.id).where(
+                    Tripulante.id.in_(trip_ids),
+                    Tripulante.uae == active_org,
+                )
+            )
+        ).all()
+    )
+    if trip_ids - validos:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante não encontrado',
+        )
+
     insert_quads = []
     for quad in quads:
         if quad.value is not None:
@@ -306,8 +330,22 @@ async def delete_orphan_quads(
 
 
 @router.delete('/', response_model=ApiResponse[None])
-async def delete_quads(body: QuadBatchDelete, session: Session):
-    result = await session.execute(delete(Quad).where(Quad.id.in_(body.ids)))
+async def delete_quads(
+    body: QuadBatchDelete,
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('quad_ops', 'delete'))],
+):
+    # Só remove quadrinhos de tripulantes da org ativa: ids de outra
+    # unidade são ignorados (não entram no rowcount) -> 404 se nenhum casa.
+    result = await session.execute(
+        delete(Quad).where(
+            Quad.id.in_(body.ids),
+            Quad.trip_id.in_(
+                select(Tripulante.id).where(Tripulante.uae == active_org)
+            ),
+        )
+    )
     await session.commit()
 
     if result.rowcount == 0:
@@ -322,13 +360,37 @@ async def delete_quads(body: QuadBatchDelete, session: Session):
 
 
 @router.put('/{id}', response_model=ApiResponse[None])
-async def update_quad(id: int, quad: QuadUpdate, session: Session):
-    db_quad = await session.scalar(select(Quad).where(Quad.id == id))
+async def update_quad(
+    id: int,
+    quad: QuadUpdate,
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('quad_ops', 'update'))],
+):
+    # Escopo: o quadrinho deve pertencer a tripulante da org ativa.
+    db_quad = await session.scalar(
+        select(Quad)
+        .join(Tripulante, Tripulante.id == Quad.trip_id)
+        .where(Quad.id == id, Tripulante.uae == active_org)
+    )
 
     if not db_quad:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Quadrinho não encontrado',
+        )
+
+    # Remanejar para outro tripulante só dentro da própria org.
+    trip_ok = await session.scalar(
+        select(Tripulante.id).where(
+            Tripulante.id == quad.trip_id,
+            Tripulante.uae == active_org,
+        )
+    )
+    if not trip_ok:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante não encontrado',
         )
 
     ss_quad = await session.scalar(

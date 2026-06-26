@@ -243,8 +243,16 @@ async def list_trips(
 @router.put(
     '/{id}', status_code=HTTPStatus.OK, response_model=ApiResponse[TripSchema]
 )
-async def update_trip(id: int, trip: BaseTrip, session: Session):
-    query = select(Tripulante).where(Tripulante.id == id)
+async def update_trip(
+    id: int,
+    trip: BaseTrip,
+    session: Session,
+    active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('trips', 'update'))],
+):
+    query = select(Tripulante).where(
+        Tripulante.id == id, Tripulante.uae == active_org
+    )
 
     trip_search = await session.scalar(query)
 
