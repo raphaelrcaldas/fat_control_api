@@ -24,6 +24,7 @@ from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.indisp import Indisp
 from fcontrol_api.models.shared.om import OrdemEtapa, OrdemMissao
+from fcontrol_api.models.shared.operacao import Operacao
 from fcontrol_api.models.shared.posto_grad import Soldo
 from fcontrol_api.models.shared.quads import Quad
 from fcontrol_api.models.shared.tripulantes import Tripulante
@@ -290,6 +291,28 @@ class OrdemEtapaFactory(factory.Factory):
     tvoo_alt = 30  # 30 minutos
     qtd_comb = factory.fuzzy.FuzzyInteger(10, 20)
     esf_aer = factory.fuzzy.FuzzyText(length=10)
+
+
+class OperacaoFactory(factory.Factory):
+    """Factory para Operações / Manobras / Exercícios.
+
+    IMPORTANTE: Requer created_by. `cidade_id` aponta para Brasília
+    (5300108), presente no seed de cidades. `numero`/`nome` são sequenciais
+    para não colidir com uq_operacao_uae_numero/uq_operacao_uae_nome.
+    """
+
+    class Meta:
+        model = Operacao
+
+    numero = factory.Sequence(lambda n: n + 1)
+    nome = factory.Sequence(lambda n: f'Operação Teste {n}')
+    tipo = factory.fuzzy.FuzzyChoice(['operacao', 'manobra', 'exercicio'])
+    cidade_id = 5300108
+    data_inicio = datetime.date(2025, 6, 1)
+    data_fim = datetime.date(2025, 6, 10)
+    status = 'planejada'
+    uae = '11gt'
+    created_by: int
 
 
 class DadosBancariosFactory(factory.Factory):
