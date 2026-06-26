@@ -3,7 +3,8 @@ Testes para os endpoints CRUD de Aeronaves (/ops/aeronaves/).
 
 O escopo é multi-tenant: a org só enxerga/cadastra a frota dos projetos
 que opera (via `tenant_projetos`). Nos testes, '11gt' opera o kc-390 (C8)
-e '1gt' opera o c-130 (C1).
+e '1gt' opera o c-130 (C1). As rotas de escrita exigem permissão na org
+ativa (org_admin_token); as de leitura bastam org ativa (org_token).
 """
 
 from http import HTTPStatus
@@ -20,10 +21,10 @@ pytestmark = pytest.mark.anyio
 # ========================================
 
 
-async def test_create_aeronave_success(client, org_token):
+async def test_create_aeronave_success(client, org_admin_token):
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': '2860',
             'active': True,
@@ -43,10 +44,10 @@ async def test_create_aeronave_success(client, org_token):
     assert data['data']['proj']['modelo'] == 'kc-390'
 
 
-async def test_create_aeronave_with_obs(client, org_token):
+async def test_create_aeronave_with_obs(client, org_admin_token):
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': '2861',
             'active': True,
@@ -62,14 +63,16 @@ async def test_create_aeronave_with_obs(client, org_token):
     assert data['data']['obs'] == 'Restrição no radar'
 
 
-async def test_create_aeronave_projeto_not_in_org_fails(client, org_token):
+async def test_create_aeronave_projeto_not_in_org_fails(
+    client, org_admin_token
+):
     """Projeto não operado pela org ativa não pode ser cadastrado (400).
 
     O token é de '11gt' (opera C8); C1 pertence a '1gt'.
     """
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': '2862',
             'active': True,
@@ -84,11 +87,11 @@ async def test_create_aeronave_projeto_not_in_org_fails(client, org_token):
 
 
 async def test_create_aeronave_duplicate_matricula_fails(
-    client, org_token, aeronave
+    client, org_admin_token, aeronave
 ):
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': aeronave.matricula,
             'active': True,
@@ -100,10 +103,10 @@ async def test_create_aeronave_duplicate_matricula_fails(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_create_aeronave_invalid_sit_fails(client, org_token):
+async def test_create_aeronave_invalid_sit_fails(client, org_admin_token):
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': '2870',
             'active': True,
@@ -116,11 +119,11 @@ async def test_create_aeronave_invalid_sit_fails(client, org_token):
 
 
 async def test_create_aeronave_matricula_not_4_digits_fails(
-    client, org_token
+    client, org_admin_token
 ):
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': '123',
             'active': True,
@@ -132,10 +135,12 @@ async def test_create_aeronave_matricula_not_4_digits_fails(
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_aeronave_matricula_non_numeric_fails(client, org_token):
+async def test_create_aeronave_matricula_non_numeric_fails(
+    client, org_admin_token
+):
     response = await client.post(
         '/ops/aeronaves/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'matricula': 'ABCD',
             'active': True,
@@ -145,6 +150,26 @@ async def test_create_aeronave_matricula_non_numeric_fails(client, org_token):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_create_aeronave_without_permission_fails(client, org_token):
+    """Org ativa sem permissão de escrita não cadastra aeronave (403).
+
+    `org_token` tem vínculo admin de Sistema (org None), que não satisfaz
+    o escopo da org ativa '11gt' no permission_checker.
+    """
+    response = await client.post(
+        '/ops/aeronaves/',
+        headers={'Authorization': f'Bearer {org_token}'},
+        json={
+            'matricula': '2865',
+            'active': True,
+            'sit': 'DI',
+            'projeto': 'C8',
+        },
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 async def test_create_aeronave_missing_active_org_fails(client, token):
@@ -345,10 +370,10 @@ async def test_get_aeronave_other_org_not_found(client, session, org_token):
 # ========================================
 
 
-async def test_update_aeronave_success(client, org_token, aeronave):
+async def test_update_aeronave_success(client, org_admin_token, aeronave):
     response = await client.put(
         f'/ops/aeronaves/{aeronave.matricula}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={'sit': 'IS', 'obs': 'Entrou em inspeção'},
     )
 
@@ -360,10 +385,10 @@ async def test_update_aeronave_success(client, org_token, aeronave):
     assert data['data']['obs'] == 'Entrou em inspeção'
 
 
-async def test_update_aeronave_partial(client, org_token, aeronave):
+async def test_update_aeronave_partial(client, org_admin_token, aeronave):
     response = await client.put(
         f'/ops/aeronaves/{aeronave.matricula}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={'active': False},
     )
 
@@ -375,12 +400,12 @@ async def test_update_aeronave_partial(client, org_token, aeronave):
 
 
 async def test_update_aeronave_projeto_not_in_org_fails(
-    client, org_token, aeronave
+    client, org_admin_token, aeronave
 ):
     """Trocar para um projeto fora da org ativa falha (400)."""
     response = await client.put(
         f'/ops/aeronaves/{aeronave.matricula}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={'projeto': 'C1'},
     )
 
@@ -389,10 +414,23 @@ async def test_update_aeronave_projeto_not_in_org_fails(
     assert data['message'] == 'Projeto não disponível para a organização'
 
 
-async def test_update_aeronave_not_found(client, org_token):
+async def test_update_aeronave_without_permission_fails(
+    client, org_token, aeronave
+):
+    """Org ativa sem permissão de escrita não edita aeronave (403)."""
+    response = await client.put(
+        f'/ops/aeronaves/{aeronave.matricula}',
+        headers={'Authorization': f'Bearer {org_token}'},
+        json={'sit': 'IS'},
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_update_aeronave_not_found(client, org_admin_token):
     response = await client.put(
         '/ops/aeronaves/9999',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={'sit': 'DI'},
     )
 
@@ -400,7 +438,7 @@ async def test_update_aeronave_not_found(client, org_token):
 
 
 async def test_update_aeronave_other_org_not_found(
-    client, session, org_token
+    client, session, org_admin_token
 ):
     """Atualizar aeronave de projeto de outra org responde 404."""
     outra = Aeronave(
@@ -415,7 +453,7 @@ async def test_update_aeronave_other_org_not_found(
 
     response = await client.put(
         '/ops/aeronaves/5002',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={'sit': 'IS'},
     )
 

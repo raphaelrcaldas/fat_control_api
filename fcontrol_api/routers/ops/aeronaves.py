@@ -12,6 +12,7 @@ from fcontrol_api.models.shared.aeronaves import (
     ProjetoAnv,
     TenantProjeto,
 )
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.ops.aeronave import (
     AeronaveCreate,
     AeronavePublic,
@@ -22,7 +23,7 @@ from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
 )
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import (
     paginated_response,
     success_response,
@@ -47,6 +48,7 @@ async def create_aeronave(
     aeronave: AeronaveCreate,
     session: Session,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('aeronaves', 'create'))],
 ):
     db_aeronave = await session.scalar(
         select(Aeronave).where(Aeronave.matricula == aeronave.matricula)
@@ -199,6 +201,7 @@ async def update_aeronave(
     aeronave: AeronaveUpdate,
     session: Session,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('aeronaves', 'update'))],
 ):
     db_aeronave = await session.scalar(
         select(Aeronave).where(
