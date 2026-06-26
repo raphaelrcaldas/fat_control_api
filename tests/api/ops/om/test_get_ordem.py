@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om'
 
 
-async def test_get_ordem_success(client, session, users, token):
+async def test_get_ordem_success(client, session, users, org_admin_token):
     """Busca por ID retorna ordem com todos os campos."""
     user, _ = users
 
@@ -28,7 +28,7 @@ async def test_get_ordem_success(client, session, users, token):
 
     response = await client.get(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -42,7 +42,9 @@ async def test_get_ordem_success(client, session, users, token):
     assert data['status'] == ordem.status
 
 
-async def test_get_ordem_includes_etapas(client, session, users, token):
+async def test_get_ordem_includes_etapas(
+    client, session, users, org_admin_token
+):
     """Resposta inclui etapas da ordem (via POST)."""
     etapa_payload = {
         'dt_dep': '2025-06-15T10:00:00',
@@ -59,7 +61,6 @@ async def test_get_ordem_includes_etapas(client, session, users, token):
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'uae': '1/1 GT',
         'esf_aer': 2,
         'campos_especiais': [],
         'etapas': [etapa_payload],
@@ -70,14 +71,14 @@ async def test_get_ordem_includes_etapas(client, session, users, token):
     create_resp = await client.post(
         f'{BASE_URL}/',
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
     assert create_resp.status_code == HTTPStatus.CREATED
     ordem_id = create_resp.json()['data']['id']
 
     response = await client.get(
         f'{BASE_URL}/{ordem_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -87,9 +88,13 @@ async def test_get_ordem_includes_etapas(client, session, users, token):
     assert data['etapas'][0]['dest'] == 'SBBR'
 
 
-async def test_get_ordem_includes_etiquetas(client, session, users, token):
+async def test_get_ordem_includes_etiquetas(
+    client, session, users, org_admin_token
+):
     """Resposta inclui etiquetas da ordem (via POST)."""
-    etiqueta = Etiqueta(nome='Tag', cor='#00FF00', descricao='desc')
+    etiqueta = Etiqueta(
+        nome='Tag', cor='#00FF00', descricao='desc', uae='11gt'
+    )
     session.add(etiqueta)
     await session.commit()
     await session.refresh(etiqueta)
@@ -99,7 +104,6 @@ async def test_get_ordem_includes_etiquetas(client, session, users, token):
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'uae': '1/1 GT',
         'esf_aer': 2,
         'campos_especiais': [],
         'etapas': [],
@@ -110,14 +114,14 @@ async def test_get_ordem_includes_etiquetas(client, session, users, token):
     create_resp = await client.post(
         f'{BASE_URL}/',
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
     assert create_resp.status_code == HTTPStatus.CREATED
     ordem_id = create_resp.json()['data']['id']
 
     response = await client.get(
         f'{BASE_URL}/{ordem_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -126,17 +130,19 @@ async def test_get_ordem_includes_etiquetas(client, session, users, token):
     assert data['etiquetas'][0]['nome'] == 'Tag'
 
 
-async def test_get_ordem_not_found(client, session, token):
+async def test_get_ordem_not_found(client, session, org_admin_token):
     """ID inexistente retorna 404."""
     response = await client.get(
         f'{BASE_URL}/99999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_get_ordem_deleted_returns_404(client, session, users, token):
+async def test_get_ordem_deleted_returns_404(
+    client, session, users, org_admin_token
+):
     """Ordem com soft delete retorna 404."""
     user, _ = users
 
@@ -150,7 +156,7 @@ async def test_get_ordem_deleted_returns_404(client, session, users, token):
 
     response = await client.get(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND

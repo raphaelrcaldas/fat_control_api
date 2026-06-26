@@ -16,7 +16,7 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om'
 
 
-async def test_delete_ordem_success(client, session, users, token):
+async def test_delete_ordem_success(client, session, users, org_admin_token):
     """Soft delete marca deleted_at e retorna sucesso."""
     user, _ = users
 
@@ -27,7 +27,7 @@ async def test_delete_ordem_success(client, session, users, token):
 
     response = await client.delete(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -38,17 +38,19 @@ async def test_delete_ordem_success(client, session, users, token):
     assert ordem.deleted_at is not None
 
 
-async def test_delete_ordem_not_found(client, session, token):
+async def test_delete_ordem_not_found(client, session, org_admin_token):
     """Deletar ordem inexistente retorna 404."""
     response = await client.delete(
         f'{BASE_URL}/99999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_ordem_already_deleted(client, session, users, token):
+async def test_delete_ordem_already_deleted(
+    client, session, users, org_admin_token
+):
     """Deletar ordem ja deletada retorna 404."""
     user, _ = users
 
@@ -62,13 +64,15 @@ async def test_delete_ordem_already_deleted(client, session, users, token):
 
     response = await client.delete(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_deleted_ordem_not_in_list(client, session, users, token):
+async def test_deleted_ordem_not_in_list(
+    client, session, users, org_admin_token
+):
     """Ordem deletada nao aparece na listagem."""
     user, _ = users
 
@@ -79,12 +83,12 @@ async def test_deleted_ordem_not_in_list(client, session, users, token):
 
     await client.delete(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     response = await client.get(
         '/ops/om/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK

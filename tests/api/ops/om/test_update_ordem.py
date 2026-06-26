@@ -41,7 +41,9 @@ def _make_etapa(
     }
 
 
-async def test_update_ordem_simple_fields(client, session, users, token):
+async def test_update_ordem_simple_fields(
+    client, session, users, org_admin_token
+):
     """Atualizacao de campos simples funciona."""
     user, _ = users
 
@@ -57,7 +59,7 @@ async def test_update_ordem_simple_fields(client, session, users, token):
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'tipo': 'transporte', 'projeto': 'KC-390'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -68,18 +70,20 @@ async def test_update_ordem_simple_fields(client, session, users, token):
     assert data['projeto'] == 'KC-390'
 
 
-async def test_update_ordem_not_found(client, session, token):
+async def test_update_ordem_not_found(client, session, org_admin_token):
     """Atualizacao de ordem inexistente retorna 404."""
     response = await client.put(
         f'{BASE_URL}/99999',
         json={'tipo': 'transporte'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_update_ordem_deleted_returns_404(client, session, users, token):
+async def test_update_ordem_deleted_returns_404(
+    client, session, users, org_admin_token
+):
     """Atualizacao de ordem deletada retorna 404."""
     user, _ = users
 
@@ -94,14 +98,14 @@ async def test_update_ordem_deleted_returns_404(client, session, users, token):
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'tipo': 'transporte'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 async def test_update_rascunho_to_aprovada_generates_numero(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Transicao rascunho -> aprovada gera numero sequencial."""
     user, _ = users
@@ -110,7 +114,7 @@ async def test_update_rascunho_to_aprovada_generates_numero(
         created_by=user.id,
         status='rascunho',
         numero='auto',
-        uae='1/1 GT',
+        uae='11gt',
     )
     session.add(ordem)
     await session.commit()
@@ -124,7 +128,7 @@ async def test_update_rascunho_to_aprovada_generates_numero(
             'status': 'aprovada',
             'etapas': [etapa_payload],
         },
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -134,7 +138,7 @@ async def test_update_rascunho_to_aprovada_generates_numero(
 
 
 async def test_update_aprovada_sequential_numero(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Segundo aprovacao no mesmo ano/UAE gera numero 002."""
     user, _ = users
@@ -143,7 +147,7 @@ async def test_update_aprovada_sequential_numero(
         created_by=user.id,
         status='aprovada',
         numero='001',
-        uae='1/1 GT',
+        uae='11gt',
         data_saida=date(2025, 6, 15),
     )
     session.add(existing)
@@ -153,7 +157,7 @@ async def test_update_aprovada_sequential_numero(
         created_by=user.id,
         status='rascunho',
         numero='auto',
-        uae='1/1 GT',
+        uae='11gt',
     )
     session.add(ordem)
     await session.commit()
@@ -167,7 +171,7 @@ async def test_update_aprovada_sequential_numero(
             'status': 'aprovada',
             'etapas': [etapa_payload],
         },
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -175,7 +179,9 @@ async def test_update_aprovada_sequential_numero(
     assert data['numero'] == '002'
 
 
-async def test_update_aprovada_requires_etapa(client, session, users, token):
+async def test_update_aprovada_requires_etapa(
+    client, session, users, org_admin_token
+):
     """Transicao para aprovada sem etapas falha (400)."""
     user, _ = users
 
@@ -183,7 +189,7 @@ async def test_update_aprovada_requires_etapa(client, session, users, token):
         created_by=user.id,
         status='rascunho',
         numero='auto',
-        uae='1/1 GT',
+        uae='11gt',
     )
     session.add(ordem)
     await session.commit()
@@ -192,13 +198,13 @@ async def test_update_aprovada_requires_etapa(client, session, users, token):
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'status': 'aprovada'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_update_replaces_etapas(client, session, users, token):
+async def test_update_replaces_etapas(client, session, users, org_admin_token):
     """Atualizacao de etapas substitui todas as existentes."""
     old_etapa = _make_etapa(
         origem='SBRF',
@@ -209,7 +215,6 @@ async def test_update_replaces_etapas(client, session, users, token):
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'uae': '1/1 GT',
         'esf_aer': 2,
         'campos_especiais': [],
         'etapas': [old_etapa],
@@ -219,7 +224,7 @@ async def test_update_replaces_etapas(client, session, users, token):
     create_resp = await client.post(
         f'{BASE_URL}/',
         json=create_payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
     assert create_resp.status_code == HTTPStatus.CREATED
     ordem_id = create_resp.json()['data']['id']
@@ -229,7 +234,7 @@ async def test_update_replaces_etapas(client, session, users, token):
     response = await client.put(
         f'{BASE_URL}/{ordem_id}',
         json={'etapas': [new_etapa]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -237,7 +242,7 @@ async def test_update_replaces_etapas(client, session, users, token):
     # Verificar via GET separado (evita cache da sessao)
     get_resp = await client.get(
         f'{BASE_URL}/{ordem_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
     assert get_resp.status_code == HTTPStatus.OK
     data = get_resp.json()['data']
@@ -246,7 +251,9 @@ async def test_update_replaces_etapas(client, session, users, token):
     assert data['etapas'][0]['dest'] == 'SBBR'
 
 
-async def test_update_etapas_updates_data_saida(client, session, users, token):
+async def test_update_etapas_updates_data_saida(
+    client, session, users, org_admin_token
+):
     """Atualizacao de etapas recalcula data_saida."""
     user, _ = users
 
@@ -267,7 +274,7 @@ async def test_update_etapas_updates_data_saida(client, session, users, token):
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'etapas': [new_etapa]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -275,12 +282,12 @@ async def test_update_etapas_updates_data_saida(client, session, users, token):
     assert data['data_saida'] == '2025-07-20'
 
 
-async def test_update_etiquetas(client, session, users, token):
+async def test_update_etiquetas(client, session, users, org_admin_token):
     """Atualizacao de etiquetas substitui as existentes."""
     user, _ = users
 
-    etq1 = Etiqueta(nome='A', cor='#FF0000')
-    etq2 = Etiqueta(nome='B', cor='#00FF00')
+    etq1 = Etiqueta(nome='A', cor='#FF0000', uae='11gt')
+    etq2 = Etiqueta(nome='B', cor='#00FF00', uae='11gt')
     session.add_all([etq1, etq2])
     await session.commit()
     await session.refresh(etq1)
@@ -297,7 +304,7 @@ async def test_update_etiquetas(client, session, users, token):
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'etiquetas_ids': [etq2.id]},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -307,7 +314,7 @@ async def test_update_etiquetas(client, session, users, token):
 
 
 async def test_update_manual_numero_only_approved(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Edicao manual de numero so permitida em ordens aprovadas."""
     user, _ = users
@@ -324,14 +331,14 @@ async def test_update_manual_numero_only_approved(
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'numero': '999'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_update_manual_numero_approved_success(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Edicao manual de numero funciona para ordens aprovadas."""
     user, _ = users
@@ -340,7 +347,7 @@ async def test_update_manual_numero_approved_success(
         created_by=user.id,
         status='aprovada',
         numero='001',
-        uae='1/1 GT',
+        uae='11gt',
         data_saida=date(2025, 6, 15),
     )
     session.add(ordem)
@@ -350,7 +357,7 @@ async def test_update_manual_numero_approved_success(
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'numero': '050'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -359,7 +366,7 @@ async def test_update_manual_numero_approved_success(
 
 
 async def test_update_manual_numero_duplicate_fails(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Edicao manual com numero duplicado no mesmo ano/UAE falha."""
     user, _ = users
@@ -368,14 +375,14 @@ async def test_update_manual_numero_duplicate_fails(
         created_by=user.id,
         status='aprovada',
         numero='050',
-        uae='1/1 GT',
+        uae='11gt',
         data_saida=date(2025, 6, 15),
     )
     ordem = OrdemMissaoFactory(
         created_by=user.id,
         status='aprovada',
         numero='001',
-        uae='1/1 GT',
+        uae='11gt',
         data_saida=date(2025, 6, 15),
     )
     session.add_all([existing, ordem])
@@ -385,7 +392,7 @@ async def test_update_manual_numero_duplicate_fails(
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
         json={'numero': '050'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST

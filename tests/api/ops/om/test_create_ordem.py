@@ -45,7 +45,6 @@ def _make_ordem_payload(etapas=None, etiquetas_ids=None):
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'uae': '1/1 GT',
         'esf_aer': 2,
         'campos_especiais': [],
         'etapas': etapas if etapas is not None else [],
@@ -55,14 +54,14 @@ def _make_ordem_payload(etapas=None, etiquetas_ids=None):
     return payload
 
 
-async def test_create_ordem_success(client, session, token):
+async def test_create_ordem_success(client, session, org_admin_token):
     """Criacao basica de ordem sem etapas."""
     payload = _make_ordem_payload()
 
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -74,10 +73,9 @@ async def test_create_ordem_success(client, session, token):
     assert data['matricula_anv'] == '2850'
     assert data['tipo'] == 'instrucao'
     assert data['projeto'] == 'KC-390'
-    assert data['uae'] == '1/1 GT'
 
 
-async def test_create_ordem_always_rascunho(client, session, token):
+async def test_create_ordem_always_rascunho(client, session, org_admin_token):
     """Ordem criada sempre tem status rascunho."""
     payload = _make_ordem_payload()
     payload['status'] = 'aprovada'
@@ -85,7 +83,7 @@ async def test_create_ordem_always_rascunho(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -93,14 +91,16 @@ async def test_create_ordem_always_rascunho(client, session, token):
     assert data['status'] == 'rascunho'
 
 
-async def test_create_ordem_always_auto_numero(client, session, token):
+async def test_create_ordem_always_auto_numero(
+    client, session, org_admin_token
+):
     """Ordem criada sempre tem numero 'auto'."""
     payload = _make_ordem_payload()
 
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -108,7 +108,7 @@ async def test_create_ordem_always_auto_numero(client, session, token):
     assert data['numero'] == 'auto'
 
 
-async def test_create_ordem_with_etapas(client, session, token):
+async def test_create_ordem_with_etapas(client, session, org_admin_token):
     """Criacao de ordem com etapas calcula tvoo_etp e data_saida."""
     etapa = _make_etapa()
     payload = _make_ordem_payload(etapas=[etapa])
@@ -116,7 +116,7 @@ async def test_create_ordem_with_etapas(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -128,9 +128,11 @@ async def test_create_ordem_with_etapas(client, session, token):
     assert data['data_saida'] == '2025-06-15'
 
 
-async def test_create_ordem_with_etiquetas(client, session, token):
+async def test_create_ordem_with_etiquetas(client, session, org_admin_token):
     """Criacao de ordem com etiquetas vincula corretamente."""
-    etiqueta = Etiqueta(nome='Prioridade', cor='#FF0000', descricao='alta')
+    etiqueta = Etiqueta(
+        nome='Prioridade', cor='#FF0000', descricao='alta', uae='11gt'
+    )
     session.add(etiqueta)
     await session.commit()
     await session.refresh(etiqueta)
@@ -140,7 +142,7 @@ async def test_create_ordem_with_etiquetas(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -149,7 +151,9 @@ async def test_create_ordem_with_etiquetas(client, session, token):
     assert data['etiquetas'][0]['id'] == etiqueta.id
 
 
-async def test_create_ordem_with_campos_especiais(client, session, token):
+async def test_create_ordem_with_campos_especiais(
+    client, session, org_admin_token
+):
     """Criacao de ordem com campos especiais."""
     payload = _make_ordem_payload()
     payload['campos_especiais'] = [
@@ -159,7 +163,7 @@ async def test_create_ordem_with_campos_especiais(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -169,7 +173,7 @@ async def test_create_ordem_with_campos_especiais(client, session, token):
 
 
 async def test_create_ordem_etapa_minutes_not_multiple_of_5(
-    client, session, token
+    client, session, org_admin_token
 ):
     """Etapa com minutos nao multiplos de 5 falha na validacao."""
     etapa = _make_etapa(
@@ -181,13 +185,15 @@ async def test_create_ordem_etapa_minutes_not_multiple_of_5(
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_ordem_etapa_arr_before_dep(client, session, token):
+async def test_create_ordem_etapa_arr_before_dep(
+    client, session, org_admin_token
+):
     """Etapa com dt_arr <= dt_dep falha na validacao."""
     etapa = _make_etapa(
         dt_dep='2025-06-15T12:00:00',
@@ -198,13 +204,15 @@ async def test_create_ordem_etapa_arr_before_dep(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_ordem_etapa_tvoo_less_than_5_min(client, session, token):
+async def test_create_ordem_etapa_tvoo_less_than_5_min(
+    client, session, org_admin_token
+):
     """Etapa com tvoo_alt menor que 5 min falha na validacao."""
     etapa = _make_etapa(tvoo_alt=3)
     payload = _make_ordem_payload(etapas=[etapa])
@@ -212,14 +220,14 @@ async def test_create_ordem_etapa_tvoo_less_than_5_min(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def test_create_ordem_etapa_tvoo_etp_less_than_5_min(
-    client, session, token
+    client, session, org_admin_token
 ):
     """Etapa com tvoo_etp calculado < 5 min falha."""
     etapa = _make_etapa(
@@ -231,13 +239,13 @@ async def test_create_ordem_etapa_tvoo_etp_less_than_5_min(
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_ordem_multiple_etapas(client, session, token):
+async def test_create_ordem_multiple_etapas(client, session, org_admin_token):
     """Criacao com multiplas etapas define data_saida da primeira."""
     etapa1 = _make_etapa(
         dt_dep='2025-06-16T08:00:00',
@@ -256,13 +264,41 @@ async def test_create_ordem_multiple_etapas(client, session, token):
     response = await client.post(
         BASE_URL,
         json=payload,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()['data']
     assert len(data['etapas']) == 2
     assert data['data_saida'] == '2025-06-15'
+
+
+async def test_create_ordem_without_permission_fails(
+    client, session, org_token
+):
+    """Org ativa sem permissao ordem_missao.create responde 403.
+
+    `org_token` tem vinculo admin de Sistema (org None), que nao satisfaz
+    o escopo da org ativa '11gt' no permission_checker.
+    """
+    payload = _make_ordem_payload()
+    response = await client.post(
+        BASE_URL,
+        json=payload,
+        headers={'Authorization': f'Bearer {org_token}'},
+    )
+    assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_create_ordem_missing_active_org_fails(client, session, token):
+    """Sem org ativa no token, criar ordem responde 400."""
+    payload = _make_ordem_payload()
+    response = await client.post(
+        BASE_URL,
+        json=payload,
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_create_ordem_requires_auth(client):

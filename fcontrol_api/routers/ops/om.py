@@ -33,7 +33,11 @@ from fcontrol_api.schemas.ops.om import (
     RouteSuggestionOut,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
-from fcontrol_api.security import ActiveOrg, get_current_user
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.om import criar_tripulacao_batch
 from fcontrol_api.utils.responses import paginated_response, success_response
 from fcontrol_api.utils.strings import escape_like
@@ -301,6 +305,7 @@ async def create_ordem(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('ordem_missao', 'create'))],
 ):
     """Cria uma nova ordem de missão"""
 
@@ -392,6 +397,7 @@ async def update_ordem(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('ordem_missao', 'update'))],
 ):
     """Atualiza uma ordem de missão existente"""
     ordem = await session.scalar(
@@ -682,6 +688,7 @@ async def delete_ordem(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('ordem_missao', 'delete'))],
 ):
     """Soft delete de uma ordem de missão"""
     ordem = await session.scalar(
@@ -730,6 +737,7 @@ async def create_etiqueta(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('ordem_missao', 'create'))],
 ):
     """Cria uma nova etiqueta"""
     etiqueta = Etiqueta(
@@ -754,6 +762,7 @@ async def update_etiqueta(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('ordem_missao', 'update'))],
 ):
     """Atualiza uma etiqueta existente"""
     etiqueta = await session.scalar(
@@ -786,6 +795,7 @@ async def delete_etiqueta(
     session: Session,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    _: Annotated[User, Depends(permission_checker('ordem_missao', 'delete'))],
 ):
     """Remove uma etiqueta"""
     etiqueta = await session.scalar(

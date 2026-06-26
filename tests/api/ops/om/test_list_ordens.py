@@ -17,11 +17,11 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om/'
 
 
-async def test_list_ordens_empty(client, session, token):
+async def test_list_ordens_empty(client, session, org_admin_token):
     """Listagem sem ordens retorna lista vazia."""
     response = await client.get(
         BASE_URL,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -32,7 +32,9 @@ async def test_list_ordens_empty(client, session, token):
     assert resp['page'] == 1
 
 
-async def test_list_ordens_returns_items(client, session, users, token):
+async def test_list_ordens_returns_items(
+    client, session, users, org_admin_token
+):
     """Listagem retorna ordens existentes."""
     user, _ = users
 
@@ -43,7 +45,7 @@ async def test_list_ordens_returns_items(client, session, users, token):
 
     response = await client.get(
         BASE_URL,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -54,7 +56,9 @@ async def test_list_ordens_returns_items(client, session, users, token):
     assert resp['data'][0]['id'] == ordem.id
 
 
-async def test_list_ordens_excludes_deleted(client, session, users, token):
+async def test_list_ordens_excludes_deleted(
+    client, session, users, org_admin_token
+):
     """Ordens deletadas (soft delete) nao aparecem na listagem."""
     user, _ = users
 
@@ -68,7 +72,7 @@ async def test_list_ordens_excludes_deleted(client, session, users, token):
 
     response = await client.get(
         BASE_URL,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -77,7 +81,7 @@ async def test_list_ordens_excludes_deleted(client, session, users, token):
     assert resp['data'] == []
 
 
-async def test_list_ordens_pagination(client, session, users, token):
+async def test_list_ordens_pagination(client, session, users, org_admin_token):
     """Paginacao retorna itens corretos por pagina."""
     user, _ = users
 
@@ -88,7 +92,7 @@ async def test_list_ordens_pagination(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'page': 1, 'per_page': 2},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -100,7 +104,9 @@ async def test_list_ordens_pagination(client, session, users, token):
     assert resp['pages'] == 3
 
 
-async def test_list_ordens_pagination_last_page(client, session, users, token):
+async def test_list_ordens_pagination_last_page(
+    client, session, users, org_admin_token
+):
     """Ultima pagina retorna itens restantes."""
     user, _ = users
 
@@ -111,7 +117,7 @@ async def test_list_ordens_pagination_last_page(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'page': 3, 'per_page': 2},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -121,7 +127,9 @@ async def test_list_ordens_pagination_last_page(client, session, users, token):
     assert resp['page'] == 3
 
 
-async def test_list_ordens_filter_status(client, session, users, token):
+async def test_list_ordens_filter_status(
+    client, session, users, org_admin_token
+):
     """Filtro por status retorna apenas ordens com status especifico."""
     user, _ = users
 
@@ -133,7 +141,7 @@ async def test_list_ordens_filter_status(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'status': 'aprovada'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -144,7 +152,7 @@ async def test_list_ordens_filter_status(client, session, users, token):
 
 
 async def test_list_ordens_filter_multiple_status(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Filtro com multiplos status retorna ordens de ambos."""
     user, _ = users
@@ -160,7 +168,7 @@ async def test_list_ordens_filter_multiple_status(
             ('status', 'rascunho'),
             ('status', 'aprovada'),
         ],
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -168,7 +176,9 @@ async def test_list_ordens_filter_multiple_status(
     assert resp['total'] == 2
 
 
-async def test_list_ordens_filter_status_ne(client, session, users, token):
+async def test_list_ordens_filter_status_ne(
+    client, session, users, org_admin_token
+):
     """Filtro status_ne exclui ordens com status especifico."""
     user, _ = users
 
@@ -179,7 +189,7 @@ async def test_list_ordens_filter_status_ne(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'status_ne': 'rascunho'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -189,7 +199,7 @@ async def test_list_ordens_filter_status_ne(client, session, users, token):
 
 
 async def test_list_ordens_filter_data_inicio_fim(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Filtro por data_inicio e data_fim retorna ordens no intervalo."""
     user, _ = users
@@ -202,6 +212,19 @@ async def test_list_ordens_filter_data_inicio_fim(
     )
     session.add_all([ordem_hoje, ordem_passado])
     await session.commit()
+    await session.refresh(ordem_hoje)
+    await session.refresh(ordem_passado)
+
+    # O filtro de data do router opera sobre dt_dep das etapas, não sobre
+    # data_saida; criamos etapas coerentes para cada ordem.
+    now = datetime.now(timezone.utc)
+    session.add_all([
+        OrdemEtapaFactory(ordem_id=ordem_hoje.id, dt_dep=now),
+        OrdemEtapaFactory(
+            ordem_id=ordem_passado.id, dt_dep=now - timedelta(days=30)
+        ),
+    ])
+    await session.commit()
 
     response = await client.get(
         BASE_URL,
@@ -209,7 +232,7 @@ async def test_list_ordens_filter_data_inicio_fim(
             'data_inicio': (today - timedelta(days=1)).isoformat(),
             'data_fim': (today + timedelta(days=1)).isoformat(),
         },
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -217,7 +240,9 @@ async def test_list_ordens_filter_data_inicio_fim(
     assert resp['total'] == 1
 
 
-async def test_list_ordens_busca_by_numero(client, session, users, token):
+async def test_list_ordens_busca_by_numero(
+    client, session, users, org_admin_token
+):
     """Busca por numero da ordem retorna resultado correto."""
     user, _ = users
 
@@ -229,7 +254,7 @@ async def test_list_ordens_busca_by_numero(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'busca': 'UNICO'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -238,7 +263,9 @@ async def test_list_ordens_busca_by_numero(client, session, users, token):
     assert resp['data'][0]['numero'] == 'OM-UNICO-123'
 
 
-async def test_list_ordens_busca_by_tipo(client, session, users, token):
+async def test_list_ordens_busca_by_tipo(
+    client, session, users, org_admin_token
+):
     """Busca por tipo da ordem retorna resultado correto."""
     user, _ = users
 
@@ -250,7 +277,7 @@ async def test_list_ordens_busca_by_tipo(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'busca': 'instrucao'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -259,7 +286,9 @@ async def test_list_ordens_busca_by_tipo(client, session, users, token):
     assert resp['data'][0]['tipo'] == 'instrucao'
 
 
-async def test_list_ordens_busca_by_icao(client, session, users, token):
+async def test_list_ordens_busca_by_icao(
+    client, session, users, org_admin_token
+):
     """Busca por codigo ICAO de etapa retorna a ordem."""
     user, _ = users
 
@@ -275,7 +304,7 @@ async def test_list_ordens_busca_by_icao(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'busca': 'SBGL'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -285,11 +314,15 @@ async def test_list_ordens_busca_by_icao(client, session, users, token):
     assert ordem.id in ids
 
 
-async def test_list_ordens_filter_etiquetas(client, session, users, token):
+async def test_list_ordens_filter_etiquetas(
+    client, session, users, org_admin_token
+):
     """Filtro por etiquetas retorna ordens vinculadas."""
     user, _ = users
 
-    etiqueta = Etiqueta(nome='Urgente', cor='#FF0000', descricao='Teste')
+    etiqueta = Etiqueta(
+        nome='Urgente', cor='#FF0000', descricao='Teste', uae='11gt'
+    )
     session.add(etiqueta)
     await session.commit()
     await session.refresh(etiqueta)
@@ -307,13 +340,43 @@ async def test_list_ordens_filter_etiquetas(client, session, users, token):
     response = await client.get(
         BASE_URL,
         params={'etiquetas_ids': etiqueta.id},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert resp['total'] == 1
     assert resp['data'][0]['id'] == ordem_com.id
+
+
+async def test_list_ordens_read_without_write_permission(
+    client, session, users, org_token
+):
+    """Leitura exige apenas org ativa, nao permissao de escrita.
+
+    `org_token` nao tem grant ordem_missao na org ativa, mas a listagem
+    e uma rota de leitura (so ActiveOrg) e deve responder 200.
+    """
+    user, _ = users
+    session.add(OrdemMissaoFactory(created_by=user.id))
+    await session.commit()
+
+    response = await client.get(
+        BASE_URL,
+        headers={'Authorization': f'Bearer {org_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['total'] == 1
+
+
+async def test_list_ordens_missing_active_org_fails(client, token):
+    """Sem org ativa no token, listar ordens responde 400."""
+    response = await client.get(
+        BASE_URL,
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_list_ordens_requires_auth(client):

@@ -253,7 +253,7 @@ class OrdemMissaoFactory(factory.Factory):
     projeto = factory.fuzzy.FuzzyChoice(['KC-390'])
     status = 'aprovada'
     campos_especiais = []
-    uae = factory.fuzzy.FuzzyChoice(['1/1 GT', '2/1 GT', '3/1 GT'])
+    uae = '11gt'
     esf_aer = factory.fuzzy.FuzzyInteger(0, 5)
 
 
@@ -625,3 +625,4 @@ class EtiquetaFactory(factory.Factory):
     nome = factory.Sequence(lambda n: f'Etiqueta {n}')
     cor = factory.fuzzy.FuzzyChoice(['#FF0000', '#00FF00', '#0000FF'])
     descricao = factory.Sequence(lambda n: f'Descricao etiqueta {n}')
+    uae = '11gt'

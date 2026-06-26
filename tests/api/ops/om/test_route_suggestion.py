@@ -16,7 +16,9 @@ from tests.factories import OrdemEtapaFactory, OrdemMissaoFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_route_suggestion_full_match(client, session, users, token):
+async def test_route_suggestion_full_match(
+    client, session, users, org_admin_token
+):
     """Rota completa (origem + dest) retorna todos os campos."""
     user, _ = users
 
@@ -42,7 +44,7 @@ async def test_route_suggestion_full_match(client, session, users, token):
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SBGL', 'dest': 'SBBR'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -64,7 +66,7 @@ async def test_route_suggestion_full_match(client, session, users, token):
 
 
 async def test_route_suggestion_partial_match_dest_only(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Rota inexistente mas destino visitado retorna dados parciais."""
     user, _ = users
@@ -91,7 +93,7 @@ async def test_route_suggestion_partial_match_dest_only(
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SBGL', 'dest': 'SBBR'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -112,7 +114,9 @@ async def test_route_suggestion_partial_match_dest_only(
     assert data['tvoo_alt'] == 45
 
 
-async def test_route_suggestion_no_match(client, session, users, token):
+async def test_route_suggestion_no_match(
+    client, session, users, org_admin_token
+):
     """Nem rota nem destino existem, retorna None."""
     user, _ = users
 
@@ -135,7 +139,7 @@ async def test_route_suggestion_no_match(client, session, users, token):
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SBGL', 'dest': 'SBJD'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -145,7 +149,7 @@ async def test_route_suggestion_no_match(client, session, users, token):
 
 
 async def test_route_suggestion_ignores_rascunho(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Ordens com status 'rascunho' sao ignoradas na busca."""
     user, _ = users
@@ -169,7 +173,7 @@ async def test_route_suggestion_ignores_rascunho(
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SBGL', 'dest': 'SBBR'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -178,13 +182,13 @@ async def test_route_suggestion_ignores_rascunho(
     assert resp['data'] is None
 
 
-async def test_route_suggestion_invalid_icao(client, token):
+async def test_route_suggestion_invalid_icao(client, org_admin_token):
     """Codigos ICAO invalidos (nao 4 caracteres) retornam None."""
     # ICAO com menos de 4 caracteres
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SB', 'dest': 'SBBR'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -196,7 +200,7 @@ async def test_route_suggestion_invalid_icao(client, token):
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SBGLX', 'dest': 'SBBR'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -206,7 +210,7 @@ async def test_route_suggestion_invalid_icao(client, token):
 
 
 async def test_route_suggestion_case_insensitive(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """A busca deve ser case-insensitive (sbgl == SBGL)."""
     user, _ = users
@@ -230,7 +234,7 @@ async def test_route_suggestion_case_insensitive(
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'sbgl', 'dest': 'sbbr'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -243,7 +247,7 @@ async def test_route_suggestion_case_insensitive(
 
 
 async def test_route_suggestion_returns_most_recent(
-    client, session, users, token
+    client, session, users, org_admin_token
 ):
     """Multiplas etapas para mesma rota retorna a mais recente."""
     user, _ = users
@@ -286,7 +290,7 @@ async def test_route_suggestion_returns_most_recent(
     response = await client.get(
         '/ops/om/route-suggestions',
         params={'origem': 'SBGL', 'dest': 'SBBR'},
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
