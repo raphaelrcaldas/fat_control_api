@@ -15,7 +15,6 @@ from fcontrol_api.models.aeromedica.atas import AtaInspecao
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.aeromedica.atas import (
-    AllBucketsStatsPublic,
     AtaExtrairResponse,
     AtaInspecaoPublic,
     AtaInspecaoWithUrl,
@@ -25,9 +24,7 @@ from fcontrol_api.schemas.aeromedica.atas import (
     AtasOrfasResumo,
     AtaUpdate,
     AtaUploadResponse,
-    BucketStatsPublic,
     DadosExtraidos,
-    StorageStatsPublic,
 )
 from fcontrol_api.schemas.response import (
     ApiResponse,
@@ -40,8 +37,6 @@ from fcontrol_api.services.aeromedica_extracao import (
 from fcontrol_api.services.pdf import comprimir_pdf
 from fcontrol_api.services.storage import (
     delete_file,
-    get_all_buckets_stats,
-    get_bucket_stats,
     get_signed_url,
     upload_file,
 )
@@ -52,6 +47,15 @@ logger = logging.getLogger(__name__)
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# Bucket do domínio aeromédica. O nome do bucket é constante de código
+# (não é env/secret) — cada domínio tem o seu. Ver services/storage.py.
+BUCKET = 'aeromedica'
+
+# Sub-pasta (prefixo de key) das atas dentro do bucket do domínio, isolando-as
+# de outros arquivos da aeromédica (ex.: futuros cartões). Sem acento por
+# consistência com as demais keys (o nome do arquivo já é ASCII no upload).
+ATAS_PREFIX = 'atas-inspecao'
 
 
 async def _validar_pdf(file: UploadFile) -> bytes:
@@ -249,9 +253,10 @@ async def upload_ata(
 
     # Upload para o bucket
     timestamp = now.strftime('%Y%m%d_%H%M%S')
-    path = f'{user_id}/{timestamp}_{file_name}'
+    path = f'{ATAS_PREFIX}/{user_id}/{timestamp}_{file_name}'
 
     upload_file(
+        bucket=BUCKET,
         path=path,
         data=conteudo,
         content_type='application/pdf',
@@ -294,7 +299,7 @@ async def upload_ata(
         await session.refresh(ata)
     except Exception:
         logger.exception('Erro ao salvar ata no banco')
-        delete_file(path)
+        delete_file(BUCKET, path)
         raise
 
     dados_extraidos = DadosExtraidos(
@@ -340,7 +345,7 @@ async def get_atas_by_user(
 
     data = []
     for ata in atas:
-        url = get_signed_url(ata.file_path)
+        url = get_signed_url(BUCKET, ata.file_path)
         ata_dict = AtaInspecaoPublic.model_validate(ata).model_dump()
         ata_dict['url'] = url
         data.append(AtaInspecaoWithUrl(**ata_dict))
@@ -410,7 +415,7 @@ async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
         # para garantir consistência banco↔storage: o registro é sempre
         # removido do banco mesmo que o objeto físico não exista mais.
         try:
-            delete_file(ata.file_path)
+            delete_file(BUCKET, ata.file_path)
         except Exception:
             logger.warning(
                 'Falha ao remover arquivo da ata órfã %s (%s)',
@@ -497,39 +502,10 @@ async def delete_ata(
             detail='Ata não encontrada',
         )
 
-    delete_file(ata.file_path)
+    delete_file(BUCKET, ata.file_path)
     await session.delete(ata)
     await session.commit()
 
     return success_response(
         message='Ata removida com sucesso',
-    )
-
-
-@router.get(
-    '/storage/stats',
-    response_model=ApiResponse[StorageStatsPublic],
-)
-async def storage_stats():
-    """Retorna estatisticas de uso do bucket."""
-    stats = await asyncio.to_thread(get_bucket_stats)
-    return success_response(
-        data=StorageStatsPublic(**stats),
-    )
-
-
-@router.get(
-    '/storage/all',
-    response_model=ApiResponse[AllBucketsStatsPublic],
-)
-async def all_buckets_stats():
-    """Retorna estatisticas de todos os buckets."""
-    stats = await asyncio.to_thread(get_all_buckets_stats)
-    buckets = [BucketStatsPublic(**b) for b in stats['buckets']]
-    return success_response(
-        data=AllBucketsStatsPublic(
-            total_size=stats['total_size'],
-            total_objects=stats['total_objects'],
-            buckets=buckets,
-        ),
     )

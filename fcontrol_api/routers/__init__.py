@@ -18,6 +18,7 @@ from fcontrol_api.routers import (
     projetos,
     security,
     seg_voo,
+    storage,
     tenants,
     users,
 )
@@ -40,5 +41,6 @@ router.include_router(postos.router)
 router.include_router(projetos.router)
 router.include_router(security.router)
 router.include_router(seg_voo.router)
+router.include_router(storage.router)
 router.include_router(tenants.router)
 router.include_router(users.router)

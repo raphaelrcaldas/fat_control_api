@@ -9,11 +9,12 @@ from fcontrol_api.settings import Settings
 
 logger = logging.getLogger(__name__)
 
-# Flag + lock para garantir que a verificação/criação do bucket rode no
-# máximo uma vez por processo, sem race condition sob threads concorrentes
-# (FastAPI executa handlers síncronos em thread pool — múltiplos uploads
-# simultâneos entrariam em ensure_bucket() ao mesmo tempo).
-_bucket_verified = False
+# Conjunto de buckets já verificados + lock, para que a verificação/criação
+# de cada bucket rode no máximo uma vez por processo, sem race condition sob
+# threads concorrentes (FastAPI executa handlers síncronos em thread pool —
+# múltiplos uploads simultâneos entrariam em ensure_bucket() ao mesmo tempo).
+# Cada domínio usa seu próprio bucket, daí ser rastreado por nome.
+_verified_buckets: set[str] = set()
 _bucket_lock = threading.Lock()
 
 
@@ -49,39 +50,33 @@ def _get_client():
     )
 
 
-@cache
-def _get_bucket() -> str:
-    return Settings().STORAGE_BUCKET
-
-
-def ensure_bucket() -> None:
-    """Garante que o bucket existe. Idempotente e à prova de falhas.
+def ensure_bucket(bucket: str) -> None:
+    """Garante que `bucket` existe. Idempotente e à prova de falhas.
 
     Chamado de forma lazy (primeira operação de escrita) — NÃO deve
     ser chamado no boot, para não acoplar disponibilidade do storage
-    ao startup da API.
+    ao startup da API. Cada domínio tem seu próprio bucket, então a
+    verificação é rastreada por nome.
     """
-    global _bucket_verified  # noqa: PLW0603
-    if _bucket_verified:
+    if bucket in _verified_buckets:
         return
 
     with _bucket_lock:
         # Double-checked locking: outra thread pode ter verificado
         # enquanto esperávamos o lock.
-        if _bucket_verified:
+        if bucket in _verified_buckets:
             return
 
         client = _get_client()
-        bucket = _get_bucket()
         try:
             client.head_bucket(Bucket=bucket)
-            _bucket_verified = True
+            _verified_buckets.add(bucket)
         except ClientError as e:
             code = e.response['Error']['Code']
             if code == '404':
                 try:
                     client.create_bucket(Bucket=bucket)
-                    _bucket_verified = True
+                    _verified_buckets.add(bucket)
                 except ClientError:
                     logger.exception('Falha ao criar bucket %s', bucket)
             elif code in {'403', 'AccessDenied', 'Forbidden'}:
@@ -94,7 +89,7 @@ def ensure_bucket() -> None:
                     bucket,
                     code,
                 )
-                _bucket_verified = True
+                _verified_buckets.add(bucket)
             else:
                 # 5xx/timeouts/etc.: storage pode estar instável. NÃO
                 # marcamos como verificado — tentamos de novo na próxima
@@ -112,14 +107,14 @@ def ensure_bucket() -> None:
 
 
 def upload_file(
+    bucket: str,
     path: str,
     data: bytes,
     content_type: str,
     size: int,
 ) -> None:
-    ensure_bucket()
+    ensure_bucket(bucket)
     client = _get_client()
-    bucket = _get_bucket()
     client.upload_fileobj(
         Fileobj=BytesIO(data),
         Bucket=bucket,
@@ -128,9 +123,8 @@ def upload_file(
     )
 
 
-def get_signed_url(path: str, expires: int = 900) -> str:
+def get_signed_url(bucket: str, path: str, expires: int = 900) -> str:
     client = _get_client()
-    bucket = _get_bucket()
     return client.generate_presigned_url(
         'get_object',
         Params={'Bucket': bucket, 'Key': path},
@@ -138,21 +132,29 @@ def get_signed_url(path: str, expires: int = 900) -> str:
     )
 
 
-def delete_file(path: str) -> None:
+def delete_file(bucket: str, path: str) -> None:
     client = _get_client()
-    bucket = _get_bucket()
     client.delete_object(Bucket=bucket, Key=path)
 
 
-def get_bucket_stats() -> dict:
+def get_bucket_stats(bucket: str, prefix: str | None = None) -> dict:
+    """Estatísticas de uso de um bucket.
+
+    Informe `prefix` para escopar a contagem a um subconjunto de objetos
+    (ex.: um tipo de arquivo dentro do bucket do domínio). Sem `prefix`,
+    contabiliza o bucket inteiro.
+    """
     client = _get_client()
-    bucket = _get_bucket()
     total_size = 0
     total_objects = 0
 
+    paginate_kwargs: dict = {'Bucket': bucket}
+    if prefix:
+        paginate_kwargs['Prefix'] = prefix
+
     try:
         paginator = client.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=bucket):
+        for page in paginator.paginate(**paginate_kwargs):
             for obj in page.get('Contents', []):
                 total_size += obj.get('Size', 0)
                 total_objects += 1
