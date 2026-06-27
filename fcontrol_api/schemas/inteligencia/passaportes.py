@@ -48,6 +48,10 @@ class PassaporteUpdate(PassaporteBase):
 class PassaportePublic(PassaporteBase):
     id: int
     user_id: int
+    # URLs assinadas (efêmeras) das imagens, preenchidas nos handlers a
+    # partir das keys *_file_path do ORM. As colunas cruas não são expostas.
+    passaporte_url: str | None = None
+    visa_url: str | None = None
 
 
 class TripPassaporteOut(BaseModel):
@@ -61,3 +65,28 @@ class TripPassaporteOut(BaseModel):
     passaporte: PassaportePublic | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ImagemOrfaPublic(BaseModel):
+    """Militar inativo que ainda tem imagem(ns) de passaporte/visto."""
+
+    user_id: int
+    p_g: str
+    nome_guerra: str
+    nome_completo: str | None
+    tem_passaporte: bool
+    tem_visa: bool
+
+
+class ImagensOrfasResumo(BaseModel):
+    total_imagens: int
+    total_militares: int
+    itens: list[ImagemOrfaPublic]
+
+
+class ImagensOrfasDelete(BaseModel):
+    user_ids: list[int]
+
+
+class ImagensOrfasDeleteResponse(BaseModel):
+    deleted: int

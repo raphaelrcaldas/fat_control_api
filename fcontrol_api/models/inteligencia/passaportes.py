@@ -34,6 +34,10 @@ class Passaporte(Base):
     visa: Mapped[str | None] = mapped_column(String(20))
     data_expedicao_visa: Mapped[date | None]
     validade_visa: Mapped[date | None]
+    # KEY do objeto JPG no bucket `inteligencia` (sem o nome do bucket).
+    # TEXT (sem limite fixo): a key carrega prefixo/user_id/timestamp/nome.
+    passaporte_file_path: Mapped[str | None] = mapped_column(default=None)
+    visa_file_path: Mapped[str | None] = mapped_column(default=None)
 
     user = relationship(
         User,
