@@ -15,7 +15,7 @@ from fcontrol_api.models.cegep.missoes import Etiqueta
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_etiqueta_success(client, session, org_token):
+async def test_create_etiqueta_success(client, session, org_admin_token):
     """Testa criacao de etiqueta com sucesso."""
     payload = {
         'nome': 'Nova Etiqueta',
@@ -24,7 +24,7 @@ async def test_create_etiqueta_success(client, session, org_token):
 
     response = await client.post(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=payload,
     )
 
@@ -48,7 +48,7 @@ async def test_create_etiqueta_success(client, session, org_token):
 
 
 async def test_create_etiqueta_without_token(client):
-    """Testa que requisicao sem org_token falha."""
+    """Testa que requisicao sem org_admin_token falha."""
     payload = {'nome': 'Teste', 'cor': '#FF0000'}
 
     response = await client.post('/cegep/missoes/etiquetas', json=payload)
@@ -56,26 +56,26 @@ async def test_create_etiqueta_without_token(client):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_create_etiqueta_missing_nome(client, org_token):
+async def test_create_etiqueta_missing_nome(client, org_admin_token):
     """Testa que falta de nome falha."""
     payload = {'cor': '#FF0000'}
 
     response = await client.post(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=payload,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_etiqueta_missing_cor(client, org_token):
+async def test_create_etiqueta_missing_cor(client, org_admin_token):
     """Testa que falta de cor falha."""
     payload = {'nome': 'Etiqueta sem cor'}
 
     response = await client.post(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=payload,
     )
 
@@ -83,7 +83,7 @@ async def test_create_etiqueta_missing_cor(client, org_token):
 
 
 async def test_update_etiqueta_success(
-    client, session, org_token, etiqueta_existente
+    client, session, org_admin_token, etiqueta_existente
 ):
     """Testa atualizacao de etiqueta com sucesso."""
     payload = {
@@ -95,7 +95,7 @@ async def test_update_etiqueta_success(
 
     response = await client.post(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=payload,
     )
 
@@ -115,7 +115,7 @@ async def test_update_etiqueta_success(
     assert etiqueta_existente.nome == 'Etiqueta Atualizada'
 
 
-async def test_update_etiqueta_not_found(client, org_token):
+async def test_update_etiqueta_not_found(client, org_admin_token):
     """Testa atualizacao de etiqueta inexistente."""
     payload = {
         'id': 99999,
@@ -125,7 +125,7 @@ async def test_update_etiqueta_not_found(client, org_token):
 
     response = await client.post(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=payload,
     )
 
@@ -133,7 +133,9 @@ async def test_update_etiqueta_not_found(client, org_token):
     assert 'não encontrada' in response.json()['message'].lower()
 
 
-async def test_create_etiqueta_with_descricao(client, session, org_token):
+async def test_create_etiqueta_with_descricao(
+    client, session, org_admin_token
+):
     """Testa criacao de etiqueta com descricao."""
     payload = {
         'nome': 'Etiqueta Completa',
@@ -143,7 +145,7 @@ async def test_create_etiqueta_with_descricao(client, session, org_token):
 
     response = await client.post(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=payload,
     )
 

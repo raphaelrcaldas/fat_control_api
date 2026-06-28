@@ -15,7 +15,7 @@ from fcontrol_api.schemas.cegep.missoes import (
     normalizar_n_doc,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.custos import custo_missao
 from fcontrol_api.utils.responses import paginated_response
 
@@ -23,8 +23,15 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/financeiro', tags=['CEGEP'])
 
+# Leitura de pagamentos é uma visão financeira de missões CEGEP.
+ViewPgts = Depends(permission_checker('missoes_cegep', 'view'))
 
-@router.get('/pgts', response_model=ApiPaginatedResponse[PagamentoItem])
+
+@router.get(
+    '/pgts',
+    response_model=ApiPaginatedResponse[PagamentoItem],
+    dependencies=[ViewPgts],
+)
 async def get_pgto(
     session: Session,
     active_org: ActiveOrg,

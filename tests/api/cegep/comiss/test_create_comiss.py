@@ -43,11 +43,13 @@ async def comiss_data(users):
     }
 
 
-async def test_create_comiss_success(client, session, org_token, comiss_data):
+async def test_create_comiss_success(
+    client, session, org_admin_token, comiss_data
+):
     """Testa criacao de comissionamento com sucesso."""
     response = await client.post(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=comiss_data,
     )
 
@@ -67,7 +69,7 @@ async def test_create_comiss_success(client, session, org_token, comiss_data):
 
 
 async def test_create_comiss_only_one_open_per_user(
-    client, session, org_token, users, comiss_data
+    client, session, org_admin_token, users, comiss_data
 ):
     """Testa que usuario pode ter apenas 1 comissionamento aberto."""
     user, _ = users
@@ -80,7 +82,7 @@ async def test_create_comiss_only_one_open_per_user(
     # Tenta criar segundo comissionamento aberto
     response = await client.post(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=comiss_data,
     )
 
@@ -90,7 +92,7 @@ async def test_create_comiss_only_one_open_per_user(
 
 
 async def test_create_comiss_allows_multiple_if_closed(
-    client, session, org_token, users, comiss_data
+    client, session, org_admin_token, users, comiss_data
 ):
     """Testa que usuario pode criar novo se anterior estiver fechado."""
     user, _ = users
@@ -109,7 +111,7 @@ async def test_create_comiss_allows_multiple_if_closed(
     # Cria novo comissionamento aberto
     response = await client.post(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=comiss_data,
     )
 
@@ -117,7 +119,7 @@ async def test_create_comiss_allows_multiple_if_closed(
 
 
 async def test_create_comiss_date_conflict(
-    client, session, org_token, users, comiss_data
+    client, session, org_admin_token, users, comiss_data
 ):
     """Testa que nao permite criar com conflito de datas."""
     user, _ = users
@@ -136,7 +138,7 @@ async def test_create_comiss_date_conflict(
     # Tenta criar com datas sobrepostas
     response = await client.post(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=comiss_data,
     )
 
@@ -146,13 +148,15 @@ async def test_create_comiss_date_conflict(
 
 
 async def test_create_comiss_without_token(client, comiss_data):
-    """Testa que requisicao sem org_token falha."""
+    """Testa que requisicao sem org_admin_token falha."""
     response = await client.post('/cegep/comiss/', json=comiss_data)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_create_comiss_missing_required_field(client, org_token, users):
+async def test_create_comiss_missing_required_field(
+    client, org_admin_token, users
+):
     """Testa que campo obrigatorio faltando falha."""
     user, _ = users
 
@@ -173,7 +177,7 @@ async def test_create_comiss_missing_required_field(client, org_token, users):
 
     response = await client.post(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=comiss_data,
     )
 

@@ -29,7 +29,11 @@ from fcontrol_api.schemas.cegep.comiss import (
 from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import ActiveOrg, get_current_user
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.comis import (
     filtro_missoes_periodo,
     recalcular_cache_comiss,
@@ -48,6 +52,13 @@ router = APIRouter(prefix='/comiss', tags=['CEGEP'])
 
 RESOURCE = 'comissionamento'
 
+# Gating RBAC pelo recurso `comiss` (apoio_avancado tem CRUD; a leitura é
+# concedida também a dout/ops). O escopo por org já é feito via active_org.
+ViewComiss = Depends(permission_checker('comiss', 'view'))
+CreateComiss = Depends(permission_checker('comiss', 'create'))
+UpdateComiss = Depends(permission_checker('comiss', 'update'))
+DeleteComiss = Depends(permission_checker('comiss', 'delete'))
+
 
 def _comiss_to_dict(c: Comissionamento) -> dict:
     """Snapshot JSON-serializável para auditoria (before/after)."""
@@ -56,7 +67,11 @@ def _comiss_to_dict(c: Comissionamento) -> dict:
     )
 
 
-@router.get('/', response_model=ApiResponse[list[ComissPublic]])
+@router.get(
+    '/',
+    response_model=ApiResponse[list[ComissPublic]],
+    dependencies=[ViewComiss],
+)
 async def get_cmtos(
     session: Session,
     active_org: ActiveOrg,
@@ -157,7 +172,11 @@ async def get_cmtos(
     return success_response(data=response)
 
 
-@router.get('/summary', response_model=ApiResponse[ComissSummaryResponse])
+@router.get(
+    '/summary',
+    response_model=ApiResponse[ComissSummaryResponse],
+    dependencies=[ViewComiss],
+)
 async def get_summary(
     session: Session,
     ano: int,
@@ -251,7 +270,11 @@ async def get_summary(
     return success_response(data=data)
 
 
-@router.get('/{comiss_id}', response_model=ApiResponse[ComissDetail])
+@router.get(
+    '/{comiss_id}',
+    response_model=ApiResponse[ComissDetail],
+    dependencies=[ViewComiss],
+)
 async def get_cmto_by_id(
     comiss_id: int,
     session: Session,
@@ -392,7 +415,11 @@ async def get_cmto_by_id(
     return success_response(data=detail)
 
 
-@router.post('/', response_model=ApiResponse[None])
+@router.post(
+    '/',
+    response_model=ApiResponse[None],
+    dependencies=[CreateComiss],
+)
 async def create_cmto(
     session: Session,
     current_user: CurrentUser,
@@ -443,7 +470,11 @@ async def create_cmto(
     return success_response(message='Comissionamento criado com sucesso')
 
 
-@router.put('/{comiss_id}', response_model=ApiResponse[None])
+@router.put(
+    '/{comiss_id}',
+    response_model=ApiResponse[None],
+    dependencies=[UpdateComiss],
+)
 async def update_cmto(
     comiss_id: int,
     session: Session,
@@ -574,6 +605,7 @@ async def update_cmto(
 @router.delete(
     '/{comiss_id}',
     response_model=ApiResponse[ComissDeletePreview | None],
+    dependencies=[DeleteComiss],
 )
 async def delete_cmto(
     comiss_id: int,

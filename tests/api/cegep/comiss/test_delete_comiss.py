@@ -20,7 +20,7 @@ from tests.factories import ComissFactory, FragMisFactory, UserFragFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_delete_comiss_success(client, session, org_token, users):
+async def test_delete_comiss_success(client, session, org_admin_token, users):
     """Testa delecao de comissionamento sem missoes."""
     user, _ = users
 
@@ -33,7 +33,7 @@ async def test_delete_comiss_success(client, session, org_token, users):
 
     response = await client.delete(
         f'/cegep/comiss/{comiss_id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -48,11 +48,11 @@ async def test_delete_comiss_success(client, session, org_token, users):
     assert db_comiss is None
 
 
-async def test_delete_comiss_not_found(client, org_token):
+async def test_delete_comiss_not_found(client, org_admin_token):
     """Testa delecao de comissionamento inexistente."""
     response = await client.delete(
         '/cegep/comiss/99999',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -91,7 +91,7 @@ async def _comiss_com_missao(session, user, today):
 
 
 async def test_delete_comiss_with_missoes_preview(
-    client, session, org_token, users
+    client, session, org_admin_token, users
 ):
     """Com missoes e sem confirm → preview (warning), sem deletar."""
     user, _ = users
@@ -99,7 +99,7 @@ async def test_delete_comiss_with_missoes_preview(
 
     response = await client.delete(
         f'/cegep/comiss/{comiss.id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -116,7 +116,7 @@ async def test_delete_comiss_with_missoes_preview(
 
 
 async def test_delete_comiss_with_missoes_confirm(
-    client, session, org_token, users
+    client, session, org_admin_token, users
 ):
     """Com confirm=true → cascade: desvincula e remove a missao órfã."""
     user, _ = users
@@ -124,7 +124,7 @@ async def test_delete_comiss_with_missoes_confirm(
 
     response = await client.delete(
         f'/cegep/comiss/{comiss.id}?confirm=true',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -137,7 +137,7 @@ async def test_delete_comiss_with_missoes_confirm(
 
 
 async def test_delete_comiss_with_diaria_user_allows(
-    client, session, org_token, users
+    client, session, org_admin_token, users
 ):
     """Testa que permite deletar mesmo com usuario em situacao diaria."""
     user, _ = users
@@ -177,7 +177,7 @@ async def test_delete_comiss_with_diaria_user_allows(
     # Deve permitir deletar pois nao ha missao com sit='c'
     response = await client.delete(
         f'/cegep/comiss/{comiss_id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -190,7 +190,7 @@ async def test_delete_comiss_with_diaria_user_allows(
 
 
 async def test_delete_comiss_without_token(client, session, users):
-    """Testa que requisicao sem org_token falha."""
+    """Testa que requisicao sem org_admin_token falha."""
     user, _ = users
 
     comiss = ComissFactory(user_id=user.id)

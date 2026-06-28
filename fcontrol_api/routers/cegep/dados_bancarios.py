@@ -21,12 +21,20 @@ from fcontrol_api.schemas.cegep.dados_bancarios import (
     DadosBancariosWithUser,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import permission_checker
 from fcontrol_api.services.portal_transparencia import buscar_remuneracao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/dados-bancarios', tags=['CEGEP'])
+
+# Dados bancários são PII financeira: leitura (inclusive consulta ao Portal
+# da Transparência) e escrita restritas ao recurso `dados_bancarios`.
+ViewBanco = Depends(permission_checker('dados_bancarios', 'view'))
+CreateBanco = Depends(permission_checker('dados_bancarios', 'create'))
+UpdateBanco = Depends(permission_checker('dados_bancarios', 'update'))
+DeleteBanco = Depends(permission_checker('dados_bancarios', 'delete'))
 
 
 class SyncRemuneracaoRequest(BaseModel):
@@ -43,7 +51,11 @@ class SyncRemuneracaoResponse(BaseModel):
     remuneracao_liquida: Optional[Decimal] = None
 
 
-@router.get('/', response_model=ApiResponse[list[DadosBancariosWithUser]])
+@router.get(
+    '/',
+    response_model=ApiResponse[list[DadosBancariosWithUser]],
+    dependencies=[ViewBanco],
+)
 async def get_dados_bancarios(
     session: Session,
     user_id: int = None,
@@ -72,6 +84,7 @@ async def get_dados_bancarios(
 @router.get(
     '/orfaos',
     response_model=ApiResponse[list[DadosBancariosWithUser]],
+    dependencies=[ViewBanco],
 )
 async def get_dados_bancarios_orfaos(
     session: Session,
@@ -93,6 +106,7 @@ async def get_dados_bancarios_orfaos(
 @router.delete(
     '/orfaos',
     response_model=ApiResponse[DadosBancariosBulkDeleteResponse],
+    dependencies=[DeleteBanco],
 )
 async def delete_dados_bancarios_orfaos(
     session: Session,
@@ -130,7 +144,11 @@ async def delete_dados_bancarios_orfaos(
     )
 
 
-@router.get('/{dados_id}', response_model=ApiResponse[DadosBancariosWithUser])
+@router.get(
+    '/{dados_id}',
+    response_model=ApiResponse[DadosBancariosWithUser],
+    dependencies=[ViewBanco],
+)
 async def get_dados_bancarios_by_id(
     dados_id: int,
     session: Session,
@@ -152,6 +170,7 @@ async def get_dados_bancarios_by_id(
 @router.get(
     '/user/{user_id}',
     response_model=ApiResponse[DadosBancariosPublic],
+    dependencies=[ViewBanco],
 )
 async def get_dados_bancarios_by_user(
     user_id: int,
@@ -174,6 +193,7 @@ async def get_dados_bancarios_by_user(
 @router.post(
     '/sync-remuneracao',
     response_model=ApiResponse[SyncRemuneracaoResponse],
+    dependencies=[ViewBanco],
 )
 async def sync_remuneracao_portal(
     session: Session,
@@ -213,6 +233,7 @@ async def sync_remuneracao_portal(
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[DadosBancariosPublic],
+    dependencies=[CreateBanco],
 )
 async def create_dados_bancarios(
     session: Session,
@@ -250,7 +271,11 @@ async def create_dados_bancarios(
     )
 
 
-@router.put('/{dados_id}', response_model=ApiResponse[None])
+@router.put(
+    '/{dados_id}',
+    response_model=ApiResponse[None],
+    dependencies=[UpdateBanco],
+)
 async def update_dados_bancarios(
     dados_id: int,
     session: Session,
@@ -276,7 +301,11 @@ async def update_dados_bancarios(
     return success_response(message='Dados bancários atualizados com sucesso')
 
 
-@router.delete('/{dados_id}', response_model=ApiResponse[None])
+@router.delete(
+    '/{dados_id}',
+    response_model=ApiResponse[None],
+    dependencies=[DeleteBanco],
+)
 async def delete_dados_bancarios(
     dados_id: int,
     session: Session,

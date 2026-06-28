@@ -35,7 +35,11 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
 )
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import ActiveOrg, get_current_user
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
@@ -55,6 +59,12 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 
 RESOURCE = 'missao'
+
+# Gating RBAC pelo recurso `missoes_cegep` (apoio_avancado). O escopo por
+# org já é feito via active_org. Etiquetas herdam o mesmo recurso.
+ViewMis = Depends(permission_checker('missoes_cegep', 'view'))
+CreateMis = Depends(permission_checker('missoes_cegep', 'create'))
+DeleteMis = Depends(permission_checker('missoes_cegep', 'delete'))
 
 
 def _missao_to_dict(m: FragMis) -> dict:
@@ -76,7 +86,11 @@ def _missao_to_dict(m: FragMis) -> dict:
     }
 
 
-@router.get('/', response_model=ApiPaginatedResponse[FragMisSchema])
+@router.get(
+    '/',
+    response_model=ApiPaginatedResponse[FragMisSchema],
+    dependencies=[ViewMis],
+)
 async def get_fragmentos(
     session: Session,
     active_org: ActiveOrg,
@@ -252,7 +266,11 @@ async def get_fragmentos(
 # ============ ENDPOINTS DE ETIQUETAS ============
 
 
-@router.get('/etiquetas', response_model=ApiResponse[list[EtiquetaSchema]])
+@router.get(
+    '/etiquetas',
+    response_model=ApiResponse[list[EtiquetaSchema]],
+    dependencies=[ViewMis],
+)
 async def get_etiquetas(session: Session, active_org: ActiveOrg):
     """Lista as etiquetas da org ativa"""
     stmt = (
@@ -264,7 +282,11 @@ async def get_etiquetas(session: Session, active_org: ActiveOrg):
     return success_response(data=list(db_etiquetas))
 
 
-@router.post('/etiquetas', response_model=ApiResponse[EtiquetaSchema])
+@router.post(
+    '/etiquetas',
+    response_model=ApiResponse[EtiquetaSchema],
+    dependencies=[CreateMis],
+)
 async def create_or_update_etiqueta(
     payload: EtiquetaInput, session: Session, active_org: ActiveOrg
 ):
@@ -305,7 +327,11 @@ async def create_or_update_etiqueta(
     )
 
 
-@router.delete('/etiquetas/{etiqueta_id}', response_model=ApiResponse[None])
+@router.delete(
+    '/etiquetas/{etiqueta_id}',
+    response_model=ApiResponse[None],
+    dependencies=[DeleteMis],
+)
 async def delete_etiqueta(
     etiqueta_id: int, session: Session, active_org: ActiveOrg
 ):
@@ -330,6 +356,7 @@ async def delete_etiqueta(
 @router.get(
     '/pernoites/cidades',
     response_model=ApiResponse[list[CidadePernoiteSchema]],
+    dependencies=[ViewMis],
 )
 async def buscar_cidades_pernoite(
     session: Session,
@@ -392,7 +419,11 @@ async def buscar_cidades_pernoite(
     return success_response(data=data)
 
 
-@router.get('/{id}', response_model=ApiResponse[MissaoDetail])
+@router.get(
+    '/{id}',
+    response_model=ApiResponse[MissaoDetail],
+    dependencies=[ViewMis],
+)
 async def get_missao(id: int, session: Session, active_org: ActiveOrg):
     """Obter uma missão específica pelo ID, com histórico de auditoria."""
     missao = await session.scalar(
@@ -459,7 +490,11 @@ async def get_missao(id: int, session: Session, active_org: ActiveOrg):
     return success_response(data=missao_detail)
 
 
-@router.post('/', response_model=ApiResponse[None])
+@router.post(
+    '/',
+    response_model=ApiResponse[None],
+    dependencies=[CreateMis],
+)
 async def create_or_update_missao(
     payload: FragMisSchema,
     session: Session,
@@ -548,7 +583,11 @@ async def create_or_update_missao(
     return success_response(message='Missão salva com sucesso')
 
 
-@router.delete('/{id}', response_model=ApiResponse[None])
+@router.delete(
+    '/{id}',
+    response_model=ApiResponse[None],
+    dependencies=[DeleteMis],
+)
 async def delete_fragmis(
     id: int,
     session: Session,

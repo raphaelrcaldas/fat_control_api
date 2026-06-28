@@ -38,7 +38,7 @@ async def comiss_existente(session, users):
 
 
 async def test_update_comiss_success(
-    client, session, org_token, users, comiss_existente
+    client, session, org_admin_token, users, comiss_existente
 ):
     """Testa atualizacao de comissionamento com sucesso."""
     user, _ = users
@@ -62,7 +62,7 @@ async def test_update_comiss_success(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=update_data,
     )
 
@@ -78,7 +78,7 @@ async def test_update_comiss_success(
     assert comiss_existente.doc_enc == 'ENC-0001/2025'
 
 
-async def test_update_comiss_not_found(client, org_token, users):
+async def test_update_comiss_not_found(client, org_admin_token, users):
     """Testa atualizacao de comissionamento inexistente."""
     user, _ = users
 
@@ -100,7 +100,7 @@ async def test_update_comiss_not_found(client, org_token, users):
 
     response = await client.put(
         '/cegep/comiss/99999',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=update_data,
     )
 
@@ -110,7 +110,7 @@ async def test_update_comiss_not_found(client, org_token, users):
 
 
 async def test_update_comiss_date_conflict(
-    client, session, org_token, users, comiss_existente
+    client, session, org_admin_token, users, comiss_existente
 ):
     """Testa que nao permite update com conflito de datas."""
     user, _ = users
@@ -145,7 +145,7 @@ async def test_update_comiss_date_conflict(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=update_data,
     )
 
@@ -155,7 +155,7 @@ async def test_update_comiss_date_conflict(
 
 
 async def test_update_comiss_missoes_fora_escopo(
-    client, session, org_token, users, comiss_existente
+    client, session, org_admin_token, users, comiss_existente
 ):
     """Testa que nao permite alterar datas excluindo missoes do escopo."""
     user, _ = users
@@ -197,7 +197,7 @@ async def test_update_comiss_missoes_fora_escopo(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=update_data,
     )
 
@@ -207,7 +207,7 @@ async def test_update_comiss_missoes_fora_escopo(
 
 
 async def test_update_comiss_close_incompleto_rejeitado(
-    client, session, org_token, users, comiss_existente
+    client, session, org_admin_token, users, comiss_existente
 ):
     """Fechar um comissionamento sem missões/completude → 400.
 
@@ -235,7 +235,7 @@ async def test_update_comiss_close_incompleto_rejeitado(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json=update_data,
     )
 
@@ -244,7 +244,7 @@ async def test_update_comiss_close_incompleto_rejeitado(
 
 
 async def test_update_comiss_without_token(client, session, users):
-    """Testa que requisicao sem org_token falha."""
+    """Testa que requisicao sem org_admin_token falha."""
     user, _ = users
 
     comiss = ComissFactory(user_id=user.id)

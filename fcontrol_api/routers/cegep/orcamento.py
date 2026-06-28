@@ -18,7 +18,7 @@ from fcontrol_api.schemas.cegep.orcamento import (
     OrcamentoLogOut,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import get_current_user
+from fcontrol_api.security import get_current_user, permission_checker
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
 
@@ -28,6 +28,12 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 router = APIRouter(prefix='/orcamento', tags=['CEGEP'])
 
 RESOURCE = 'orcamento_anual'
+
+# Orçamento anual: leitura/escrita restritas ao recurso RBAC `orcamento`
+# (apoio_avancado). `orcamento.update` foi criado para o PUT.
+ViewOrc = Depends(permission_checker('orcamento', 'view'))
+CreateOrc = Depends(permission_checker('orcamento', 'create'))
+UpdateOrc = Depends(permission_checker('orcamento', 'update'))
 
 
 def _orcamento_to_dict(orc: OrcamentoAnual) -> dict:
@@ -39,7 +45,11 @@ def _orcamento_to_dict(orc: OrcamentoAnual) -> dict:
     }
 
 
-@router.get('/', response_model=ApiResponse[OrcamentoAnualOut | None])
+@router.get(
+    '/',
+    response_model=ApiResponse[OrcamentoAnualOut | None],
+    dependencies=[ViewOrc],
+)
 async def get_orcamento(
     session: Session,
     ano: int,
@@ -55,6 +65,7 @@ async def get_orcamento(
     '/',
     response_model=ApiResponse[OrcamentoAnualOut],
     status_code=HTTPStatus.CREATED,
+    dependencies=[CreateOrc],
 )
 async def create_orcamento(
     payload: OrcamentoAnualCreate,
@@ -95,7 +106,11 @@ async def create_orcamento(
     return success_response(data=new_orc)
 
 
-@router.put('/{orc_id}', response_model=ApiResponse[OrcamentoAnualOut])
+@router.put(
+    '/{orc_id}',
+    response_model=ApiResponse[OrcamentoAnualOut],
+    dependencies=[UpdateOrc],
+)
 async def update_orcamento(
     orc_id: int,
     payload: OrcamentoAnualUpdate,
@@ -157,6 +172,7 @@ async def update_orcamento(
 @router.get(
     '/{orc_id}/logs',
     response_model=ApiResponse[list[OrcamentoLogOut]],
+    dependencies=[ViewOrc],
 )
 async def list_orcamento_logs(
     orc_id: int,
