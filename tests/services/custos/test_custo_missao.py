@@ -12,6 +12,33 @@ def test_missao_sem_custos():
     assert resultado['diarias'] == 0
     assert resultado['valor_total'] == 0
     assert resultado['qtd_ac'] == 0
+    # Sem pernoites o cache vazio é esperado: não sinaliza inconsistência.
+    assert 'custo_inconsistente' not in resultado
+
+
+def test_cache_vazio_com_pernoites_sinaliza_inconsistencia():
+    """Cache vazio MAS com pernoites: recálculo pendente.
+
+    Regra de segurança: em vez de produzir dinheiro errado, retorna zeros
+    e marca `custo_inconsistente` para o frontend exibir o alerta.
+    """
+    mis = {'custos': {}, 'pernoites': [{'id': 1}]}
+    resultado = custo_missao('cp', 'c', mis)
+
+    assert resultado['custo_inconsistente'] is True
+    assert resultado['dias'] == 0
+    assert resultado['diarias'] == 0
+    assert resultado['valor_total'] == 0
+    assert resultado['qtd_ac'] == 0
+
+
+def test_cache_none_com_pernoites_sinaliza_inconsistencia():
+    """Cache None com pernoites também sinaliza inconsistência."""
+    mis = {'custos': None, 'pernoites': [{'id': 1}, {'id': 2}]}
+    resultado = custo_missao('cp', 'c', mis)
+
+    assert resultado['custo_inconsistente'] is True
+    assert resultado['valor_total'] == 0
 
 
 def test_missao_com_custos_calculados():
