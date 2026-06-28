@@ -68,7 +68,7 @@ async def missao_existente(session, users):
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=1001,
+        n_doc='1001',
         desc='Missao de teste',
         tipo='adm',
         afast=datetime.combine(today + timedelta(days=10), time(8, 0)),
@@ -120,7 +120,7 @@ async def missao_com_meia_diaria(session, users):
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=2001,
+        n_doc='2001',
         desc='Missao com meia diaria',
         tipo='adm',
         afast=datetime.combine(today + timedelta(days=20), time(8, 0)),

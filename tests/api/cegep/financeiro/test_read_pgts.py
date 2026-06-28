@@ -10,7 +10,7 @@ Cenarios de teste:
 - Filtro por intervalo de datas (ini, fim)
 - Paginacao
 - Calculo de custos (custo_missao)
-- Requisicao sem token
+- Requisicao sem org_token
 
 Requer autenticacao.
 """
@@ -32,8 +32,8 @@ URL = '/cegep/financeiro/pgts'
 # ============================================================
 
 
-def auth_header(token):
-    return {'Authorization': f'Bearer {token}'}
+def auth_header(org_token):
+    return {'Authorization': f'Bearer {org_token}'}
 
 
 async def create_missao_with_user(
@@ -55,7 +55,7 @@ async def create_missao_with_user(
 
     missao = FragMisFactory(
         tipo_doc=tipo_doc,
-        n_doc=n_doc,
+        n_doc=str(n_doc),
         tipo=tipo,
         afast=afast,
         regres=regres,
@@ -89,9 +89,9 @@ async def create_missao_with_user(
 # ============================================================
 
 
-async def test_list_pgts_empty(client, token):
+async def test_list_pgts_empty(client, org_token):
     """Testa listagem vazia quando nao ha pagamentos."""
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
@@ -100,13 +100,13 @@ async def test_list_pgts_empty(client, token):
     assert resp['total'] == 0
 
 
-async def test_list_pgts_success(client, session, token, users):
+async def test_list_pgts_success(client, session, org_token, users):
     """Testa listagem com dados retornados."""
     user, _ = users
 
     await create_missao_with_user(session, user)
 
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
@@ -119,7 +119,7 @@ async def test_list_pgts_success(client, session, token, users):
 
 
 async def test_list_pgts_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem org_token falha."""
     response = await client.get(URL)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -130,7 +130,7 @@ async def test_list_pgts_without_token(client):
 # ============================================================
 
 
-async def test_filter_by_tipo_doc(client, session, token, users):
+async def test_filter_by_tipo_doc(client, session, org_token, users):
     """Testa filtro por tipo_doc."""
     user, _ = users
 
@@ -139,7 +139,7 @@ async def test_filter_by_tipo_doc(client, session, token, users):
 
     response = await client.get(
         f'{URL}?tipo_doc=om',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -148,7 +148,7 @@ async def test_filter_by_tipo_doc(client, session, token, users):
     assert resp['data'][0]['missao']['tipo_doc'] == 'om'
 
 
-async def test_filter_by_multiple_tipo_doc(client, session, token, users):
+async def test_filter_by_multiple_tipo_doc(client, session, org_token, users):
     """Testa filtro por multiplos tipo_doc."""
     user, _ = users
 
@@ -157,7 +157,7 @@ async def test_filter_by_multiple_tipo_doc(client, session, token, users):
 
     response = await client.get(
         f'{URL}?tipo_doc=om&tipo_doc=os',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -165,7 +165,7 @@ async def test_filter_by_multiple_tipo_doc(client, session, token, users):
     assert len(resp['data']) == 2
 
 
-async def test_filter_by_n_doc(client, session, token, users):
+async def test_filter_by_n_doc(client, session, org_token, users):
     """Testa filtro por n_doc."""
     user, _ = users
 
@@ -174,16 +174,16 @@ async def test_filter_by_n_doc(client, session, token, users):
 
     response = await client.get(
         f'{URL}?n_doc=300',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert len(resp['data']) == 1
-    assert resp['data'][0]['missao']['n_doc'] == 300
+    assert resp['data'][0]['missao']['n_doc'] == '300'
 
 
-async def test_filter_by_sit(client, session, token, users):
+async def test_filter_by_sit(client, session, org_token, users):
     """Testa filtro por situacao (sit)."""
     user, _ = users
 
@@ -192,7 +192,7 @@ async def test_filter_by_sit(client, session, token, users):
 
     response = await client.get(
         f'{URL}?sit=c',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -201,7 +201,7 @@ async def test_filter_by_sit(client, session, token, users):
     assert resp['data'][0]['user_mis']['sit'] == 'c'
 
 
-async def test_filter_by_multiple_sit(client, session, token, users):
+async def test_filter_by_multiple_sit(client, session, org_token, users):
     """Testa filtro por multiplas situacoes."""
     user, _ = users
 
@@ -211,7 +211,7 @@ async def test_filter_by_multiple_sit(client, session, token, users):
 
     response = await client.get(
         f'{URL}?sit=c&sit=d',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -219,7 +219,7 @@ async def test_filter_by_multiple_sit(client, session, token, users):
     assert len(resp['data']) == 2
 
 
-async def test_filter_by_user_name(client, session, token, users):
+async def test_filter_by_user_name(client, session, org_token, users):
     """Testa filtro por nome do usuario (busca parcial)."""
     user, other_user = users
 
@@ -228,7 +228,7 @@ async def test_filter_by_user_name(client, session, token, users):
 
     response = await client.get(
         f'{URL}?user={user.nome_guerra}',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -236,7 +236,7 @@ async def test_filter_by_user_name(client, session, token, users):
     assert len(resp['data']) == 1
 
 
-async def test_filter_by_user_id(client, session, token, users):
+async def test_filter_by_user_id(client, session, org_token, users):
     """Testa filtro por user_id."""
     user, other_user = users
 
@@ -245,7 +245,7 @@ async def test_filter_by_user_id(client, session, token, users):
 
     response = await client.get(
         f'{URL}?user_id={user.id}',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -253,7 +253,7 @@ async def test_filter_by_user_id(client, session, token, users):
     assert len(resp['data']) == 1
 
 
-async def test_filter_by_tipo(client, session, token, users):
+async def test_filter_by_tipo(client, session, org_token, users):
     """Testa filtro por tipo de missao."""
     user, _ = users
 
@@ -262,7 +262,7 @@ async def test_filter_by_tipo(client, session, token, users):
 
     response = await client.get(
         f'{URL}?tipo=adm',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -271,7 +271,7 @@ async def test_filter_by_tipo(client, session, token, users):
     assert resp['data'][0]['missao']['tipo'] == 'adm'
 
 
-async def test_filter_by_multiple_tipo(client, session, token, users):
+async def test_filter_by_multiple_tipo(client, session, org_token, users):
     """Testa filtro por multiplos tipos de missao."""
     user, _ = users
 
@@ -281,7 +281,7 @@ async def test_filter_by_multiple_tipo(client, session, token, users):
 
     response = await client.get(
         f'{URL}?tipo=adm&tipo=opr',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -294,7 +294,7 @@ async def test_filter_by_multiple_tipo(client, session, token, users):
 # ============================================================
 
 
-async def test_filter_by_date_range(client, session, token, users):
+async def test_filter_by_date_range(client, session, org_token, users):
     """Testa filtro por intervalo de datas (ini e fim)."""
     user, _ = users
 
@@ -318,16 +318,16 @@ async def test_filter_by_date_range(client, session, token, users):
 
     response = await client.get(
         f'{URL}?ini=2024-06-01&fim=2024-07-01',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert len(resp['data']) == 1
-    assert resp['data'][0]['missao']['n_doc'] == 701
+    assert resp['data'][0]['missao']['n_doc'] == '701'
 
 
-async def test_filter_by_ini_only(client, session, token, users):
+async def test_filter_by_ini_only(client, session, org_token, users):
     """Testa filtro apenas com data inicial."""
     user, _ = users
 
@@ -351,16 +351,16 @@ async def test_filter_by_ini_only(client, session, token, users):
 
     response = await client.get(
         f'{URL}?ini=2024-01-01',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert len(resp['data']) == 1
-    assert resp['data'][0]['missao']['n_doc'] == 711
+    assert resp['data'][0]['missao']['n_doc'] == '711'
 
 
-async def test_filter_by_fim_only(client, session, token, users):
+async def test_filter_by_fim_only(client, session, org_token, users):
     """Testa filtro apenas com data final."""
     user, _ = users
 
@@ -384,13 +384,13 @@ async def test_filter_by_fim_only(client, session, token, users):
 
     response = await client.get(
         f'{URL}?fim=2023-12-31',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert len(resp['data']) == 1
-    assert resp['data'][0]['missao']['n_doc'] == 720
+    assert resp['data'][0]['missao']['n_doc'] == '720'
 
 
 # ============================================================
@@ -398,14 +398,14 @@ async def test_filter_by_fim_only(client, session, token, users):
 # ============================================================
 
 
-async def test_pagination_defaults(client, session, token, users):
+async def test_pagination_defaults(client, session, org_token, users):
     """Testa paginacao com valores padrao (page=1, limit=20)."""
     user, _ = users
 
     for i in range(25):
         await create_missao_with_user(session, user, n_doc=800 + i)
 
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
@@ -416,7 +416,9 @@ async def test_pagination_defaults(client, session, token, users):
     assert resp['pages'] == 2
 
 
-async def test_pagination_custom_page_and_limit(client, session, token, users):
+async def test_pagination_custom_page_and_limit(
+    client, session, org_token, users
+):
     """Testa paginacao com page e limit customizados."""
     user, _ = users
 
@@ -425,7 +427,7 @@ async def test_pagination_custom_page_and_limit(client, session, token, users):
 
     response = await client.get(
         f'{URL}?page=2&limit=5',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -437,7 +439,7 @@ async def test_pagination_custom_page_and_limit(client, session, token, users):
     assert resp['pages'] == 3
 
 
-async def test_pagination_last_page(client, session, token, users):
+async def test_pagination_last_page(client, session, org_token, users):
     """Testa ultima pagina com itens restantes."""
     user, _ = users
 
@@ -446,7 +448,7 @@ async def test_pagination_last_page(client, session, token, users):
 
     response = await client.get(
         f'{URL}?page=2&limit=5',
-        headers=auth_header(token),
+        headers=auth_header(org_token),
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -460,7 +462,9 @@ async def test_pagination_last_page(client, session, token, users):
 # ============================================================
 
 
-async def test_custo_missao_with_custos_jsonb(client, session, token, users):
+async def test_custo_missao_with_custos_jsonb(
+    client, session, org_token, users
+):
     """Testa que custos sao calculados corretamente a partir do JSONB."""
     user, _ = users
 
@@ -479,7 +483,7 @@ async def test_custo_missao_with_custos_jsonb(client, session, token, users):
         session, user, n_doc=1000, custos=custos_jsonb
     )
 
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
@@ -492,13 +496,13 @@ async def test_custo_missao_with_custos_jsonb(client, session, token, users):
     assert missao['qtd_ac'] == 1
 
 
-async def test_custo_missao_without_custos(client, session, token, users):
+async def test_custo_missao_without_custos(client, session, org_token, users):
     """Testa que missao sem custos retorna valores zerados."""
     user, _ = users
 
     await create_missao_with_user(session, user, n_doc=1010)
 
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
@@ -511,7 +515,7 @@ async def test_custo_missao_without_custos(client, session, token, users):
     assert missao['qtd_ac'] == 0
 
 
-async def test_custo_missao_no_acrec_desloc(client, session, token, users):
+async def test_custo_missao_no_acrec_desloc(client, session, org_token, users):
     """Testa que missao sem acrescimo de deslocamento tem qtd_ac=0."""
     user, _ = users
 
@@ -530,7 +534,7 @@ async def test_custo_missao_no_acrec_desloc(client, session, token, users):
         session, user, n_doc=1020, custos=custos_jsonb
     )
 
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
@@ -543,13 +547,13 @@ async def test_custo_missao_no_acrec_desloc(client, session, token, users):
 # ============================================================
 
 
-async def test_response_structure(client, session, token, users):
+async def test_response_structure(client, session, org_token, users):
     """Testa que a estrutura de resposta esta correta."""
     user, _ = users
 
     await create_missao_with_user(session, user, n_doc=1100)
 
-    response = await client.get(URL, headers=auth_header(token))
+    response = await client.get(URL, headers=auth_header(org_token))
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()

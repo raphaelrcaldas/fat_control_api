@@ -83,7 +83,7 @@ async def test_delete_diaria_valor_blocked_by_missao_comiss(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9001,
+        n_doc='9001',
         desc='Missao bloqueante',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
@@ -142,7 +142,7 @@ async def test_delete_diaria_valor_blocked_by_missao_diaria(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9002,
+        n_doc='9002',
         desc='Missao diaria',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
@@ -199,7 +199,7 @@ async def test_delete_diaria_valor_allowed_with_grat_only(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9003,
+        n_doc='9003',
         desc='Missao grat',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
@@ -256,7 +256,7 @@ async def test_delete_diaria_valor_allowed_outside_period(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9004,
+        n_doc='9004',
         desc='Missao futura',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),

@@ -13,9 +13,7 @@ from datetime import date, datetime, timedelta
 from http import HTTPStatus
 
 import pytest
-from sqlalchemy.future import select
 
-from fcontrol_api.models.cegep.comiss import Comissionamento
 from tests.factories import ComissFactory, FragMisFactory, UserFragFactory
 
 pytestmark = pytest.mark.anyio
@@ -40,7 +38,7 @@ async def comiss_existente(session, users):
 
 
 async def test_update_comiss_success(
-    client, session, token, users, comiss_existente
+    client, session, org_token, users, comiss_existente
 ):
     """Testa atualizacao de comissionamento com sucesso."""
     user, _ = users
@@ -64,7 +62,7 @@ async def test_update_comiss_success(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=update_data,
     )
 
@@ -80,7 +78,7 @@ async def test_update_comiss_success(
     assert comiss_existente.doc_enc == 'ENC-0001/2025'
 
 
-async def test_update_comiss_not_found(client, token, users):
+async def test_update_comiss_not_found(client, org_token, users):
     """Testa atualizacao de comissionamento inexistente."""
     user, _ = users
 
@@ -102,7 +100,7 @@ async def test_update_comiss_not_found(client, token, users):
 
     response = await client.put(
         '/cegep/comiss/99999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=update_data,
     )
 
@@ -112,7 +110,7 @@ async def test_update_comiss_not_found(client, token, users):
 
 
 async def test_update_comiss_date_conflict(
-    client, session, token, users, comiss_existente
+    client, session, org_token, users, comiss_existente
 ):
     """Testa que nao permite update com conflito de datas."""
     user, _ = users
@@ -147,7 +145,7 @@ async def test_update_comiss_date_conflict(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=update_data,
     )
 
@@ -157,7 +155,7 @@ async def test_update_comiss_date_conflict(
 
 
 async def test_update_comiss_missoes_fora_escopo(
-    client, session, token, users, comiss_existente
+    client, session, org_token, users, comiss_existente
 ):
     """Testa que nao permite alterar datas excluindo missoes do escopo."""
     user, _ = users
@@ -199,7 +197,7 @@ async def test_update_comiss_missoes_fora_escopo(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=update_data,
     )
 
@@ -208,10 +206,15 @@ async def test_update_comiss_missoes_fora_escopo(
     assert 'fora do escopo' in resp['message'].lower()
 
 
-async def test_update_comiss_close_status(
-    client, session, token, users, comiss_existente
+async def test_update_comiss_close_incompleto_rejeitado(
+    client, session, org_token, users, comiss_existente
 ):
-    """Testa fechamento de comissionamento."""
+    """Fechar um comissionamento sem missões/completude → 400.
+
+    Regra (validar_fechamento_comiss): exige ao menos uma missão vinculada,
+    completude 100% e data_fc no dia seguinte à última missão. O
+    `comiss_existente` não tem missões, então o fechamento é barrado.
+    """
     user, _ = users
 
     update_data = {
@@ -232,23 +235,16 @@ async def test_update_comiss_close_status(
 
     response = await client.put(
         f'/cegep/comiss/{comiss_existente.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=update_data,
     )
 
-    assert response.status_code == HTTPStatus.OK
-
-    # Verifica no banco
-    db_comiss = await session.scalar(
-        select(Comissionamento).where(
-            Comissionamento.id == comiss_existente.id
-        )
-    )
-    assert db_comiss.status == 'fechado'
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'missõ' in response.json()['message'].lower()
 
 
 async def test_update_comiss_without_token(client, session, users):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem org_token falha."""
     user, _ = users
 
     comiss = ComissFactory(user_id=user.id)

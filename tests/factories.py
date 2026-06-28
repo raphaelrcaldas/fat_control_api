@@ -503,6 +503,7 @@ class ComissFactory(factory.Factory):
     user_id: int
     status = 'aberto'
     dep = False
+    uae = '11gt'
 
     data_ab = factory.LazyFunction(datetime.date.today)
     qtd_aj_ab = 30.0
@@ -537,7 +538,9 @@ class FragMisFactory(factory.Factory):
         model = FragMis
 
     tipo_doc = factory.fuzzy.FuzzyChoice(['om', 'os'])
-    n_doc = factory.Sequence(lambda n: 1000 + n)
+    # n_doc é String(10) com zero-padding (N_DOC_WIDTH=3); a factory grava
+    # direto no banco, então o valor já precisa ser string.
+    n_doc = factory.Sequence(lambda n: str(1000 + n))
     desc = factory.Sequence(lambda n: f'Missao de teste {n}')
     tipo = factory.fuzzy.FuzzyChoice(['adm', 'tal', 'opr'])
     afast = factory.LazyFunction(datetime.datetime.now)
@@ -547,6 +550,7 @@ class FragMisFactory(factory.Factory):
     acrec_desloc = factory.fuzzy.FuzzyChoice([True, False])
     obs = 'detail teste'
     indenizavel = factory.fuzzy.FuzzyChoice([True, False])
+    uae = '11gt'
 
 
 class UserFragFactory(factory.Factory):

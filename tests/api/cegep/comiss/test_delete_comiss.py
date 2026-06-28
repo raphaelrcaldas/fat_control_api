@@ -20,7 +20,7 @@ from tests.factories import ComissFactory, FragMisFactory, UserFragFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_delete_comiss_success(client, session, token, users):
+async def test_delete_comiss_success(client, session, org_token, users):
     """Testa delecao de comissionamento sem missoes."""
     user, _ = users
 
@@ -33,7 +33,7 @@ async def test_delete_comiss_success(client, session, token, users):
 
     response = await client.delete(
         f'/cegep/comiss/{comiss_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -48,24 +48,20 @@ async def test_delete_comiss_success(client, session, token, users):
     assert db_comiss is None
 
 
-async def test_delete_comiss_not_found(client, token):
+async def test_delete_comiss_not_found(client, org_token):
     """Testa delecao de comissionamento inexistente."""
     response = await client.delete(
         '/cegep/comiss/99999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert 'encontrado' in resp['message'].lower()
 
 
-async def test_delete_comiss_with_missoes_fails(client, session, token, users):
-    """Testa que nao permite deletar com missoes vinculadas."""
-    user, _ = users
-    today = date.today()
-
-    # Cria comissionamento
+async def _comiss_com_missao(session, user, today):
+    """Cria comissionamento + missao comissionada dentro do periodo."""
     comiss = ComissFactory(
         user_id=user.id,
         data_ab=today - timedelta(days=30),
@@ -75,16 +71,13 @@ async def test_delete_comiss_with_missoes_fails(client, session, token, users):
     await session.commit()
     await session.refresh(comiss)
 
-    # Cria missao dentro do periodo
     afast = datetime.now() - timedelta(days=10)
     regres = datetime.now() - timedelta(days=7)
-
     missao = FragMisFactory(afast=afast, regres=regres)
     session.add(missao)
     await session.commit()
     await session.refresh(missao)
 
-    # Vincula usuario a missao como comissionado
     user_frag = UserFragFactory(
         frag_id=missao.id,
         user_id=user.id,
@@ -94,25 +87,57 @@ async def test_delete_comiss_with_missoes_fails(client, session, token, users):
     session.add(user_frag)
     await session.commit()
 
-    # Tenta deletar
+    return comiss, missao
+
+
+async def test_delete_comiss_with_missoes_preview(
+    client, session, org_token, users
+):
+    """Com missoes e sem confirm → preview (warning), sem deletar."""
+    user, _ = users
+    comiss, _ = await _comiss_com_missao(session, user, date.today())
+
     response = await client.delete(
         f'/cegep/comiss/{comiss.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.OK
     resp = response.json()
-    assert 'miss' in str(resp['message']).lower()
+    assert resp['status'] == 'warning'
+    assert resp['data']['missoes_count'] == 1
+    assert len(resp['data']['missoes']) == 1
 
-    # Verifica que nao foi deletado
+    # Sem confirm, nada é deletado.
     db_comiss = await session.scalar(
         select(Comissionamento).where(Comissionamento.id == comiss.id)
     )
     assert db_comiss is not None
 
 
+async def test_delete_comiss_with_missoes_confirm(
+    client, session, org_token, users
+):
+    """Com confirm=true → cascade: desvincula e remove a missao órfã."""
+    user, _ = users
+    comiss, missao = await _comiss_com_missao(session, user, date.today())
+
+    response = await client.delete(
+        f'/cegep/comiss/{comiss.id}?confirm=true',
+        headers={'Authorization': f'Bearer {org_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['status'] == 'success'
+
+    db_comiss = await session.scalar(
+        select(Comissionamento).where(Comissionamento.id == comiss.id)
+    )
+    assert db_comiss is None
+
+
 async def test_delete_comiss_with_diaria_user_allows(
-    client, session, token, users
+    client, session, org_token, users
 ):
     """Testa que permite deletar mesmo com usuario em situacao diaria."""
     user, _ = users
@@ -152,7 +177,7 @@ async def test_delete_comiss_with_diaria_user_allows(
     # Deve permitir deletar pois nao ha missao com sit='c'
     response = await client.delete(
         f'/cegep/comiss/{comiss_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -165,7 +190,7 @@ async def test_delete_comiss_with_diaria_user_allows(
 
 
 async def test_delete_comiss_without_token(client, session, users):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem org_token falha."""
     user, _ = users
 
     comiss = ComissFactory(user_id=user.id)

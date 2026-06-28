@@ -16,14 +16,14 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_delete_etiqueta_success(
-    client, session, token, etiqueta_existente
+    client, session, org_token, etiqueta_existente
 ):
     """Testa remocao de etiqueta com sucesso."""
     etiqueta_id = etiqueta_existente.id
 
     response = await client.delete(
         f'/cegep/missoes/etiquetas/{etiqueta_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -38,11 +38,11 @@ async def test_delete_etiqueta_success(
     assert db_etiqueta is None
 
 
-async def test_delete_etiqueta_not_found(client, token):
+async def test_delete_etiqueta_not_found(client, org_token):
     """Testa remocao de etiqueta inexistente."""
     response = await client.delete(
         '/cegep/missoes/etiquetas/99999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -50,7 +50,7 @@ async def test_delete_etiqueta_not_found(client, token):
 
 
 async def test_delete_etiqueta_without_token(client, etiqueta_existente):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem org_token falha."""
     response = await client.delete(
         f'/cegep/missoes/etiquetas/{etiqueta_existente.id}'
     )

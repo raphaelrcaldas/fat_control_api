@@ -78,7 +78,7 @@ async def test_delete_soldo_blocked_by_missao_grat(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9010,
+        n_doc='9010',
         desc='Missao grat bloqueante',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
@@ -136,7 +136,7 @@ async def test_delete_soldo_allowed_with_comiss_only(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9011,
+        n_doc='9011',
         desc='Missao comiss',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
@@ -192,7 +192,7 @@ async def test_delete_soldo_allowed_outside_period(
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc=9012,
+        n_doc='9012',
         desc='Missao futura',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),

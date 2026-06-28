@@ -100,12 +100,12 @@ def _build_user_payload(user, sit='d') -> dict:
 
 
 async def test_create_missao_success(
-    client, session, token, missao_base_payload
+    client, session, org_token, missao_base_payload
 ):
     """Testa criacao de missao simples com sit='d'."""
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=missao_base_payload,
     )
 
@@ -116,20 +116,20 @@ async def test_create_missao_success(
 
     # Verifica no banco
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 3001)
+        select(FragMis).where(FragMis.n_doc == '3001')
     )
     assert db_missao is not None
     assert db_missao.desc == 'Missao via payload'
 
 
 async def test_create_missao_without_token(client, missao_base_payload):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem org_token falha."""
     response = await client.post('/cegep/missoes/', json=missao_base_payload)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_create_missao_missing_required_field(client, token):
+async def test_create_missao_missing_required_field(client, org_token):
     """Testa que campo obrigatorio faltando falha."""
     # Falta o campo 'desc'
     payload = {
@@ -147,7 +147,7 @@ async def test_create_missao_missing_required_field(client, token):
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -155,7 +155,7 @@ async def test_create_missao_missing_required_field(client, token):
 
 
 async def test_update_missao_success(
-    client, session, token, missao_existente, users
+    client, session, org_token, missao_existente, users
 ):
     """Testa atualizacao de missao existente."""
     user, _ = users
@@ -197,7 +197,7 @@ async def test_update_missao_success(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -211,14 +211,14 @@ async def test_update_missao_success(
     assert missao_existente.acrec_desloc is True
 
 
-async def test_update_missao_not_found(client, token, missao_base_payload):
+async def test_update_missao_not_found(client, org_token, missao_base_payload):
     """Testa atualizacao de missao inexistente."""
     payload = missao_base_payload.copy()
     payload['id'] = 99999
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -229,12 +229,12 @@ async def test_update_missao_not_found(client, token, missao_base_payload):
 
 
 async def test_create_missao_with_comiss_valid(
-    client, session, token, missao_payload_comiss
+    client, session, org_token, missao_payload_comiss
 ):
     """Testa criacao de missao com sit='c' e comiss valido."""
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=missao_payload_comiss,
     )
 
@@ -244,7 +244,7 @@ async def test_create_missao_with_comiss_valid(
 
 
 async def test_create_missao_comiss_without_comissionamento(
-    client, token, missao_base_payload
+    client, org_token, missao_base_payload
 ):
     """Testa que sit='c' sem comissionamento falha."""
     payload = missao_base_payload.copy()
@@ -253,7 +253,7 @@ async def test_create_missao_comiss_without_comissionamento(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -262,7 +262,7 @@ async def test_create_missao_comiss_without_comissionamento(
 
 
 async def test_create_missao_comiss_outside_period(
-    client, session, token, user_with_comiss
+    client, session, org_token, user_with_comiss
 ):
     """Testa que missao fora do periodo do comiss falha."""
     user, comiss = user_with_comiss
@@ -303,7 +303,7 @@ async def test_create_missao_comiss_outside_period(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -312,7 +312,7 @@ async def test_create_missao_comiss_outside_period(
 
 
 async def test_create_missao_conflict_overlapping_dates(
-    client, token, missao_existente, users
+    client, org_token, missao_existente, users
 ):
     """Testa conflito de sobreposicao de datas."""
     user, _ = users
@@ -355,7 +355,7 @@ async def test_create_missao_conflict_overlapping_dates(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -364,7 +364,7 @@ async def test_create_missao_conflict_overlapping_dates(
 
 
 async def test_create_missao_conflict_meia_diaria_anterior(
-    client, token, missao_com_meia_diaria, users
+    client, org_token, missao_com_meia_diaria, users
 ):
     """Testa conflito: meia-diaria anterior conflita com afastamento."""
     user, _ = users
@@ -407,7 +407,7 @@ async def test_create_missao_conflict_meia_diaria_anterior(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -416,7 +416,7 @@ async def test_create_missao_conflict_meia_diaria_anterior(
 
 
 async def test_create_missao_conflict_meia_diaria_nova(
-    client, session, token, users
+    client, session, org_token, users
 ):
     """Testa conflito: meia-diaria nova conflita com proxima missao."""
     user, _ = users
@@ -424,7 +424,7 @@ async def test_create_missao_conflict_meia_diaria_nova(
 
     # Criar missao existente que afasta no dia 50
     missao_existente = FragMisFactory(
-        n_doc=8003,
+        n_doc='8003',
         afast=datetime.combine(today + timedelta(days=50), time(8, 0)),
         regres=datetime.combine(today + timedelta(days=55), time(18, 0)),
     )
@@ -482,7 +482,7 @@ async def test_create_missao_conflict_meia_diaria_nova(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -491,7 +491,7 @@ async def test_create_missao_conflict_meia_diaria_nova(
 
 
 async def test_create_missao_with_etiquetas(
-    client, session, token, missao_base_payload
+    client, session, org_token, missao_base_payload
 ):
     """Testa criacao de missao com etiquetas."""
     # Criar etiqueta
@@ -512,7 +512,7 @@ async def test_create_missao_with_etiquetas(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -520,7 +520,7 @@ async def test_create_missao_with_etiquetas(
 
     # Verifica no banco pela tabela associativa
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 8005)
+        select(FragMis).where(FragMis.n_doc == '8005')
     )
     assert db_missao is not None
 
@@ -538,7 +538,7 @@ async def test_create_missao_with_etiquetas(
 
 
 async def test_create_missao_verifica_custos_structure(
-    client, session, token, missao_base_payload
+    client, session, org_token, missao_base_payload
 ):
     """Testa que custos sao calculados e tem estrutura correta."""
     payload = missao_base_payload.copy()
@@ -546,7 +546,7 @@ async def test_create_missao_verifica_custos_structure(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -554,7 +554,7 @@ async def test_create_missao_verifica_custos_structure(
 
     # Verifica estrutura do JSONB custos
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 9001)
+        select(FragMis).where(FragMis.n_doc == '9001')
     )
     assert db_missao is not None
     assert db_missao.custos is not None
@@ -566,7 +566,7 @@ async def test_create_missao_verifica_custos_structure(
 
 
 async def test_create_missao_sit_g_calcula_grat_rep(
-    client, session, token, users
+    client, session, org_token, users
 ):
     """Testa que sit='g' (Grat Rep) calcula 2% do soldo."""
     user, _ = users
@@ -607,21 +607,21 @@ async def test_create_missao_sit_g_calcula_grat_rep(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
     assert response.status_code == HTTPStatus.OK
 
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 9002)
+        select(FragMis).where(FragMis.n_doc == '9002')
     )
     assert db_missao is not None
     assert db_missao.custos is not None
 
 
 async def test_create_missao_acrec_desloc_adds_value(
-    client, session, token, users
+    client, session, org_token, users
 ):
     """Testa que acrec_desloc adiciona R$95."""
     user, _ = users
@@ -662,14 +662,14 @@ async def test_create_missao_acrec_desloc_adds_value(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
     assert response.status_code == HTTPStatus.OK
 
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 9003)
+        select(FragMis).where(FragMis.n_doc == '9003')
     )
     assert db_missao is not None
     assert db_missao.custos is not None
@@ -677,7 +677,9 @@ async def test_create_missao_acrec_desloc_adds_value(
     assert 'acrec_desloc_missao' in db_missao.custos
 
 
-async def test_create_missao_multiple_pernoites(client, session, token, users):
+async def test_create_missao_multiple_pernoites(
+    client, session, org_token, users
+):
     """Testa criacao de missao com multiplos pernoites."""
     user, _ = users
     today = date.today()
@@ -730,7 +732,7 @@ async def test_create_missao_multiple_pernoites(client, session, token, users):
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -738,7 +740,7 @@ async def test_create_missao_multiple_pernoites(client, session, token, users):
 
     # Verifica pernoites no banco
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 9004)
+        select(FragMis).where(FragMis.n_doc == '9004')
     )
     pernoites = await session.scalars(
         select(PernoiteFrag).where(PernoiteFrag.frag_id == db_missao.id)
@@ -747,7 +749,7 @@ async def test_create_missao_multiple_pernoites(client, session, token, users):
     assert len(pernoites_list) == 2
 
 
-async def test_create_missao_multiple_users(client, session, token, users):
+async def test_create_missao_multiple_users(client, session, org_token, users):
     """Testa criacao de missao com multiplos usuarios."""
     user, other_user = users
     today = date.today()
@@ -790,7 +792,7 @@ async def test_create_missao_multiple_users(client, session, token, users):
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -798,7 +800,7 @@ async def test_create_missao_multiple_users(client, session, token, users):
 
     # Verifica users_frag no banco
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 9005)
+        select(FragMis).where(FragMis.n_doc == '9005')
     )
     users_frag = await session.scalars(
         select(UserFrag).where(UserFrag.frag_id == db_missao.id)
@@ -808,7 +810,7 @@ async def test_create_missao_multiple_users(client, session, token, users):
 
 
 async def test_create_missao_no_pernoite_on_regres_date(
-    client, session, token, users
+    client, session, org_token, users
 ):
     """Cobre branch IndexError em verificar_conflitos.
 
@@ -854,20 +856,20 @@ async def test_create_missao_no_pernoite_on_regres_date(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
     assert response.status_code == HTTPStatus.OK
 
     db_missao = await session.scalar(
-        select(FragMis).where(FragMis.n_doc == 9010)
+        select(FragMis).where(FragMis.n_doc == '9010')
     )
     assert db_missao is not None
 
 
 async def test_update_missao_recalcula_comiss(
-    client, session, token, user_with_comiss
+    client, session, org_token, user_with_comiss
 ):
     """Testa que atualizar missao recalcula comiss."""
     user, comiss = user_with_comiss
@@ -878,7 +880,7 @@ async def test_update_missao_recalcula_comiss(
     regres_date = today + timedelta(days=10)
 
     missao = FragMisFactory(
-        n_doc=9006,
+        n_doc='9006',
         afast=datetime.combine(afast_date, time(8, 0)),
         regres=datetime.combine(regres_date, time(18, 0)),
     )
@@ -935,7 +937,7 @@ async def test_update_missao_recalcula_comiss(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -950,7 +952,7 @@ async def test_update_missao_recalcula_comiss(
 
 
 async def test_create_missao_invalid_tipo_doc(
-    client, token, missao_base_payload
+    client, org_token, missao_base_payload
 ):
     """Testa que tipo_doc invalido falha."""
     payload = missao_base_payload.copy()
@@ -958,28 +960,32 @@ async def test_create_missao_invalid_tipo_doc(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_missao_invalid_tipo(client, token, missao_base_payload):
+async def test_create_missao_invalid_tipo(
+    client, org_token, missao_base_payload
+):
     """Testa que tipo invalido falha."""
     payload = missao_base_payload.copy()
     payload['tipo'] = 'YY'  # Invalido
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_missao_invalid_sit(client, token, missao_base_payload):
+async def test_create_missao_invalid_sit(
+    client, org_token, missao_base_payload
+):
     """Testa que sit invalido falha."""
     payload = missao_base_payload.copy()
     payload['users'] = [missao_base_payload['users'][0].copy()]
@@ -987,7 +993,7 @@ async def test_create_missao_invalid_sit(client, token, missao_base_payload):
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 
@@ -995,7 +1001,7 @@ async def test_create_missao_invalid_sit(client, token, missao_base_payload):
 
 
 async def test_comiss_completude_by_valor_when_no_dias_cumprir(
-    client, session, token, users
+    client, session, org_token, users
 ):
     """Cobre branch else em recalcular_cache_comiss.
 
@@ -1052,7 +1058,7 @@ async def test_comiss_completude_by_valor_when_no_dias_cumprir(
 
     response = await client.post(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
         json=payload,
     )
 

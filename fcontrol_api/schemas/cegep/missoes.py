@@ -168,6 +168,9 @@ class FragMisSchema(BaseModel):
 class FragMisEmbed(FragMisSchema):
     """FragMis embarcado em comiss/financeiro — sem users, custo incluso."""
 
+    # Herdado de FragMisSchema, mas omitido do payload financeiro: o item
+    # de pagamento já expõe `user_mis`; a lista `users` seria redundante.
+    users: list[UserFragMis] = Field(default=[], exclude=True)
     pernoites: list[PernoiteWithCusto] = []
     dias: int = 0
     diarias: float = 0

@@ -12,11 +12,11 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_list_etiquetas_success(client, token, etiquetas_lista):
+async def test_list_etiquetas_success(client, org_token, etiquetas_lista):
     """Testa listagem de etiquetas com sucesso."""
     response = await client.get(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -26,17 +26,17 @@ async def test_list_etiquetas_success(client, token, etiquetas_lista):
 
 
 async def test_list_etiquetas_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem org_token falha."""
     response = await client.get('/cegep/missoes/etiquetas')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_list_etiquetas_empty(client, token):
+async def test_list_etiquetas_empty(client, org_token):
     """Testa listagem quando nao ha etiquetas."""
     response = await client.get(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -45,11 +45,13 @@ async def test_list_etiquetas_empty(client, token):
     assert resp['data'] == []
 
 
-async def test_list_etiquetas_ordered_by_nome(client, token, etiquetas_lista):
+async def test_list_etiquetas_ordered_by_nome(
+    client, org_token, etiquetas_lista
+):
     """Testa que etiquetas sao retornadas ordenadas por nome."""
     response = await client.get(
         '/cegep/missoes/etiquetas',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
