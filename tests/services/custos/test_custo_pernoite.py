@@ -1,7 +1,9 @@
 """Testes para _custo_pernoite."""
 
 from datetime import date
+from decimal import Decimal
 
+from fcontrol_api.models.shared.posto_grad import Soldo
 from fcontrol_api.services.custos.calculo import _custo_pernoite
 
 
@@ -86,10 +88,49 @@ def test_gratificacao_5_dias(valores_diarias_cache, soldos_cache):
         vals_cache=valores_diarias_cache,
     )
 
-    expected = 5 * (9976.00 * 0.02)
-    assert custo['subtotal'] == expected
+    # Valor exato calculado à mão: _q(9976.00 * 0.02) = 199.52 por dia.
+    # 5 * 199.52 = 997.60 — sem o drift binário do float (era 997.6000...1).
+    assert custo['subtotal'] == Decimal('997.60')
     assert custo['dias'] == 5
     assert custo['ac_desloc'] == 0
+
+
+def test_gratificacao_round_half_up():
+    """Gratificação com soldo cujo 2% cai em fração de centavo .xx5.
+
+    Soldo R$ 5.209,37 -> 2% = 104,1874 por dia. Quantizado a centavos com
+    ROUND_HALF_UP = 104,19. Para 2 dias: 208,38. Garante que o motor
+    arredonda (e não trunca nem acumula em float).
+    """
+    data_inicio = date(2026, 1, 1)
+    soldos_cache = {
+        'xx': [
+            Soldo(
+                pg='xx',
+                valor=Decimal('5209.37'),
+                data_inicio=data_inicio,
+                data_fim=None,
+            )
+        ]
+    }
+
+    custo = _custo_pernoite(
+        pg='xx',
+        sit='g',
+        ini=date(2026, 2, 1),
+        fim=date(2026, 2, 2),
+        gp_pg=3,
+        gp_cid=1,
+        meia_diaria=False,
+        ac_desloc=False,
+        soldos_cache=soldos_cache,
+        vals_cache={},
+    )
+
+    # 5209.37 * 0.02 = 104.1874 -> ROUND_HALF_UP a centavos = 104.19/dia
+    assert custo['vals'][0]['valor'] == Decimal('104.19')
+    assert custo['subtotal'] == Decimal('208.38')
+    assert custo['dias'] == 2
 
 
 def test_diaria_1_dia_sem_meia(valores_diarias_cache, soldos_cache):

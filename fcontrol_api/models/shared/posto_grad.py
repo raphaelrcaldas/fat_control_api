@@ -1,6 +1,13 @@
 from datetime import date
+from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, ForeignKey, Identity, String
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Identity,
+    Numeric,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -32,6 +39,6 @@ class Soldo(Base):
     pg: Mapped[str] = mapped_column(ForeignKey(PostoGrad.short))
     data_inicio: Mapped[date] = mapped_column(nullable=False)
     data_fim: Mapped[date] = mapped_column(nullable=True)
-    valor: Mapped[float] = mapped_column(nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
 
     posto_grad: Mapped[PostoGrad] = relationship(init=False, lazy='joined')

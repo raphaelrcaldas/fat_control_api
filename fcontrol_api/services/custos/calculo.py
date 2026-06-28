@@ -9,6 +9,7 @@ leitura (`leitura.custo_missao`).
 """
 
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
 from fcontrol_api.models.cegep.diarias import DiariaValor
 from fcontrol_api.models.shared.posto_grad import Soldo
@@ -23,10 +24,19 @@ from fcontrol_api.services.custos.integridade import (
 )
 from fcontrol_api.utils.datas import listar_datas_entre
 
+# Toda a aritmética monetária ocorre em Decimal; a conversão para float
+# acontece só no limite de escrita do JSONB (ver calcular_custos_frag_mis).
+CENTAVO = Decimal('0.01')
+
+
+def _q(valor: Decimal) -> Decimal:
+    """Quantiza um valor monetário a centavos (ROUND_HALF_UP, padrão BRL)."""
+    return valor.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+
 
 def _buscar_valor_por_dia(
     grupo_pg: int, grupo_cidade: int, data: date, cache: dict
-) -> float:
+) -> Decimal:
     lista: list[DiariaValor] = cache.get((grupo_pg, grupo_cidade), [])
 
     for item in lista:
@@ -34,10 +44,10 @@ def _buscar_valor_por_dia(
             item.data_fim is None or data <= item.data_fim
         ):
             return item.valor
-    return 0.0
+    return Decimal('0')
 
 
-def _buscar_soldo_por_dia(pg: str, data: date, cache: dict) -> float:
+def _buscar_soldo_por_dia(pg: str, data: date, cache: dict) -> Decimal:
     lista: list[Soldo] = cache.get(pg, [])
 
     for item in lista:
@@ -45,7 +55,7 @@ def _buscar_soldo_por_dia(pg: str, data: date, cache: dict) -> float:
             item.data_fim is None or data <= item.data_fim
         ):
             return item.valor
-    return 0.0
+    return Decimal('0')
 
 
 def _custo_pernoite(
@@ -60,7 +70,12 @@ def _custo_pernoite(
     soldos_cache,
     vals_cache,
 ):
-    custo = {'subtotal': 0, 'ac_desloc': 0, 'vals': [], 'dias': 0}
+    custo = {
+        'subtotal': Decimal('0'),
+        'ac_desloc': 0,
+        'vals': [],
+        'dias': 0,
+    }
     val_ag: dict = {}
 
     dias_validos = listar_datas_entre(ini, fim)
@@ -69,9 +84,10 @@ def _custo_pernoite(
     # Para diárias normais, processa todos exceto o último (tratado separado)
     if sit == 'g':
         for dia in dias_validos:
-            valor_dia = _buscar_soldo_por_dia(pg, dia, soldos_cache) * 0.02
+            soldo_dia = _buscar_soldo_por_dia(pg, dia, soldos_cache)
+            valor_dia = _q(soldo_dia * Decimal('0.02'))
 
-            key = round(valor_dia, 2)
+            key = valor_dia
             if key not in val_ag:
                 val_ag[key] = {'valor': valor_dia, 'qtd': 0}
 
@@ -83,7 +99,7 @@ def _custo_pernoite(
         for dia in dias_validos[:-1]:
             valor_dia = _buscar_valor_por_dia(gp_pg, gp_cid, dia, vals_cache)
 
-            key = round(valor_dia, 2)
+            key = valor_dia
             if key not in val_ag:
                 val_ag[key] = {'valor': valor_dia, 'qtd': 0}
 
@@ -97,17 +113,17 @@ def _custo_pernoite(
             valor_ultimo = _buscar_valor_por_dia(
                 gp_pg, gp_cid, ult_dia, vals_cache
             )
-            key_last = round(valor_ultimo, 2)
+            key_last = valor_ultimo
             if key_last not in val_ag:
                 val_ag[key_last] = {'valor': valor_ultimo, 'qtd': 0}
 
-            custo['subtotal'] += valor_ultimo * 0.5
+            custo['subtotal'] += _q(valor_ultimo * Decimal('0.5'))
             val_ag[key_last]['qtd'] += 0.5
             custo['dias'] += 1
 
         if ac_desloc:
             custo['ac_desloc'] = 95
-            custo['subtotal'] += custo['ac_desloc']
+            custo['subtotal'] += Decimal('95')
 
     custo['vals'] = list(val_ag.values())
 
@@ -207,16 +223,20 @@ def calcular_custos_frag_mis(
                 valores_cache,
             )
 
-            # Armazenar custo no pernoite
+            # Armazenar custo no pernoite (float só no limite do JSONB;
+            # os valores já estão quantizados a centavos)
             custos_jsonb[pernoite_key][pg_sit_key] = {
                 'grupo_pg': grupo_pg,
-                'vals': custo['vals'],
-                'subtotal': custo['subtotal'],
+                'vals': [
+                    {'valor': float(v['valor']), 'qtd': v['qtd']}
+                    for v in custo['vals']
+                ],
+                'subtotal': float(custo['subtotal']),
             }
 
-            # Acumular totais por pg+sit
+            # Acumular totais por pg+sit (em Decimal até o passo final)
             if pg_sit_key not in totais_pg_sit:
-                totais_pg_sit[pg_sit_key] = {'total_valor': 0}
+                totais_pg_sit[pg_sit_key] = {'total_valor': Decimal('0')}
 
             totais_pg_sit[pg_sit_key]['total_valor'] += custo['subtotal']
 
@@ -246,8 +266,11 @@ def calcular_custos_frag_mis(
         for totais in totais_pg_sit.values():
             totais['total_valor'] += acrec_desloc_missao
 
-    # 6. Adicionar totais ao JSONB
-    custos_jsonb['totais_pg_sit'] = totais_pg_sit
+    # 6. Adicionar totais ao JSONB (float só aqui, no limite de escrita)
+    custos_jsonb['totais_pg_sit'] = {
+        chave: {'total_valor': float(t['total_valor'])}
+        for chave, t in totais_pg_sit.items()
+    }
     custos_jsonb['total_dias'] = total_dias_missao
     custos_jsonb['total_diarias'] = total_diarias_missao
     custos_jsonb['acrec_desloc_missao'] = acrec_desloc_missao

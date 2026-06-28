@@ -1,6 +1,7 @@
 from datetime import date
+from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class CidadeSchema(BaseModel):
@@ -32,15 +33,19 @@ class DiariaValorPublic(BaseModel):
     id: int
     grupo_pg: int
     grupo_cid: int
-    valor: float
+    valor: Decimal
     data_inicio: date
     data_fim: date | None
     status: str | None = None  # vigente, proximo, anterior
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer('valor')
+    def serialize_decimal(self, v: Decimal) -> float:
+        return float(v)
+
 
 class DiariaValorUpdate(BaseModel):
-    valor: float | None = Field(None, gt=0)
+    valor: Decimal | None = Field(None, gt=0)
     data_inicio: date | None = None
     data_fim: date | None = None
 
@@ -48,6 +53,6 @@ class DiariaValorUpdate(BaseModel):
 class DiariaValorCreate(BaseModel):
     grupo_pg: int
     grupo_cid: int
-    valor: float = Field(..., gt=0)
+    valor: Decimal = Field(..., gt=0)
     data_inicio: date
     data_fim: date | None = None

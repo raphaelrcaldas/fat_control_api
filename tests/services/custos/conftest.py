@@ -4,6 +4,7 @@ Dados reais extraídos do Supabase (seed data) para cálculos verificáveis.
 """
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
@@ -24,7 +25,7 @@ def valores_diarias_cache():
         return DiariaValor(
             grupo_pg=grupo_pg,
             grupo_cid=grupo_cid,
-            valor=valor,
+            valor=Decimal(str(valor)),
             data_inicio=data_inicio,
             data_fim=None,
         )
@@ -61,7 +62,7 @@ def soldos_cache():
     def _criar_soldo(pg, valor):
         return Soldo(
             pg=pg,
-            valor=valor,
+            valor=Decimal(str(valor)),
             data_inicio=data_inicio,
             data_fim=None,
         )

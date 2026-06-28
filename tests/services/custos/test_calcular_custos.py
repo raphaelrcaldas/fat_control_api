@@ -132,7 +132,8 @@ def test_missao_com_gratificacao(
         soldos_cache=soldos_cache,
     )
 
-    expected = 3 * (9976.00 * 0.02)
+    # 3 dias * _q(9976.00 * 0.02) = 3 * 199.52 = 598.56 (exato, sem drift)
+    expected = 598.56
     total = resultado['totais_pg_sit']['pg_cp_sit_g']['total_valor']
     assert total == expected
     assert resultado['pernoite_1']['dias'] == 3

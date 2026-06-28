@@ -1,6 +1,7 @@
 from datetime import date
+from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Identity
+from sqlalchemy import CheckConstraint, ForeignKey, Identity, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from fcontrol_api.models.shared.estados_cidades import Cidade
@@ -27,10 +28,20 @@ class GrupoPg(Base):
 
 class DiariaValor(Base):
     __tablename__ = 'valor_diarias'
+    __table_args__ = (
+        CheckConstraint(
+            'valor >= 0', name='ck_valor_diarias_valor_nao_negativo'
+        ),
+        CheckConstraint(
+            'data_fim IS NULL OR data_inicio < data_fim',
+            name='ck_valor_diarias_data_inicio_antes_fim',
+        ),
+        {'schema': 'cegep'},
+    )
 
     id: Mapped[int] = mapped_column(Identity(), init=False, primary_key=True)
     grupo_pg: Mapped[int]
     grupo_cid: Mapped[int]
-    valor: Mapped[float] = mapped_column(nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     data_inicio: Mapped[date] = mapped_column(nullable=False)
     data_fim: Mapped[date] = mapped_column(nullable=True)
