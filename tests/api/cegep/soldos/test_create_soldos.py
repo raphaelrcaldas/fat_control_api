@@ -244,6 +244,40 @@ async def test_create_soldo_auto_close_validation_error(
     assert 'antes do soldo vigente' in msg
 
 
+async def test_create_soldo_sobreposicao_banda_fechada_conflito(
+    client, session, token
+):
+    """Criar faixa que sobrepoe uma banda fechada existente -> 409.
+
+    Fecha a vigencia aberta do seed cb (vira banda [2026-01-01, 2026-12-31]),
+    de modo que nao haja periodo aberto para o auto-close fechar. Em seguida,
+    POST de uma faixa que cai dentro dessa banda deve ser barrado pela rede
+    de seguranca.
+    """
+    # Fecha validamente o periodo aberto do seed cb (data_inicio < data_fim).
+    seed_cb = await session.scalar(
+        select(Soldo).where(and_(Soldo.pg == 'cb', Soldo.data_fim.is_(None)))
+    )
+    seed_cb.data_fim = date(2026, 12, 31)
+    await session.commit()
+
+    novo_data = {
+        'pg': 'cb',
+        'valor': 3100.00,
+        'data_inicio': '2026-06-01',
+        'data_fim': '2026-09-30',
+    }
+
+    response = await client.post(
+        '/cegep/soldos/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert 'sobrep' in response.json()['message'].lower()
+
+
 async def test_create_soldo_no_auto_close_different_pg(client, session, token):
     """Testa que auto-close nao afeta PGs diferentes."""
     today = date.today()

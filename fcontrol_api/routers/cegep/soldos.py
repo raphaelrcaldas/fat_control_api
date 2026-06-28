@@ -19,6 +19,7 @@ from fcontrol_api.schemas.cegep.soldo import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import permission_checker
 from fcontrol_api.services.missao import recalcular_custos_missoes
+from fcontrol_api.services.vigencia import garantir_sem_sobreposicao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -159,6 +160,17 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
             )
         anterior.data_fim = nova_data_fim
 
+    # Rede de seguranca contra faixas sobrepostas para o mesmo pg (o
+    # auto-close acima ja fechou o periodo aberto; aqui barramos qualquer
+    # outra faixa que ainda conflite com o periodo informado).
+    await garantir_sem_sobreposicao(
+        session,
+        Soldo,
+        [Soldo.pg == soldo.pg],
+        soldo.data_inicio,
+        soldo.data_fim,
+    )
+
     new_soldo = Soldo(
         pg=soldo.pg,
         data_inicio=soldo.data_inicio,
@@ -219,6 +231,20 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail='Posto/Graduacao invalido',
             )
+
+    # So checamos sobreposicao quando a faixa (chave ou datas) muda; uma
+    # edicao apenas de `valor` nao desloca o periodo e nao pode criar
+    # conflito novo.
+    if {'pg', 'data_inicio', 'data_fim'} & update_data.keys():
+        pg_efetivo = update_data.get('pg', db_soldo.pg)
+        await garantir_sem_sobreposicao(
+            session,
+            Soldo,
+            [Soldo.pg == pg_efetivo],
+            data_inicio,
+            data_fim,
+            excluir_id=soldo_id,
+        )
 
     for key, value in update_data.items():
         setattr(db_soldo, key, value)

@@ -5,10 +5,12 @@ Este endpoint atualiza um valor de diaria existente.
 Requer autenticacao.
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 from http import HTTPStatus
 
 import pytest
+
+from tests.factories import DiariaValorFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -136,6 +138,79 @@ async def test_update_diaria_valor_without_token(client, diaria_valores):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def test_update_diaria_valor_estende_para_ocupado_conflito(
+    client, session, token
+):
+    """Estender data_fim ate dentro de outra faixa da mesma chave -> 409.
+
+    grupo_cid=4 (sem seed). Cria uma banda fechada em 2024 e uma aberta em
+    2025 (adjacentes, sem overlap). Estender a fechada ate 2025 invade a
+    aberta -> deve dar 409.
+    """
+    fechado = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=300.00,
+        data_inicio=date(2024, 1, 1),
+        data_fim=date(2024, 12, 31),
+    )
+    aberto = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=320.00,
+        data_inicio=date(2025, 1, 1),
+        data_fim=None,
+    )
+    session.add_all([fechado, aberto])
+    await session.commit()
+    await session.refresh(fechado)
+
+    response = await client.put(
+        f'/cegep/diarias/valores/{fechado.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'data_fim': '2025-06-01'},
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert 'sobrep' in response.json()['message'].lower()
+
+
+async def test_update_diaria_valor_apenas_valor_nao_dispara_overlap(
+    client, session, token
+):
+    """Editar so o valor nao roda a checagem de sobreposicao.
+
+    Mesmo com duas faixas legadas ja sobrepostas no banco (mesma chave),
+    alterar apenas `valor` passa: o periodo nao muda.
+    """
+    a = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=300.00,
+        data_inicio=date(2025, 1, 1),
+        data_fim=None,
+    )
+    b = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=310.00,
+        data_inicio=date(2025, 6, 1),
+        data_fim=None,
+    )
+    session.add_all([a, b])
+    await session.commit()
+    await session.refresh(a)
+
+    response = await client.put(
+        f'/cegep/diarias/valores/{a.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'valor': 305.00},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['data']['valor'] == 305.00
 
 
 async def test_update_diaria_valor_empty_body(

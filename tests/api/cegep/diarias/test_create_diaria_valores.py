@@ -276,6 +276,42 @@ async def test_create_diaria_valor_auto_close_validation_error(
     assert 'antes do valor vigente' in msg
 
 
+async def test_create_diaria_valor_sobreposicao_banda_fechada_conflito(
+    client, session, token
+):
+    """Criar faixa que sobrepoe uma banda fechada da mesma chave -> 409.
+
+    Usa grupo_cid=4 (sem seed, logo sem periodo aberto e sem auto-close).
+    Insere uma banda fechada e tenta criar uma faixa que cai dentro dela.
+    """
+    fechado = DiariaValorFactory(
+        grupo_pg=1,
+        grupo_cid=4,
+        valor=300.00,
+        data_inicio=date(2025, 1, 1),
+        data_fim=date(2025, 12, 31),
+    )
+    session.add(fechado)
+    await session.commit()
+
+    novo_data = {
+        'grupo_pg': 1,
+        'grupo_cid': 4,
+        'valor': 320.00,
+        'data_inicio': '2025-06-01',
+        'data_fim': '2025-09-30',
+    }
+
+    response = await client.post(
+        '/cegep/diarias/valores/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=novo_data,
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert 'sobrep' in response.json()['message'].lower()
+
+
 async def test_create_diaria_valor_no_auto_close_different_group(
     client, session, token
 ):

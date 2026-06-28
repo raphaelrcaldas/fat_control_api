@@ -28,6 +28,12 @@ class GrupoPg(Base):
 
 class DiariaValor(Base):
     __tablename__ = 'valor_diarias'
+    # Alem das CheckConstraints abaixo, a tabela tem no banco uma constraint
+    # EXCLUDE (btree_gist, DEFERRABLE) que impede faixas de vigencia
+    # sobrepostas para a mesma chave grupo_pg + grupo_cid
+    # (ck_valor_diarias_sem_sobreposicao). Ela vive so na migration porque
+    # depende da extensao btree_gist e o autogenerate do Alembic nao reflete
+    # ExcludeConstraint.
     __table_args__ = (
         CheckConstraint(
             'valor >= 0', name='ck_valor_diarias_valor_nao_negativo'

@@ -27,6 +27,11 @@ class PostoGrad(Base):
 
 class Soldo(Base):
     __tablename__ = 'soldos'
+    # Alem das CheckConstraints abaixo, a tabela tem no banco uma constraint
+    # EXCLUDE (btree_gist, DEFERRABLE) que impede faixas de vigencia
+    # sobrepostas para o mesmo `pg` (ck_soldos_sem_sobreposicao). Ela vive
+    # so na migration porque depende da extensao btree_gist e o autogenerate
+    # do Alembic nao reflete ExcludeConstraint.
     __table_args__ = (
         CheckConstraint('valor >= 0', name='ck_soldos_valor_nao_negativo'),
         CheckConstraint(

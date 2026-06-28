@@ -22,6 +22,7 @@ from fcontrol_api.schemas.cegep.diaria import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import permission_checker
 from fcontrol_api.services.missao import recalcular_custos_missoes
+from fcontrol_api.services.vigencia import garantir_sem_sobreposicao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -173,6 +174,20 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
             )
         anterior.data_fim = nova_data_fim
 
+    # Rede de seguranca contra faixas sobrepostas para a mesma chave
+    # (grupo_pg + grupo_cid); o auto-close acima fechou o periodo aberto,
+    # aqui barramos qualquer outra faixa que ainda conflite.
+    await garantir_sem_sobreposicao(
+        session,
+        DiariaValor,
+        [
+            DiariaValor.grupo_pg == data.grupo_pg,
+            DiariaValor.grupo_cid == data.grupo_cid,
+        ],
+        data.data_inicio,
+        data.data_fim,
+    )
+
     new_valor = DiariaValor(
         grupo_pg=data.grupo_pg,
         grupo_cid=data.grupo_cid,
@@ -235,6 +250,22 @@ async def update_diaria_valor(
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Data fim deve ser maior que data início',
+        )
+
+    # So checamos sobreposicao quando as datas mudam; o schema de update nao
+    # permite alterar grupo_pg/grupo_cid, e editar apenas `valor` nao desloca
+    # o periodo (nao pode criar conflito novo).
+    if {'data_inicio', 'data_fim'} & update_data.keys():
+        await garantir_sem_sobreposicao(
+            session,
+            DiariaValor,
+            [
+                DiariaValor.grupo_pg == db_valor.grupo_pg,
+                DiariaValor.grupo_cid == db_valor.grupo_cid,
+            ],
+            data_inicio,
+            data_fim,
+            excluir_id=valor_id,
         )
 
     for key, value in update_data.items():
