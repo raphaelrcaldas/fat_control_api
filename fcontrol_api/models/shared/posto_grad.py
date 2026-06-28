@@ -7,7 +7,10 @@ from sqlalchemy import (
     Identity,
     Numeric,
     String,
+    column,
+    literal_column,
 )
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -27,16 +30,27 @@ class PostoGrad(Base):
 
 class Soldo(Base):
     __tablename__ = 'soldos'
-    # Alem das CheckConstraints abaixo, a tabela tem no banco uma constraint
-    # EXCLUDE (btree_gist, DEFERRABLE) que impede faixas de vigencia
-    # sobrepostas para o mesmo `pg` (ck_soldos_sem_sobreposicao). Ela vive
-    # so na migration porque depende da extensao btree_gist e o autogenerate
-    # do Alembic nao reflete ExcludeConstraint.
+    # A ExcludeConstraint impede faixas de vigencia sobrepostas para o mesmo
+    # `pg` (intervalo inclusivo [data_inicio, data_fim], data_fim NULL =
+    # aberta). DEFERRABLE INITIALLY DEFERRED para permitir o auto-close do
+    # periodo anterior na mesma transacao. Depende da extensao btree_gist
+    # (criada na migration; o autogenerate nao emite CREATE EXTENSION).
     __table_args__ = (
         CheckConstraint('valor >= 0', name='ck_soldos_valor_nao_negativo'),
         CheckConstraint(
             'data_fim IS NULL OR data_inicio < data_fim',
             name='ck_soldos_data_inicio_antes_fim',
+        ),
+        ExcludeConstraint(
+            (column('pg'), '='),
+            (
+                literal_column("daterange(data_inicio, data_fim, '[]')"),
+                '&&',
+            ),
+            using='gist',
+            name='ck_soldos_sem_sobreposicao',
+            deferrable=True,
+            initially='DEFERRED',
         ),
     )
 

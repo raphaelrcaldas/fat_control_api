@@ -1,7 +1,15 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, ForeignKey, Identity, Numeric
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Identity,
+    Numeric,
+    column,
+    literal_column,
+)
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from fcontrol_api.models.shared.estados_cidades import Cidade
@@ -28,12 +36,12 @@ class GrupoPg(Base):
 
 class DiariaValor(Base):
     __tablename__ = 'valor_diarias'
-    # Alem das CheckConstraints abaixo, a tabela tem no banco uma constraint
-    # EXCLUDE (btree_gist, DEFERRABLE) que impede faixas de vigencia
-    # sobrepostas para a mesma chave grupo_pg + grupo_cid
-    # (ck_valor_diarias_sem_sobreposicao). Ela vive so na migration porque
-    # depende da extensao btree_gist e o autogenerate do Alembic nao reflete
-    # ExcludeConstraint.
+    # A ExcludeConstraint impede faixas de vigencia sobrepostas para a mesma
+    # chave grupo_pg + grupo_cid (intervalo inclusivo [data_inicio, data_fim],
+    # data_fim NULL = aberta). DEFERRABLE INITIALLY DEFERRED para permitir o
+    # auto-close do periodo anterior na mesma transacao. Depende da extensao
+    # btree_gist (criada na migration; o autogenerate nao emite CREATE
+    # EXTENSION).
     __table_args__ = (
         CheckConstraint(
             'valor >= 0', name='ck_valor_diarias_valor_nao_negativo'
@@ -41,6 +49,18 @@ class DiariaValor(Base):
         CheckConstraint(
             'data_fim IS NULL OR data_inicio < data_fim',
             name='ck_valor_diarias_data_inicio_antes_fim',
+        ),
+        ExcludeConstraint(
+            (column('grupo_pg'), '='),
+            (column('grupo_cid'), '='),
+            (
+                literal_column("daterange(data_inicio, data_fim, '[]')"),
+                '&&',
+            ),
+            using='gist',
+            name='ck_valor_diarias_sem_sobreposicao',
+            deferrable=True,
+            initially='DEFERRED',
         ),
         {'schema': 'cegep'},
     )
