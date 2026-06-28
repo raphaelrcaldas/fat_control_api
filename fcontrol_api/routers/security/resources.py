@@ -52,7 +52,7 @@ async def update_resource(
 
     if not resource:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Recurso nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Recurso não encontrado'
         )
 
     # Update only non-None fields
@@ -74,7 +74,7 @@ async def delete_resource(resource_id: int, session: Session):
 
     if not resource:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Recurso nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Recurso não encontrado'
         )
 
     # Check for linked permissions
@@ -87,7 +87,7 @@ async def delete_resource(resource_id: int, session: Session):
     if linked_permissions:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail='Recurso possui permissoes vinculadas',
+            detail='Recurso possui permissões vinculadas',
         )
 
     await session.delete(resource)

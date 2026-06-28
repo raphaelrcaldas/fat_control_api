@@ -140,7 +140,7 @@ async def get_role_detail(role_id: int, session: Session):
 
     if not role:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Role não encontrada'
+            status_code=HTTPStatus.NOT_FOUND, detail='Perfil não encontrado'
         )
 
     return success_response(
@@ -298,14 +298,14 @@ async def add_permission_to_role(
     if not role:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Role nao encontrado',
+            detail='Perfil não encontrado',
         )
 
     permission = await session.get(Permissions, body.permission_id)
     if not permission:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Permissao nao encontrada',
+            detail='Permissão não encontrada',
         )
 
     existing = await session.scalar(
@@ -317,7 +317,7 @@ async def add_permission_to_role(
     if existing:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail='Role ja possui esta permissao',
+            detail='Perfil já possui esta permissão',
         )
 
     rp = RolePermissions(
@@ -327,7 +327,9 @@ async def add_permission_to_role(
     session.add(rp)
     await session.commit()
 
-    return success_response(message='Permissao adicionada ao role com sucesso')
+    return success_response(
+        message='Permissão adicionada ao perfil com sucesso'
+    )
 
 
 @router.delete(
@@ -348,10 +350,12 @@ async def remove_permission_from_role(
     if not result:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Role nao possui esta permissao',
+            detail='Perfil não possui esta permissão',
         )
 
     await session.delete(result)
     await session.commit()
 
-    return success_response(message='Permissao removida do role com sucesso')
+    return success_response(
+        message='Permissão removida do perfil com sucesso'
+    )
