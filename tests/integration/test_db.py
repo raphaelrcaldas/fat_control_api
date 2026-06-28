@@ -10,6 +10,7 @@ pytestmark = pytest.mark.anyio
 async def test_create_user(session: AsyncSession):
     new_user = User(
         p_g='2s',
+        quadro=None,
         esp=None,
         nome_guerra='fulano',
         nome_completo=None,
@@ -17,9 +18,11 @@ async def test_create_user(session: AsyncSession):
         saram='5555556',
         unidade='11gt',
         cpf=None,
+        telefone=None,
         email_fab=None,
         email_pess=None,
         nasc=None,
+        data_praca=None,
         ult_promo=None,
         ant_rel=None,
         password='secret',

@@ -10,6 +10,7 @@ pytestmark = pytest.mark.anyio
 EXPECTED_TASK_NAMES = {
     'cleanup_old_unavailability',
     'cleanup_old_login_logs',
+    'cleanup_expired_auth_codes',
 }
 
 

@@ -25,6 +25,7 @@ VALID_USER_DATA = {
     'cpf': '52998224725',  # CPF valido
     'ult_promo': '2020-01-15',
     'nasc': '1990-05-20',
+    'data_praca': '2010-03-01',
     'email_pess': 'fulano@email.com',
     'email_fab': 'fulano@fab.mil.br',
     'active': True,
