@@ -28,6 +28,7 @@ from fcontrol_api.schemas.inteligencia.passaportes import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     ActiveOrgOptional,
+    ensure_org_permission_or_owner,
     get_current_user,
     has_org_permission,
     permission_checker,
@@ -223,16 +224,26 @@ async def list_passaportes(
 async def get_passaporte_by_user(
     user_id: int,
     session: Session,
-    user: Annotated[User, ViewPassaportes],
+    user: Annotated[User, Depends(get_current_user)],
     active_org: ActiveOrgOptional,
 ):
+    # Self-service: o próprio militar vê o seu passaporte (portal FatBird),
+    # mesmo sem `passaportes.view` (recurso administrativo, que o tripulante
+    # não possui). Terceiros exigem a permissão de role na org ativa.
+    is_owner = user.id == user_id
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'passaportes', 'view', user_id
+    )
+
     passaporte = await session.scalar(
         select(Passaporte).where(Passaporte.user_id == user_id)
     )
     if not passaporte:
         return success_response(data=None)
 
-    can_view_img = await has_org_permission(
+    # A imagem do próprio documento é sempre visível ao dono; terceiros só
+    # com `passaporte.image.view`.
+    can_view_img = is_owner or await has_org_permission(
         user, session, active_org, IMG_RESOURCE, 'view'
     )
 

@@ -359,3 +359,43 @@ async def ensure_permission_or_owner(
         status_code=HTTPStatus.FORBIDDEN,
         detail=f'Permissão negada: {resource}.{action}',
     )
+
+
+async def ensure_org_permission_or_owner(
+    user: User,
+    session: AsyncSession,
+    active_org: str | None,
+    resource: str,
+    action: str,
+    owner_id: int | None,
+) -> None:
+    """Libera a ação se o usuário é o dono OU tem a permissão na org ativa.
+
+    Versão org-scoped de `ensure_permission_or_owner`: usa
+    `has_org_permission` (não `has_permission`), então NÃO empresta grants
+    de outra unidade. Uso típico: leituras self-service que o portal FatBird
+    consome — o próprio militar vê o seu dado sem role; terceiros exigem a
+    permissão no vínculo da org ativa (admin tem bypass). `owner_id=None`
+    representa "sem dono definido" (ex.: consulta ampla, sem filtro por
+    usuário), caindo direto na checagem de permissão.
+    """
+    if owner_id is not None and user.id == owner_id:
+        return
+
+    if await has_org_permission(user, session, active_org, resource, action):
+        return
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='access_denied',
+        resource=resource,
+        resource_id=owner_id,
+        before=None,
+        after=f"Tentou ação '{action}' sem permissão (owner_id={owner_id})",
+    )
+
+    raise HTTPException(
+        status_code=HTTPStatus.FORBIDDEN,
+        detail=f'Permissão negada: {resource}.{action}',
+    )

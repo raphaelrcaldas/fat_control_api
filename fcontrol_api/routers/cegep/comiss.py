@@ -31,6 +31,7 @@ from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import (
     ActiveOrg,
+    ensure_org_permission_or_owner,
     get_current_user,
     permission_checker,
 )
@@ -70,11 +71,11 @@ def _comiss_to_dict(c: Comissionamento) -> dict:
 @router.get(
     '/',
     response_model=ApiResponse[list[ComissPublic]],
-    dependencies=[ViewComiss],
 )
 async def get_cmtos(
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
     user_id: int = None,
     status: str = None,
     search: str = None,
@@ -91,6 +92,14 @@ async def get_cmtos(
     - tipo: "periodo" ou "comparativo"
     - modulo: "sim" ou "nao"
     """
+    # Self-service: o tripulante lista os PRÓPRIOS comissionamentos
+    # (user_id == ele) sem `comiss.view` — usado pelo portal FatBird.
+    # Qualquer consulta mais ampla (outro user_id, ou sem filtro → owner_id
+    # None) exige a permissão de role na org ativa.
+    await ensure_org_permission_or_owner(
+        current_user, session, active_org, 'comiss', 'view', user_id
+    )
+
     query = (
         select(Comissionamento)
         .join(User)
@@ -273,12 +282,12 @@ async def get_summary(
 @router.get(
     '/{comiss_id}',
     response_model=ApiResponse[ComissDetail],
-    dependencies=[ViewComiss],
 )
 async def get_cmto_by_id(
     comiss_id: int,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
 ):
     """
     Retorna um comissionamento com todas as missões e o histórico de auditoria.
@@ -295,6 +304,12 @@ async def get_cmto_by_id(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Comissionamento não encontrado',
         )
+
+    # Self-service: o dono vê o próprio comissionamento (portal FatBird)
+    # sem `comiss.view`; terceiros exigem a permissão de role na org ativa.
+    await ensure_org_permission_or_owner(
+        current_user, session, active_org, 'comiss', 'view', comiss.user_id
+    )
 
     cache = comiss.cache_calc or {}
     base = ComissSchema.model_validate(comiss)
