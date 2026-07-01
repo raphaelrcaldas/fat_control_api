@@ -324,6 +324,35 @@ def permission_checker(resource: str, action: str):
     return check_permission
 
 
+async def _deny_access(
+    session: AsyncSession,
+    user: User,
+    resource: str,
+    action: str,
+    owner_id: int | None = None,
+) -> None:
+    """Registra a negação (auditoria `access_denied`) e levanta 403.
+
+    Núcleo compartilhado pelos guards `ensure_permission_or_owner` e
+    `ensure_org_permission_or_owner` — mantém uma única mensagem de log e um
+    único formato de erro entre eles, evitando drift.
+    """
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='access_denied',
+        resource=resource,
+        resource_id=owner_id,
+        before=None,
+        after=f"Tentou ação '{action}' sem permissão (owner_id={owner_id})",
+    )
+
+    raise HTTPException(
+        status_code=HTTPStatus.FORBIDDEN,
+        detail=f'Permissão negada: {resource}.{action}',
+    )
+
+
 async def ensure_permission_or_owner(
     user: User,
     session: AsyncSession,
@@ -343,22 +372,7 @@ async def ensure_permission_or_owner(
     if await has_permission(user, session, resource, action):
         return
 
-    await log_user_action(
-        session=session,
-        user_id=user.id,
-        action='access_denied',
-        resource=resource,
-        resource_id=owner_id,
-        before=None,
-        after=(
-            f"Tentou ação '{action}' em recurso de {owner_id} sem permissão"
-        ),
-    )
-
-    raise HTTPException(
-        status_code=HTTPStatus.FORBIDDEN,
-        detail=f'Permissão negada: {resource}.{action}',
-    )
+    await _deny_access(session, user, resource, action, owner_id)
 
 
 async def ensure_org_permission_or_owner(
@@ -385,17 +399,4 @@ async def ensure_org_permission_or_owner(
     if await has_org_permission(user, session, active_org, resource, action):
         return
 
-    await log_user_action(
-        session=session,
-        user_id=user.id,
-        action='access_denied',
-        resource=resource,
-        resource_id=owner_id,
-        before=None,
-        after=f"Tentou ação '{action}' sem permissão (owner_id={owner_id})",
-    )
-
-    raise HTTPException(
-        status_code=HTTPStatus.FORBIDDEN,
-        detail=f'Permissão negada: {resource}.{action}',
-    )
+    await _deny_access(session, user, resource, action, owner_id)

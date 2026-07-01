@@ -76,12 +76,12 @@ async def get_cmtos(
     session: Session,
     active_org: ActiveOrg,
     current_user: CurrentUser,
-    user_id: int = None,
-    status: str = None,
-    search: str = None,
-    pg: str = None,
-    tipo: str = None,
-    modulo: str = None,
+    user_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    pg: str | None = None,
+    tipo: str | None = None,
+    modulo: str | None = None,
 ):
     """
     Lista comissionamentos com valores pré-calculados do cache.
