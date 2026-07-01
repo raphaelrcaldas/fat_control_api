@@ -506,7 +506,7 @@ async def update_cmto(
 
     if not db_comiss:
         raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
+            status_code=HTTPStatus.NOT_FOUND,
             detail='Comissionamento não encontrado',
         )
 
@@ -573,10 +573,11 @@ async def update_cmto(
             mis_not_found.append(mis)
 
     if mis_not_found:
-        msg = '\nAs seguintes missões ficarão fora do escopo:\n'
+        msg = 'As seguintes missões ficarão fora do escopo:'
 
         for mis in mis_not_found:
-            msg += f'- {mis.tipo_doc} {mis.n_doc} {mis.afast}\n'.upper()
+            afast_br = mis.afast.strftime('%d/%m/%Y')
+            msg += f'\n- {mis.tipo_doc} {mis.n_doc} {afast_br}'.upper()
 
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,

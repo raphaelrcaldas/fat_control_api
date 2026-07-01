@@ -38,7 +38,7 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
         content=ApiErrorResponse(
-            message='Erro de validacao',
+            message='Erro de validação',
             errors=errors,
             path=str(request.url.path),
         ).model_dump(),

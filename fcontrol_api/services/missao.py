@@ -104,7 +104,7 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     if not conflitos:
         return
 
-    msg = '\nVerifique o seguinte conflito:'
+    msg = 'Verifique o seguinte conflito:'
     for item in conflitos.values():
         uf, fm = item['uf'], item['fm']
         motivo_txt = ' / '.join(sorted(item['motivos']))

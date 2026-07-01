@@ -42,14 +42,16 @@ class EtapaBase(BaseModel):
             arr_min = 1440
         if arr_min <= dep_min:
             msg = (
-                'Etapa nao pode atravessar o dia. arr deve ser '
-                'maior que dep (00:00 e aceito como fim do dia).'
+                'Etapa não pode atravessar o dia. O horário de pouso deve '
+                'ser maior que o de decolagem (00:00 é aceito como fim do '
+                'dia).'
             )
             raise ValueError(msg)
         expected = arr_min - dep_min
         if self.tvoo != expected:
             msg = (
-                f'tvoo ({self.tvoo}) nao confere com dep/arr ({expected} min)'
+                f'Tempo de voo ({self.tvoo} min) não confere com o '
+                f'intervalo decolagem/pouso ({expected} min)'
             )
             raise ValueError(msg)
         return self
@@ -189,7 +191,7 @@ def _check_pilot_duplicates(tripulantes) -> None:
     for t in tripulantes:
         if t.func_bordo in _POSICOES_PILOTO:
             if t.func_bordo in seen:
-                msg = f'Posicao de piloto duplicada: {t.func_bordo}'
+                msg = f'Posição de piloto duplicada: {t.func_bordo}'
                 raise ValueError(msg)
             seen.add(t.func_bordo)
 
@@ -281,8 +283,9 @@ def _check_oi_sums(items, label: str) -> None:
         soma = sum(oi.tvoo for oi in etapa.oi_etapas)
         if soma != etapa.tvoo:
             msg = (
-                f'{label}[{idx}]: soma das OIs ({soma}) '
-                f'nao confere com tvoo ({etapa.tvoo})'
+                f'{label}[{idx}]: a soma das Ordens de Instrução '
+                f'({soma} min) não confere com o tempo de voo '
+                f'({etapa.tvoo} min)'
             )
             raise ValueError(msg)
 
@@ -352,7 +355,7 @@ class MissaoComEtapasUpdate(BaseModel):
         overlap = set(update_ids) & set(self.delete_ids)
         if overlap:
             msg = (
-                f'IDs nao podem aparecer em update e '
+                f'IDs não podem aparecer em update e '
                 f'delete_ids ao mesmo tempo: {sorted(overlap)}'
             )
             raise ValueError(msg)

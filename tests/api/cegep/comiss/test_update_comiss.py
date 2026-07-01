@@ -104,7 +104,7 @@ async def test_update_comiss_not_found(client, org_admin_token, users):
         json=update_data,
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert 'encontrado' in resp['message'].lower()
 

@@ -60,28 +60,28 @@ def test_etapa_create_1p_duplicado_rejeita():
     trips = [_trip('1P', 1), _trip('1P', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaCreate(missao_id=1, tripulantes=trips, **_BASE_ETAPA)
-    assert 'Posicao de piloto duplicada: 1P' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: 1P' in str(exc_info.value)
 
 
 def test_etapa_create_2p_duplicado_rejeita():
     trips = [_trip('2P', 1), _trip('2P', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaCreate(missao_id=1, tripulantes=trips, **_BASE_ETAPA)
-    assert 'Posicao de piloto duplicada: 2P' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: 2P' in str(exc_info.value)
 
 
 def test_etapa_create_in_duplicado_rejeita():
     trips = [_trip('IN', 1), _trip('IN', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaCreate(missao_id=1, tripulantes=trips, **_BASE_ETAPA)
-    assert 'Posicao de piloto duplicada: IN' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: IN' in str(exc_info.value)
 
 
 def test_etapa_create_al_duplicado_rejeita():
     trips = [_trip('AL', 1), _trip('AL', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaCreate(missao_id=1, tripulantes=trips, **_BASE_ETAPA)
-    assert 'Posicao de piloto duplicada: AL' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: AL' in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ def test_etapa_create_nested_duplicado_rejeita():
     trips = [_trip('1P', 1), _trip('1P', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaCreateNested(tripulantes=trips, **_BASE_ETAPA)
-    assert 'Posicao de piloto duplicada: 1P' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: 1P' in str(exc_info.value)
 
 
 def test_etapa_create_nested_distintos_aceita():
@@ -110,7 +110,7 @@ def test_etapa_update_nested_duplicado_rejeita():
     trips = [_trip('2P', 1), _trip('2P', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaUpdateNested(id=10, tripulantes=trips, **_BASE_ETAPA)
-    assert 'Posicao de piloto duplicada: 2P' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: 2P' in str(exc_info.value)
 
 
 def test_etapa_update_nested_distintos_aceita():
@@ -136,7 +136,7 @@ def test_etapa_update_duplicado_rejeita():
     trips = [_trip('IN', 1), _trip('IN', 2)]
     with pytest.raises(ValidationError) as exc_info:
         EtapaUpdate(tripulantes=trips)
-    assert 'Posicao de piloto duplicada: IN' in str(exc_info.value)
+    assert 'Posição de piloto duplicada: IN' in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

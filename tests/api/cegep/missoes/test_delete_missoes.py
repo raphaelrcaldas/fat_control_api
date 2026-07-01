@@ -52,7 +52,7 @@ async def test_delete_missao_not_found(client, org_admin_token):
         headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.NOT_FOUND
     assert 'não encontrada' in response.json()['message'].lower()
 
 

@@ -601,7 +601,7 @@ async def delete_fragmis(
     )
     if not db_frag:
         raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
+            status_code=HTTPStatus.NOT_FOUND,
             detail='Missão não encontrada',
         )
 
