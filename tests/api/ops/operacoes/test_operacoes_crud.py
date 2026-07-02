@@ -257,9 +257,7 @@ async def test_get_detail_success(client, session, users, org_admin_token):
     await session.commit()
     await session.refresh(op)
 
-    resp = await client.get(
-        f'{BASE}{op.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.get(f'{BASE}{op.id}', headers=_auth(org_admin_token))
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
     assert data['id'] == op.id
@@ -282,9 +280,7 @@ async def test_get_detail_cross_org_404(
     await session.commit()
     await session.refresh(op)
 
-    resp = await client.get(
-        f'{BASE}{op.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.get(f'{BASE}{op.id}', headers=_auth(org_admin_token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -418,15 +414,11 @@ async def test_delete_writer_without_delete_perm_forbidden(
 
 
 async def test_delete_not_found(client, org_admin_token):
-    resp = await client.delete(
-        f'{BASE}999999', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{BASE}999999', headers=_auth(org_admin_token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(
-    client, session, users, org_admin_token
-):
+async def test_delete_cross_org_404(client, session, users, org_admin_token):
     user, _ = users
     op = OperacaoFactory(created_by=user.id, uae='1gt')
     session.add(op)

@@ -120,9 +120,7 @@ async def grant(session, role_name, resource, action, *, org=None, user=None):
         )
     )
     if perm is None:
-        perm = Permissions(
-            resource_id=res.id, name=action, description=action
-        )
+        perm = Permissions(resource_id=res.id, name=action, description=action)
         session.add(perm)
         await session.flush()
 
@@ -133,9 +131,7 @@ async def grant(session, role_name, resource, action, *, org=None, user=None):
         )
     )
     if existing is None:
-        session.add(
-            RolePermissions(role_id=role.id, permission_id=perm.id)
-        )
+        session.add(RolePermissions(role_id=role.id, permission_id=perm.id))
         await session.flush()
 
     if user is not None:
@@ -238,9 +234,7 @@ class TestCreateAccessToken:
 
     def test_first_login_uses_short_expiry(self):
         tok = create_access_token({'user_id': 1, 'first_login': True})
-        self._assert_expires_in(
-            tok, settings.FIRST_LOGIN_TOKEN_EXPIRE_MINUTES
-        )
+        self._assert_expires_in(tok, settings.FIRST_LOGIN_TOKEN_EXPIRE_MINUTES)
 
     def test_dev_mode_extends_ten_years(self):
         tok = create_access_token({'user_id': 1}, dev=True)
@@ -488,9 +482,7 @@ class TestActiveOrgDeps:
 class TestHasPermission:
     async def test_true_with_grant(self, session):
         user = await make_user(session)
-        await grant(
-            session, 'editor', 'docs', 'edit', org=None, user=user
-        )
+        await grant(session, 'editor', 'docs', 'edit', org=None, user=user)
         assert await has_permission(user, session, 'docs', 'edit') is True
 
     async def test_false_without_grant(self, session):
@@ -514,9 +506,7 @@ class TestHasPermission:
         async def _none(*args, **kwargs):
             return None
 
-        monkeypatch.setattr(
-            'fcontrol_api.security.get_user_roles', _none
-        )
+        monkeypatch.setattr('fcontrol_api.security.get_user_roles', _none)
         assert await has_permission(user, session, 'docs', 'edit') is False
 
 
@@ -549,9 +539,7 @@ class TestHasOrgPermission:
         """Admin de '1gt' NÃO ganha bypass com org ativa '11gt'."""
         user = await make_user(session)
         await bind_role(session, user, 'admin', org='1gt')
-        ok = await has_org_permission(
-            user, session, '11gt', 'om', 'update'
-        )
+        ok = await has_org_permission(user, session, '11gt', 'om', 'update')
         assert ok is False
 
     async def test_grant_in_other_org_isolated(self, session):
@@ -664,9 +652,7 @@ class TestEnsurePermissionOrOwner:
 
     async def test_non_owner_with_permission_allowed(self, session):
         user = await make_user(session)
-        await grant(
-            session, 'editor', 'users', 'update', org=None, user=user
-        )
+        await grant(session, 'editor', 'users', 'update', org=None, user=user)
         await ensure_permission_or_owner(
             user, session, 'users', 'update', owner_id=user.id + 1000
         )

@@ -349,10 +349,14 @@ async def upload_imagem_passaporte(
         select(Passaporte).where(Passaporte.user_id == tripulante.user_id)
     )
     key_antiga = (
-        passaporte.passaporte_file_path
-        if tipo is TipoImagem.passaporte
-        else passaporte.visa_file_path
-    ) if passaporte else None
+        (
+            passaporte.passaporte_file_path
+            if tipo is TipoImagem.passaporte
+            else passaporte.visa_file_path
+        )
+        if passaporte
+        else None
+    )
 
     # Granularidade real: substituir imagem existente exige 'update';
     # enviar a primeira imagem do tipo exige 'create'. Checa antes de ler/

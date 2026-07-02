@@ -32,9 +32,7 @@ async def _ensure_perm(session, resource, action):
         )
     )
     if perm is None:
-        perm = Permissions(
-            resource_id=res.id, name=action, description=action
-        )
+        perm = Permissions(resource_id=res.id, name=action, description=action)
         session.add(perm)
         await session.flush()
     return perm

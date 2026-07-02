@@ -201,9 +201,7 @@ def test_hash_muda_com_cidade():
 
 def test_integridade_sem_cache_sem_pernoites():
     """Sem cache e sem pernoites: íntegro (missão sem custo)."""
-    assert (
-        verificar_integridade_custos(_frag(), [_user()], [], None) is True
-    )
+    assert verificar_integridade_custos(_frag(), [_user()], [], None) is True
 
 
 def test_integridade_sem_cache_com_pernoites():
@@ -247,9 +245,7 @@ def test_integridade_hash_correspondente():
     hash_ok = gerar_hash_custos(frag, users, pernoites)
     cache = {'_input_hash': hash_ok}
 
-    assert (
-        verificar_integridade_custos(frag, users, pernoites, cache) is True
-    )
+    assert verificar_integridade_custos(frag, users, pernoites, cache) is True
 
 
 def test_integridade_drift_hash_divergente():

@@ -15,11 +15,15 @@ from fcontrol_api.models.estatistica.esf_aer import (
 from fcontrol_api.models.estatistica.etapa import Etapa, Missao, OIEtapa
 from fcontrol_api.schemas.estatistica.esf_aer import (
     EsfAerDiffRow,
+    EsfAerHistorico,
     EsfAerImportResponse,
     EsfAerItem,
     EsfAerResumoItem,
     EsfAerResumoResponse,
     EsfAerUpdateRequest,
+    HistPoint,
+    HistPrograma,
+    HistTotal,
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg
@@ -27,6 +31,7 @@ from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 AnoRef = Annotated[int, Query(ge=2020)]
+Simulador = Annotated[bool, Query()]
 
 router = APIRouter(prefix='/esfaer', tags=['estatistica'])
 
@@ -63,7 +68,15 @@ async def get_esf_aer_resumo(
     session: Session,
     active_org: ActiveOrg,
     ano_ref: AnoRef,
+    simulador: Simulador = True,
 ):
+    """Resumo de Esforco Aereo do ano para a unidade ativa.
+
+    Quando `simulador` e False, os programas de simulador (descricao contendo
+    'SML') sao excluidos tanto dos itens quanto dos totais. Todo o calculo —
+    inclusive a subtracao das horas do simulador — e feito aqui; o frontend
+    apenas exibe o resultado.
+    """
     # Subquery: OIEtapa filtrada por ano e pela unidade ativa (via Missao).
     oi_sub = (
         select(
@@ -119,7 +132,13 @@ async def get_esf_aer_resumo(
             oi_sub,
             oi_sub.c.esf_aer_id == EsforcoAereo.id,
         )
-        .group_by(
+    )
+
+    if not simulador:
+        query = query.where(EsforcoAereo.descricao.notlike('%SML%'))
+
+    query = (
+        query.group_by(
             EsforcoAereo.id,
             EsforcoAereo.descricao,
             EsfAerAloc.alocado,
@@ -176,6 +195,140 @@ async def get_esf_aer_resumo(
             total_saldo=total_alocado - total_voado,
             total_meses_sagem=total_meses_sagem,
             total_meses_voados=total_meses_voados,
+        )
+    )
+
+
+def _timeline_points(
+    hists: list[EsfAerAlocHist],
+    alocado: int,
+) -> list[tuple[str, int]]:
+    """Reconstroi a timeline diaria (data ISO, valor vigente) de uma aloc.
+
+    O historico guarda o valor ANTERIOR a cada mudanca; o valor apos a
+    mudanca `h_i` e `h_{i+1}.aloc_hist` (ou `alocado` apos a ultima).
+    Mudancas no mesmo dia colapsam no ultimo valor do dia; o primeiro
+    ponto e a base (`h1.aloc_hist`) na data do primeiro registro.
+    """
+    if not hists:
+        return []
+
+    points: dict[str, int] = {
+        hists[0].timestamp.date().isoformat(): hists[0].aloc_hist
+    }
+    for i, hist in enumerate(hists):
+        novo = hists[i + 1].aloc_hist if i + 1 < len(hists) else alocado
+        points[hist.timestamp.date().isoformat()] = novo
+    return sorted(points.items())
+
+
+def _to_hist_points(
+    points: list[tuple[str, int]],
+    valor_inicial: int,
+) -> list[HistPoint]:
+    """Converte pares (data, valor) em HistPoint com deltas sequenciais."""
+    timeline: list[HistPoint] = []
+    prev = valor_inicial
+    for data, valor in points:
+        timeline.append(
+            HistPoint(data=data, alocado=valor, delta=valor - prev)
+        )
+        prev = valor
+    return timeline
+
+
+@router.get(
+    '/historico',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[EsfAerHistorico],
+)
+async def get_esf_aer_historico(
+    session: Session,
+    active_org: ActiveOrg,
+    ano_ref: AnoRef,
+):
+    """Historico de mudancas de alocacao de Esforco Aereo no ano.
+
+    Reconstroi, a partir do historico (`EsfAerAlocHist`), a evolucao do
+    valor alocado de cada programa (step-function) e a serie agregada
+    (carry-forward) de todos os programas da org ativa.
+    """
+    aloc_result = await session.execute(
+        select(
+            EsfAerAloc.id,
+            EsfAerAloc.esfaer_id,
+            EsfAerAloc.alocado,
+            EsforcoAereo.descricao,
+            EsforcoAereo.grupo,
+            EsforcoAereo.prog,
+            EsforcoAereo.sub_prog,
+            EsforcoAereo.aplicacao,
+        )
+        .join(EsforcoAereo, EsforcoAereo.id == EsfAerAloc.esfaer_id)
+        .where(
+            EsfAerAloc.ano_ref == ano_ref,
+            EsfAerAloc.uae == active_org,
+        )
+        .order_by(EsforcoAereo.descricao)
+    )
+    alocs = aloc_result.all()
+
+    hists_by_aloc: dict[int, list[EsfAerAlocHist]] = {}
+    if alocs:
+        hist_result = await session.execute(
+            select(EsfAerAlocHist)
+            .where(EsfAerAlocHist.esf_aer_aloc_id.in_([a.id for a in alocs]))
+            .order_by(EsfAerAlocHist.timestamp, EsfAerAlocHist.id)
+        )
+        for hist in hist_result.scalars().all():
+            hists_by_aloc.setdefault(hist.esf_aer_aloc_id, []).append(hist)
+
+    programas: list[HistPrograma] = []
+    # Por programa: (pontos diarios, valor inicial) para a serie do total.
+    series: list[tuple[list[tuple[str, int]], int]] = []
+    all_dates: set[str] = set()
+
+    for aloc in alocs:
+        hists = hists_by_aloc.get(aloc.id, [])
+        points = _timeline_points(hists, aloc.alocado)
+        inicial = hists[0].aloc_hist if hists else aloc.alocado
+
+        programas.append(
+            HistPrograma(
+                esfaer_id=aloc.esfaer_id,
+                descricao=aloc.descricao,
+                nome=aloc.aplicacao or aloc.sub_prog or aloc.prog,
+                grupo=aloc.grupo,
+                atual=aloc.alocado,
+                timeline=_to_hist_points(points, inicial),
+            )
+        )
+        series.append((points, inicial))
+        all_dates.update(data for data, _ in points)
+
+    total_points: list[tuple[str, int]] = []
+    for data in sorted(all_dates):
+        soma = 0
+        for points, inicial in series:
+            valor = inicial
+            for p_data, p_valor in points:
+                if p_data > data:
+                    break
+                valor = p_valor
+            soma += valor
+        total_points.append((data, soma))
+
+    total_inicial = total_points[0][1] if total_points else 0
+    total = HistTotal(
+        atual=sum(a.alocado for a in alocs),
+        timeline=_to_hist_points(total_points, total_inicial),
+    )
+
+    return success_response(
+        data=EsfAerHistorico(
+            ano_ref=ano_ref,
+            programas=programas,
+            total=total,
         )
     )
 

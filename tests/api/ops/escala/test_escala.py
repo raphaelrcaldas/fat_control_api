@@ -84,9 +84,7 @@ async def test_returns_eligible_trip(client, session, users, org_token):
     assert trip.id in _all_trip_ids(data)
 
 
-async def test_ineligible_quad_group_400(
-    client, session, users, org_token
-):
+async def test_ineligible_quad_group_400(client, session, users, org_token):
     user, _ = users
     await _trip_with_func(session, user.id)
     await session.commit()
@@ -108,9 +106,7 @@ async def test_date_end_before_start_422(client, org_token):
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_excludes_other_org_trip(
-    client, session, users, org_token
-):
+async def test_excludes_other_org_trip(client, session, users, org_token):
     """Tripulante de outra unidade não aparece (escopo por Tripulante.uae)."""
     _, other = users
     trip = await _trip_with_func(session, other.id, uae='1gt')
@@ -121,9 +117,7 @@ async def test_excludes_other_org_trip(
     assert trip.id not in _all_trip_ids(resp.json()['data'])
 
 
-async def test_excludes_inactive_trip(
-    client, session, users, org_token
-):
+async def test_excludes_inactive_trip(client, session, users, org_token):
     user, _ = users
     trip = await _trip_with_func(session, user.id, active=False)
     await session.commit()
@@ -146,9 +140,7 @@ async def test_excludes_func_without_data_op(
     assert trip.id not in _all_trip_ids(resp.json()['data'])
 
 
-async def test_excludes_oper_aluno(
-    client, session, users, org_token
-):
+async def test_excludes_oper_aluno(client, session, users, org_token):
     """Função de aluno (`oper == 'al'`) não é elegível para escala."""
     user, _ = users
     trip = await _trip_with_func(session, user.id, oper='al')

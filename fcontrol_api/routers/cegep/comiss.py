@@ -328,9 +328,7 @@ async def get_cmto_by_id(
         # por hash de cada missão na abertura do comissionamento
         .options(selectinload(FragMis.users))
         .where(
-            filtro_missoes_periodo(
-                comiss.uae, comiss.data_ab, comiss.data_fc
-            )
+            filtro_missoes_periodo(comiss.uae, comiss.data_ab, comiss.data_fc)
         )
         .order_by(FragMis.afast)
     )

@@ -174,9 +174,7 @@ async def test_associar_blocks_etapa_in_other_op(
 
     m = await _missao(session, '11gt')
     etapa = await _etapa(session, m.id, date(2025, 6, 5))
-    session.add(
-        OperacaoEtapa(etapa_id=etapa.id, operacao_id=outra_op.id)
-    )
+    session.add(OperacaoEtapa(etapa_id=etapa.id, operacao_id=outra_op.id))
     await session.commit()
 
     resp = await client.post(
@@ -212,9 +210,7 @@ async def test_desassociar_success(
 ):
     m = await _missao(session, '11gt')
     etapa = await _etapa(session, m.id, date(2025, 6, 5))
-    session.add(
-        OperacaoEtapa(etapa_id=etapa.id, operacao_id=operacao.id)
-    )
+    session.add(OperacaoEtapa(etapa_id=etapa.id, operacao_id=operacao.id))
     await session.commit()
 
     resp = await client.delete(

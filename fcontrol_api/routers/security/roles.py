@@ -356,6 +356,4 @@ async def remove_permission_from_role(
     await session.delete(result)
     await session.commit()
 
-    return success_response(
-        message='Permissão removida do perfil com sucesso'
-    )
+    return success_response(message='Permissão removida do perfil com sucesso')

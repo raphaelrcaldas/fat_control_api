@@ -27,9 +27,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def _bind(session, user_id, role_id, org):
-    session.add(
-        UserRole(user_id=user_id, role_id=role_id, organizacao_id=org)
-    )
+    session.add(UserRole(user_id=user_id, role_id=role_id, organizacao_id=org))
     await session.commit()
 
 
@@ -38,9 +36,7 @@ async def _new_permission(session, name='view'):
     session.add(resource)
     await session.commit()
     await session.refresh(resource)
-    perm = Permissions(
-        resource_id=resource.id, name=name, description='desc'
-    )
+    perm = Permissions(resource_id=resource.id, name=name, description='desc')
     session.add(perm)
     await session.commit()
     await session.refresh(perm)
@@ -113,9 +109,7 @@ async def test_list_users_roles_scoped_to_active_org(
 # --- add_user_role -------------------------------------------------------- #
 
 
-async def test_add_user_role_ok(
-    client, session, users, unit_admin_token
-):
+async def test_add_user_role_ok(client, session, users, unit_admin_token):
     _, other = users
     response = await client.post(
         '/security/roles/users/',
@@ -163,9 +157,7 @@ async def test_add_user_role_system_scope_forbidden_for_unit_admin(
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-async def test_add_user_role_user_not_found(
-    client, unit_admin_token
-):
+async def test_add_user_role_user_not_found(client, unit_admin_token):
     response = await client.post(
         '/security/roles/users/',
         json={'user_id': 999999, 'role_id': 2, 'organizacao_id': '11gt'},
@@ -175,9 +167,7 @@ async def test_add_user_role_user_not_found(
     assert response.json()['message'] == 'Usuário não encontrado'
 
 
-async def test_add_user_role_role_not_found(
-    client, users, unit_admin_token
-):
+async def test_add_user_role_role_not_found(client, users, unit_admin_token):
     _, other = users
     response = await client.post(
         '/security/roles/users/',
@@ -192,9 +182,7 @@ async def test_add_user_role_role_not_found(
     assert response.json()['message'] == 'Perfil não encontrado'
 
 
-async def test_add_user_role_invalid_tenant(
-    client, users, sysadmin_token
-):
+async def test_add_user_role_invalid_tenant(client, users, sysadmin_token):
     """Org inexistente como tenant → 404 (via admin de sistema)."""
     _, other = users
     response = await client.post(
@@ -242,9 +230,7 @@ async def test_add_user_role_duplicate_conflict(
 # --- update_user_role ----------------------------------------------------- #
 
 
-async def test_update_user_role_ok(
-    client, session, users, unit_admin_token
-):
+async def test_update_user_role_ok(client, session, users, unit_admin_token):
     _, other = users
     await _bind(session, other.id, role_id=2, org='11gt')
     response = await client.put(
@@ -264,9 +250,7 @@ async def test_update_user_role_ok(
     assert ur.role_id == 3
 
 
-async def test_update_user_role_not_found(
-    client, users, unit_admin_token
-):
+async def test_update_user_role_not_found(client, users, unit_admin_token):
     _, other = users
     response = await client.put(
         '/security/roles/users/',
@@ -291,9 +275,7 @@ async def test_update_user_role_cross_org_forbidden(
 # --- delete_user_role ----------------------------------------------------- #
 
 
-async def test_delete_user_role_ok(
-    client, session, users, unit_admin_token
-):
+async def test_delete_user_role_ok(client, session, users, unit_admin_token):
     _, other = users
     await _bind(session, other.id, role_id=2, org='11gt')
     response = await client.request(
@@ -345,9 +327,7 @@ async def test_delete_user_role_role_mismatch(
     assert response.json()['message'] == 'Roles não conferem'
 
 
-async def test_delete_user_role_not_found(
-    client, users, unit_admin_token
-):
+async def test_delete_user_role_not_found(client, users, unit_admin_token):
     _, other = users
     response = await client.request(
         'DELETE',
@@ -446,9 +426,7 @@ async def test_add_permission_to_role_duplicate_conflict(
     assert response.json()['message'] == 'Perfil já possui esta permissão'
 
 
-async def test_remove_permission_from_role_ok(
-    client, session, sysadmin_token
-):
+async def test_remove_permission_from_role_ok(client, session, sysadmin_token):
     perm = await _new_permission(session)
     session.add(RolePermissions(role_id=2, permission_id=perm.id))
     await session.commit()
@@ -470,9 +448,7 @@ async def test_remove_permission_from_role_ok(
     assert rp is None
 
 
-async def test_remove_permission_from_role_not_found(
-    client, sysadmin_token
-):
+async def test_remove_permission_from_role_not_found(client, sysadmin_token):
     response = await client.delete(
         '/security/roles/2/permissions/999999',
         headers={'Authorization': f'Bearer {sysadmin_token}'},

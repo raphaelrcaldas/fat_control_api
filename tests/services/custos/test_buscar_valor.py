@@ -94,21 +94,21 @@ def test_multi_faixa_seleciona_correta_por_data():
         ]
     }
     # Lado da faixa antiga
-    assert _buscar_valor_por_dia(
-        3, 1, date(2024, 6, 1), cache
-    ) == Decimal('400.00')
+    assert _buscar_valor_por_dia(3, 1, date(2024, 6, 1), cache) == Decimal(
+        '400.00'
+    )
     # Lado da faixa nova
-    assert _buscar_valor_por_dia(
-        3, 1, date(2025, 6, 1), cache
-    ) == Decimal('425.00')
+    assert _buscar_valor_por_dia(3, 1, date(2025, 6, 1), cache) == Decimal(
+        '425.00'
+    )
     # Última data da faixa antiga (fronteira)
-    assert _buscar_valor_por_dia(
-        3, 1, date(2024, 12, 31), cache
-    ) == Decimal('400.00')
+    assert _buscar_valor_por_dia(3, 1, date(2024, 12, 31), cache) == Decimal(
+        '400.00'
+    )
     # Primeira data da faixa nova (fronteira)
-    assert _buscar_valor_por_dia(
-        3, 1, date(2025, 1, 1), cache
-    ) == Decimal('425.00')
+    assert _buscar_valor_por_dia(3, 1, date(2025, 1, 1), cache) == Decimal(
+        '425.00'
+    )
 
 
 # --- _buscar_soldo_por_dia ---

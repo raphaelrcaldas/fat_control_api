@@ -69,6 +69,40 @@ class EsfAerImportResponse(BaseModel):
     total_depois: int
 
 
+class HistPoint(BaseModel):
+    """Ponto da timeline de alocacao (data no formato YYYY-MM-DD)."""
+
+    data: str
+    alocado: int
+    delta: int
+
+
+class HistPrograma(BaseModel):
+    """Historico de alocacao de um programa de Esforco Aereo."""
+
+    esfaer_id: int
+    descricao: str
+    nome: str
+    grupo: str
+    atual: int
+    timeline: list[HistPoint]
+
+
+class HistTotal(BaseModel):
+    """Serie agregada (carry-forward) de todos os programas."""
+
+    atual: int
+    timeline: list[HistPoint]
+
+
+class EsfAerHistorico(BaseModel):
+    """Historico de alocacoes de Esforco Aereo no ano."""
+
+    ano_ref: int
+    programas: list[HistPrograma]
+    total: HistTotal
+
+
 class EsfAerResumoResponse(BaseModel):
     items: list[EsfAerResumoItem]
     total_alocado: int

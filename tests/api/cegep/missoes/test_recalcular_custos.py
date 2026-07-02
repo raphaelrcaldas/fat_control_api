@@ -36,9 +36,7 @@ async def _criar_missao(session, *, n_doc, afast_date, regres_date):
     return missao
 
 
-async def test_recalcular_atualiza_custos_e_comiss(
-    session, user_with_comiss
-):
+async def test_recalcular_atualiza_custos_e_comiss(session, user_with_comiss):
     """sit='c' dentro do comiss: recalcula custos da missão E do comiss.
 
     Cobre o caminho completo do laço (incluindo o recálculo de

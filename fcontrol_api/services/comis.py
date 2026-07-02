@@ -201,9 +201,7 @@ async def recalcular_cache_comiss(
             ),
         )
         .where(
-            filtro_missoes_periodo(
-                comiss.uae, comiss.data_ab, comiss.data_fc
-            )
+            filtro_missoes_periodo(comiss.uae, comiss.data_ab, comiss.data_fc)
         )
         .order_by(FragMis.afast)
     )
@@ -315,9 +313,7 @@ async def validar_fechamento_comiss(
             ),
         )
         .where(
-            filtro_missoes_periodo(
-                comiss.uae, comiss.data_ab, comiss.data_fc
-            )
+            filtro_missoes_periodo(comiss.uae, comiss.data_ab, comiss.data_fc)
         )
     )
     esperada = ultima_regres.date() + timedelta(days=1)

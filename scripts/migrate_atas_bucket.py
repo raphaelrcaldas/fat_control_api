@@ -159,9 +159,7 @@ async def migrar(apply: bool, delete_source: bool) -> None:
                     print(f'  ↪️  #{ata.id} já no destino, atualiza só o DB')
                 else:
                     if apply:
-                        obj = client.get_object(
-                            Bucket=SOURCE_BUCKET, Key=base
-                        )
+                        obj = client.get_object(Bucket=SOURCE_BUCKET, Key=base)
                         body = obj['Body'].read()
                         content_type = obj.get(
                             'ContentType', 'application/pdf'

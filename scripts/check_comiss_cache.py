@@ -39,9 +39,7 @@ async def _agregado_ao_vivo(comiss: Comissionamento, session) -> dict:
             ),
         )
         .where(
-            filtro_missoes_periodo(
-                comiss.uae, comiss.data_ab, comiss.data_fc
-            )
+            filtro_missoes_periodo(comiss.uae, comiss.data_ab, comiss.data_fc)
         )
         .order_by(FragMis.afast)
     )

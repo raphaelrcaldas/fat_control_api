@@ -48,9 +48,7 @@ async def test_list_pessoal_empty(client, operacao, org_admin_token):
     assert resp.json()['data'] == []
 
 
-async def test_add_pessoal_success(
-    client, operacao, users, org_admin_token
-):
+async def test_add_pessoal_success(client, operacao, users, org_admin_token):
     _, other = users
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
@@ -81,9 +79,7 @@ async def test_add_pessoal_duplicate_conflict(
     assert resp.status_code == HTTPStatus.CONFLICT
 
 
-async def test_add_pessoal_invalid_user_400(
-    client, operacao, org_admin_token
-):
+async def test_add_pessoal_invalid_user_400(client, operacao, org_admin_token):
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(999999),
@@ -182,9 +178,7 @@ async def test_remove_pessoal_success(
     assert lst.json()['data'] == []
 
 
-async def test_remove_pessoal_not_found(
-    client, operacao, org_admin_token
-):
+async def test_remove_pessoal_not_found(client, operacao, org_admin_token):
     resp = await client.delete(
         f'/ops/operacoes/{operacao.id}/pessoal/999999',
         headers=_auth(org_admin_token),

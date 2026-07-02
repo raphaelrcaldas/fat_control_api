@@ -27,9 +27,7 @@ async def _new_resource(session, name='rec_perm'):
 
 
 async def _new_permission(session, resource_id, name='view'):
-    perm = Permissions(
-        resource_id=resource_id, name=name, description='desc'
-    )
+    perm = Permissions(resource_id=resource_id, name=name, description='desc')
     session.add(perm)
     await session.commit()
     await session.refresh(perm)
@@ -47,9 +45,7 @@ async def test_list_permissions_as_system_admin_ok(client, sysadmin_token):
     assert response.status_code == HTTPStatus.OK
 
 
-async def test_permissions_forbidden_for_unit_admin(
-    client, unit_admin_token
-):
+async def test_permissions_forbidden_for_unit_admin(client, unit_admin_token):
     response = await client.get(
         '/security/permissions/',
         headers={'Authorization': f'Bearer {unit_admin_token}'},
@@ -91,9 +87,7 @@ async def test_create_permission_ok(client, session, sysadmin_token):
     assert data['resource'] == resource.name
 
 
-async def test_create_permission_resource_not_found(
-    client, sysadmin_token
-):
+async def test_create_permission_resource_not_found(client, sysadmin_token):
     response = await client.post(
         '/security/permissions/',
         json={'resource_id': 999999, 'name': 'view', 'description': 'x'},
