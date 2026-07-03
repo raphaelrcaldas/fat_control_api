@@ -127,6 +127,7 @@ async def test_update_rascunho_to_aprovada_generates_numero(
         json={
             'status': 'aprovada',
             'etapas': [etapa_payload],
+            'esf_aer': 90,
         },
         headers={'Authorization': f'Bearer {org_admin_token}'},
     )
@@ -170,6 +171,7 @@ async def test_update_aprovada_sequential_numero(
         json={
             'status': 'aprovada',
             'etapas': [etapa_payload],
+            'esf_aer': 90,
         },
         headers={'Authorization': f'Bearer {org_admin_token}'},
     )
@@ -204,6 +206,54 @@ async def test_update_aprovada_requires_etapa(
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+async def test_update_aprovada_broken_route_continuity_fails(
+    client, session, users, org_admin_token
+):
+    """Aprovar com origem != destino da etapa anterior falha (400).
+
+    A continuidade da rota só é exigida quando a ordem resulta
+    aprovada; em rascunho a rota pode ficar incompleta.
+    """
+    user, _ = users
+
+    ordem = OrdemMissaoFactory(
+        created_by=user.id,
+        status='rascunho',
+        numero='auto',
+        uae='11gt',
+    )
+    session.add(ordem)
+    await session.commit()
+    await session.refresh(ordem)
+
+    etapa1 = _make_etapa(
+        dt_dep='2025-06-15T10:00:00',
+        dt_arr='2025-06-15T11:30:00',
+        origem='SBGL',
+        dest='SBBR',
+    )
+    # Origem SBRF != destino SBBR da etapa anterior
+    etapa2 = _make_etapa(
+        dt_dep='2025-06-15T14:00:00',
+        dt_arr='2025-06-15T15:30:00',
+        origem='SBRF',
+        dest='SBCF',
+    )
+
+    response = await client.put(
+        f'{BASE_URL}/{ordem.id}',
+        json={
+            'status': 'aprovada',
+            'etapas': [etapa1, etapa2],
+            'esf_aer': 180,
+        },
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'origem deve ser igual ao destino' in response.json()['message']
+
+
 async def test_update_replaces_etapas(client, session, users, org_admin_token):
     """Atualizacao de etapas substitui todas as existentes."""
     old_etapa = _make_etapa(
@@ -215,7 +265,7 @@ async def test_update_replaces_etapas(client, session, users, org_admin_token):
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'esf_aer': 2,
+        'esf_aer': 90,
         'campos_especiais': [],
         'etapas': [old_etapa],
         'tripulacao': None,
@@ -273,7 +323,7 @@ async def test_update_etapas_updates_data_saida(
 
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
-        json={'etapas': [new_etapa]},
+        json={'etapas': [new_etapa], 'esf_aer': 90},
         headers={'Authorization': f'Bearer {org_admin_token}'},
     )
 
@@ -422,7 +472,11 @@ async def test_update_status_requires_status_permission(
 
     response = await client.put(
         f'{BASE_URL}/{ordem.id}',
-        json={'status': 'aprovada', 'etapas': [_make_etapa()]},
+        json={
+            'status': 'aprovada',
+            'etapas': [_make_etapa()],
+            'esf_aer': 90,
+        },
         headers={'Authorization': f'Bearer {om_editor_token}'},
     )
 

@@ -39,7 +39,10 @@ from fcontrol_api.security import (
     has_org_permission,
     permission_checker,
 )
-from fcontrol_api.services.om import criar_tripulacao_batch
+from fcontrol_api.services.om import (
+    criar_tripulacao_batch,
+    validar_integridade_etapas,
+)
 from fcontrol_api.utils.responses import paginated_response, success_response
 from fcontrol_api.utils.strings import escape_like
 
@@ -156,9 +159,10 @@ async def list_ordens(
     total = await session.scalar(count_query) or 0
 
     # Paginação e ordenação com eager load de etapas
+    # (id como tiebreaker garante paginação determinística)
     query = (
         query
-        .order_by(OrdemMissao.created_at.desc())
+        .order_by(OrdemMissao.created_at.desc(), OrdemMissao.id.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .options(
@@ -315,6 +319,14 @@ async def create_ordem(
     _: Annotated[User, CreateOM],
 ):
     """Cria uma nova ordem de missão"""
+
+    # Integridade das etapas x esforço aéreo (regras de negócio no
+    # backend; continuidade só é exigida na aprovação)
+    validar_integridade_etapas(
+        ordem_data.etapas,
+        ordem_data.esf_aer,
+        exigir_continuidade=False,
+    )
 
     # Calcular data_saida (data da primeira etapa)
     data_saida = None
@@ -485,6 +497,22 @@ async def update_ordem(
             message='Ordem de missão cancelada com sucesso',
         )
 
+    # Integridade: valida as etapas resultantes (payload ou as já
+    # persistidas) contra o esforço aéreo resultante; a continuidade da
+    # rota é exigida quando a ordem resulta aprovada
+    etapas_alvo = (
+        ordem_data.etapas if ordem_data.etapas is not None else ordem.etapas
+    )
+    esf_aer_alvo = (
+        ordem_data.esf_aer if ordem_data.esf_aer is not None else ordem.esf_aer
+    )
+    status_final = ordem_data.status or ordem.status
+    validar_integridade_etapas(
+        etapas_alvo,
+        esf_aer_alvo,
+        exigir_continuidade=status_final == 'aprovada',
+    )
+
     # Identificar transição para aprovada para gerar número
     if (
         ordem_data.status == 'aprovada'
@@ -511,6 +539,17 @@ async def update_ordem(
         # numéricos, e deleted_at IS NULL ignora OMs excluídas.
         year = ordem.data_saida.year
         target_uae = ordem.uae
+
+        # Serializa a numeração por (UAE, ano): sem o lock, duas
+        # aprovações simultâneas leriam o mesmo MAX e emitiriam números
+        # duplicados. O advisory lock transacional é liberado no commit.
+        await session.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    func.hashtextextended(f'om_numero:{target_uae}:{year}', 0)
+                )
+            )
+        )
 
         max_seq = await session.scalar(
             select(func.max(cast(OrdemMissao.numero, Integer))).where(
@@ -729,6 +768,18 @@ async def delete_ordem(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Ordem de missão não encontrada',
+        )
+
+    # Apenas rascunhos podem ser excluídos: OM aprovada é cancelada, não
+    # excluída — o número emitido permanece reservado (a numeração via
+    # MAX ignora deletadas, então excluir uma aprovada liberaria reuso)
+    if ordem.status != 'rascunho':
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=(
+                'Apenas rascunhos podem ser excluídos. '
+                'Para uma OM aprovada, use o cancelamento.'
+            ),
         )
 
     ordem.deleted_at = datetime.now(timezone.utc)

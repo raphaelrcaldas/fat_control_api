@@ -38,14 +38,18 @@ def _make_etapa(
     }
 
 
-def _make_ordem_payload(etapas=None, etiquetas_ids=None):
-    """Helper para criar payload de ordem."""
+def _make_ordem_payload(etapas=None, etiquetas_ids=None, esf_aer=240):
+    """Helper para criar payload de ordem.
+
+    esf_aer default de 240 min cobre a soma do tempo de voo das etapas
+    dos helpers (90 min cada) — a integridade exige esf_aer >= soma.
+    """
     payload = {
         'matricula_anv': '2850',
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'esf_aer': 2,
+        'esf_aer': esf_aer,
         'campos_especiais': [],
         'etapas': etapas if etapas is not None else [],
         'tripulacao': None,
@@ -271,6 +275,67 @@ async def test_create_ordem_multiple_etapas(client, session, org_admin_token):
     data = response.json()['data']
     assert len(data['etapas']) == 2
     assert data['data_saida'] == '2025-06-15'
+
+
+async def test_create_ordem_esf_aer_below_etapas_sum_fails(
+    client, session, org_admin_token
+):
+    """esf_aer da OM menor que a soma do tempo de voo das etapas -> 400."""
+    etapa = _make_etapa()  # 90 minutos de voo
+    payload = _make_ordem_payload(etapas=[etapa], esf_aer=30)
+
+    response = await client.post(
+        BASE_URL,
+        json=payload,
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'Esforço aéreo' in response.json()['message']
+
+
+async def test_create_ordem_overlapping_etapas_fails(
+    client, session, org_admin_token
+):
+    """Etapas com horarios sobrepostos -> 400."""
+    etapa1 = _make_etapa(
+        dt_dep='2025-06-15T10:00:00',
+        dt_arr='2025-06-15T11:30:00',
+    )
+    etapa2 = _make_etapa(
+        dt_dep='2025-06-15T11:00:00',
+        dt_arr='2025-06-15T12:30:00',
+        origem='SBBR',
+        dest='SBCF',
+    )
+    payload = _make_ordem_payload(etapas=[etapa1, etapa2])
+
+    response = await client.post(
+        BASE_URL,
+        json=payload,
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'Sobreposição' in response.json()['message']
+
+
+async def test_create_ordem_duplicate_dt_dep_fails(
+    client, session, org_admin_token
+):
+    """Etapas com a mesma data/hora de decolagem -> 400."""
+    etapa1 = _make_etapa()
+    etapa2 = _make_etapa(origem='SBBR', dest='SBCF')
+    payload = _make_ordem_payload(etapas=[etapa1, etapa2])
+
+    response = await client.post(
+        BASE_URL,
+        json=payload,
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'duplicados' in response.json()['message']
 
 
 async def test_create_ordem_without_permission_fails(

@@ -1,6 +1,9 @@
 """Servicos para Ordem de Missao (OM)."""
 
+from collections.abc import Sequence
+from datetime import datetime
 from http import HTTPStatus
+from typing import Protocol
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +12,90 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.models.shared.om import OrdemTripulacao
 from fcontrol_api.models.shared.tripulantes import Tripulante
+
+
+class EtapaLike(Protocol):
+    """Campos mínimos de uma etapa para a validação de integridade.
+
+    Satisfeito tanto pelo schema de entrada (EtapaCreate) quanto pelo
+    model persistido (OrdemEtapa).
+    """
+
+    dt_dep: datetime
+    dt_arr: datetime
+    origem: str
+    dest: str
+
+
+def validar_integridade_etapas(
+    etapas: Sequence[EtapaLike],
+    esf_aer: int,
+    *,
+    exigir_continuidade: bool,
+) -> None:
+    """
+    Valida regras de negócio entre etapas e o esforço aéreo da OM.
+
+    Espelha as regras do frontend (ordemValidation.ts) para que a
+    integridade não dependa do cliente:
+    - decolagens duplicadas (mesma dt_dep);
+    - sobreposição de horários entre etapas;
+    - continuidade da rota (origem == destino da etapa anterior),
+      exigida apenas quando a ordem resulta aprovada;
+    - esf_aer da OM >= soma do tempo de voo das etapas.
+
+    Levanta HTTPException 400 com todos os erros encontrados.
+    """
+    erros: list[str] = []
+    ordenadas = sorted(etapas, key=lambda e: e.dt_dep)
+
+    # Decolagens duplicadas (mesma dt_dep)
+    decolagens: dict[datetime, list[int]] = {}
+    for idx, etapa in enumerate(ordenadas, start=1):
+        decolagens.setdefault(etapa.dt_dep, []).append(idx)
+    for indices in decolagens.values():
+        if len(indices) > 1:
+            lista = ', '.join(str(i) for i in indices)
+            erros.append(
+                f'Períodos duplicados: as etapas {lista} possuem a '
+                f'mesma data/hora de decolagem'
+            )
+
+    # Sobreposição de horários entre pares de etapas
+    for i in range(len(ordenadas)):
+        for j in range(i + 1, len(ordenadas)):
+            e1, e2 = ordenadas[i], ordenadas[j]
+            if e1.dt_dep < e2.dt_arr and e1.dt_arr > e2.dt_dep:
+                erros.append(
+                    f'Sobreposição de horários: a etapa {i + 1} '
+                    f'sobrepõe a etapa {j + 1}'
+                )
+
+    # Continuidade da rota (exigida na aprovação)
+    if exigir_continuidade:
+        for i in range(1, len(ordenadas)):
+            anterior, atual = ordenadas[i - 1], ordenadas[i]
+            if atual.origem != anterior.dest:
+                erros.append(
+                    f'Etapa {i + 1}: a origem deve ser igual ao destino '
+                    f'da etapa anterior ({anterior.dest})'
+                )
+
+    # esf_aer da OM >= soma do tempo de voo das etapas
+    soma = sum(
+        int((e.dt_arr - e.dt_dep).total_seconds() / 60) for e in ordenadas
+    )
+    if soma > 0 and esf_aer < soma:
+        erros.append(
+            f'Esforço aéreo da OM ({esf_aer} min) deve ser maior ou '
+            f'igual à soma do tempo de voo das etapas ({soma} min)'
+        )
+
+    if erros:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='; '.join(erros),
+        )
 
 
 async def criar_tripulacao_batch(

@@ -118,11 +118,14 @@ class OrdemMissao(Base):
     )
 
     # Relacionamentos (carregados automaticamente com selectin)
+    # order_by garante etapas em ordem cronológica: lista, tabela de
+    # etapas e exports DOCX assumem etapas[0] como primeira decolagem
     etapas: Mapped[list['OrdemEtapa']] = relationship(
         'OrdemEtapa',
         lazy='selectin',
         cascade='all, delete-orphan',
         init=False,
+        order_by='OrdemEtapa.dt_dep',
     )
     tripulacao: Mapped[list['OrdemTripulacao']] = relationship(
         'OrdemTripulacao',

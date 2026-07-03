@@ -17,10 +17,10 @@ BASE_URL = '/ops/om'
 
 
 async def test_delete_ordem_success(client, session, users, org_admin_token):
-    """Soft delete marca deleted_at e retorna sucesso."""
+    """Soft delete de rascunho marca deleted_at e retorna sucesso."""
     user, _ = users
 
-    ordem = OrdemMissaoFactory(created_by=user.id)
+    ordem = OrdemMissaoFactory(created_by=user.id, status='rascunho')
     session.add(ordem)
     await session.commit()
     await session.refresh(ordem)
@@ -54,7 +54,7 @@ async def test_delete_ordem_already_deleted(
     """Deletar ordem ja deletada retorna 404."""
     user, _ = users
 
-    ordem = OrdemMissaoFactory(created_by=user.id)
+    ordem = OrdemMissaoFactory(created_by=user.id, status='rascunho')
     session.add(ordem)
     await session.commit()
     await session.refresh(ordem)
@@ -76,7 +76,7 @@ async def test_deleted_ordem_not_in_list(
     """Ordem deletada nao aparece na listagem."""
     user, _ = users
 
-    ordem = OrdemMissaoFactory(created_by=user.id)
+    ordem = OrdemMissaoFactory(created_by=user.id, status='rascunho')
     session.add(ordem)
     await session.commit()
     await session.refresh(ordem)
@@ -95,6 +95,33 @@ async def test_deleted_ordem_not_in_list(
     resp = response.json()
     ids = [item['id'] for item in resp['data']]
     assert ordem.id not in ids
+
+
+async def test_delete_ordem_aprovada_fails(
+    client, session, users, org_admin_token
+):
+    """OM aprovada nao pode ser excluida (400): usa-se o cancelamento.
+
+    A numeracao via MAX ignora deletadas; excluir uma aprovada
+    liberaria o numero emitido para reuso.
+    """
+    user, _ = users
+
+    ordem = OrdemMissaoFactory(created_by=user.id, status='aprovada')
+    session.add(ordem)
+    await session.commit()
+    await session.refresh(ordem)
+
+    response = await client.delete(
+        f'{BASE_URL}/{ordem.id}',
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'rascunhos' in response.json()['message']
+
+    await session.refresh(ordem)
+    assert ordem.deleted_at is None
 
 
 async def test_delete_ordem_requires_auth(client):
