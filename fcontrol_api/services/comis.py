@@ -149,13 +149,16 @@ def verificar_modulo(missoes: list[dict]) -> bool:
     """
     DIAS_MODULO = 16
 
-    datas: list[date] = []
+    datas_set: set[date] = set()
     for m in missoes:
-        datas_missao = listar_datas_entre(
-            m['afast'].date(), m['regres'].date()
+        datas_set.update(
+            listar_datas_entre(m['afast'].date(), m['regres'].date())
         )
-        datas.extend(datas_missao)
-    datas.sort()
+    # Dedup obrigatório: missões encadeadas no mesmo dia (regresso de uma
+    # no dia do afastamento da outra) repetem a data e, sem o set, o
+    # dif == 0 resetava a contagem de dias consecutivos — módulos reais
+    # de 16+ dias passavam despercebidos.
+    datas = sorted(datas_set)
 
     dias_consec = 1
     for i, _ in enumerate(datas):

@@ -48,6 +48,7 @@ from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.missao import (
     adicionar_missao,
     sincronizar_custos_missao,
+    validar_regras_missao,
     verificar_conflitos,
     verificar_integridade_missao,
 )
@@ -189,9 +190,16 @@ async def get_fragmentos(
             base_query = base_query.where(FragMis.tipo.in_(tipos))
             count_query = count_query.where(FragMis.tipo.in_(tipos))
 
+    # Os filtros de cidade/militar/etiqueta adicionam JOINs 1:N que
+    # multiplicam as linhas de FragMis. O count já usa DISTINCT; a query
+    # de itens também precisa, senão o offset/limit opera sobre linhas
+    # duplicadas e as páginas vêm com itens faltando/repetidos.
+    tem_join_multiplicador = False
+
     # Filtro por cidade (busca parcial case-insensitive)
     # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
     if params.city:
+        tem_join_multiplicador = True
         base_query = (
             base_query
             .join(PernoiteFrag)
@@ -208,6 +216,7 @@ async def get_fragmentos(
     # Filtro por nome de guerra (busca parcial case-insensitive)
     # SQLAlchemy ORM usa parameterização automática, prevenindo SQL injection
     if params.user_search:
+        tem_join_multiplicador = True
         base_query = (
             base_query
             .join(UserFrag)
@@ -230,6 +239,7 @@ async def get_fragmentos(
         ]
 
         if ids:
+            tem_join_multiplicador = True
             base_query = base_query.join(
                 FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
             ).where(FragEtiqueta.etiqueta_id.in_(ids))
@@ -237,6 +247,9 @@ async def get_fragmentos(
             count_query = count_query.join(
                 FragEtiqueta, FragEtiqueta.frag_id == FragMis.id
             ).where(FragEtiqueta.etiqueta_id.in_(ids))
+
+    if tem_join_multiplicador:
+        base_query = base_query.distinct()
 
     # Executa count e fetch
     total = await session.scalar(count_query) or 0
@@ -501,6 +514,10 @@ async def create_or_update_missao(
     current_user: CurrentUser,
     active_org: ActiveOrg,
 ):
+    # Regras estruturais (datas, pernoites na janela, militares repetidos)
+    # antes de tocar no banco — 400 rico em vez de 500 no cálculo de custos.
+    validar_regras_missao(payload)
+
     # Capturar snapshot anterior e usuários antigos ANTES de deletar
     usuarios_antigos_comiss: list[tuple[int, date, date]] = []
     before_snapshot: dict | None = None

@@ -31,6 +31,55 @@ from fcontrol_api.services.custos import (
 )
 
 
+def validar_regras_missao(payload: FragMisSchema) -> None:
+    """Valida as regras estruturais do payload antes de persistir.
+
+    Sem essas checagens, dados inconsistentes chegam ao cálculo de custos
+    (ex.: pernoite com fim antes do início estoura IndexError em
+    `_custo_pernoite` → 500). Levanta 400 com todos os motivos acumulados,
+    no mesmo formato legível das demais validações de negócio.
+    """
+    erros: list[str] = []
+
+    if payload.regres <= payload.afast:
+        erros.append(
+            '- A data de regresso deve ser posterior à de afastamento'
+        )
+
+    vistos: set[int] = set()
+    duplicados: set[int] = set()
+    for u in payload.users:
+        if u.user_id in vistos:
+            duplicados.add(u.user_id)
+        vistos.add(u.user_id)
+    for u in payload.users:
+        if u.user_id in duplicados:
+            erros.append(
+                f'- Militar repetido na missão: '
+                f'{u.user.p_g} {u.user.nome_guerra}'.upper()
+            )
+            duplicados.discard(u.user_id)
+
+    afast_date = payload.afast.date()
+    regres_date = payload.regres.date()
+    for p in payload.pernoites:
+        cidade = f'{p.cidade.nome}-{p.cidade.uf}'.upper()
+        if p.data_fim < p.data_ini:
+            erros.append(
+                f'- Pernoite em {cidade}: data de fim anterior à de início'
+            )
+        elif p.data_ini < afast_date or p.data_fim > regres_date:
+            erros.append(
+                f'- Pernoite em {cidade}: fora do período da missão'
+            )
+
+    if erros:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Corrija os seguintes itens:\n' + '\n'.join(erros),
+        )
+
+
 async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     user_ids = [u.user_id for u in payload.users]
     if not user_ids:
