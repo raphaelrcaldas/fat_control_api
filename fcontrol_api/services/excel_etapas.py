@@ -49,19 +49,18 @@ def _init_openpyxl() -> None:
     Idempotente — chamadas subsequentes são no-op. Deve ser chamada
     no começo de toda função pública que use os estilos.
     """
-    global _lazy_initialized  # noqa: PLW0603
     if _lazy_initialized:
         return
 
-    from openpyxl import Workbook  # noqa: PLC0415
-    from openpyxl.styles import (  # noqa: PLC0415
+    from openpyxl import Workbook
+    from openpyxl.styles import (
         Alignment,
         Border,
         Font,
         PatternFill,
         Side,
     )
-    from openpyxl.utils import get_column_letter  # noqa: PLC0415
+    from openpyxl.utils import get_column_letter
 
     # Escopo local: os nomes importados acima são locais a esta função;
     # globals().update() sobrescreve os placeholders `None` no módulo.
@@ -126,8 +125,10 @@ def _init_openpyxl() -> None:
             wrap_text=True,
         ),
         '_RIGHT': Alignment(horizontal='right', vertical='center'),
+        # Grava o flag junto dos estilos (via globals) para nao precisar
+        # do statement `global` (PLW0603).
+        '_lazy_initialized': True,
     })
-    _lazy_initialized = True
 
 
 def _min_to_hhmm(minutes: int) -> str:
@@ -207,7 +208,7 @@ _WRAP_HEADERS = frozenset({
 # Colunas com wrap_text centralizado
 _WRAP_CENTER_HEADERS = frozenset({
     'Cod OI',
-    'Regime',
+    'D/N/V',
 })
 # Colunas numericas alinhadas a direita
 _NUM_HEADERS = frozenset({
@@ -228,6 +229,7 @@ def generate_etapas_xlsx(
     oi_data: dict | None,
     trip_data: dict | None,
     columns: dict[str, bool],
+    org_label: str = 'Relatório de Etapas',
 ) -> BytesIO:
     """Gera planilha Excel profissional de etapas.
 
@@ -236,6 +238,7 @@ def generate_etapas_xlsx(
         oi_data: OIEtapaOut agrupados por etapa_id
         trip_data: TripEtapaOut agrupados por etapa_id
         columns: flags de colunas opcionais
+        org_label: nome institucional da org ativa (multi-tenant)
     """
     _init_openpyxl()
     wb = Workbook()
@@ -284,7 +287,7 @@ def generate_etapas_xlsx(
     # ── Linha 1: Titulo institucional ──────────────
     ws.merge_cells(f'A1:{last_col}1')
     title_cell = ws['A1']
-    title_cell.value = '1º/1º GT — Relatório de Etapas'
+    title_cell.value = f'{org_label} — Relatório de Etapas'
     title_cell.font = _TITLE_FONT
     title_cell.fill = _TITLE_FILL
     title_cell.alignment = Alignment(
@@ -528,7 +531,7 @@ def generate_etapas_xlsx(
         'Comb': 7,
         'Lub': 6,
         'Cod OI': 9,
-        'Regime': 9,
+        'D/N/V': 9,
     }
     for col_idx, hdr in enumerate(headers, start=1):
         fixed = _FIXED_WIDTHS.get(hdr)

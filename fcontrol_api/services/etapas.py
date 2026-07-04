@@ -55,6 +55,19 @@ def _to_interval(dep: time, arr: time) -> tuple[int, int]:
     return start, end
 
 
+def compute_tvoo_minutes(dep: time, arr: time) -> int | None:
+    """Tempo de voo (min) de dep->arr, ou None se atravessa o dia.
+
+    Espelha a regra do banco (coluna Computed) e do validador do
+    schema: arr deve ser > dep, com a excecao de arr == 00:00 tratado
+    como fim do dia (1440).
+    """
+    start, end = _to_interval(dep, arr)
+    if end <= start:
+        return None
+    return end - start
+
+
 async def assert_no_trip_collision(
     session: AsyncSession,
     *,
@@ -185,6 +198,38 @@ def assert_no_internal_anv_collision(
                     f'({anva}) em {da.isoformat()}'
                 )
                 raise ValueError(msg)
+
+
+def assert_no_internal_trip_collision(
+    etapas: list[tuple[str, date, list[int], time, time]],
+) -> None:
+    """Verifica colisoes de tripulante entre etapas do mesmo payload.
+
+    Cada tupla: (label, data, trip_ids, dep, arr). Duas etapas na
+    mesma data com horarios sobrepostos e algum tripulante em comum
+    colidem. Levanta ValueError descrevendo o par e os tripulantes
+    em conflito.
+    """
+    intervals = [
+        (label, d, set(trip_ids), *_to_interval(dep, arr))
+        for label, d, trip_ids, dep, arr in etapas
+    ]
+    n = len(intervals)
+    for i in range(n):
+        la, da, ta, sa, ea = intervals[i]
+        for j in range(i + 1, n):
+            lb, db, tb, sb, eb = intervals[j]
+            if da != db:
+                continue
+            if sa < eb and sb < ea:
+                shared = ta & tb
+                if shared:
+                    ids = ', '.join(str(t) for t in sorted(shared))
+                    msg = (
+                        f'{la} e {lb}: tripulante(s) em conflito de '
+                        f'horario em {da.isoformat()} (trip_id: {ids})'
+                    )
+                    raise ValueError(msg)
 
 
 async def assert_anv_simulador_consistency(

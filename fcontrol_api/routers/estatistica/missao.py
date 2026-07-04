@@ -36,6 +36,8 @@ from fcontrol_api.services.etapas import (
     assert_anv_simulador_consistency,
     assert_no_anv_collision,
     assert_no_internal_anv_collision,
+    assert_no_internal_trip_collision,
+    assert_no_trip_collision,
     fetch_collision_candidates,
     fetch_especificos_data,
     fetch_oi_detail_data,
@@ -171,6 +173,24 @@ async def create_missao_with_etapas(
                 ),
             )
 
+    # Colisao de tripulante entre etapas do proprio payload.
+    try:
+        assert_no_internal_trip_collision([
+            (
+                f'etapa[{i}]',
+                e.data,
+                [t.trip_id for t in e.tripulantes],
+                e.dep,
+                e.arr,
+            )
+            for i, e in enumerate(data.etapas)
+        ])
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
     for idx, etapa_in in enumerate(data.etapas):
         try:
             await assert_anv_simulador_consistency(
@@ -183,6 +203,13 @@ async def create_missao_with_etapas(
                 anv=etapa_in.anv,
                 dep=etapa_in.dep,
                 arr=etapa_in.arr,
+            )
+            await assert_no_trip_collision(
+                session,
+                data=etapa_in.data,
+                dep=etapa_in.dep,
+                arr=etapa_in.arr,
+                trip_ids=[t.trip_id for t in etapa_in.tripulantes],
             )
         except ValueError as exc:
             raise HTTPException(
@@ -336,6 +363,33 @@ async def update_missao_with_etapas(
             detail=str(exc),
         ) from exc
 
+    internal_trips: list[tuple[str, date, list[int], time, time]] = [
+        (
+            f'create[{i}]',
+            e.data,
+            [t.trip_id for t in e.tripulantes],
+            e.dep,
+            e.arr,
+        )
+        for i, e in enumerate(payload.create)
+    ] + [
+        (
+            f'update[{i}](id={e.id})',
+            e.data,
+            [t.trip_id for t in e.tripulantes],
+            e.dep,
+            e.arr,
+        )
+        for i, e in enumerate(payload.update)
+    ]
+    try:
+        assert_no_internal_trip_collision(internal_trips)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
     # 3. Colisao externa, em UMA query: pre-carrega todas as etapas
     #    no DB cuja (data, anv) bata com algum item do payload.
     exclude_ids = list(payload_ids)
@@ -380,6 +434,24 @@ async def update_missao_with_etapas(
                     f'em {e.data.isoformat()}.'
                 ),
             )
+
+    # Colisao de tripulante contra o DB (exclui as etapas do proprio
+    # payload, que serao removidas/reescritas nesta transacao).
+    for label, e in payload_etapas:
+        try:
+            await assert_no_trip_collision(
+                session,
+                data=e.data,
+                dep=e.dep,
+                arr=e.arr,
+                trip_ids=[t.trip_id for t in e.tripulantes],
+                exclude_ids=exclude_ids,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=f'{label}: {exc}',
+            ) from exc
 
     # 4. Patch direto (cliente sempre envia titulo/obs;
     #    semantica: PUT substitui, inclusive limpa pra None).

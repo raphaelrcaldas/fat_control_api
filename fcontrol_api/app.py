@@ -54,6 +54,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
+    # Permite ao browser ler o nome do arquivo em downloads (ex.: export
+    # de etapas em Excel); sem isso o header nao e visivel cross-origin.
+    expose_headers=['Content-Disposition'],
 )
 
 app.include_router(routers.router)

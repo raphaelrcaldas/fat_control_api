@@ -66,6 +66,10 @@ ignore = [
 # Testes exercitam helpers privados (_funcao) diretamente — import-private-name
 # é esperado nesse contexto.
 "tests/**/*.py" = ['PLC2701']
+# openpyxl é importado lazy dentro de _init_openpyxl() de proposito (~200ms de
+# import fora do cold start; só carrega no endpoint de export). PLC0415
+# (import fora do topo) é o padrão intencional aqui.
+"fcontrol_api/services/excel_etapas.py" = ['PLC0415']
 
 [tool.ruff.format]
 preview = true

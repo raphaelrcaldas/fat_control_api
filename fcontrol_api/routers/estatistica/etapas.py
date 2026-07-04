@@ -21,6 +21,7 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
+from fcontrol_api.models.shared.organizacao import Organizacao
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
@@ -44,6 +45,7 @@ from fcontrol_api.services.etapas import (
     assert_anv_simulador_consistency,
     assert_no_anv_collision,
     assert_no_trip_collision,
+    compute_tvoo_minutes,
     fetch_especificos_data,
     fetch_oi_detail_data,
     fetch_oi_etapas,
@@ -120,7 +122,10 @@ async def list_etapas(
     etapa_filter = (
         select(Etapa.id)
         .join(Missao, Missao.id == Etapa.missao_id)
-        .where(Missao.uae == active_org)
+        .where(
+            Missao.uae == active_org,
+            Missao.is_simulador.is_(is_simulador),
+        )
     )
 
     if data_ini:
@@ -128,9 +133,13 @@ async def list_etapas(
     if data_fim:
         etapa_filter = etapa_filter.where(Etapa.data <= data_fim)
     if origem:
-        etapa_filter = etapa_filter.where(Etapa.origem.ilike(origem))
+        etapa_filter = etapa_filter.where(
+            Etapa.origem.ilike(f'{like_safe(origem)}%', escape='\\')
+        )
     if destino:
-        etapa_filter = etapa_filter.where(Etapa.destino.ilike(destino))
+        etapa_filter = etapa_filter.where(
+            Etapa.destino.ilike(f'{like_safe(destino)}%', escape='\\')
+        )
     if anv:
         etapa_filter = etapa_filter.where(Etapa.anv.in_(anv))
 
@@ -199,7 +208,6 @@ async def list_etapas(
         select(Etapa, Missao, first_date_col)
         .where(Etapa.id.in_(select(valid_etapa_ids.c.id)))
         .join(Missao, Missao.id == Etapa.missao_id)
-        .where(Missao.is_simulador.is_(is_simulador))
         .order_by(
             first_date_col.desc(),
             Etapa.missao_id.desc(),
@@ -238,6 +246,7 @@ async def list_etapas(
             id=missoes[mid].id,
             titulo=missoes[mid].titulo,
             obs=missoes[mid].obs,
+            is_simulador=missoes[mid].is_simulador,
             etapas=[
                 EtapaOut.model_validate(e).model_copy(
                     update={
@@ -447,23 +456,49 @@ async def update_etapa(
         )
     etapa, is_simulador = row
 
-    if data.oi_etapas is not None:
-        tvoo_ref = data.tvoo if data.tvoo is not None else etapa.tvoo
-        soma_oi = sum(oi.tvoo for oi in data.oi_etapas)
-        if data.oi_etapas and soma_oi != tvoo_ref:
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-                detail=(
-                    f'Soma das OIs ({soma_oi} min) deve '
-                    f'ser igual ao tvoo da etapa '
-                    f'({tvoo_ref} min)'
-                ),
-            )
-
     new_data = data.data if data.data is not None else etapa.data
     new_anv = data.anv if data.anv is not None else etapa.anv
     new_dep = data.dep if data.dep is not None else etapa.dep
     new_arr = data.arr if data.arr is not None else etapa.arr
+
+    # tvoo eh Computed no banco (arr - dep). Recalculamos o valor que o
+    # banco produzira apos a atualizacao para (1) validar crosses-day —
+    # EtapaUpdate nao herda o validador de EtapaBase — e (2) conferir a
+    # soma das OIs contra o tvoo NOVO, nao o antigo.
+    new_tvoo = compute_tvoo_minutes(new_dep, new_arr)
+    if new_tvoo is None:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=(
+                'Etapa não pode atravessar o dia. O horário de pouso '
+                'deve ser maior que o de decolagem (00:00 é aceito como '
+                'fim do dia).'
+            ),
+        )
+
+    # OIs efetivas apos o update: as enviadas (replace completo) ou as
+    # ja persistidas quando o cliente nao mexe nelas. Existindo OIs, a
+    # soma dos tvoo tem de bater com o tvoo novo da etapa.
+    if data.oi_etapas is not None:
+        soma_oi = sum(oi.tvoo for oi in data.oi_etapas)
+        has_ois = bool(data.oi_etapas)
+    else:
+        soma_oi = (
+            await session.scalar(
+                select(sql_func.sum(OIEtapa.tvoo)).where(
+                    OIEtapa.etapa_id == id
+                )
+            )
+        ) or 0
+        has_ois = soma_oi > 0
+    if has_ois and soma_oi != new_tvoo:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=(
+                f'Soma das OIs ({soma_oi} min) deve ser igual ao '
+                f'tvoo da etapa ({new_tvoo} min)'
+            ),
+        )
 
     if data.tripulantes is not None:
         new_trip_ids = [t.trip_id for t in data.tripulantes]
@@ -662,15 +697,24 @@ async def export_etapas(
         'tripulantes': data.tripulantes,
     }
 
+    # Label institucional da org ativa (multi-tenant): usa o alias/nome
+    # cadastrado; cai para a sigla quando ausente.
+    org = await session.scalar(
+        select(Organizacao).where(Organizacao.sigla == active_org)
+    )
+    org_label = (org.alias or org.nome) if org else active_org
+
     buffer = generate_etapas_xlsx(
         etapas=etapas,
         oi_data=oi_data,
         trip_data=trip_data,
         columns=columns,
+        org_label=org_label,
     )
 
     now = datetime.now()
-    filename = f'etapas_1_1_GT_{now:%d%m%Y}.xlsx'
+    slug = ''.join(c for c in active_org if c.isalnum()).upper() or 'ORG'
+    filename = f'etapas_{slug}_{now:%d%m%Y}.xlsx'
 
     return StreamingResponse(
         content=buffer,
