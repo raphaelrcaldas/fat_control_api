@@ -58,8 +58,11 @@ class TripPassaporteOut(BaseModel):
     trip_id: int
     user_id: int
     p_g: str
+    quadro: str | None
+    esp: str | None
     nome_guerra: str
     nome_completo: str | None
+    nasc: date | None
     saram: str | None
     telefone: str | None
     passaporte: PassaportePublic | None = None
