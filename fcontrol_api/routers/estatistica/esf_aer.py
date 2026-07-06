@@ -293,6 +293,13 @@ async def get_esf_aer_historico(
         points = _timeline_points(hists, aloc.alocado)
         inicial = hists[0].aloc_hist if hists else aloc.alocado
 
+        # Sem historico registrado (seed/migracao ou alocacao anterior ao
+        # mecanismo de historico): ancora o valor vigente no inicio do ano.
+        # Assim o programa tem timeline nao-vazia e passa a renderizar no
+        # grafico (inclusive isolado) e a contar no Sigma do grupo.
+        if not points:
+            points = [(f'{ano_ref}-01-01', aloc.alocado)]
+
         programas.append(
             HistPrograma(
                 esfaer_id=aloc.esfaer_id,
@@ -527,7 +534,10 @@ async def update_esf_aer(
         for e in list(id_to_esf.values()) + list(db_map.values())
     }
     for row in diff_rows:
-        if row.antes == row.depois:
+        # None (criacao) e 0 sao o mesmo "nada alocado": normaliza antes de
+        # comparar. Sem isso, criar/reimportar um programa em 0 grava um
+        # registro espurio "0 -> 0" (None == 0 e False).
+        if (row.antes or 0) == (row.depois or 0):
             continue
         esfaer_id = desc_to_esfaer.get(row.descricao)
         if esfaer_id is None:
