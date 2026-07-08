@@ -15,26 +15,28 @@ from fcontrol_api.schemas.cegep.missoes import (
     normalizar_n_doc,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse
-from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    ensure_org_permission_or_owner,
+    get_current_user,
+)
 from fcontrol_api.services.custos import custo_missao
 from fcontrol_api.utils.responses import paginated_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/financeiro', tags=['CEGEP'])
-
-# Leitura de pagamentos é uma visão financeira de missões CEGEP.
-ViewPgts = Depends(permission_checker('missoes_cegep', 'view'))
 
 
 @router.get(
     '/pgts',
     response_model=ApiPaginatedResponse[PagamentoItem],
-    dependencies=[ViewPgts],
 )
 async def get_pgto(
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
     tipo_doc: list[str] = Query(None, description='Tipos de documento'),
     n_doc: str = None,
     sit: list[str] = Query(None, description='Situações'),
@@ -46,6 +48,13 @@ async def get_pgto(
     page: int = Query(1, ge=1, description='Número da página'),
     limit: int = Query(20, ge=1, le=100, description='Itens por página'),
 ):
+    # Leitura financeira de missões CEGEP. O próprio militar vê seus
+    # pagamentos (user_id == ele) sem a permissão — usado pelo portal
+    # FatBird. Qualquer consulta mais ampla exige 'missoes_cegep.view'.
+    await ensure_org_permission_or_owner(
+        current_user, session, active_org, 'missoes_cegep', 'view', user_id
+    )
+
     # Query base com joins (missões da org ativa)
     base_query = (
         select(UserFrag, FragMis)
