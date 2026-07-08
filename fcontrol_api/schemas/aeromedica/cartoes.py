@@ -1,13 +1,12 @@
 from datetime import date
-from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fcontrol_api.schemas.users import UserPublic
 
 
 class CartaoSaudeBase(BaseModel):
-    prontuario: str | None = None
+    prontuario: str | None = Field(default=None, max_length=20)
     cemal: date | None = None
     tovn: date | None = None
     imae: date | None = None
@@ -20,10 +19,8 @@ class CartaoSaudeCreate(CartaoSaudeBase):
 
 
 class CartaoSaudeUpdate(CartaoSaudeBase):
-    prontuario: str | None = None
-    cemal: Optional[date] = None
-    tovn: Optional[date] = None
-    imae: Optional[date] = None
+    # Mesmos campos opcionais do base; o PUT usa exclude_unset no handler.
+    pass
 
 
 class CartaoSaudePublic(CartaoSaudeBase):

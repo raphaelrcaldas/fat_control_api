@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, exists, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -21,17 +22,25 @@ from fcontrol_api.schemas.aeromedica.cartoes import (
     UserCartaoSaude,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/cartoes-saude', tags=['Aeromedica'])
 
+# Dados de saúde são sensíveis: toda leitura exige 'view' e cada escrita a
+# sua ação. Admin da org ativa tem bypass (ver permission_checker).
+ViewCartao = Depends(permission_checker('cartoes-saude', 'view'))
+CreateCartao = Depends(permission_checker('cartoes-saude', 'create'))
+UpdateCartao = Depends(permission_checker('cartoes-saude', 'update'))
+DeleteCartao = Depends(permission_checker('cartoes-saude', 'delete'))
+
 
 @router.get(
     '/',
     response_model=ApiResponse[list[UserCartaoSaude]],
+    dependencies=[ViewCartao],
 )
 async def get_cartoes_saude(
     session: Session,
@@ -157,6 +166,7 @@ async def get_cartoes_saude(
 @router.get(
     '/{cartao_id}',
     response_model=ApiResponse[CartaoSaudeWithUser],
+    dependencies=[ViewCartao],
 )
 async def get_cartao_saude_by_id(
     cartao_id: int,
@@ -179,6 +189,7 @@ async def get_cartao_saude_by_id(
 @router.get(
     '/user/{user_id}',
     response_model=ApiResponse[CartaoSaudePublic | None],
+    dependencies=[ViewCartao],
 )
 async def get_cartao_saude_by_user(
     user_id: int,
@@ -196,6 +207,7 @@ async def get_cartao_saude_by_user(
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[CartaoSaudePublic],
+    dependencies=[CreateCartao],
 )
 async def create_cartao_saude(
     session: Session,
@@ -222,7 +234,17 @@ async def create_cartao_saude(
     new_cartao = CartaoSaude(**dados_dict)
 
     session.add(new_cartao)
-    await session.commit()
+    # Fecha a janela entre o check acima e o insert: duas requisições
+    # concorrentes passam pelo check, mas o unique de user_id garante que
+    # só uma persiste — a outra vira 400 em vez de 500.
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Ja existe cartao de saude cadastrado para este usuario',
+        ) from exc
     await session.refresh(new_cartao)
 
     return success_response(
@@ -234,6 +256,7 @@ async def create_cartao_saude(
 @router.put(
     '/{cartao_id}',
     response_model=ApiResponse[None],
+    dependencies=[UpdateCartao],
 )
 async def update_cartao_saude(
     cartao_id: int,
@@ -263,6 +286,7 @@ async def update_cartao_saude(
 @router.delete(
     '/{cartao_id}',
     response_model=ApiResponse[None],
+    dependencies=[DeleteCartao],
 )
 async def delete_cartao_saude(
     cartao_id: int,

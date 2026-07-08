@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -100,8 +100,13 @@ async def _verificar_duplicata(
     letra: str | None,
     realizacao: date | None,
     validade: date | None,
+    exclude_id: int | None = None,
 ) -> None:
-    """Levanta 409 se ata duplicada existir."""
+    """Levanta 409 se ata duplicada existir.
+
+    `exclude_id` ignora a própria ata na checagem (usado no update, para
+    não conflitar consigo mesma).
+    """
     filtros = [AtaInspecao.user_id == user_id]
 
     if letra:
@@ -116,6 +121,8 @@ async def _verificar_duplicata(
         filtros.append(AtaInspecao.validade_inspsau == validade)
     else:
         filtros.append(AtaInspecao.validade_inspsau.is_(None))
+    if exclude_id is not None:
+        filtros.append(AtaInspecao.id != exclude_id)
 
     duplicata = await session.scalar(
         select(AtaInspecao.id).where(and_(*filtros))
@@ -129,14 +136,56 @@ async def _verificar_duplicata(
         )
 
 
+async def _upsert_cemal(
+    session: AsyncSession,
+    user_id: int,
+    validade: date | None,
+) -> bool:
+    """Atualiza o CEMAL do cartão apenas se a validade for mais recente.
+
+    Retorna True se o CEMAL foi criado ou atualizado. Impede que uma ata
+    retroativa faça o CEMAL regredir: só uma validade maior que a atual (ou
+    o primeiro cartão) atualiza o campo — coerente com "a ata mais recente é
+    que vale" exibido no frontend.
+    """
+    if validade is None:
+        return False
+
+    cartao = await session.scalar(
+        select(CartaoSaude).where(CartaoSaude.user_id == user_id)
+    )
+    if cartao is None:
+        session.add(
+            CartaoSaude(
+                user_id=user_id,
+                cemal=validade,
+                tovn=None,
+                imae=None,
+            )
+        )
+        return True
+
+    if cartao.cemal is None or validade > cartao.cemal:
+        cartao.cemal = validade
+        return True
+
+    return False
+
+
 router = APIRouter(prefix='/atas', tags=['Atas de Inspeção'])
 
-ManageCartoes = Depends(permission_checker('cartoes-saude', 'create'))
+# Atas seguem o mesmo recurso RBAC dos cartões de saúde (dado sensível de
+# saúde). Leitura exige 'view'; anexar/extrair é 'create'; remover é 'delete'.
+ViewCartao = Depends(permission_checker('cartoes-saude', 'view'))
+CreateCartao = Depends(permission_checker('cartoes-saude', 'create'))
+UpdateCartao = Depends(permission_checker('cartoes-saude', 'update'))
+DeleteCartao = Depends(permission_checker('cartoes-saude', 'delete'))
 
 
 @router.post(
     '/extrair',
     response_model=ApiResponse[AtaExtrairResponse],
+    dependencies=[CreateCartao],
 )
 async def extrair_ata(
     session: Session,
@@ -146,7 +195,7 @@ async def extrair_ata(
     """Extrai dados de um PDF de ata sem salvar."""
     conteudo = await _validar_pdf(file)
     user = await _buscar_usuario(session, user_id)
-    dados = extrair_dados_ata_bytes(conteudo)
+    dados = await asyncio.to_thread(extrair_dados_ata_bytes, conteudo)
 
     extracao_vazia = not any((
         dados['letra_finalidade'],
@@ -189,13 +238,14 @@ async def extrair_ata(
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[AtaUploadResponse],
+    dependencies=[CreateCartao],
 )
 async def upload_ata(
     session: Session,
     user_id: int,
     file: UploadFile,
     dados_confirmados: bool = False,
-    conf_letra: str | None = None,
+    conf_letra: Annotated[str | None, Query(max_length=1)] = None,
     conf_realizacao: date | None = None,
     conf_validade: date | None = None,
 ):
@@ -216,7 +266,7 @@ async def upload_ata(
             conf_validade,
         ))
     else:
-        dados = extrair_dados_ata_bytes(conteudo)
+        dados = await asyncio.to_thread(extrair_dados_ata_bytes, conteudo)
         extracao_vazia = not any((
             dados['letra_finalidade'],
             dados['data_realizacao'],
@@ -255,7 +305,8 @@ async def upload_ata(
     timestamp = now.strftime('%Y%m%d_%H%M%S')
     path = f'{ATAS_PREFIX}/{user_id}/{timestamp}_{file_name}'
 
-    upload_file(
+    await asyncio.to_thread(
+        upload_file,
         bucket=BUCKET,
         path=path,
         data=conteudo,
@@ -277,29 +328,17 @@ async def upload_ata(
 
         session.add(ata)
 
-        # Atualizar cemal do CartaoSaude se validade extraida
-        cemal_atualizado = False
-        if dados['validade_inspsau']:
-            cartao = await session.scalar(
-                select(CartaoSaude).where(CartaoSaude.user_id == user_id)
-            )
-            if not cartao:
-                cartao = CartaoSaude(
-                    user_id=user_id,
-                    cemal=dados['validade_inspsau'],
-                    tovn=None,
-                    imae=None,
-                )
-                session.add(cartao)
-            else:
-                cartao.cemal = dados['validade_inspsau']
-            cemal_atualizado = True
+        # Atualiza o cemal do cartão apenas se esta validade for a mais
+        # recente (não regride com ata retroativa). Ver _upsert_cemal.
+        cemal_atualizado = await _upsert_cemal(
+            session, user_id, dados['validade_inspsau']
+        )
 
         await session.commit()
         await session.refresh(ata)
     except Exception:
         logger.exception('Erro ao salvar ata no banco')
-        delete_file(BUCKET, path)
+        await asyncio.to_thread(delete_file, BUCKET, path)
         raise
 
     dados_extraidos = DadosExtraidos(
@@ -327,6 +366,7 @@ async def upload_ata(
 @router.get(
     '/user/{user_id}',
     response_model=ApiResponse[list[AtaInspecaoWithUrl]],
+    dependencies=[ViewCartao],
 )
 async def get_atas_by_user(
     user_id: int,
@@ -343,9 +383,17 @@ async def get_atas_by_user(
     )
     atas = result.scalars().all()
 
+    # get_signed_url é síncrono (boto3): gera todas as URLs em paralelo em
+    # threads para não bloquear o event loop uma a uma.
+    urls = await asyncio.gather(
+        *(
+            asyncio.to_thread(get_signed_url, BUCKET, ata.file_path)
+            for ata in atas
+        )
+    )
+
     data = []
-    for ata in atas:
-        url = get_signed_url(BUCKET, ata.file_path)
+    for ata, url in zip(atas, urls, strict=True):
         ata_dict = AtaInspecaoPublic.model_validate(ata).model_dump()
         ata_dict['url'] = url
         data.append(AtaInspecaoWithUrl(**ata_dict))
@@ -356,7 +404,7 @@ async def get_atas_by_user(
 @router.get(
     '/orfas',
     response_model=ApiResponse[AtasOrfasResumo],
-    dependencies=[ManageCartoes],
+    dependencies=[DeleteCartao],
 )
 async def get_atas_orfas(session: Session):
     """Lista atas de usuarios inativos."""
@@ -396,7 +444,7 @@ async def get_atas_orfas(session: Session):
 @router.delete(
     '/orfas',
     response_model=ApiResponse[AtasOrfasDeleteResponse],
-    dependencies=[ManageCartoes],
+    dependencies=[DeleteCartao],
 )
 async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
     """Remove atas orfas selecionadas (apenas de usuarios inativos)."""
@@ -415,7 +463,7 @@ async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
         # para garantir consistência banco↔storage: o registro é sempre
         # removido do banco mesmo que o objeto físico não exista mais.
         try:
-            delete_file(BUCKET, ata.file_path)
+            await asyncio.to_thread(delete_file, BUCKET, ata.file_path)
         except Exception:
             logger.warning(
                 'Falha ao remover arquivo da ata órfã %s (%s)',
@@ -438,6 +486,7 @@ async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
 @router.patch(
     '/{ata_id}',
     response_model=ApiResponse[AtaInspecaoPublic],
+    dependencies=[UpdateCartao],
 )
 async def update_ata(
     ata_id: int,
@@ -454,25 +503,28 @@ async def update_ata(
             detail='Ata não encontrada',
         )
 
+    # Impede que a edição transforme esta ata numa cópia de outra do mesmo
+    # militar (mesma checagem do upload, ignorando a própria ata).
+    if any((
+        body.letra_finalidade,
+        body.data_realizacao,
+        body.validade_inspsau,
+    )):
+        await _verificar_duplicata(
+            session,
+            ata.user_id,
+            body.letra_finalidade,
+            body.data_realizacao,
+            body.validade_inspsau,
+            exclude_id=ata.id,
+        )
+
     ata.letra_finalidade = body.letra_finalidade
     ata.data_realizacao = body.data_realizacao
     ata.validade_inspsau = body.validade_inspsau
 
-    # Atualizar cemal se validade informada
-    if body.validade_inspsau:
-        cartao = await session.scalar(
-            select(CartaoSaude).where(CartaoSaude.user_id == ata.user_id)
-        )
-        if not cartao:
-            cartao = CartaoSaude(
-                user_id=ata.user_id,
-                cemal=body.validade_inspsau,
-                tovn=None,
-                imae=None,
-            )
-            session.add(cartao)
-        else:
-            cartao.cemal = body.validade_inspsau
+    # Atualiza o cemal apenas se esta validade for a mais recente.
+    await _upsert_cemal(session, ata.user_id, body.validade_inspsau)
 
     await session.commit()
     await session.refresh(ata)
@@ -486,6 +538,7 @@ async def update_ata(
 @router.delete(
     '/{ata_id}',
     response_model=ApiResponse[None],
+    dependencies=[DeleteCartao],
 )
 async def delete_ata(
     ata_id: int,
@@ -502,9 +555,23 @@ async def delete_ata(
             detail='Ata não encontrada',
         )
 
-    delete_file(BUCKET, ata.file_path)
+    file_path = ata.file_path
+
+    # Remove primeiro do banco (fonte da verdade) e só então do storage,
+    # tolerando falha física — evita apagar o arquivo e o commit falhar
+    # depois, deixando registro órfão apontando para objeto inexistente.
     await session.delete(ata)
     await session.commit()
+
+    try:
+        await asyncio.to_thread(delete_file, BUCKET, file_path)
+    except Exception:
+        logger.warning(
+            'Falha ao remover arquivo da ata %s (%s) do storage',
+            ata_id,
+            file_path,
+            exc_info=True,
+        )
 
     return success_response(
         message='Ata removida com sucesso',

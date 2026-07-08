@@ -41,7 +41,7 @@ class AtaExtrairResponse(BaseModel):
 
 
 class AtaUpdate(BaseModel):
-    letra_finalidade: str | None = None
+    letra_finalidade: str | None = Field(default=None, max_length=1)
     data_realizacao: date | None = None
     validade_inspsau: date | None = None
 
