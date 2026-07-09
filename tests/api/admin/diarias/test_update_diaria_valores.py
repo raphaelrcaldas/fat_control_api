@@ -1,5 +1,5 @@
 """
-Testes para o endpoint PUT /cegep/diarias/valores/{valor_id}.
+Testes para o endpoint PUT /admin/diarias/valores/{valor_id}.
 
 Este endpoint atualiza um valor de diaria existente.
 Requer autenticacao.
@@ -26,7 +26,7 @@ async def test_update_diaria_valor_success(
     }
 
     response = await client.put(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -54,7 +54,7 @@ async def test_update_diaria_valor_partial(
     }
 
     response = await client.put(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -78,7 +78,7 @@ async def test_update_diaria_valor_data_fim_before_data_inicio(
     }
 
     response = await client.put(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -99,7 +99,7 @@ async def test_update_diaria_valor_data_inicio_after_existing_data_fim(
     }
 
     response = await client.put(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -115,7 +115,7 @@ async def test_update_diaria_valor_not_found(client, token):
     }
 
     response = await client.put(
-        '/cegep/diarias/valores/999999',
+        '/admin/diarias/valores/999999',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -133,7 +133,7 @@ async def test_update_diaria_valor_without_token(client, diaria_valores):
     }
 
     response = await client.put(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         json=update_data,
     )
 
@@ -168,7 +168,7 @@ async def test_update_diaria_valor_estende_para_ocupado_conflito(
     await session.refresh(fechado)
 
     response = await client.put(
-        f'/cegep/diarias/valores/{fechado.id}',
+        f'/admin/diarias/valores/{fechado.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={'data_fim': '2025-06-01'},
     )
@@ -204,7 +204,7 @@ async def test_update_diaria_valor_apenas_valor_nao_dispara_overlap(
     await session.refresh(a)
 
     response = await client.put(
-        f'/cegep/diarias/valores/{a.id}',
+        f'/admin/diarias/valores/{a.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={'valor': 305.00},
     )
@@ -221,7 +221,7 @@ async def test_update_diaria_valor_empty_body(
     original_valor = valor.valor
 
     response = await client.put(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={},
     )

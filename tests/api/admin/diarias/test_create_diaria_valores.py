@@ -1,5 +1,5 @@
 """
-Testes para o endpoint POST /cegep/diarias/valores/.
+Testes para o endpoint POST /admin/diarias/valores/.
 
 Este endpoint cria um novo valor de diaria.
 Requer autenticacao.
@@ -27,7 +27,7 @@ async def test_create_diaria_valor_success(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -62,7 +62,7 @@ async def test_create_diaria_valor_with_data_fim(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -85,7 +85,7 @@ async def test_create_diaria_valor_future_start_date(client, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -109,7 +109,7 @@ async def test_create_diaria_valor_data_fim_before_data_inicio(client, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -130,7 +130,7 @@ async def test_create_diaria_valor_data_fim_equal_data_inicio(client, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -148,7 +148,7 @@ async def test_create_diaria_valor_without_token(client):
         'data_inicio': date.today().isoformat(),
     }
 
-    response = await client.post('/cegep/diarias/valores/', json=valor_data)
+    response = await client.post('/admin/diarias/valores/', json=valor_data)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
@@ -163,7 +163,7 @@ async def test_create_diaria_valor_missing_required_field(client, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -181,7 +181,7 @@ async def test_create_diaria_valor_zero_fails(client, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -199,7 +199,7 @@ async def test_create_diaria_valor_negative_fails(client, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=valor_data,
     )
@@ -231,7 +231,7 @@ async def test_create_diaria_valor_auto_close_previous(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )
@@ -266,7 +266,7 @@ async def test_create_diaria_valor_auto_close_validation_error(
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )
@@ -303,7 +303,7 @@ async def test_create_diaria_valor_sobreposicao_banda_fechada_conflito(
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )
@@ -339,7 +339,7 @@ async def test_create_diaria_valor_no_auto_close_different_group(
     }
 
     response = await client.post(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )

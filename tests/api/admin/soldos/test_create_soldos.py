@@ -1,5 +1,5 @@
 """
-Testes para o endpoint POST /cegep/soldos/.
+Testes para o endpoint POST /admin/soldos/.
 
 Este endpoint cria um novo registro de soldo.
 Requer autenticacao.
@@ -26,7 +26,7 @@ async def test_create_soldo_success(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -58,7 +58,7 @@ async def test_create_soldo_with_data_fim(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -79,7 +79,7 @@ async def test_create_soldo_invalid_posto(client, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -99,7 +99,7 @@ async def test_create_soldo_data_fim_before_data_inicio(client, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -119,7 +119,7 @@ async def test_create_soldo_data_fim_equal_data_inicio(client, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -136,7 +136,7 @@ async def test_create_soldo_without_token(client):
         'valor': 5000.00,
     }
 
-    response = await client.post('/cegep/soldos/', json=soldo_data)
+    response = await client.post('/admin/soldos/', json=soldo_data)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
@@ -150,7 +150,7 @@ async def test_create_soldo_missing_required_field(client, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -167,7 +167,7 @@ async def test_create_soldo_valor_zero_fails(client, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -184,7 +184,7 @@ async def test_create_soldo_valor_negative_fails(client, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=soldo_data,
     )
@@ -203,7 +203,7 @@ async def test_create_soldo_auto_close_previous(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )
@@ -234,7 +234,7 @@ async def test_create_soldo_auto_close_validation_error(
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )
@@ -269,7 +269,7 @@ async def test_create_soldo_sobreposicao_banda_fechada_conflito(
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )
@@ -299,7 +299,7 @@ async def test_create_soldo_no_auto_close_different_pg(client, session, token):
     }
 
     response = await client.post(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
         json=novo_data,
     )

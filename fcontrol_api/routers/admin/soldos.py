@@ -17,27 +17,21 @@ from fcontrol_api.schemas.cegep.soldo import (
     SoldoUpdate,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import permission_checker
 from fcontrol_api.services.missao import recalcular_custos_missoes
 from fcontrol_api.services.vigencia import garantir_sem_sobreposicao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
-router = APIRouter(prefix='/soldos', tags=['CEGEP'])
-
-# Tabela de soldos (referência financeira): leitura e escrita restritas ao
-# recurso RBAC `soldo` (apoio_avancado).
-ViewSoldo = Depends(permission_checker('soldo', 'view'))
-CreateSoldo = Depends(permission_checker('soldo', 'create'))
-UpdateSoldo = Depends(permission_checker('soldo', 'update'))
-DeleteSoldo = Depends(permission_checker('soldo', 'delete'))
+# Tabela de soldos (referência financeira nacional): control-plane de
+# sistema. O gate `require_system_admin` é aplicado uma única vez no grupo
+# admin (routers/admin/__init__.py) — este router não repete a dependência.
+router = APIRouter(prefix='/soldos', tags=['Admin - Soldos'])
 
 
 @router.get(
     '/stats',
     response_model=ApiResponse[SoldoStats],
-    dependencies=[ViewSoldo],
 )
 async def get_soldo_stats(
     session: Session,
@@ -68,7 +62,6 @@ async def get_soldo_stats(
 @router.get(
     '/',
     response_model=ApiResponse[list[SoldoPublic]],
-    dependencies=[ViewSoldo],
 )
 async def list_soldos(
     session: Session,
@@ -99,7 +92,6 @@ async def list_soldos(
 @router.get(
     '/{soldo_id}',
     response_model=ApiResponse[SoldoPublic],
-    dependencies=[ViewSoldo],
 )
 async def get_soldo(soldo_id: int, session: Session):
     """Busca um soldo por ID"""
@@ -118,7 +110,6 @@ async def get_soldo(soldo_id: int, session: Session):
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[SoldoPublic],
-    dependencies=[CreateSoldo],
 )
 async def create_soldo(soldo: SoldoCreate, session: Session):
     """Cria um novo registro de soldo"""
@@ -195,7 +186,6 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
 @router.put(
     '/{soldo_id}',
     response_model=ApiResponse[SoldoPublic],
-    dependencies=[UpdateSoldo],
 )
 async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
     """Atualiza um soldo existente"""
@@ -270,7 +260,6 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
 @router.delete(
     '/{soldo_id}',
     response_model=ApiResponse[None],
-    dependencies=[DeleteSoldo],
 )
 async def delete_soldo(soldo_id: int, session: Session):
     """Deleta um registro de soldo"""

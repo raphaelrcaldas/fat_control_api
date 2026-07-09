@@ -1,12 +1,15 @@
 """Gating RBAC do módulo CEGEP (trava de regressão).
 
 Cada rota do CEGEP exige permissão no recurso correspondente
-(`comiss`, `missoes_cegep`, `orcamento`, `soldo`, `diaria`,
-`dados_bancarios`). O `org_token` é um usuário autenticado cujo único
-vínculo admin é de SISTEMA (org NULL); com a org ativa '11gt' ele não é
-admin nem tem grant → toda rota gateada responde 403.
+(`comiss`, `missoes_cegep`, `orcamento`, `dados_bancarios`). O `org_token`
+é um usuário autenticado cujo único vínculo admin é de SISTEMA (org NULL);
+com a org ativa '11gt' ele não é admin nem tem grant → toda rota gateada
+responde 403.
 
 Se um gate for removido por engano, o respectivo caso aqui quebra.
+
+Soldos e Diárias saíram do CEGEP para o escopo Admin de sistema — o gate
+deles é testado em tests/api/admin/test_gating.py.
 """
 
 from http import HTTPStatus
@@ -24,10 +27,6 @@ GATED = [
     ('DELETE', '/cegep/missoes/99999'),
     ('GET', '/cegep/financeiro/pgts'),
     ('GET', '/cegep/orcamento/'),
-    ('GET', '/cegep/soldos/'),
-    ('DELETE', '/cegep/soldos/99999'),
-    ('GET', '/cegep/diarias/valores/'),
-    ('DELETE', '/cegep/diarias/valores/99999'),
     ('GET', '/cegep/dados-bancarios/'),
     ('DELETE', '/cegep/dados-bancarios/99999'),
 ]

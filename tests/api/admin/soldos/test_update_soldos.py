@@ -1,5 +1,5 @@
 """
-Testes para o endpoint PUT /cegep/soldos/{soldo_id}.
+Testes para o endpoint PUT /admin/soldos/{soldo_id}.
 
 Este endpoint atualiza um soldo existente.
 Requer autenticacao.
@@ -25,7 +25,7 @@ async def test_update_soldo_success(client, session, token, soldos):
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -51,7 +51,7 @@ async def test_update_soldo_partial(client, session, token, soldos):
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -80,7 +80,7 @@ async def test_update_soldo_change_posto_conflito(
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -106,7 +106,7 @@ async def test_update_soldo_change_posto_slot_livre(
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -136,7 +136,7 @@ async def test_update_soldo_estende_para_periodo_ocupado_conflito(
     await session.refresh(band)
 
     response = await client.put(
-        f'/cegep/soldos/{band.id}',
+        f'/admin/soldos/{band.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={'data_fim': '2026-06-01'},
     )
@@ -165,7 +165,7 @@ async def test_update_soldo_apenas_valor_nao_dispara_overlap(
     await session.refresh(band)
 
     response = await client.put(
-        f'/cegep/soldos/{band.id}',
+        f'/admin/soldos/{band.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={'valor': 2600.00},
     )
@@ -184,7 +184,7 @@ async def test_update_soldo_invalid_posto(client, token, soldos):
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -202,7 +202,7 @@ async def test_update_soldo_data_fim_before_data_inicio(client, token, soldos):
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -223,7 +223,7 @@ async def test_update_soldo_data_inicio_after_existing_data_fim(
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -239,7 +239,7 @@ async def test_update_soldo_not_found(client, token):
     }
 
     response = await client.put(
-        '/cegep/soldos/999999',
+        '/admin/soldos/999999',
         headers={'Authorization': f'Bearer {token}'},
         json=update_data,
     )
@@ -257,7 +257,7 @@ async def test_update_soldo_without_token(client, soldos):
     }
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         json=update_data,
     )
 
@@ -270,7 +270,7 @@ async def test_update_soldo_empty_body(client, session, token, soldos):
     original_valor = soldo.valor
 
     response = await client.put(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={},
     )

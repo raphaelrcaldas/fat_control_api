@@ -20,21 +20,16 @@ from fcontrol_api.schemas.cegep.diaria import (
     GrupoPgPublic,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import permission_checker
 from fcontrol_api.services.missao import recalcular_custos_missoes
 from fcontrol_api.services.vigencia import garantir_sem_sobreposicao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
-router = APIRouter(prefix='/diarias', tags=['CEGEP'])
-
-# Tabelas de valores de diária/grupos (referência financeira): leitura e
-# escrita restritas ao recurso RBAC `diaria` (apoio_avancado).
-ViewDiaria = Depends(permission_checker('diaria', 'view'))
-CreateDiaria = Depends(permission_checker('diaria', 'create'))
-UpdateDiaria = Depends(permission_checker('diaria', 'update'))
-DeleteDiaria = Depends(permission_checker('diaria', 'delete'))
+# Tabelas de valores de diária/grupos (referência financeira nacional):
+# control-plane de sistema. O gate `require_system_admin` é aplicado uma
+# única vez no grupo admin (routers/admin/__init__.py).
+router = APIRouter(prefix='/diarias', tags=['Admin - Diárias'])
 
 
 def calculate_status(data_inicio: date, data_fim: date | None) -> str:
@@ -50,7 +45,6 @@ def calculate_status(data_inicio: date, data_fim: date | None) -> str:
 @router.get(
     '/valores/',
     response_model=ApiResponse[list[DiariaValorPublic]],
-    dependencies=[ViewDiaria],
 )
 async def list_diaria_valores(
     session: Session,
@@ -110,7 +104,6 @@ async def list_diaria_valores(
 @router.get(
     '/valores/{valor_id}',
     response_model=ApiResponse[DiariaValorPublic],
-    dependencies=[ViewDiaria],
 )
 async def get_diaria_valor(valor_id: int, session: Session):
     """Busca valor de diária por ID"""
@@ -141,7 +134,6 @@ async def get_diaria_valor(valor_id: int, session: Session):
     '/valores/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[DiariaValorPublic],
-    dependencies=[CreateDiaria],
 )
 async def create_diaria_valor(data: DiariaValorCreate, session: Session):
     """Cria um novo valor de diária"""
@@ -221,7 +213,6 @@ async def create_diaria_valor(data: DiariaValorCreate, session: Session):
 @router.put(
     '/valores/{valor_id}',
     response_model=ApiResponse[DiariaValorPublic],
-    dependencies=[UpdateDiaria],
 )
 async def update_diaria_valor(
     valor_id: int, data: DiariaValorUpdate, session: Session
@@ -300,7 +291,6 @@ async def update_diaria_valor(
 @router.delete(
     '/valores/{valor_id}',
     response_model=ApiResponse[None],
-    dependencies=[DeleteDiaria],
 )
 async def delete_diaria_valor(valor_id: int, session: Session):
     """Deleta um valor de diária"""
@@ -356,7 +346,6 @@ async def delete_diaria_valor(valor_id: int, session: Session):
 @router.get(
     '/grupos-cidade/',
     response_model=ApiResponse[list[GrupoCidadePublic]],
-    dependencies=[ViewDiaria],
 )
 async def list_grupos_cidade(session: Session):
     """Lista todos os grupos de cidade com cidades associadas"""
@@ -391,7 +380,6 @@ async def list_grupos_cidade(session: Session):
 @router.get(
     '/grupos-pg/',
     response_model=ApiResponse[list[GrupoPgPublic]],
-    dependencies=[ViewDiaria],
 )
 async def list_grupos_pg(session: Session):
     """Lista todos os grupos de posto/graduação"""

@@ -1,10 +1,10 @@
 """
-Testes para os endpoints GET /cegep/soldos/.
+Testes para os endpoints GET /admin/soldos/.
 
 Endpoints testados:
-- GET /cegep/soldos/ - Listar com filtros
-- GET /cegep/soldos/{soldo_id} - Buscar por ID
-- GET /cegep/soldos/stats - Estatisticas
+- GET /admin/soldos/ - Listar com filtros
+- GET /admin/soldos/{soldo_id} - Buscar por ID
+- GET /admin/soldos/stats - Estatisticas
 """
 
 from datetime import date
@@ -16,14 +16,14 @@ pytestmark = pytest.mark.anyio
 
 
 # ============================================================
-# GET /cegep/soldos/ - Listar todos
+# GET /admin/soldos/ - Listar todos
 # ============================================================
 
 
 async def test_list_soldos_success(client, token, soldos):
     """Testa listagem de soldos com sucesso."""
     response = await client.get(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -39,7 +39,7 @@ async def test_list_soldos_filter_by_circulo(client, token, soldos):
     """Testa filtro por circulo."""
     # 'cb' pertence ao circulo 'praca'
     response = await client.get(
-        '/cegep/soldos/?circulo=praça',
+        '/admin/soldos/?circulo=praça',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -56,7 +56,7 @@ async def test_list_soldos_filter_by_circulo(client, token, soldos):
 async def test_list_soldos_filter_active_only(client, token, soldos):
     """Testa filtro active_only (apenas soldos vigentes)."""
     response = await client.get(
-        '/cegep/soldos/?active_only=true',
+        '/admin/soldos/?active_only=true',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -76,7 +76,7 @@ async def test_list_soldos_filter_active_only(client, token, soldos):
 async def test_list_soldos_filter_combined(client, token, soldos):
     """Testa filtros combinados (circulo + active_only)."""
     response = await client.get(
-        '/cegep/soldos/?circulo=grad&active_only=true',
+        '/admin/soldos/?circulo=grad&active_only=true',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -93,7 +93,7 @@ async def test_list_soldos_filter_combined(client, token, soldos):
 async def test_list_soldos_ordered_by_data_inicio_desc(client, token, soldos):
     """Testa que os soldos sao ordenados por data_inicio decrescente."""
     response = await client.get(
-        '/cegep/soldos/',
+        '/admin/soldos/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -109,13 +109,13 @@ async def test_list_soldos_ordered_by_data_inicio_desc(client, token, soldos):
 
 async def test_list_soldos_without_token(client):
     """Testa que requisicao sem token falha."""
-    response = await client.get('/cegep/soldos/')
+    response = await client.get('/admin/soldos/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 # ============================================================
-# GET /cegep/soldos/{soldo_id} - Buscar por ID
+# GET /admin/soldos/{soldo_id} - Buscar por ID
 # ============================================================
 
 
@@ -124,7 +124,7 @@ async def test_get_soldo_by_id_success(client, token, soldos):
     soldo = soldos[0]
 
     response = await client.get(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/soldos/{soldo.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -140,7 +140,7 @@ async def test_get_soldo_by_id_success(client, token, soldos):
 async def test_get_soldo_by_id_not_found(client, token):
     """Testa busca por ID inexistente."""
     response = await client.get(
-        '/cegep/soldos/999999',
+        '/admin/soldos/999999',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -152,20 +152,20 @@ async def test_get_soldo_by_id_without_token(client, soldos):
     """Testa que requisicao sem token falha."""
     soldo = soldos[0]
 
-    response = await client.get(f'/cegep/soldos/{soldo.id}')
+    response = await client.get(f'/admin/soldos/{soldo.id}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 # ============================================================
-# GET /cegep/soldos/stats - Estatisticas
+# GET /admin/soldos/stats - Estatisticas
 # ============================================================
 
 
 async def test_get_soldo_stats_success(client, token, soldos):
     """Testa estatisticas de soldos com sucesso."""
     response = await client.get(
-        '/cegep/soldos/stats',
+        '/admin/soldos/stats',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -182,7 +182,7 @@ async def test_get_soldo_stats_success(client, token, soldos):
 async def test_get_soldo_stats_filter_by_circulo(client, token, soldos):
     """Testa estatisticas filtradas por circulo."""
     response = await client.get(
-        '/cegep/soldos/stats?circulo=grad',
+        '/admin/soldos/stats?circulo=grad',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -198,7 +198,7 @@ async def test_get_soldo_stats_empty(client, token):
     """Testa estatisticas quando nao ha soldos."""
     # Filtra por circulo que nao existe
     response = await client.get(
-        '/cegep/soldos/stats?circulo=inexistente',
+        '/admin/soldos/stats?circulo=inexistente',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -213,6 +213,6 @@ async def test_get_soldo_stats_empty(client, token):
 
 async def test_get_soldo_stats_without_token(client):
     """Testa que requisicao sem token falha."""
-    response = await client.get('/cegep/soldos/stats')
+    response = await client.get('/admin/soldos/stats')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED

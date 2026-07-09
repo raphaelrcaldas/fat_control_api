@@ -1,7 +1,7 @@
 """
-Testes para o endpoint DELETE /cegep/soldos/{soldo_id}.
+Testes para o endpoint DELETE /admin/diarias/valores/{valor_id}.
 
-Este endpoint deleta um soldo existente.
+Este endpoint deleta um valor de diaria existente.
 Requer autenticacao.
 """
 
@@ -11,24 +11,26 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy.future import select
 
-from fcontrol_api.models.shared.posto_grad import Soldo
+from fcontrol_api.models.cegep.diarias import DiariaValor
 from tests.factories import (
+    DiariaValorFactory,
     FragMisFactory,
     PernoiteFragFactory,
-    SoldoFactory,
     UserFragFactory,
 )
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_delete_soldo_success(client, session, token, soldos):
-    """Testa delecao de soldo com sucesso."""
-    soldo = soldos[0]
-    soldo_id = soldo.id
+async def test_delete_diaria_valor_success(
+    client, session, token, diaria_valores
+):
+    """Testa delecao de valor de diaria com sucesso."""
+    valor = diaria_valores[0]
+    valor_id = valor.id
 
     response = await client.delete(
-        f'/cegep/soldos/{soldo_id}',
+        f'/admin/diarias/valores/{valor_id}',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -36,50 +38,53 @@ async def test_delete_soldo_success(client, session, token, soldos):
     assert 'deletado com sucesso' in response.json()['message']
 
     # Verifica no banco
-    db_soldo = await session.scalar(select(Soldo).where(Soldo.id == soldo_id))
-    assert db_soldo is None
+    db_valor = await session.scalar(
+        select(DiariaValor).where(DiariaValor.id == valor_id)
+    )
+    assert db_valor is None
 
 
-async def test_delete_soldo_not_found(client, token):
-    """Testa delecao de soldo inexistente."""
+async def test_delete_diaria_valor_not_found(client, token):
+    """Testa delecao de valor de diaria inexistente."""
     response = await client.delete(
-        '/cegep/soldos/999999',
+        '/admin/diarias/valores/999999',
         headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['message']
+    assert 'não encontrado' in response.json()['message']
 
 
-async def test_delete_soldo_without_token(client, soldos):
+async def test_delete_diaria_valor_without_token(client, diaria_valores):
     """Testa que requisicao sem token falha."""
-    soldo = soldos[0]
+    valor = diaria_valores[0]
 
-    response = await client.delete(f'/cegep/soldos/{soldo.id}')
+    response = await client.delete(f'/admin/diarias/valores/{valor.id}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_delete_soldo_blocked_by_missao_grat(
+async def test_delete_diaria_valor_blocked_by_missao_comiss(
     client, session, token, users
 ):
-    """Testa que nao pode deletar soldo com missao sit=g."""
+    """Testa que nao pode deletar diaria com missao sit=c."""
     user, _ = users
     today = date.today()
 
-    soldo = SoldoFactory(
-        pg='cb',
-        valor=3000.00,
+    valor = DiariaValorFactory(
+        grupo_pg=4,
+        grupo_cid=1,
+        valor=355.00,
         data_inicio=today - timedelta(days=30),
         data_fim=today + timedelta(days=30),
     )
-    session.add(soldo)
+    session.add(valor)
     await session.flush()
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc='9010',
-        desc='Missao grat bloqueante',
+        n_doc='9001',
+        desc='Missao bloqueante',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
         regres=datetime.combine(today + timedelta(days=3), time(18, 0)),
@@ -101,43 +106,158 @@ async def test_delete_soldo_blocked_by_missao_grat(
     user_frag = UserFragFactory(
         frag_id=missao.id,
         user_id=user.id,
-        sit='g',
+        sit='c',
         p_g=user.p_g,
     )
     session.add(user_frag)
     await session.commit()
-    await session.refresh(soldo)
+    await session.refresh(valor)
 
     response = await client.delete(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
     msg = response.json()['message']
-    assert 'missões' in msg.lower() or 'gratificação' in msg.lower()
+    assert 'missões' in msg.lower() or 'diárias' in msg.lower()
 
 
-async def test_delete_soldo_allowed_with_comiss_only(
+async def test_delete_diaria_valor_blocked_by_missao_diaria(
     client, session, token, users
 ):
-    """Testa que pode deletar soldo se so tem missao sit=c."""
+    """Testa que nao pode deletar diaria com missao sit=d."""
     user, _ = users
     today = date.today()
 
-    soldo = SoldoFactory(
-        pg='cb',
-        valor=3000.00,
+    valor = DiariaValorFactory(
+        grupo_pg=4,
+        grupo_cid=1,
+        valor=355.00,
         data_inicio=today - timedelta(days=30),
         data_fim=today + timedelta(days=30),
     )
-    session.add(soldo)
+    session.add(valor)
     await session.flush()
 
     missao = FragMisFactory(
         tipo_doc='om',
-        n_doc='9011',
-        desc='Missao comiss',
+        n_doc='9002',
+        desc='Missao diaria',
+        tipo='adm',
+        afast=datetime.combine(today, time(8, 0)),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
+        acrec_desloc=False,
+        obs='',
+        indenizavel=True,
+    )
+    session.add(missao)
+    await session.flush()
+
+    pernoite = PernoiteFragFactory(
+        frag_id=missao.id,
+        cidade_id=3550308,
+        data_ini=today,
+        data_fim=today + timedelta(days=2),
+    )
+    session.add(pernoite)
+
+    user_frag = UserFragFactory(
+        frag_id=missao.id,
+        user_id=user.id,
+        sit='d',
+        p_g=user.p_g,
+    )
+    session.add(user_frag)
+    await session.commit()
+    await session.refresh(valor)
+
+    response = await client.delete(
+        f'/admin/diarias/valores/{valor.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+
+
+async def test_delete_diaria_valor_allowed_with_grat_only(
+    client, session, token, users
+):
+    """Testa que pode deletar diaria se so tem missao sit=g."""
+    user, _ = users
+    today = date.today()
+
+    valor = DiariaValorFactory(
+        grupo_pg=4,
+        grupo_cid=1,
+        valor=355.00,
+        data_inicio=today - timedelta(days=30),
+        data_fim=today + timedelta(days=30),
+    )
+    session.add(valor)
+    await session.flush()
+
+    missao = FragMisFactory(
+        tipo_doc='om',
+        n_doc='9003',
+        desc='Missao grat',
+        tipo='adm',
+        afast=datetime.combine(today, time(8, 0)),
+        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
+        acrec_desloc=False,
+        obs='',
+        indenizavel=True,
+    )
+    session.add(missao)
+    await session.flush()
+
+    pernoite = PernoiteFragFactory(
+        frag_id=missao.id,
+        cidade_id=3550308,
+        data_ini=today,
+        data_fim=today + timedelta(days=2),
+    )
+    session.add(pernoite)
+
+    user_frag = UserFragFactory(
+        frag_id=missao.id,
+        user_id=user.id,
+        sit='g',
+        p_g=user.p_g,
+    )
+    session.add(user_frag)
+    await session.commit()
+    await session.refresh(valor)
+
+    response = await client.delete(
+        f'/admin/diarias/valores/{valor.id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+async def test_delete_diaria_valor_allowed_outside_period(
+    client, session, token, users
+):
+    """Testa que pode deletar diaria se missao esta fora."""
+    user, _ = users
+    today = date.today()
+
+    valor = DiariaValorFactory(
+        grupo_pg=4,
+        grupo_cid=1,
+        valor=355.00,
+        data_inicio=today - timedelta(days=60),
+        data_fim=today - timedelta(days=31),
+    )
+    session.add(valor)
+    await session.flush()
+
+    missao = FragMisFactory(
+        tipo_doc='om',
+        n_doc='9004',
+        desc='Missao futura',
         tipo='adm',
         afast=datetime.combine(today, time(8, 0)),
         regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
@@ -164,66 +284,10 @@ async def test_delete_soldo_allowed_with_comiss_only(
     )
     session.add(user_frag)
     await session.commit()
-    await session.refresh(soldo)
+    await session.refresh(valor)
 
     response = await client.delete(
-        f'/cegep/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
-    )
-
-    assert response.status_code == HTTPStatus.OK
-
-
-async def test_delete_soldo_allowed_outside_period(
-    client, session, token, users
-):
-    """Testa que pode deletar soldo se missao esta fora."""
-    user, _ = users
-    today = date.today()
-
-    soldo = SoldoFactory(
-        pg='cb',
-        valor=3000.00,
-        data_inicio=today - timedelta(days=60),
-        data_fim=today - timedelta(days=31),
-    )
-    session.add(soldo)
-    await session.flush()
-
-    missao = FragMisFactory(
-        tipo_doc='om',
-        n_doc='9012',
-        desc='Missao futura',
-        tipo='adm',
-        afast=datetime.combine(today, time(8, 0)),
-        regres=datetime.combine(today + timedelta(days=2), time(18, 0)),
-        acrec_desloc=False,
-        obs='',
-        indenizavel=True,
-    )
-    session.add(missao)
-    await session.flush()
-
-    pernoite = PernoiteFragFactory(
-        frag_id=missao.id,
-        cidade_id=3550308,
-        data_ini=today,
-        data_fim=today + timedelta(days=2),
-    )
-    session.add(pernoite)
-
-    user_frag = UserFragFactory(
-        frag_id=missao.id,
-        user_id=user.id,
-        sit='g',
-        p_g=user.p_g,
-    )
-    session.add(user_frag)
-    await session.commit()
-    await session.refresh(soldo)
-
-    response = await client.delete(
-        f'/cegep/soldos/{soldo.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
 

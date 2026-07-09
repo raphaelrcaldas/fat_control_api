@@ -1,11 +1,11 @@
 """
-Testes para os endpoints GET /cegep/diarias/.
+Testes para os endpoints GET /admin/diarias/.
 
 Endpoints testados:
-- GET /cegep/diarias/valores/ - Listar valores
-- GET /cegep/diarias/valores/{valor_id} - Buscar por ID
-- GET /cegep/diarias/grupos-cidade/ - Listar grupos cidade
-- GET /cegep/diarias/grupos-pg/ - Listar grupos P/G
+- GET /admin/diarias/valores/ - Listar valores
+- GET /admin/diarias/valores/{valor_id} - Buscar por ID
+- GET /admin/diarias/grupos-cidade/ - Listar grupos cidade
+- GET /admin/diarias/grupos-pg/ - Listar grupos P/G
 """
 
 from http import HTTPStatus
@@ -16,14 +16,14 @@ pytestmark = pytest.mark.anyio
 
 
 # ============================================================
-# GET /cegep/diarias/valores/ - Listar valores
+# GET /admin/diarias/valores/ - Listar valores
 # ============================================================
 
 
 async def test_list_diaria_valores_success(client, token, diaria_valores):
     """Testa listagem de valores de diarias com sucesso."""
     response = await client.get(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -48,7 +48,7 @@ async def test_list_diaria_valores_filter_by_grupo_cid(
 ):
     """Testa filtro por grupo de cidade."""
     response = await client.get(
-        '/cegep/diarias/valores/?grupo_cid=1',
+        '/admin/diarias/valores/?grupo_cid=1',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -67,7 +67,7 @@ async def test_list_diaria_valores_filter_by_grupo_pg(
 ):
     """Testa filtro por grupo de P/G."""
     response = await client.get(
-        '/cegep/diarias/valores/?grupo_pg=1',
+        '/admin/diarias/valores/?grupo_pg=1',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -86,7 +86,7 @@ async def test_list_diaria_valores_filter_active_only(
 ):
     """Testa filtro active_only (apenas valores vigentes)."""
     response = await client.get(
-        '/cegep/diarias/valores/?active_only=true',
+        '/admin/diarias/valores/?active_only=true',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -105,7 +105,7 @@ async def test_list_diaria_valores_status_calculated(
 ):
     """Testa que o status e calculado corretamente."""
     response = await client.get(
-        '/cegep/diarias/valores/',
+        '/admin/diarias/valores/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -127,7 +127,7 @@ async def test_list_diaria_valores_filter_combined(
 ):
     """Testa filtros combinados (grupo_pg + active_only)."""
     response = await client.get(
-        '/cegep/diarias/valores/?grupo_pg=1&active_only=true',
+        '/admin/diarias/valores/?grupo_pg=1&active_only=true',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -143,13 +143,13 @@ async def test_list_diaria_valores_filter_combined(
 
 async def test_list_diaria_valores_without_token(client):
     """Testa que requisicao sem token falha."""
-    response = await client.get('/cegep/diarias/valores/')
+    response = await client.get('/admin/diarias/valores/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 # ============================================================
-# GET /cegep/diarias/valores/{valor_id} - Buscar por ID
+# GET /admin/diarias/valores/{valor_id} - Buscar por ID
 # ============================================================
 
 
@@ -158,7 +158,7 @@ async def test_get_diaria_valor_by_id_success(client, token, diaria_valores):
     valor = diaria_valores[0]
 
     response = await client.get(
-        f'/cegep/diarias/valores/{valor.id}',
+        f'/admin/diarias/valores/{valor.id}',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -174,7 +174,7 @@ async def test_get_diaria_valor_by_id_success(client, token, diaria_valores):
 async def test_get_diaria_valor_by_id_not_found(client, token):
     """Testa busca por ID inexistente."""
     response = await client.get(
-        '/cegep/diarias/valores/999999',
+        '/admin/diarias/valores/999999',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -186,20 +186,20 @@ async def test_get_diaria_valor_by_id_without_token(client, diaria_valores):
     """Testa que requisicao sem token falha."""
     valor = diaria_valores[0]
 
-    response = await client.get(f'/cegep/diarias/valores/{valor.id}')
+    response = await client.get(f'/admin/diarias/valores/{valor.id}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 # ============================================================
-# GET /cegep/diarias/grupos-cidade/ - Listar grupos cidade
+# GET /admin/diarias/grupos-cidade/ - Listar grupos cidade
 # ============================================================
 
 
 async def test_list_grupos_cidade_success(client, token):
     """Testa listagem de grupos de cidade com sucesso."""
     response = await client.get(
-        '/cegep/diarias/grupos-cidade/',
+        '/admin/diarias/grupos-cidade/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -222,7 +222,7 @@ async def test_list_grupos_cidade_success(client, token):
 async def test_list_grupos_cidade_includes_cidade_info(client, token):
     """Testa que os grupos incluem informacoes da cidade."""
     response = await client.get(
-        '/cegep/diarias/grupos-cidade/',
+        '/admin/diarias/grupos-cidade/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -240,20 +240,20 @@ async def test_list_grupos_cidade_includes_cidade_info(client, token):
 
 async def test_list_grupos_cidade_without_token(client):
     """Testa que requisicao sem token falha."""
-    response = await client.get('/cegep/diarias/grupos-cidade/')
+    response = await client.get('/admin/diarias/grupos-cidade/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 # ============================================================
-# GET /cegep/diarias/grupos-pg/ - Listar grupos P/G
+# GET /admin/diarias/grupos-pg/ - Listar grupos P/G
 # ============================================================
 
 
 async def test_list_grupos_pg_success(client, token):
     """Testa listagem de grupos de P/G com sucesso."""
     response = await client.get(
-        '/cegep/diarias/grupos-pg/',
+        '/admin/diarias/grupos-pg/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -276,7 +276,7 @@ async def test_list_grupos_pg_success(client, token):
 async def test_list_grupos_pg_includes_posto_info(client, token):
     """Testa que os grupos incluem informacoes do posto/graduacao."""
     response = await client.get(
-        '/cegep/diarias/grupos-pg/',
+        '/admin/diarias/grupos-pg/',
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -293,6 +293,6 @@ async def test_list_grupos_pg_includes_posto_info(client, token):
 
 async def test_list_grupos_pg_without_token(client):
     """Testa que requisicao sem token falha."""
-    response = await client.get('/cegep/diarias/grupos-pg/')
+    response = await client.get('/admin/diarias/grupos-pg/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
