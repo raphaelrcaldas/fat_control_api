@@ -88,9 +88,7 @@ async def _buscar_usuario(
 ) -> User:
     """Busca usuario da org ativa ou levanta 404 (escopo por unidade)."""
     user = await session.scalar(
-        select(User).where(
-            User.id == user_id, User.unidade == active_org
-        )
+        select(User).where(User.id == user_id, User.unidade == active_org)
     )
     if not user:
         raise HTTPException(

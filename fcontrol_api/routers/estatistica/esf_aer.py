@@ -138,7 +138,8 @@ async def get_esf_aer_resumo(
         query = query.where(EsforcoAereo.descricao.notlike('%SML%'))
 
     query = (
-        query.group_by(
+        query
+        .group_by(
             EsforcoAereo.id,
             EsforcoAereo.descricao,
             EsfAerAloc.alocado,

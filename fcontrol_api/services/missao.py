@@ -69,9 +69,7 @@ def validar_regras_missao(payload: FragMisSchema) -> None:
                 f'- Pernoite em {cidade}: data de fim anterior à de início'
             )
         elif p.data_ini < afast_date or p.data_fim > regres_date:
-            erros.append(
-                f'- Pernoite em {cidade}: fora do período da missão'
-            )
+            erros.append(f'- Pernoite em {cidade}: fora do período da missão')
 
     if erros:
         raise HTTPException(
