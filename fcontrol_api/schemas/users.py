@@ -41,7 +41,6 @@ class UserSchema(BaseModel):
     email_pess: EmailStr | None
     email_fab: EmailStr | None
     active: bool
-    unidade: str
     ant_rel: int | None = Field(gt=0)
 
     model_config = ConfigDict(from_attributes=True)
@@ -136,7 +135,6 @@ class UserUpdate(BaseModel):
     email_pess: EmailStr | None = None
     email_fab: EmailStr | None = None
     active: bool | None = None
-    unidade: str | None = None
     ant_rel: int | None = Field(default=None, gt=0)
 
     model_config = ConfigDict(from_attributes=True)
@@ -230,6 +228,10 @@ class UserPromoPublic(BaseModel):
 
 class UserFull(UserSchema):
     posto: PostoGradSchema
+    # Unidade é leitura-apenas: definida na criação (org ativa) e imutável
+    # via update. Fica fora de UserSchema (payload de criação) e reaparece
+    # aqui só para exibição.
+    unidade: str
 
     @computed_field
     @property

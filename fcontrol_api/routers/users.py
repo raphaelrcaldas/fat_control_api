@@ -26,7 +26,9 @@ from fcontrol_api.schemas.users import (
     UserUpdate,
 )
 from fcontrol_api.security import (
-    ensure_permission_or_owner,
+    ActiveOrg,
+    ActiveOrgOptional,
+    ensure_org_permission_or_owner,
     get_current_user,
     get_password_hash,
     permission_checker,
@@ -45,6 +47,23 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/users', tags=['users'])
+
+
+def _ensure_user_in_active_org(
+    db_user: User, active_org: str | None, requester: User
+) -> None:
+    """Bloqueia acesso a usuário de outra unidade (escopo por org ativa).
+
+    Fora do contexto Sistema (`active_org` NULL), o alvo precisa pertencer à
+    org ativa. O próprio usuário (self-service) é sempre exceção. Cross-org
+    responde 404 para não revelar a existência do registro em outra unidade.
+    """
+    if requester.id == db_user.id:
+        return
+    if active_org is not None and db_user.unidade != active_org:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+        )
 
 
 @router.get('/me', response_model=ApiResponse[UserProfile])
@@ -104,14 +123,20 @@ async def change_pwd(
 async def reset_pwd(
     user_id: int,
     session: Session,
+    active_org: ActiveOrgOptional,
     current_user: Annotated[User, Depends(require_admin)],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
+        # 404 (não 400) para não diferenciar "não existe" de "outra org"
+        # — mesmo status do guard abaixo, sem oráculo de enumeração.
         raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
+            status_code=HTTPStatus.NOT_FOUND,
             detail='Usuario nao encontrado',
         )
+
+    # Admin de unidade só reseta senha de usuário da própria org ativa.
+    _ensure_user_in_active_org(db_user, active_org, current_user)
 
     hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)  # type: ignore
     db_user.first_login = True
@@ -140,6 +165,7 @@ async def reset_pwd(
 async def create_user(
     payload: UserSchema,
     session: Session,
+    active_org: ActiveOrg,
     user: Annotated[User, Depends(permission_checker('user', 'create'))],
 ):
     # Verifica conflitos de unicidade
@@ -169,7 +195,9 @@ async def create_user(
         email_pess=payload.email_pess,
         email_fab=payload.email_fab,
         telefone=payload.telefone,
-        unidade=payload.unidade,
+        # Unidade não vem do payload: o usuário é sempre cadastrado na
+        # organização ativa de quem o cria (escopo por org).
+        unidade=active_org,
         ant_rel=payload.ant_rel,
         password=hashed_password,
     )
@@ -199,12 +227,12 @@ async def create_user(
 @router.get('/', response_model=ApiPaginatedResponse[UserPublic])
 async def read_users(
     session: Session,
+    active_org: ActiveOrgOptional,
     _: Annotated[User, Depends(permission_checker('user', 'view'))],
     search: str | None = None,
     p_g: str | None = None,
     quadro: QuadroEnum | None = None,
     esp: EspecialidadeEnum | None = None,
-    unidade: str | None = None,
     active: bool | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 15,
@@ -229,6 +257,12 @@ async def read_users(
     # Aplica filtros
     filters = []
 
+    # Escopo por org ativa: fora do contexto Sistema, lista apenas os
+    # usuários da unidade ativa. Sistema (active_org NULL) vê todas as
+    # unidades — mesmo padrão dos vínculos em security/roles.py.
+    if active_org is not None:
+        filters.append(User.unidade == active_org)
+
     if search:
         # Busca por nome de guerra OU nome completo
         search_term = f'%{search.strip()}%'
@@ -252,9 +286,6 @@ async def read_users(
 
     if esp:
         filters.append(User.esp == esp.value)
-
-    if unidade:
-        filters.append(User.unidade == unidade)
 
     if active is not None:
         filters.append(User.active == active)
@@ -283,6 +314,7 @@ async def read_users(
 async def get_user(
     user_id: int,
     session: Session,
+    active_org: ActiveOrgOptional,
     user: CurrentUser,
 ):
     query = select(User).where(User.id == user_id)
@@ -293,7 +325,11 @@ async def get_user(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
 
-    await ensure_permission_or_owner(user, session, 'user', 'view', db_user.id)
+    _ensure_user_in_active_org(db_user, active_org, user)
+
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'user', 'view', db_user.id
+    )
 
     return success_response(data=UserFull.model_validate(db_user))
 
@@ -303,6 +339,7 @@ async def update_user(
     user_id: int,
     user_patch: UserUpdate,
     session: Session,
+    active_org: ActiveOrgOptional,
     user: CurrentUser,
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
@@ -312,8 +349,10 @@ async def update_user(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
 
-    await ensure_permission_or_owner(
-        user, session, 'user', 'update', db_user.id
+    _ensure_user_in_active_org(db_user, active_org, user)
+
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'user', 'update', db_user.id
     )
 
     patch = user_patch.model_dump(exclude_unset=True)
@@ -389,6 +428,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     session: Session,
+    active_org: ActiveOrgOptional,
     user: Annotated[User, Depends(permission_checker('user', 'delete'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
@@ -397,6 +437,8 @@ async def delete_user(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
+
+    _ensure_user_in_active_org(db_user, active_org, user)
 
     if db_user.id == user.id:
         raise HTTPException(
@@ -435,6 +477,7 @@ async def delete_user(
 async def list_user_promos(
     user_id: int,
     session: Session,
+    active_org: ActiveOrgOptional,
     user: CurrentUser,
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
@@ -443,7 +486,11 @@ async def list_user_promos(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
 
-    await ensure_permission_or_owner(user, session, 'user', 'view', user_id)
+    _ensure_user_in_active_org(db_user, active_org, user)
+
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'user', 'view', user_id
+    )
 
     promos = await session.scalars(
         select(UserPromo)
@@ -465,6 +512,7 @@ async def create_user_promo(
     user_id: int,
     payload: UserPromoCreate,
     session: Session,
+    active_org: ActiveOrgOptional,
     user: Annotated[User, Depends(permission_checker('user', 'update'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
@@ -472,6 +520,8 @@ async def create_user_promo(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
         )
+
+    _ensure_user_in_active_org(db_user, active_org, user)
 
     await validate_promo_hierarchy(
         session, user_id, payload.p_g, payload.data_promo
@@ -516,8 +566,17 @@ async def delete_user_promo(
     user_id: int,
     promo_id: int,
     session: Session,
+    active_org: ActiveOrgOptional,
     user: Annotated[User, Depends(permission_checker('user', 'update'))],
 ):
+    db_user = await session.scalar(select(User).where(User.id == user_id))
+    if not db_user:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+        )
+
+    _ensure_user_in_active_org(db_user, active_org, user)
+
     db_promo = await session.scalar(
         select(UserPromo).where(
             UserPromo.id == promo_id, UserPromo.user_id == user_id

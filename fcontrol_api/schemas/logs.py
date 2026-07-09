@@ -9,6 +9,7 @@ class UserSummary(BaseModel):
     id: int
     p_g: PostoGradEnum
     nome_guerra: str
+    unidade: str
 
 
 class UserActionLogOut(BaseModel):

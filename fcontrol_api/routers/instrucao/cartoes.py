@@ -17,6 +17,7 @@ from fcontrol_api.schemas.instrucao.cartoes import (
     TripCartoesOut,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -30,8 +31,9 @@ router = APIRouter(prefix='/cartoes', tags=['Instrucao'])
 )
 async def list_cartoes(
     session: Session,
+    active_org: ActiveOrg,
 ):
-    """Lista pilotos ativos com seus cartoes (idiomas e CVI)."""
+    """Lista pilotos ativos da org ativa com seus cartoes (idiomas/CVI)."""
     pilot_filter = exists(
         select(Funcao.func).where(
             Funcao.trip_id == Tripulante.id,
@@ -66,6 +68,7 @@ async def list_cartoes(
         )
         .where(
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
             User.active.is_(True),
         )
         .where(pilot_filter)
@@ -114,6 +117,7 @@ async def list_cartoes(
 async def upsert_cartao(
     trip_id: int,
     session: Session,
+    active_org: ActiveOrg,
     dados: CartoesUpdate,
 ):
     """Cria ou atualiza o cartao (idiomas e CVI) de um tripulante."""
@@ -121,6 +125,7 @@ async def upsert_cartao(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:
@@ -164,12 +169,14 @@ async def upsert_cartao(
 async def delete_cartao(
     trip_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Remove o cartao (idiomas e CVI) de um tripulante."""
     tripulante = await session.scalar(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:

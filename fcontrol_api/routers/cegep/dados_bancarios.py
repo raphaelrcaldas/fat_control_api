@@ -21,7 +21,7 @@ from fcontrol_api.schemas.cegep.dados_bancarios import (
     DadosBancariosWithUser,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import permission_checker
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.portal_transparencia import buscar_remuneracao
 from fcontrol_api.utils.responses import success_response
 
@@ -58,11 +58,16 @@ class SyncRemuneracaoResponse(BaseModel):
 )
 async def get_dados_bancarios(
     session: Session,
+    active_org: ActiveOrg,
     user_id: int = None,
     search: str = None,
 ):
     """Lista dados bancários de usuários ativos (filtra por usuário/busca)"""
-    query = select(DadosBancarios).join(User).where(User.active.is_(True))
+    query = (
+        select(DadosBancarios)
+        .join(User)
+        .where(User.active.is_(True), User.unidade == active_org)
+    )
 
     if user_id:
         query = query.where(DadosBancarios.user_id == user_id)
@@ -88,12 +93,13 @@ async def get_dados_bancarios(
 )
 async def get_dados_bancarios_orfaos(
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Lista dados bancários cujo usuário está desativado (órfãos)"""
     query = (
         select(DadosBancarios)
         .join(User)
-        .where(User.active.is_(False))
+        .where(User.active.is_(False), User.unidade == active_org)
         .order_by(DadosBancarios.id)
     )
 
@@ -110,6 +116,7 @@ async def get_dados_bancarios_orfaos(
 )
 async def delete_dados_bancarios_orfaos(
     session: Session,
+    active_org: ActiveOrg,
     payload: DadosBancariosBulkDelete,
 ):
     """Remove dados bancários órfãos selecionados.
@@ -124,6 +131,7 @@ async def delete_dados_bancarios_orfaos(
         .where(
             DadosBancarios.id.in_(payload.ids),
             User.active.is_(False),
+            User.unidade == active_org,
         )
     )
 
@@ -152,10 +160,13 @@ async def delete_dados_bancarios_orfaos(
 async def get_dados_bancarios_by_id(
     dados_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Busca dados bancários por ID"""
     dados = await session.scalar(
-        select(DadosBancarios).where(DadosBancarios.id == dados_id)
+        select(DadosBancarios)
+        .join(User)
+        .where(DadosBancarios.id == dados_id, User.unidade == active_org)
     )
 
     if not dados:
@@ -175,10 +186,16 @@ async def get_dados_bancarios_by_id(
 async def get_dados_bancarios_by_user(
     user_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Busca dados bancários por ID do usuário"""
     dados = await session.scalar(
-        select(DadosBancarios).where(DadosBancarios.user_id == user_id)
+        select(DadosBancarios)
+        .join(User)
+        .where(
+            DadosBancarios.user_id == user_id,
+            User.unidade == active_org,
+        )
     )
 
     if not dados:
@@ -197,6 +214,7 @@ async def get_dados_bancarios_by_user(
 )
 async def sync_remuneracao_portal(
     session: Session,
+    active_org: ActiveOrg,
     payload: SyncRemuneracaoRequest,
 ):
     """Consulta o Portal da Transparencia para um usuario+mes.
@@ -204,7 +222,11 @@ async def sync_remuneracao_portal(
     Funciona em modo create (sem registro ainda) e edit. NAO persiste
     no banco — o frontend decide se preenche o formulario e salva.
     """
-    user = await session.scalar(select(User).where(User.id == payload.user_id))
+    user = await session.scalar(
+        select(User).where(
+            User.id == payload.user_id, User.unidade == active_org
+        )
+    )
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -237,11 +259,16 @@ async def sync_remuneracao_portal(
 )
 async def create_dados_bancarios(
     session: Session,
+    active_org: ActiveOrg,
     dados: DadosBancariosCreate,
 ):
     """Cria novos dados bancários para um usuário"""
-    # Verifica se o usuário existe
-    user = await session.scalar(select(User).where(User.id == dados.user_id))
+    # Verifica se o usuário existe na org ativa (escopo por unidade)
+    user = await session.scalar(
+        select(User).where(
+            User.id == dados.user_id, User.unidade == active_org
+        )
+    )
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -279,11 +306,14 @@ async def create_dados_bancarios(
 async def update_dados_bancarios(
     dados_id: int,
     session: Session,
+    active_org: ActiveOrg,
     dados: DadosBancariosUpdate,
 ):
     """Atualiza dados bancários existentes"""
     db_dados = await session.scalar(
-        select(DadosBancarios).where(DadosBancarios.id == dados_id)
+        select(DadosBancarios)
+        .join(User)
+        .where(DadosBancarios.id == dados_id, User.unidade == active_org)
     )
 
     if not db_dados:
@@ -309,10 +339,13 @@ async def update_dados_bancarios(
 async def delete_dados_bancarios(
     dados_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Deleta dados bancários"""
     db_dados = await session.scalar(
-        select(DadosBancarios).where(DadosBancarios.id == dados_id)
+        select(DadosBancarios)
+        .join(User)
+        .where(DadosBancarios.id == dados_id, User.unidade == active_org)
     )
 
     if not db_dados:

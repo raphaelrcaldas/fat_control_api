@@ -30,7 +30,7 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
     ResponseStatus,
 )
-from fcontrol_api.security import permission_checker
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.aeromedica_extracao import (
     extrair_dados_ata_bytes,
 )
@@ -83,9 +83,15 @@ async def _validar_pdf(file: UploadFile) -> bytes:
     return conteudo
 
 
-async def _buscar_usuario(session: AsyncSession, user_id: int) -> User:
-    """Busca usuario ou levanta 404."""
-    user = await session.scalar(select(User).where(User.id == user_id))
+async def _buscar_usuario(
+    session: AsyncSession, user_id: int, active_org: str
+) -> User:
+    """Busca usuario da org ativa ou levanta 404 (escopo por unidade)."""
+    user = await session.scalar(
+        select(User).where(
+            User.id == user_id, User.unidade == active_org
+        )
+    )
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -189,12 +195,13 @@ DeleteCartao = Depends(permission_checker('cartoes-saude', 'delete'))
 )
 async def extrair_ata(
     session: Session,
+    active_org: ActiveOrg,
     user_id: int,
     file: UploadFile,
 ):
     """Extrai dados de um PDF de ata sem salvar."""
     conteudo = await _validar_pdf(file)
-    user = await _buscar_usuario(session, user_id)
+    user = await _buscar_usuario(session, user_id, active_org)
     dados = await asyncio.to_thread(extrair_dados_ata_bytes, conteudo)
 
     extracao_vazia = not any((
@@ -242,6 +249,7 @@ async def extrair_ata(
 )
 async def upload_ata(
     session: Session,
+    active_org: ActiveOrg,
     user_id: int,
     file: UploadFile,
     dados_confirmados: bool = False,
@@ -251,7 +259,7 @@ async def upload_ata(
 ):
     """Upload de PDF de ata de inspecao de saude."""
     conteudo = await _validar_pdf(file)
-    user = await _buscar_usuario(session, user_id)
+    user = await _buscar_usuario(session, user_id, active_org)
 
     if dados_confirmados:
         dados = {
@@ -371,11 +379,16 @@ async def upload_ata(
 async def get_atas_by_user(
     user_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Lista atas de inspecao de um usuario."""
     result = await session.execute(
         select(AtaInspecao)
-        .where(AtaInspecao.user_id == user_id)
+        .join(User, AtaInspecao.user_id == User.id)
+        .where(
+            AtaInspecao.user_id == user_id,
+            User.unidade == active_org,
+        )
         .order_by(
             AtaInspecao.created_at.desc(),
             AtaInspecao.id.desc(),
@@ -406,12 +419,12 @@ async def get_atas_by_user(
     response_model=ApiResponse[AtasOrfasResumo],
     dependencies=[DeleteCartao],
 )
-async def get_atas_orfas(session: Session):
+async def get_atas_orfas(session: Session, active_org: ActiveOrg):
     """Lista atas de usuarios inativos."""
     result = await session.execute(
         select(AtaInspecao, User.nome_guerra, User.nome_completo)
         .join(User, AtaInspecao.user_id == User.id)
-        .where(User.active.is_(False))
+        .where(User.active.is_(False), User.unidade == active_org)
         .order_by(User.nome_guerra, AtaInspecao.id)
     )
     rows = result.all()
@@ -446,7 +459,9 @@ async def get_atas_orfas(session: Session):
     response_model=ApiResponse[AtasOrfasDeleteResponse],
     dependencies=[DeleteCartao],
 )
-async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
+async def delete_atas_orfas(
+    payload: AtasOrfasDelete, session: Session, active_org: ActiveOrg
+):
     """Remove atas orfas selecionadas (apenas de usuarios inativos)."""
     result = await session.execute(
         select(AtaInspecao)
@@ -454,6 +469,7 @@ async def delete_atas_orfas(payload: AtasOrfasDelete, session: Session):
         .where(
             AtaInspecao.id.in_(payload.ids),
             User.active.is_(False),
+            User.unidade == active_org,
         )
     )
     atas = result.scalars().all()
@@ -492,10 +508,13 @@ async def update_ata(
     ata_id: int,
     body: AtaUpdate,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Atualiza dados de uma ata (preenchimento manual)."""
     ata = await session.scalar(
-        select(AtaInspecao).where(AtaInspecao.id == ata_id)
+        select(AtaInspecao)
+        .join(User, AtaInspecao.user_id == User.id)
+        .where(AtaInspecao.id == ata_id, User.unidade == active_org)
     )
     if not ata:
         raise HTTPException(
@@ -543,10 +562,13 @@ async def update_ata(
 async def delete_ata(
     ata_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Remove ata do bucket e do banco."""
     ata = await session.scalar(
-        select(AtaInspecao).where(AtaInspecao.id == ata_id)
+        select(AtaInspecao)
+        .join(User, AtaInspecao.user_id == User.id)
+        .where(AtaInspecao.id == ata_id, User.unidade == active_org)
     )
 
     if not ata:

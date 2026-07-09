@@ -151,35 +151,44 @@ async def require_admin(
     return user
 
 
-async def require_system_admin(
-    request: Request,
-    session: Session,
-    user: Annotated[User, Depends(get_current_user)],
-):
-    """Valida admin com escopo de SISTEMA na org ativa.
+async def is_system_admin(
+    user_id: int, session: AsyncSession, active_org: str | None
+) -> bool:
+    """True se o usuário age como admin de SISTEMA no contexto atual.
 
     Exige org ativa NULL (contexto "Sistema") **e** vínculo admin com
     `organizacao_id IS NULL`. Um admin de sistema que alternou para uma
     unidade (active_org preenchido) perde os poderes de sistema enquanto
     estiver naquele contexto.
     """
-    active_org = getattr(request.state, 'active_org', None)
-
     if active_org is not None:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail='SCOPE_FORBIDDEN'
-        )
+        return False
 
     ur = await session.scalar(
         select(UserRole)
         .where(
-            UserRole.user_id == user.id,
+            UserRole.user_id == user_id,
             UserRole.organizacao_id.is_(None),
         )
         .options(joinedload(UserRole.role))
     )
 
-    if not ur or not ur.role or ur.role.name.lower() != 'admin':
+    return bool(ur and ur.role and ur.role.name.lower() == 'admin')
+
+
+async def require_system_admin(
+    request: Request,
+    session: Session,
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Valida admin com escopo de SISTEMA na org ativa (ver is_system_admin).
+
+    Levanta 403 SCOPE_FORBIDDEN fora do contexto Sistema ou sem vínculo
+    admin de sistema.
+    """
+    active_org = getattr(request.state, 'active_org', None)
+
+    if not await is_system_admin(user.id, session, active_org):
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN, detail='SCOPE_FORBIDDEN'
         )

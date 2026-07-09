@@ -17,6 +17,7 @@ from fcontrol_api.schemas.seg_voo.crm import (
     CrmUpdate,
     TripCrmOut,
 )
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -30,10 +31,11 @@ router = APIRouter(prefix='/crm', tags=['Seguranca de Voo'])
 )
 async def list_crm(
     session: Session,
+    active_org: ActiveOrg,
     p_g: Annotated[str | None, Query()] = None,
     funcao: Annotated[str | None, Query()] = None,
 ):
-    """Lista tripulantes ativos com seus certificados CRM."""
+    """Lista tripulantes ativos da org ativa com seus certificados CRM."""
     query = (
         select(
             Tripulante.id.label('trip_id'),
@@ -56,6 +58,7 @@ async def list_crm(
         )
         .where(
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
             User.active.is_(True),
         )
         .order_by(
@@ -107,9 +110,17 @@ async def list_crm(
 
 
 @router.get('/user/{user_id}', response_model=ApiResponse[CrmPublic | None])
-async def get_crm_by_user(user_id: int, session: Session):
+async def get_crm_by_user(
+    user_id: int, session: Session, active_org: ActiveOrg
+):
+    # Só retorna o CRM se o usuário for tripulante da org ativa.
     crm = await session.scalar(
-        select(CrmCertificado).where(CrmCertificado.user_id == user_id)
+        select(CrmCertificado)
+        .join(Tripulante, Tripulante.user_id == CrmCertificado.user_id)
+        .where(
+            CrmCertificado.user_id == user_id,
+            Tripulante.uae == active_org,
+        )
     )
     return success_response(data=crm)
 
@@ -121,6 +132,7 @@ async def get_crm_by_user(user_id: int, session: Session):
 async def upsert_crm(
     trip_id: int,
     session: Session,
+    active_org: ActiveOrg,
     dados: CrmUpdate,
 ):
     """Cria ou atualiza certificado CRM de um tripulante."""
@@ -128,6 +140,7 @@ async def upsert_crm(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:
@@ -167,12 +180,14 @@ async def upsert_crm(
 async def delete_crm(
     trip_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Remove certificado CRM de um tripulante."""
     tripulante = await session.scalar(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:
