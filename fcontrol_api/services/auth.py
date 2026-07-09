@@ -2,6 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
+from sqlalchemy import case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
@@ -14,6 +15,7 @@ from fcontrol_api.models.security.resources import (
     UserRole,
 )
 from fcontrol_api.models.shared.organizacao import Organizacao
+from fcontrol_api.models.shared.tenant import Tenant
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.schemas.users import OrgScope
 
@@ -89,37 +91,62 @@ async def list_user_orgs(
     Demais: um escopo por vínculo (UserRole), com o nome do papel.
     """
     if app_client == FATBIRD_CLIENT:
+        # Tripulante sempre tem lotação (uae) — não há escopo Sistema aqui.
+        # Tema vem do tenant (outerjoin); sem tenant cai no default 'red'.
+        tema_col = func.coalesce(Tenant.tema, 'red')
         rows = await session.execute(
             select(
                 Tripulante.uae,
                 Organizacao.sigla,
                 Organizacao.nome,
                 Tripulante.trig,
+                tema_col,
             )
             .outerjoin(Organizacao, Organizacao.sigla == Tripulante.uae)
+            .outerjoin(Tenant, Tenant.organizacao_id == Tripulante.uae)
             .where(Tripulante.user_id == user_id, Tripulante.active)
             .order_by(Tripulante.uae.asc())
         )
         return [
-            OrgScope(organizacao_id=uae, sigla=sigla, nome=nome, role=trig)
-            for uae, sigla, nome, trig in rows.all()
+            OrgScope(
+                organizacao_id=uae,
+                sigla=sigla,
+                nome=nome,
+                role=trig,
+                tema=tema,
+            )
+            for uae, sigla, nome, trig, tema in rows.all()
         ]
 
+    # Escopo Sistema (organizacao_id NULL) usa tema neutro 'slate'; demais
+    # vêm do tenant (outerjoin), com default 'red' na ausência de tenant.
+    tema_col = case(
+        (UserRole.organizacao_id.is_(None), 'slate'),
+        else_=func.coalesce(Tenant.tema, 'red'),
+    )
     rows = await session.execute(
         select(
             UserRole.organizacao_id,
             Organizacao.sigla,
             Organizacao.nome,
             Roles.name,
+            tema_col,
         )
         .join(Roles, Roles.id == UserRole.role_id)
         .outerjoin(Organizacao, Organizacao.sigla == UserRole.organizacao_id)
+        .outerjoin(Tenant, Tenant.organizacao_id == UserRole.organizacao_id)
         .where(UserRole.user_id == user_id)
         .order_by(UserRole.organizacao_id.asc().nulls_first())
     )
     return [
-        OrgScope(organizacao_id=oid, sigla=sigla, nome=nome, role=role)
-        for oid, sigla, nome, role in rows.all()
+        OrgScope(
+            organizacao_id=oid,
+            sigla=sigla,
+            nome=nome,
+            role=role,
+            tema=tema,
+        )
+        for oid, sigla, nome, role, tema in rows.all()
     ]
 
 

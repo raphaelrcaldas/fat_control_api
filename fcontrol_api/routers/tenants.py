@@ -18,6 +18,7 @@ from fcontrol_api.schemas.tenant import (
     TenantUpdate,
 )
 from fcontrol_api.security import require_system_admin
+from fcontrol_api.services.brasao import brasao_public_url
 from fcontrol_api.utils.responses import success_response
 
 # Leitura (GET) liberada a qualquer autenticado — o client lista os tenants
@@ -27,14 +28,21 @@ router = APIRouter(prefix='/tenants')
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 
+def _to_public(tenant: Tenant) -> TenantOut:
+    """TenantOut com a URL pública do brasão da org embutida preenchida."""
+    data = TenantOut.model_validate(tenant)
+    data.organizacao.brasao_url = brasao_public_url(
+        tenant.organizacao.brasao_path
+    )
+    return data
+
+
 @router.get('/', response_model=ApiResponse[list[TenantOut]])
 async def list_tenants(session: Session):
     tenants = await session.scalars(
         select(Tenant).order_by(Tenant.organizacao_id)
     )
-    return success_response(
-        data=[TenantOut.model_validate(t) for t in tenants]
-    )
+    return success_response(data=[_to_public(t) for t in tenants])
 
 
 @router.post(
@@ -63,7 +71,7 @@ async def create_tenant(body: TenantCreate, session: Session):
     await session.commit()
     await session.refresh(tenant)
     return success_response(
-        data=TenantOut.model_validate(tenant),
+        data=_to_public(tenant),
         message='Tenant registrado com sucesso',
     )
 
@@ -83,11 +91,17 @@ async def update_tenant(
             detail='Tenant não encontrado',
         )
 
-    tenant.active = body.active
+    # mode='json' normaliza o TemaEnum para o valor string ('blue', ...)
+    # antes de persistir na coluna String. exclude_none: as colunas são
+    # NOT NULL — `{"active": null}` explícito significa "não alterar",
+    # não "setar None" (que estouraria IntegrityError).
+    dados = body.model_dump(exclude_unset=True, exclude_none=True, mode='json')
+    for campo, valor in dados.items():
+        setattr(tenant, campo, valor)
     await session.commit()
     await session.refresh(tenant)
     return success_response(
-        data=TenantOut.model_validate(tenant),
+        data=_to_public(tenant),
         message='Tenant atualizado com sucesso',
     )
 

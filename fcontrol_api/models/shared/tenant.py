@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, func, text
+from sqlalchemy import ForeignKey, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -25,6 +25,12 @@ class Tenant(Base):
     )
     active: Mapped[bool] = mapped_column(
         init=False, default=True, server_default=text('true')
+    )
+    # Tema de cor de marca (TemaEnum). String livre no banco; a validação
+    # contra a lista fechada mora no schema Pydantic. Default 'red' = tema
+    # padrão do produto.
+    tema: Mapped[str] = mapped_column(
+        String(20), default='red', server_default=text("'red'")
     )
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()

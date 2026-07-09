@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from fcontrol_api.enums.tema import TemaEnum
 from fcontrol_api.schemas.organizacao import OrganizacaoOut
 
 
@@ -12,9 +13,10 @@ class TenantCreate(BaseModel):
 
 
 class TenantUpdate(BaseModel):
-    """Ativa/desativa um tenant na plataforma."""
+    """Atualização parcial de um tenant (ativação e/ou tema)."""
 
-    active: bool
+    active: bool | None = None
+    tema: TemaEnum | None = None
 
 
 class TenantOut(BaseModel):
@@ -22,5 +24,6 @@ class TenantOut(BaseModel):
 
     organizacao_id: str
     active: bool
+    tema: TemaEnum
     created_at: datetime
     organizacao: OrganizacaoOut
