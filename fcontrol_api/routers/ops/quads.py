@@ -6,10 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import contains_eager, selectinload
+from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.quads import (
     Quad,
     QuadsFunc,
@@ -18,9 +17,10 @@ from fcontrol_api.models.shared.quads import (
 )
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import BaseFunc, funcs, proj
+from fcontrol_api.schemas.funcoes import funcs, proj
 from fcontrol_api.schemas.ops.quads import (
     QuadBatchDelete,
+    QuadOrfaoTripInfo,
     QuadPublic,
     QuadSchema,
     QuadsFuncsSet,
@@ -39,7 +39,6 @@ from fcontrol_api.schemas.ops.quads import (
     TripQuadInfo,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
@@ -147,14 +146,13 @@ async def list_quads(
     # 1. CTE para obter os IDs dos tripulantes que correspondem aos filtros
     trip_ids_cte = (
         select(Tripulante.id)
-        .join(Funcao)
         .where(
             Tripulante.uae == active_org,
             Tripulante.active,
-            Funcao.func == funcao,
-            Funcao.oper != 'al',
-            Funcao.proj == proj,
-            Funcao.data_op.is_not(None),
+            Tripulante.func == funcao,
+            Tripulante.oper != 'al',
+            Tripulante.proj == proj,
+            Tripulante.data_op.is_not(None),
         )
         .cte('trip_ids_cte')
     )
@@ -174,14 +172,12 @@ async def list_quads(
     # Faz um LEFT JOIN com a contagem, para incluir tripulantes sem quadrinhos
     trip_query = (
         select(Tripulante, quad_counts_cte.c.total_quads)
-        .join(Tripulante.funcs)
         .outerjoin(quad_counts_cte, Tripulante.id == quad_counts_cte.c.trip_id)
         .options(
             selectinload(Tripulante.user).selectinload(User.posto),
-            contains_eager(Tripulante.funcs),
         )
         .where(Tripulante.id.in_(select(trip_ids_cte.c.id)))
-        .order_by(Funcao.data_op)
+        .order_by(Tripulante.data_op, Tripulante.id)
     )
 
     trips_result = await session.execute(trip_query)
@@ -234,16 +230,7 @@ async def list_quads(
     # 6. Monta a resposta final
     response = []
     for trip, total_quads in trip_data:
-        relevant_func = trip.funcs[0] if trip.funcs else None
-
-        trip_info = TripQuadInfo(
-            id=trip.id,
-            trig=trip.trig,
-            user=UserPublic.model_validate(trip.user),
-            func=BaseFunc.model_validate(relevant_func)
-            if relevant_func
-            else None,
-        )
+        trip_info = TripQuadInfo.model_validate(trip)
 
         response.append(
             TripQuadEntry(
@@ -281,16 +268,11 @@ async def list_orphan_quads(session: Session, active_org: ActiveOrg):
     result = await session.execute(query)
     rows = result.all()
 
-    # func é intencionalmente omitido (None): tripulante desativado não
-    # tem função operacional relevante no contexto de limpeza de órfãos.
+    # A função é omitida: tripulante desativado não tem função operacional
+    # relevante no contexto de limpeza de órfãos.
     response = [
         QuadsOrfaoEntry(
-            trip=TripQuadInfo(
-                id=trip.id,
-                trig=trip.trig,
-                user=UserPublic.model_validate(trip.user),
-                func=None,
-            ),
+            trip=QuadOrfaoTripInfo.model_validate(trip),
             quads_count=quads_count,
         )
         for trip, quads_count in rows

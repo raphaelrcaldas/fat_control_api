@@ -2,12 +2,11 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.instrucao.cartoes import Cartao
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -34,12 +33,7 @@ async def list_cartoes(
     active_org: ActiveOrg,
 ):
     """Lista pilotos ativos da org ativa com seus cartoes (idiomas/CVI)."""
-    pilot_filter = exists(
-        select(Funcao.func).where(
-            Funcao.trip_id == Tripulante.id,
-            Funcao.func == 'pil',
-        )
-    )
+    pilot_filter = Tripulante.func == 'pil'
 
     query = (
         select(

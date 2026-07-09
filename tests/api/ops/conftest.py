@@ -2,20 +2,18 @@
 Fixtures específicas para testes do módulo OPS (Operações).
 
 Este conftest.py contém fixtures usadas para testar endpoints relacionados a:
-- Tripulantes (trips)
-- Funções (funcoes)
+- Tripulantes (trips) — incluem a função única (1:1) via campos func/oper/proj
 - Quadrantes (quads)
 
 Fixtures disponíveis:
 - trips: Tupla com dois tripulantes (user e other_user)
 - trip: Um único tripulante (primeiro da tupla trips)
-- funcao: Uma função vinculada a um tripulante
 - quad: Um quadrante vinculado a um tripulante
 """
 
 import pytest
 
-from tests.factories import FuncFactory, QuadFactory, TripFactory
+from tests.factories import QuadFactory, TripFactory
 
 
 @pytest.fixture
@@ -71,33 +69,6 @@ async def trip(trips):
         Tripulante: Primeiro tripulante da fixture trips
     """
     return trips[0]
-
-
-@pytest.fixture
-async def funcao(session, trip):
-    """
-    Cria uma função vinculada a um tripulante.
-
-    Funções representam atividades, operações ou projetos que um tripulante
-    está executando. Esta fixture é útil para testar CRUD de funções e
-    relacionamentos trip -> funções.
-
-    Uso:
-        async def test_create_funcao(client, trip, funcao):
-            assert funcao.trip_id == trip.id
-            response = await client.get(f'/ops/funcoes/{funcao.id}')
-            assert response.status_code == 200
-
-    Returns:
-        Funcao: Objeto de função vinculado ao tripulante
-    """
-    func = FuncFactory(trip_id=trip.id)
-
-    session.add(func)
-    await session.commit()
-    await session.refresh(func)
-
-    return func
 
 
 @pytest.fixture

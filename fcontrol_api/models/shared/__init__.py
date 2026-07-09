@@ -1,7 +1,6 @@
 from . import (
     aeronaves,
     estados_cidades,
-    funcoes,
     indisp,
     om,
     organizacao,

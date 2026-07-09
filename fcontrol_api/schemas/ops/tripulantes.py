@@ -1,13 +1,19 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
-from fcontrol_api.schemas.funcoes import FuncPublic
+from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.users import UserPublic
 
 
-class BaseTrip(BaseModel):
+class BaseTrip(BaseFunc):
     trig: str = Field(min_length=3, max_length=3)
     active: bool = True
 
@@ -18,6 +24,15 @@ class BaseTrip(BaseModel):
         if not v.isalpha():
             raise ValueError('Trigrama deve conter apenas letras')
         return v.lower()
+
+    @model_validator(mode='after')
+    def validate_data_op(self) -> 'BaseTrip':
+        """Tripulante operacional (oper != 'al') exige data_op."""
+        if self.oper != 'al' and self.data_op is None:
+            raise ValueError(
+                'Data operacional é obrigatória para não-alunos'
+            )
+        return self
 
 
 class TripCreate(BaseTrip):
@@ -39,9 +54,8 @@ class TripBasicInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TripWithFuncs(TripBasicInfo):
-    funcs: list[FuncPublic]
-    model_config = ConfigDict(from_attributes=True)
+class TripWithFunc(TripBasicInfo, BaseFunc):
+    """Tripulante com os campos da função única (1:1)."""
 
 
 class TripSearchResult(BaseModel):

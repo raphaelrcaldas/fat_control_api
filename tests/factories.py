@@ -21,7 +21,6 @@ from fcontrol_api.models.cegep.missoes import (
 from fcontrol_api.models.nav.aerodromos import Aerodromo
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.models.security.logs import UserActionLog
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.indisp import Indisp
 from fcontrol_api.models.shared.om import OrdemEtapa, OrdemMissao
 from fcontrol_api.models.shared.operacao import Operacao
@@ -130,17 +129,7 @@ class TripFactory(factory.Factory):
     # UAE agora é string livre (sigla da org, via JWT) após a tenantização;
     # default no sigla canônico dos testes. Casos cross-org passam outro valor.
     uae = '11gt'
-
-
-class FuncFactory(factory.Factory):
-    """
-    Factory para criar funções vinculadas a tripulantes.
-    """
-
-    class Meta:
-        model = Funcao
-
-    trip_id: int
+    # Função única (1:1) agora vive no próprio tripulante.
     func = factory.fuzzy.FuzzyChoice(typing.get_args(funcs))
     oper = factory.fuzzy.FuzzyChoice(typing.get_args(opers))
     proj = factory.fuzzy.FuzzyChoice(typing.get_args(proj))

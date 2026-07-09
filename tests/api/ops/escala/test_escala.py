@@ -11,7 +11,7 @@ from http import HTTPStatus
 
 import pytest
 
-from tests.factories import FuncFactory, TripFactory
+from tests.factories import TripFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -49,17 +49,16 @@ async def _trip_with_func(
     proj='kc-390',
     data_op=date(2025, 1, 1),
 ):
-    trip = TripFactory(user_id=user_id, uae=uae, active=active)
-    session.add(trip)
-    await session.flush()
-    funcao = FuncFactory(
-        trip_id=trip.id,
+    trip = TripFactory(
+        user_id=user_id,
+        uae=uae,
+        active=active,
         func=func,
         oper=oper,
         proj=proj,
         data_op=data_op,
     )
-    session.add(funcao)
+    session.add(trip)
     await session.flush()
     return trip
 

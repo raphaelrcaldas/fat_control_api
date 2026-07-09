@@ -10,7 +10,6 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.atas import AtaInspecao
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -129,15 +128,7 @@ async def get_cartoes_saude(
 
     if funcao:
         funcs = [f.strip() for f in funcao.split(',')]
-        query = query.where(
-            Tripulante.id.isnot(None),
-            exists(
-                select(Funcao.id).where(
-                    Funcao.trip_id == Tripulante.id,
-                    Funcao.func.in_(funcs),
-                )
-            ),
-        )
+        query = query.where(Tripulante.func.in_(funcs))
 
     query = query.order_by(
         PostoGrad.ant.asc(),

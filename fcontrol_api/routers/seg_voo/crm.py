@@ -2,12 +2,11 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.seg_voo.crm import CrmCertificado
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -75,14 +74,7 @@ async def list_crm(
 
     if funcao:
         funcs = [f.strip() for f in funcao.split(',')]
-        query = query.where(
-            exists(
-                select(Funcao.id).where(
-                    Funcao.trip_id == Tripulante.id,
-                    Funcao.func.in_(funcs),
-                )
-            )
-        )
+        query = query.where(Tripulante.func.in_(funcs))
 
     rows = await session.execute(query)
     items = [

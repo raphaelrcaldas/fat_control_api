@@ -16,7 +16,6 @@ from http import HTTPStatus
 
 import pytest
 
-from fcontrol_api.models.shared.funcoes import Funcao
 from tests.factories import QuadFactory, TripFactory
 
 pytestmark = pytest.mark.anyio
@@ -27,21 +26,19 @@ async def trip_with_func(session, users):
     """Cria um tripulante com função operacional configurada."""
     user, _ = users
 
-    trip = TripFactory(user_id=user.id, uae='11gt', active=True)
-    session.add(trip)
-    await session.commit()
-    await session.refresh(trip)
-
-    # Cria função com data_op definida (requisito do endpoint)
-    func = Funcao(
-        trip_id=trip.id,
+    # Função com data_op definida (requisito do endpoint); oper != 'al'.
+    trip = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
         func='mc',
-        oper='oe',  # Diferente de 'al' (requisito)
+        oper='op',
         proj='kc-390',
         data_op=date(2020, 1, 15),
     )
-    session.add(func)
+    session.add(trip)
     await session.commit()
+    await session.refresh(trip)
 
     return trip
 
@@ -51,33 +48,30 @@ async def trips_with_func(session, users):
     """Cria dois tripulantes com função operacional configurada."""
     user, other_user = users
 
-    trip1 = TripFactory(user_id=user.id, uae='11gt', active=True)
-    trip2 = TripFactory(user_id=other_user.id, uae='11gt', active=True)
+    trip1 = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
+    trip2 = TripFactory(
+        user_id=other_user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2021, 6, 20),
+    )
 
     session.add_all([trip1, trip2])
     await session.commit()
 
     for t in [trip1, trip2]:
         await session.refresh(t)
-
-    # Cria funções com data_op definida
-    func1 = Funcao(
-        trip_id=trip1.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-    func2 = Funcao(
-        trip_id=trip2.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2021, 6, 20),
-    )
-
-    session.add_all([func1, func2])
-    await session.commit()
 
     return (trip1, trip2)
 
@@ -143,34 +137,31 @@ async def test_list_quads_filters_by_uae(client, session, users, org_token):
     user, other_user = users
 
     # Cria tripulante na UAE correta
-    trip_11gt = TripFactory(user_id=user.id, uae='11gt', active=True)
+    trip_11gt = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
     # Cria tripulante em outra UAE
-    trip_other = TripFactory(user_id=other_user.id, uae='1gt', active=True)
+    trip_other = TripFactory(
+        user_id=other_user.id,
+        uae='1gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
 
     session.add_all([trip_11gt, trip_other])
     await session.commit()
 
     for t in [trip_11gt, trip_other]:
         await session.refresh(t)
-
-    # Cria funções para ambos
-    func_11gt = Funcao(
-        trip_id=trip_11gt.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-    func_other = Funcao(
-        trip_id=trip_other.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-
-    session.add_all([func_11gt, func_other])
-    await session.commit()
 
     response = await client.get(
         '/ops/quads/',
@@ -193,32 +184,30 @@ async def test_list_quads_filters_by_funcao(client, session, users, org_token):
     """Testa que apenas tripulantes com a função são retornados."""
     user, other_user = users
 
-    trip_mc = TripFactory(user_id=user.id, uae='11gt', active=True)
-    trip_lm = TripFactory(user_id=other_user.id, uae='11gt', active=True)
+    trip_mc = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
+    trip_lm = TripFactory(
+        user_id=other_user.id,
+        uae='11gt',
+        active=True,
+        func='lm',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
 
     session.add_all([trip_mc, trip_lm])
     await session.commit()
 
     for t in [trip_mc, trip_lm]:
         await session.refresh(t)
-
-    func_mc = Funcao(
-        trip_id=trip_mc.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-    func_lm = Funcao(
-        trip_id=trip_lm.id,
-        func='lm',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-
-    session.add_all([func_mc, func_lm])
-    await session.commit()
 
     response = await client.get(
         '/ops/quads/',
@@ -240,32 +229,30 @@ async def test_list_quads_filters_by_proj(client, session, users, org_token):
     """Testa que apenas tripulantes do projeto são retornados."""
     user, other_user = users
 
-    trip_kc = TripFactory(user_id=user.id, uae='11gt', active=True)
-    trip_c130 = TripFactory(user_id=other_user.id, uae='11gt', active=True)
+    trip_kc = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
+    trip_c130 = TripFactory(
+        user_id=other_user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='c-130',
+        data_op=date(2020, 1, 15),
+    )
 
     session.add_all([trip_kc, trip_c130])
     await session.commit()
 
     for t in [trip_kc, trip_c130]:
         await session.refresh(t)
-
-    func_kc = Funcao(
-        trip_id=trip_kc.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-    func_c130 = Funcao(
-        trip_id=trip_c130.id,
-        func='mc',
-        oper='oe',
-        proj='c-130',
-        data_op=date(2020, 1, 15),
-    )
-
-    session.add_all([func_kc, func_c130])
-    await session.commit()
 
     response = await client.get(
         '/ops/quads/',
@@ -289,9 +276,23 @@ async def test_list_quads_excludes_inactive_trips(
     """Testa que tripulantes inativos não são retornados."""
     user, other_user = users
 
-    trip_active = TripFactory(user_id=user.id, uae='11gt', active=True)
+    trip_active = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
     trip_inactive = TripFactory(
-        user_id=other_user.id, uae='11gt', active=False
+        user_id=other_user.id,
+        uae='11gt',
+        active=False,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
     )
 
     session.add_all([trip_active, trip_inactive])
@@ -299,24 +300,6 @@ async def test_list_quads_excludes_inactive_trips(
 
     for t in [trip_active, trip_inactive]:
         await session.refresh(t)
-
-    func_active = Funcao(
-        trip_id=trip_active.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-    func_inactive = Funcao(
-        trip_id=trip_inactive.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-
-    session.add_all([func_active, func_inactive])
-    await session.commit()
 
     response = await client.get(
         '/ops/quads/',
@@ -340,32 +323,30 @@ async def test_list_quads_excludes_aluno_oper(
     """Testa que tripulantes com oper='al' (aluno) não são retornados."""
     user, other_user = users
 
-    trip_oper = TripFactory(user_id=user.id, uae='11gt', active=True)
-    trip_aluno = TripFactory(user_id=other_user.id, uae='11gt', active=True)
-
-    session.add_all([trip_oper, trip_aluno])
-    await session.commit()
-
-    for t in [trip_oper, trip_aluno]:
-        await session.refresh(t)
-
-    func_oper = Funcao(
-        trip_id=trip_oper.id,
+    trip_oper = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
         func='mc',
-        oper='oe',
+        oper='op',
         proj='kc-390',
         data_op=date(2020, 1, 15),
     )
-    func_aluno = Funcao(
-        trip_id=trip_aluno.id,
+    trip_aluno = TripFactory(
+        user_id=other_user.id,
+        uae='11gt',
+        active=True,
         func='mc',
         oper='al',  # Aluno
         proj='kc-390',
         data_op=date(2020, 1, 15),
     )
 
-    session.add_all([func_oper, func_aluno])
+    session.add_all([trip_oper, trip_aluno])
     await session.commit()
+
+    for t in [trip_oper, trip_aluno]:
+        await session.refresh(t)
 
     response = await client.get(
         '/ops/quads/',
@@ -389,32 +370,30 @@ async def test_list_quads_excludes_without_data_op(
     """Testa que tripulantes sem data_op não são retornados."""
     user, other_user = users
 
-    trip_with_data_op = TripFactory(user_id=user.id, uae='11gt', active=True)
-    trip_without = TripFactory(user_id=other_user.id, uae='11gt', active=True)
+    trip_with_data_op = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=date(2020, 1, 15),
+    )
+    trip_without = TripFactory(
+        user_id=other_user.id,
+        uae='11gt',
+        active=True,
+        func='mc',
+        oper='op',
+        proj='kc-390',
+        data_op=None,  # Sem data_op
+    )
 
     session.add_all([trip_with_data_op, trip_without])
     await session.commit()
 
     for t in [trip_with_data_op, trip_without]:
         await session.refresh(t)
-
-    func_with = Funcao(
-        trip_id=trip_with_data_op.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=date(2020, 1, 15),
-    )
-    func_without = Funcao(
-        trip_id=trip_without.id,
-        func='mc',
-        oper='oe',
-        proj='kc-390',
-        data_op=None,  # Sem data_op
-    )
-
-    session.add_all([func_with, func_without])
-    await session.commit()
 
     response = await client.get(
         '/ops/quads/',
@@ -551,22 +530,19 @@ async def test_list_quads_no_trips_with_matching_funcao_returns_empty(
     """
     user, _ = users
 
-    # Cria tripulante com função diferente da buscada
-    trip = TripFactory(user_id=user.id, uae='11gt', active=True)
-    session.add(trip)
-    await session.commit()
-    await session.refresh(trip)
-
-    # Cria função com 'lm' (diferente de 'pil' que será buscada)
-    func = Funcao(
-        trip_id=trip.id,
+    # Cria tripulante com 'lm' (diferente de 'pil' que será buscada)
+    trip = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
         func='lm',
-        oper='oe',
+        oper='op',
         proj='kc-390',
         data_op=date(2020, 1, 15),
     )
-    session.add(func)
+    session.add(trip)
     await session.commit()
+    await session.refresh(trip)
 
     # Busca por 'pil' que não existe
     response = await client.get(
@@ -594,21 +570,19 @@ async def test_list_quads_no_trips_with_matching_proj_returns_empty(
     """
     user, _ = users
 
-    trip = TripFactory(user_id=user.id, uae='11gt', active=True)
-    session.add(trip)
-    await session.commit()
-    await session.refresh(trip)
-
-    # Cria função com projeto diferente
-    func = Funcao(
-        trip_id=trip.id,
+    # Cria tripulante com projeto diferente
+    trip = TripFactory(
+        user_id=user.id,
+        uae='11gt',
+        active=True,
         func='mc',
-        oper='oe',
+        oper='op',
         proj='c-130',  # Projeto diferente
         data_op=date(2020, 1, 15),
     )
-    session.add(func)
+    session.add(trip)
     await session.commit()
+    await session.refresh(trip)
 
     # Busca por 'kc-390' que não existe
     response = await client.get(

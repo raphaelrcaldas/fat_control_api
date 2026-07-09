@@ -11,7 +11,7 @@ from http import HTTPStatus
 
 import pytest
 
-from tests.factories import FuncFactory, TripFactory, UserFactory
+from tests.factories import TripFactory, UserFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -56,12 +56,15 @@ async def test_list_trips_returns_correct_fields(client, trips, org_token):
 
     if len(resp['data']) > 0:
         trip = resp['data'][0]
-        # Campos de TripWithFuncs
+        # Campos de TripWithFunc (função 1:1 achatada no tripulante)
         assert 'id' in trip
         assert 'trig' in trip
         assert 'active' in trip
         assert 'user' in trip
-        assert 'funcs' in trip
+        assert 'func' in trip
+        assert 'oper' in trip
+        assert 'proj' in trip
+        assert 'data_op' in trip
         # Campos do user aninhado
         assert 'id' in trip['user']
         assert 'nome_guerra' in trip['user']
@@ -267,19 +270,13 @@ async def test_list_trips_filter_by_func(client, session, users, org_token):
     """Testa filtro por função."""
     user, other_user = users
 
-    # Cria tripulantes
-    trip_pil = TripFactory(user_id=user.id)
-    trip_mc = TripFactory(user_id=other_user.id)
+    # Cria tripulantes com funções distintas (1:1)
+    trip_pil = TripFactory(user_id=user.id, func='pil')
+    trip_mc = TripFactory(user_id=other_user.id, func='mc')
     session.add_all([trip_pil, trip_mc])
     await session.commit()
     await session.refresh(trip_pil)
     await session.refresh(trip_mc)
-
-    # Cria funções para os tripulantes
-    func_pil = FuncFactory(trip_id=trip_pil.id, func='pil')
-    func_mc = FuncFactory(trip_id=trip_mc.id, func='mc')
-    session.add_all([func_pil, func_mc])
-    await session.commit()
 
     response = await client.get(
         '/ops/trips/',
@@ -298,19 +295,13 @@ async def test_list_trips_filter_by_oper(client, session, users, org_token):
     """Testa filtro por operacionalidade."""
     user, other_user = users
 
-    # Cria tripulantes
-    trip_op = TripFactory(user_id=user.id)
-    trip_ba = TripFactory(user_id=other_user.id)
+    # Cria tripulantes com operacionalidades distintas (1:1)
+    trip_op = TripFactory(user_id=user.id, oper='op')
+    trip_ba = TripFactory(user_id=other_user.id, oper='ba')
     session.add_all([trip_op, trip_ba])
     await session.commit()
     await session.refresh(trip_op)
     await session.refresh(trip_ba)
-
-    # Cria funções com diferentes operacionalidades
-    func_op = FuncFactory(trip_id=trip_op.id, oper='op')
-    func_ba = FuncFactory(trip_id=trip_ba.id, oper='ba')
-    session.add_all([func_op, func_ba])
-    await session.commit()
 
     response = await client.get(
         '/ops/trips/',
@@ -397,12 +388,15 @@ async def test_get_trip_returns_correct_fields(client, trip, org_token):
 
     assert resp['status'] == 'success'
     data = resp['data']
-    # Campos de TripWithFuncs
+    # Campos de TripWithFunc (função 1:1 achatada no tripulante)
     assert 'id' in data
     assert 'trig' in data
     assert 'active' in data
     assert 'user' in data
-    assert 'funcs' in data
+    assert 'func' in data
+    assert 'oper' in data
+    assert 'proj' in data
+    assert 'data_op' in data
 
 
 async def test_get_trip_not_found(client, org_token):

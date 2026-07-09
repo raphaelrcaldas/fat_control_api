@@ -13,7 +13,6 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.indisp import Indisp
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
@@ -133,8 +132,8 @@ async def get_escala_disponiveis(
             Tripulante.user_id,
             User.nome_guerra,
             User.p_g,
-            Funcao.func,
-            Funcao.oper,
+            Tripulante.func,
+            Tripulante.oper,
             total_quads_expr,
             tvoo_year_expr,
             data_ult_voo_subq.c.data_ult_voo,
@@ -143,14 +142,6 @@ async def get_escala_disponiveis(
         .select_from(Tripulante)
         .join(User, User.id == Tripulante.user_id)
         .join(PostoGrad, PostoGrad.short == User.p_g)
-        .join(
-            Funcao,
-            (Funcao.trip_id == Tripulante.id)
-            & (Funcao.func.in_(funcs_param))
-            & (Funcao.oper != 'al')
-            & (Funcao.proj == proj_param)
-            & (Funcao.data_op.is_not(None)),
-        )
         .outerjoin(CartaoSaude, CartaoSaude.user_id == User.id)
         .outerjoin(
             data_ult_voo_subq,
@@ -167,6 +158,10 @@ async def get_escala_disponiveis(
         .where(
             Tripulante.uae == active_org,
             Tripulante.active.is_(True),
+            Tripulante.func.in_(funcs_param),
+            Tripulante.oper != 'al',
+            Tripulante.proj == proj_param,
+            Tripulante.data_op.is_not(None),
         )
     )
 

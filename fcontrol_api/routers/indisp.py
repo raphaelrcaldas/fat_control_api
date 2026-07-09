@@ -14,12 +14,10 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.indisp import Indisp
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.indisp import (
     BaseIndisp,
     IndispCrewEntry,
@@ -57,16 +55,14 @@ async def get_crew_indisp(
     # relacionados (exceto indisps)
     trip_query = (
         select(Tripulante)
-        .join(Tripulante.funcs)
         .join(Tripulante.user)
         .join(User.posto)
         .options(
             selectinload(Tripulante.user).selectinload(User.posto),
-            selectinload(Tripulante.funcs),
         )
         .where(
             and_(
-                (Funcao.func == funcao),
+                (Tripulante.func == funcao),
                 (Tripulante.uae == active_org),
                 (Tripulante.active),
                 (User.active),
@@ -160,9 +156,10 @@ async def get_crew_indisp(
             id=trip.id,
             trig=trip.trig,
             user=UserPublic.model_validate(trip.user),
-            func=BaseFunc.model_validate(trip.funcs[0])
-            if trip.funcs
-            else None,
+            func=trip.func,
+            oper=trip.oper,
+            proj=trip.proj,
+            data_op=trip.data_op,
             cemal=trip_extra.get('cemal'),
             data_ult_voo=trip_extra.get('data_ult_voo'),
         )

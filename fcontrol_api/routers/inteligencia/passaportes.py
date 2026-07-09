@@ -7,12 +7,11 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from sqlalchemy import exists, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -176,14 +175,7 @@ async def list_passaportes(
 
     if funcao:
         funcs = [f.strip() for f in funcao.split(',') if f.strip()]
-        query = query.where(
-            exists(
-                select(Funcao.id).where(
-                    Funcao.trip_id == Tripulante.id,
-                    Funcao.func.in_(funcs),
-                )
-            )
-        )
+        query = query.where(Tripulante.func.in_(funcs))
 
     rows = await session.execute(query)
     items = [

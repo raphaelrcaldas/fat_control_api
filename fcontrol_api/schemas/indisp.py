@@ -33,17 +33,18 @@ class IndispOut(IndispSchema):
     model_config = ConfigDict(from_attributes=True)
 
 
-class IndispTripInfo(BaseModel):
-    """Dados do tripulante no contexto de indisponibilidades da escala."""
+class IndispTripInfo(BaseFunc):
+    """Dados do tripulante no contexto de indisponibilidades da escala.
+
+    A função (func/oper/proj/data_op) vem achatada de BaseFunc — é 1:1 no
+    próprio tripulante.
+    """
 
     id: int
     trig: str
     user: UserPublic
-    func: BaseFunc | None = None
     cemal: date | None = None
     data_ult_voo: date | None = None
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class IndispCrewEntry(BaseModel):

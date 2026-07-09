@@ -25,6 +25,10 @@ async def test_create_trip_success(client, session, org_admin_token):
         'user_id': user.id,
         'trig': 'abc',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -41,6 +45,7 @@ async def test_create_trip_success(client, session, org_admin_token):
     assert 'data' in data
     assert data['data']['trig'] == 'abc'
     assert data['data']['active'] is True
+    assert data['data']['func'] == 'pil'
 
 
 async def test_create_trip_returns_correct_message(
@@ -56,6 +61,10 @@ async def test_create_trip_returns_correct_message(
         'user_id': user.id,
         'trig': 'xyz',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -87,6 +96,10 @@ async def test_create_trip_duplicate_trig_same_uae_fails(
         'user_id': other_user.id,
         'trig': 'dup',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -117,6 +130,10 @@ async def test_create_trip_duplicate_user_same_uae_fails(
         'user_id': user.id,
         'trig': 'bbb',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -144,6 +161,10 @@ async def test_create_trip_trig_too_short_fails(
         'user_id': user.id,
         'trig': 'ab',  # Menos de 3 caracteres
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -168,6 +189,10 @@ async def test_create_trip_trig_too_long_fails(
         'user_id': user.id,
         'trig': 'abcd',  # Mais de 3 caracteres
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -184,6 +209,10 @@ async def test_create_trip_missing_user_id_fails(client, org_admin_token):
     trip_data = {
         'trig': 'abc',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -207,6 +236,10 @@ async def test_create_trip_missing_trig_fails(
     trip_data = {
         'user_id': user.id,
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -233,6 +266,10 @@ async def test_create_trip_missing_active_org_fails(client, session, token):
         'user_id': user.id,
         'trig': 'abc',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -255,6 +292,10 @@ async def test_create_trip_with_active_false(client, session, org_admin_token):
         'user_id': user.id,
         'trig': 'def',
         'active': False,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.post(
@@ -268,6 +309,62 @@ async def test_create_trip_with_active_false(client, session, org_admin_token):
 
     assert data['status'] == 'success'
     assert data['data']['active'] is False
+
+
+async def test_create_trip_operacional_sem_data_op_fails(
+    client, session, org_admin_token
+):
+    """Tripulante não-aluno (oper != 'al') exige data_op → 422."""
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    trip_data = {
+        'user_id': user.id,
+        'trig': 'ghi',
+        'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': None,
+    }
+
+    response = await client.post(
+        '/ops/trips/',
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+        json=trip_data,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_create_trip_aluno_sem_data_op_allowed(
+    client, session, org_admin_token
+):
+    """Aluno (oper == 'al') pode ser criado sem data_op."""
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    trip_data = {
+        'user_id': user.id,
+        'trig': 'jkl',
+        'active': True,
+        'func': 'pil',
+        'oper': 'al',
+        'proj': 'kc-390',
+        'data_op': None,
+    }
+
+    response = await client.post(
+        '/ops/trips/',
+        headers={'Authorization': f'Bearer {org_admin_token}'},
+        json=trip_data,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
 
 
 async def test_create_trip_without_authentication_fails(client):

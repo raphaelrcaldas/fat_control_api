@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -15,7 +14,7 @@ from fcontrol_api.schemas.ops.tripulantes import (
     BaseTrip,
     TripCreate,
     TripSchema,
-    TripWithFuncs,
+    TripWithFunc,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.security import (
@@ -70,6 +69,10 @@ async def create_trip(
         trig=trip.trig,
         active=trip.active,
         uae=active_org,
+        func=trip.func,
+        oper=trip.oper,
+        proj=trip.proj,
+        data_op=trip.data_op,
     )
 
     session.add(tripulante)
@@ -83,7 +86,7 @@ async def create_trip(
 
 
 @router.get(
-    '/me', status_code=HTTPStatus.OK, response_model=ApiResponse[TripWithFuncs]
+    '/me', status_code=HTTPStatus.OK, response_model=ApiResponse[TripWithFunc]
 )
 async def get_my_trip(
     session: Session,
@@ -106,7 +109,7 @@ async def get_my_trip(
             detail='Tripulante não encontrado para este usuário',
         )
 
-    return success_response(data=TripWithFuncs.model_validate(trip))
+    return success_response(data=TripWithFunc.model_validate(trip))
 
 
 @router.get(
@@ -125,7 +128,7 @@ async def get_trip_user_ids(session: Session, active_org: ActiveOrg):
 @router.get(
     '/{id}',
     status_code=HTTPStatus.OK,
-    response_model=ApiResponse[TripWithFuncs],
+    response_model=ApiResponse[TripWithFunc],
 )
 async def get_trip(id: int, session: Session):
     trip = await session.scalar(select(Tripulante).where(Tripulante.id == id))
@@ -136,13 +139,13 @@ async def get_trip(id: int, session: Session):
             detail='Tripulante não encontrado',
         )
 
-    return success_response(data=TripWithFuncs.model_validate(trip))
+    return success_response(data=TripWithFunc.model_validate(trip))
 
 
 @router.get(
     '/',
     status_code=HTTPStatus.OK,
-    response_model=ApiPaginatedResponse[TripWithFuncs],
+    response_model=ApiPaginatedResponse[TripWithFunc],
 )
 async def list_trips(
     session: Session,
@@ -155,9 +158,6 @@ async def list_trips(
     func: str | None = None,
     oper: str | None = None,
 ):
-    # Flag para saber se precisa fazer join com Funcao
-    needs_func_join = bool(func or oper)
-
     # Query base para filtrar IDs
     filter_query = (
         select(Tripulante.id)
@@ -185,27 +185,17 @@ async def list_trips(
         if p_g_list:
             filter_query = filter_query.where(User.p_g.in_(p_g_list))
 
-    # Filtro por função - requer join com Funcao
+    # Filtro por função (coluna direta em tripulantes)
     if func:
         func_list = [f.strip() for f in func.split(',') if f.strip()]
         if func_list:
-            filter_query = filter_query.join(
-                Funcao, Tripulante.id == Funcao.trip_id
-            ).where(Funcao.func.in_(func_list))
+            filter_query = filter_query.where(Tripulante.func.in_(func_list))
 
-    # Filtro por operacionalidade - requer join com Funcao (se não fez ainda)
+    # Filtro por operacionalidade (coluna direta em tripulantes)
     if oper:
         oper_list = [o.strip() for o in oper.split(',') if o.strip()]
         if oper_list:
-            if not func:  # Se não fez join com Funcao ainda
-                filter_query = filter_query.join(
-                    Funcao, Tripulante.id == Funcao.trip_id
-                )
-            filter_query = filter_query.where(Funcao.oper.in_(oper_list))
-
-    # Distinct para evitar duplicatas quando há joins com Funcao
-    if needs_func_join:
-        filter_query = filter_query.distinct()
+            filter_query = filter_query.where(Tripulante.oper.in_(oper_list))
 
     # Subconsulta com os IDs filtrados
     filtered_ids = filter_query.subquery()
@@ -278,6 +268,10 @@ async def update_trip(
 
     trip_search.active = trip.active
     trip_search.trig = trip.trig
+    trip_search.func = trip.func
+    trip_search.oper = trip.oper
+    trip_search.proj = trip.proj
+    trip_search.data_op = trip.data_op
 
     await session.commit()
     await session.refresh(trip_search)

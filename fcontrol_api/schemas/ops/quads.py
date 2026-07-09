@@ -4,9 +4,8 @@ from typing import Annotated
 from fastapi import Body
 from pydantic import BaseModel, ConfigDict, Field
 
-from fcontrol_api.schemas.funcoes import BaseFunc, FuncPublic
+from fcontrol_api.schemas.funcoes import BaseFunc
 from fcontrol_api.schemas.funcoes import funcs as FuncLiteral
-from fcontrol_api.schemas.ops.tripulantes import TripWithFuncs
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -38,11 +37,6 @@ class QuadBatchDelete(BaseModel):
 
 class QuadList(BaseModel):
     quads: list[QuadPublic]
-
-
-class ResQuad(FuncPublic):
-    quads: list
-    trip: TripWithFuncs
 
 
 class QuadsTypeSchema(BaseModel):
@@ -111,13 +105,28 @@ class QuadsFuncsSet(BaseModel):
     funcs: list[FuncLiteral] = Field(default_factory=list)
 
 
-class TripQuadInfo(BaseModel):
-    """Dados do tripulante no contexto de quadrinhos."""
+class TripQuadInfo(BaseFunc):
+    """Dados do tripulante no contexto de quadrinhos.
+
+    A função (func/oper/proj/data_op) vem achatada de BaseFunc, já que é
+    1:1 no próprio tripulante.
+    """
 
     id: int
     trig: str
     user: UserPublic
-    func: BaseFunc | None = None
+
+
+class QuadOrfaoTripInfo(BaseModel):
+    """Tripulante desativado no contexto de limpeza de órfãos.
+
+    Não expõe a função: é irrelevante para a limpeza e o tripulante está
+    inativo.
+    """
+
+    id: int
+    trig: str
+    user: UserPublic
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -129,7 +138,7 @@ class TripQuadEntry(BaseModel):
 
 
 class QuadsOrfaoEntry(BaseModel):
-    trip: TripQuadInfo
+    trip: QuadOrfaoTripInfo
     quads_count: int
 
 

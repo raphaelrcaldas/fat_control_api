@@ -14,7 +14,6 @@ from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
 from fcontrol_api.models.instrucao.cartoes import Cartao
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
 from fcontrol_api.models.seg_voo.crm import CrmCertificado
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.sebo import (
@@ -86,8 +85,8 @@ async def list_sebo(
             User.p_g,
             User.nome_guerra,
             Tripulante.trig,
-            Funcao.func,
-            Funcao.oper,
+            Tripulante.func,
+            Tripulante.oper,
             h_ano,
             dsv,
             data_ult_voo,
@@ -118,10 +117,6 @@ async def list_sebo(
             Cartao,
             Cartao.user_id == User.id,
         )
-        .join(
-            Funcao,
-            (Funcao.trip_id == Tripulante.id) & (Funcao.func == func),
-        )
         .outerjoin(
             TripEtapa,
             (TripEtapa.trip_id == Tripulante.id)
@@ -138,14 +133,15 @@ async def list_sebo(
         .where(
             Tripulante.active.is_(True),
             Tripulante.uae == active_org,
+            Tripulante.func == func,
         )
         .group_by(
             Tripulante.id,
             User.p_g,
             User.nome_guerra,
             Tripulante.trig,
-            Funcao.func,
-            Funcao.oper,
+            Tripulante.func,
+            Tripulante.oper,
             CartaoSaude.cemal,
             CartaoSaude.tovn,
             CartaoSaude.imae,
@@ -162,7 +158,7 @@ async def list_sebo(
     )
 
     if oper_list:
-        query = query.where(Funcao.oper.in_(oper_list))
+        query = query.where(Tripulante.oper.in_(oper_list))
 
     rows = await session.execute(query)
     items = [

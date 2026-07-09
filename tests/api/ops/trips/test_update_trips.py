@@ -18,6 +18,10 @@ async def test_update_trip_success(client, trip, org_admin_token):
     update_data = {
         'trig': 'new',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -42,6 +46,10 @@ async def test_update_trip_returns_correct_message(
     update_data = {
         'trig': 'upd',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -64,6 +72,10 @@ async def test_update_trip_change_trig(client, trip, org_admin_token):
     update_data = {
         'trig': 'xyz',
         'active': trip.active,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -85,6 +97,10 @@ async def test_update_trip_change_active(client, trip, org_admin_token):
     update_data = {
         'trig': trip.trig,
         'active': False,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -105,6 +121,10 @@ async def test_update_trip_not_found(client, org_admin_token):
     update_data = {
         'trig': 'abc',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -129,6 +149,10 @@ async def test_update_trip_duplicate_trig_same_uae_fails(
     update_data = {
         'trig': other_trip.trig,
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -148,6 +172,10 @@ async def test_update_trip_same_trig_allowed(client, trip, org_admin_token):
     update_data = {
         'trig': trip.trig,  # Mesmo trigrama
         'active': False,  # Muda apenas o active
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -169,6 +197,10 @@ async def test_update_trip_trig_too_short_fails(client, trip, org_admin_token):
     update_data = {
         'trig': 'ab',  # Menos de 3 caracteres
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -185,6 +217,10 @@ async def test_update_trip_trig_too_long_fails(client, trip, org_admin_token):
     update_data = {
         'trig': 'abcd',  # Mais de 3 caracteres
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -200,6 +236,10 @@ async def test_update_trip_missing_trig_fails(client, trip, org_admin_token):
     """Testa que trig é obrigatório."""
     update_data = {
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(
@@ -216,6 +256,10 @@ async def test_update_trip_without_authentication_fails(client, trip):
     update_data = {
         'trig': 'abc',
         'active': True,
+        'func': 'pil',
+        'oper': 'op',
+        'proj': 'kc-390',
+        'data_op': '2020-01-15',
     }
 
     response = await client.put(f'/ops/trips/{trip.id}', json=update_data)
@@ -230,7 +274,14 @@ async def test_update_trip_without_permission_forbidden(
     response = await client.put(
         f'/ops/trips/{trip.id}',
         headers={'Authorization': f'Bearer {org_token}'},
-        json={'trig': 'abc', 'active': True},
+        json={
+            'trig': 'abc',
+            'active': True,
+            'func': 'pil',
+            'oper': 'op',
+            'proj': 'kc-390',
+            'data_op': '2020-01-15',
+        },
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -240,7 +291,14 @@ async def test_update_trip_missing_active_org_fails(client, trip, token):
     response = await client.put(
         f'/ops/trips/{trip.id}',
         headers={'Authorization': f'Bearer {token}'},
-        json={'trig': 'abc', 'active': True},
+        json={
+            'trig': 'abc',
+            'active': True,
+            'func': 'pil',
+            'oper': 'op',
+            'proj': 'kc-390',
+            'data_op': '2020-01-15',
+        },
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
@@ -258,6 +316,13 @@ async def test_update_trip_cross_org_404(
     response = await client.put(
         f'/ops/trips/{foreign.id}',
         headers={'Authorization': f'Bearer {org_admin_token}'},
-        json={'trig': 'zzz', 'active': True},
+        json={
+            'trig': 'zzz',
+            'active': True,
+            'func': 'pil',
+            'oper': 'op',
+            'proj': 'kc-390',
+            'data_op': '2020-01-15',
+        },
     )
     assert response.status_code == HTTPStatus.NOT_FOUND

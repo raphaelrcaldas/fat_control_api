@@ -67,21 +67,10 @@ def is_posicao_valida(func: str, posicao: str) -> bool:
 
 
 class BaseFunc(BaseModel):
+    """Campos de função do tripulante (colunas de `tripulantes`)."""
+
     func: funcs
     oper: opers
     proj: proj
-    data_op: Annotated[date | None, Body()]
+    data_op: Annotated[date | None, Body()] = None
     model_config = ConfigDict(from_attributes=True)
-
-
-class FuncSchema(BaseFunc):
-    trip_id: int
-
-
-class FuncPublic(FuncSchema):
-    id: int
-
-
-class FuncUpdate(BaseModel):
-    oper: opers
-    data_op: Annotated[date | None, Body()]

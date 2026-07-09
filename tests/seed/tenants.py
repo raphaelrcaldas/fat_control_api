@@ -21,7 +21,7 @@ TENANTS = [
 
 # 'kc-390' (id 'C8') já é inserido pela migração de tenantização. Aqui
 # adicionamos um segundo modelo para os testes de filtro/exclusão por
-# projeto (trip_funcs.proj é FK -> projetos_anvs.modelo).
+# projeto (tripulantes.proj é FK -> projetos_anvs.modelo).
 PROJETOS = [
     ProjetoAnv(id_projeto='C1', modelo='c-130'),
 ]

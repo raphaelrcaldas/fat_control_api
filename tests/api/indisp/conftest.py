@@ -16,11 +16,8 @@ Fixtures disponíveis:
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
-from fcontrol_api.models.shared.tripulantes import Tripulante
-from tests.factories import FuncFactory, IndispFactory, TripFactory
+from tests.factories import IndispFactory, TripFactory
 
 
 @pytest.fixture
@@ -117,20 +114,11 @@ async def trip_with_func(session, users):
     """
     user, _ = users
 
-    trip = TripFactory(user_id=user.id, uae='11gt', active=True)
+    trip = TripFactory(user_id=user.id, uae='11gt', active=True, func='pil')
     session.add(trip)
     await session.commit()
+    await session.refresh(trip)
 
-    func = FuncFactory(trip_id=trip.id, func='pil')
-    session.add(func)
-    await session.commit()
-    await session.refresh(func)
-
-    # Recarrega trip com relacionamento funcs para garantir consistência
-    trip = await session.scalar(
-        select(Tripulante)
-        .where(Tripulante.id == trip.id)
-        .options(selectinload(Tripulante.funcs))
-    )
-
-    return trip, func
+    # A função agora é 1:1 no próprio tripulante; devolvemos o mesmo objeto
+    # como `func` para manter a assinatura (trip, func) dos consumidores.
+    return trip, trip

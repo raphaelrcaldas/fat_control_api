@@ -1,7 +1,8 @@
+from datetime import date
+
 from sqlalchemy import ForeignKey, Identity, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.users import User
 
 from .base import Base
@@ -23,6 +24,16 @@ class Tripulante(Base):
             onupdate='CASCADE',
         )
     )
+    func: Mapped[str] = mapped_column(String(3))
+    oper: Mapped[str] = mapped_column(String(2))
+    proj: Mapped[str] = mapped_column(
+        ForeignKey(
+            'projetos_anvs.modelo',
+            onupdate='CASCADE',
+            name='fk_tripulantes_proj',
+        )
+    )
+    data_op: Mapped[date | None] = mapped_column(nullable=True, default=None)
 
     user: Mapped[User] = relationship(
         User,
@@ -30,11 +41,4 @@ class Tripulante(Base):
         backref='tripulantes',
         lazy='selectin',
         uselist=False,
-    )
-    funcs: Mapped[list[Funcao]] = relationship(
-        Funcao,
-        init=False,
-        backref='tripulantes',
-        lazy='selectin',
-        uselist=True,
     )

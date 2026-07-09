@@ -11,7 +11,7 @@ from http import HTTPStatus
 
 import pytest
 
-from tests.factories import FuncFactory, IndispFactory, TripFactory
+from tests.factories import IndispFactory, TripFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -114,14 +114,12 @@ async def test_get_crew_indisp_excludes_inactive_users(
     other_user.active = False
     await session.commit()
 
-    trip = TripFactory(user_id=other_user.id, uae='11gt', active=True)
+    trip = TripFactory(
+        user_id=other_user.id, uae='11gt', active=True, func='pil'
+    )
     session.add(trip)
     await session.commit()
     await session.refresh(trip)
-
-    func = FuncFactory(trip_id=trip.id, func='pil')
-    session.add(func)
-    await session.commit()
 
     response = await client.get(
         '/indisp/',
@@ -141,14 +139,10 @@ async def test_get_crew_indisp_excludes_inactive_trips(
     """Testa que tripulantes inativos não são retornados."""
     user, _ = users
 
-    trip = TripFactory(user_id=user.id, uae='11gt', active=False)
+    trip = TripFactory(user_id=user.id, uae='11gt', active=False, func='pil')
     session.add(trip)
     await session.commit()
     await session.refresh(trip)
-
-    func = FuncFactory(trip_id=trip.id, func='pil')
-    session.add(func)
-    await session.commit()
 
     response = await client.get(
         '/indisp/',
@@ -316,24 +310,20 @@ async def test_get_crew_indisp_filters_by_funcao(
     user, other_user = users
 
     # Tripulante com função 'pil'
-    trip_pil = TripFactory(user_id=user.id, uae='11gt', active=True)
+    trip_pil = TripFactory(
+        user_id=user.id, uae='11gt', active=True, func='pil'
+    )
     session.add(trip_pil)
     await session.commit()
     await session.refresh(trip_pil)
 
-    func_pil = FuncFactory(trip_id=trip_pil.id, func='pil')
-    session.add(func_pil)
-    await session.commit()
-
     # Tripulante com função 'nav'
-    trip_nav = TripFactory(user_id=other_user.id, uae='11gt', active=True)
+    trip_nav = TripFactory(
+        user_id=other_user.id, uae='11gt', active=True, func='nav'
+    )
     session.add(trip_nav)
     await session.commit()
     await session.refresh(trip_nav)
-
-    func_nav = FuncFactory(trip_id=trip_nav.id, func='nav')
-    session.add(func_nav)
-    await session.commit()
 
     # Busca apenas pilotos
     response = await client.get(
@@ -361,24 +351,20 @@ async def test_get_crew_indisp_scoped_by_active_org(
     user, other_user = users
 
     # Tripulante na unidade ativa ('11gt') — deve aparecer
-    trip_11gt = TripFactory(user_id=user.id, uae='11gt', active=True)
+    trip_11gt = TripFactory(
+        user_id=user.id, uae='11gt', active=True, func='pil'
+    )
     session.add(trip_11gt)
     await session.commit()
     await session.refresh(trip_11gt)
 
-    func_11gt = FuncFactory(trip_id=trip_11gt.id, func='pil')
-    session.add(func_11gt)
-    await session.commit()
-
     # Tripulante em outra unidade ('1gt') — deve ser excluído
-    trip_1gt = TripFactory(user_id=other_user.id, uae='1gt', active=True)
+    trip_1gt = TripFactory(
+        user_id=other_user.id, uae='1gt', active=True, func='pil'
+    )
     session.add(trip_1gt)
     await session.commit()
     await session.refresh(trip_1gt)
-
-    func_1gt = FuncFactory(trip_id=trip_1gt.id, func='pil')
-    session.add(func_1gt)
-    await session.commit()
 
     response = await client.get(
         '/indisp/',
@@ -412,9 +398,9 @@ async def test_get_crew_indisp_func_in_response(
     data = resp['data']
     assert len(data) == 1
 
-    func_data = data[0]['trip']['func']
-    assert func_data is not None
-    assert func_data['func'] == func.func
+    # Função achatada no próprio tripulante (1:1)
+    assert data[0]['trip']['func'] == func.func
+    assert data[0]['trip']['oper'] == func.oper
 
 
 async def test_get_crew_indisp_without_token_fails(client):
