@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CrmBase(BaseModel):
@@ -40,3 +40,25 @@ class TripCrmOut(BaseModel):
     crm: CrmPublic | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CrmOrfaoPublic(BaseModel):
+    """Militar inativo com certificado CRM (limpeza)."""
+
+    user_id: int
+    p_g: str
+    nome_guerra: str
+    nome_completo: str | None
+
+
+class CrmOrfaosResumo(BaseModel):
+    total_registros: int
+    itens: list[CrmOrfaoPublic]
+
+
+class CrmOrfaosDelete(BaseModel):
+    user_ids: list[int] = Field(min_length=1)
+
+
+class CrmOrfaosDeleteResponse(BaseModel):
+    deleted: int

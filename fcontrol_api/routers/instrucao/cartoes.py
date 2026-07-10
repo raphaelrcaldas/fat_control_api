@@ -11,6 +11,10 @@ from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.instrucao.cartoes import (
+    CartaoOrfaoPublic,
+    CartoesOrfaosDelete,
+    CartoesOrfaosDeleteResponse,
+    CartoesOrfaosResumo,
     CartoesPublic,
     CartoesUpdate,
     TripCartoesOut,
@@ -102,6 +106,70 @@ async def list_cartoes(
     ]
 
     return success_response(data=items)
+
+
+@router.get(
+    '/orfaos',
+    response_model=ApiResponse[CartoesOrfaosResumo],
+)
+async def get_cartoes_orfaos(session: Session, active_org: ActiveOrg):
+    """Cartoes de instrucao de militares inativos da org (limpeza)."""
+    result = await session.execute(
+        select(User)
+        .join(Cartao, Cartao.user_id == User.id)
+        .where(
+            User.active.is_(False),
+            User.unidade == active_org,
+        )
+        .order_by(User.nome_guerra, User.id)
+    )
+
+    itens = [
+        CartaoOrfaoPublic(
+            user_id=militar.id,
+            p_g=militar.p_g,
+            nome_guerra=militar.nome_guerra,
+            nome_completo=militar.nome_completo,
+        )
+        for militar in result.scalars().all()
+    ]
+
+    return success_response(
+        data=CartoesOrfaosResumo(total_registros=len(itens), itens=itens),
+    )
+
+
+@router.delete(
+    '/orfaos',
+    response_model=ApiResponse[CartoesOrfaosDeleteResponse],
+)
+async def delete_cartoes_orfaos(
+    payload: CartoesOrfaosDelete,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    """Remove os cartoes de instrucao dos militares inativos selecionados."""
+    users_validos = select(User.id).where(
+        User.id.in_(payload.user_ids),
+        User.active.is_(False),
+        User.unidade == active_org,
+    )
+
+    cartoes = (
+        await session.scalars(
+            select(Cartao).where(Cartao.user_id.in_(users_validos))
+        )
+    ).all()
+
+    for cartao in cartoes:
+        await session.delete(cartao)
+
+    await session.commit()
+
+    return success_response(
+        data=CartoesOrfaosDeleteResponse(deleted=len(cartoes)),
+        message=f'{len(cartoes)} cartao(oes) de instrucao removido(s)',
+    )
 
 
 @router.put(

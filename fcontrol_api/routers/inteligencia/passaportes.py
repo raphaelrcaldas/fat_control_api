@@ -7,7 +7,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -16,16 +16,17 @@ from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.inteligencia.passaportes import (
-    ImagemOrfaPublic,
-    ImagensOrfasDelete,
-    ImagensOrfasDeleteResponse,
-    ImagensOrfasResumo,
+    PassaporteOrfaoPublic,
     PassaportePublic,
+    PassaportesOrfaosDelete,
+    PassaportesOrfaosDeleteResponse,
+    PassaportesOrfaosResumo,
     PassaporteUpdate,
     TripPassaporteOut,
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
+    ActiveOrg,
     ActiveOrgOptional,
     ensure_org_permission_or_owner,
     get_current_user,
@@ -120,11 +121,11 @@ def _nome_ascii(nome_guerra: str) -> str:
 async def list_passaportes(
     session: Session,
     user: Annotated[User, ViewPassaportes],
-    active_org: ActiveOrgOptional,
+    active_org: ActiveOrg,
     p_g: Annotated[str | None, Query()] = None,
     funcao: Annotated[str | None, Query()] = None,
 ):
-    """Lista tripulantes ativos com seus passaportes."""
+    """Lista tripulantes ativos da org ativa com seus passaportes."""
     can_view_img = await has_org_permission(
         user, session, active_org, IMG_RESOURCE, 'view'
     )
@@ -159,6 +160,7 @@ async def list_passaportes(
         )
         .where(
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
             User.active.is_(True),
         )
         .order_by(
@@ -256,7 +258,7 @@ async def upsert_passaporte(
     trip_id: int,
     session: Session,
     dados: PassaporteUpdate,
-    active_org: ActiveOrgOptional,
+    active_org: ActiveOrg,
     user: Annotated[User, Depends(get_current_user)],
 ):
     """Cria ou atualiza passaporte de um tripulante."""
@@ -264,6 +266,7 @@ async def upsert_passaporte(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:
@@ -318,7 +321,7 @@ async def upload_imagem_passaporte(
     tipo: TipoImagem,
     file: UploadFile,
     session: Session,
-    active_org: ActiveOrgOptional,
+    active_org: ActiveOrg,
     user: Annotated[User, Depends(get_current_user)],
 ):
     """Faz upload (JPG/PNG normalizado p/ JPEG) da imagem do tipo dado."""
@@ -326,6 +329,7 @@ async def upload_imagem_passaporte(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:
@@ -461,6 +465,7 @@ async def delete_imagem_passaporte(
     trip_id: int,
     tipo: TipoImagem,
     session: Session,
+    active_org: ActiveOrg,
     _: Annotated[User, DeleteImgPassaporte],
 ):
     """Remove a imagem do tipo dado do bucket e zera a coluna."""
@@ -468,6 +473,7 @@ async def delete_imagem_passaporte(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:
@@ -522,21 +528,18 @@ async def delete_imagem_passaporte(
 
 
 @router.get(
-    '/imagens/orfas',
-    response_model=ApiResponse[ImagensOrfasResumo],
-    dependencies=[DeleteImgPassaporte],
+    '/orfaos',
+    response_model=ApiResponse[PassaportesOrfaosResumo],
+    dependencies=[DeletePassaportes],
 )
-async def get_imagens_orfas(session: Session):
-    """Imagens de passaporte/visto de militares inativos (limpeza)."""
+async def get_passaportes_orfaos(session: Session, active_org: ActiveOrg):
+    """Registros de passaporte de militares inativos da org (limpeza)."""
     result = await session.execute(
         select(Passaporte, User)
         .join(User, User.id == Passaporte.user_id)
         .where(
             User.active.is_(False),
-            or_(
-                Passaporte.passaporte_file_path.is_not(None),
-                Passaporte.visa_file_path.is_not(None),
-            ),
+            User.unidade == active_org,
         )
         .order_by(User.nome_guerra, User.id)
     )
@@ -548,7 +551,7 @@ async def get_imagens_orfas(session: Session):
         tem_v = passaporte.visa_file_path is not None
         total_imagens += int(tem_p) + int(tem_v)
         itens.append(
-            ImagemOrfaPublic(
+            PassaporteOrfaoPublic(
                 user_id=militar.id,
                 p_g=militar.p_g,
                 nome_guerra=militar.nome_guerra,
@@ -559,62 +562,66 @@ async def get_imagens_orfas(session: Session):
         )
 
     return success_response(
-        data=ImagensOrfasResumo(
+        data=PassaportesOrfaosResumo(
+            total_registros=len(itens),
             total_imagens=total_imagens,
-            total_militares=len(itens),
             itens=itens,
         ),
     )
 
 
 @router.delete(
-    '/imagens/orfas',
-    response_model=ApiResponse[ImagensOrfasDeleteResponse],
-    dependencies=[DeleteImgPassaporte],
+    '/orfaos',
+    response_model=ApiResponse[PassaportesOrfaosDeleteResponse],
+    dependencies=[DeletePassaportes],
 )
-async def delete_imagens_orfas(
-    payload: ImagensOrfasDelete,
+async def delete_passaportes_orfaos(
+    payload: PassaportesOrfaosDelete,
     session: Session,
+    active_org: ActiveOrg,
 ):
-    """Remove as imagens dos militares inativos selecionados."""
+    """Remove os registros (e imagens) dos militares selecionados."""
     result = await session.execute(
         select(Passaporte)
         .join(User, User.id == Passaporte.user_id)
         .where(
             User.active.is_(False),
+            User.unidade == active_org,
             Passaporte.user_id.in_(payload.user_ids),
         )
     )
     passaportes = result.scalars().all()
 
-    # Zera as colunas e coleta as keys; o bucket é limpo após o commit
+    # Coleta as keys e apaga os registros; o bucket é limpo após o commit
     # (sem referência pendente — falha vira só um órfão logado).
     keys: list[str] = []
     for passaporte in passaportes:
         if passaporte.passaporte_file_path:
             keys.append(passaporte.passaporte_file_path)
-            passaporte.passaporte_file_path = None
         if passaporte.visa_file_path:
             keys.append(passaporte.visa_file_path)
-            passaporte.visa_file_path = None
+        await session.delete(passaporte)
 
     await session.commit()
 
-    deleted = 0
+    imagens = 0
     for key in keys:
         try:
             delete_file(BUCKET, key)
-            deleted += 1
+            imagens += 1
         except Exception:
             logger.warning(
-                'Falha ao remover imagem órfã do passaporte (%s)',
+                'Falha ao remover imagem do passaporte órfão (%s)',
                 key,
                 exc_info=True,
             )
 
     return success_response(
-        data=ImagensOrfasDeleteResponse(deleted=deleted),
-        message=f'{deleted} imagem(ns) removida(s)',
+        data=PassaportesOrfaosDeleteResponse(
+            registros=len(passaportes),
+            imagens=imagens,
+        ),
+        message=f'{len(passaportes)} registro(s) de passaporte removido(s)',
     )
 
 
@@ -625,6 +632,7 @@ async def delete_imagens_orfas(
 async def delete_passaporte(
     trip_id: int,
     session: Session,
+    active_org: ActiveOrg,
     _: Annotated[User, DeletePassaportes],
 ):
     """Remove passaporte de um tripulante."""
@@ -632,6 +640,7 @@ async def delete_passaporte(
         select(Tripulante).where(
             Tripulante.id == trip_id,
             Tripulante.active.is_(True),
+            Tripulante.uae == active_org,
         )
     )
     if not tripulante:

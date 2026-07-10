@@ -11,15 +11,17 @@ from fcontrol_api.models.estatistica.esf_aer import (
 )
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
+    Missao,
     OIEtapa,
 )
-from fcontrol_api.models.shared.aeronaves import Aeronave
+from fcontrol_api.models.shared.aeronaves import Aeronave, TenantProjeto
 from fcontrol_api.schemas.estatistica.horas_anv import (
     AnvHorasResponse,
     AnvHorasRow,
     AnvMesData,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import ActiveOrg
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -35,11 +37,21 @@ router = APIRouter(prefix='/horas-anv', tags=['estatistica'])
 )
 async def get_horas_anv(
     session: Session,
+    active_org: ActiveOrg,
     ano_ref: AnoRef,
 ):
-    # ANVs com voo nao-GTT no ano
+    # Escopo por org: só a frota dos projetos operados pela org ativa.
+    projetos_org = select(TenantProjeto.projeto).where(
+        TenantProjeto.uae == active_org
+    )
+
+    # ANVs com voo nao-GTT no ano, nas missoes DESTA org
     not_gtt_anvs = (
         select(Etapa.anv)
+        .join(
+            Missao,
+            Missao.id == Etapa.missao_id,
+        )
         .join(
             OIEtapa,
             OIEtapa.etapa_id == Etapa.id,
@@ -49,6 +61,7 @@ async def get_horas_anv(
             EsforcoAereo.id == OIEtapa.esf_aer_id,
         )
         .where(
+            Missao.uae == active_org,
             extract('year', Etapa.data) == ano_ref,
             ~EsforcoAereo.descricao.contains('GTT'),
         )
@@ -56,8 +69,9 @@ async def get_horas_anv(
         .scalar_subquery()
     )
 
-    # Filtro: nao simulador E (ativa OU sem GTT)
+    # Filtro: frota da org E nao simulador E (ativa OU sem GTT)
     valid_filter = [
+        Aeronave.projeto.in_(projetos_org),
         Aeronave.is_sim.is_(False),
         or_(
             Aeronave.active.is_(True),
@@ -92,7 +106,9 @@ async def get_horas_anv(
             func.coalesce(func.sum(Etapa.tvoo), 0).label('tvoo'),
             func.coalesce(func.sum(Etapa.pousos), 0).label('pousos'),
         )
+        .join(Missao, Missao.id == Etapa.missao_id)
         .where(
+            Missao.uae == active_org,
             extract('year', Etapa.data) == ano_ref,
             Etapa.anv.in_(valid_anvs),
         )

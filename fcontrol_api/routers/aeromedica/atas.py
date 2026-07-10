@@ -18,10 +18,6 @@ from fcontrol_api.schemas.aeromedica.atas import (
     AtaExtrairResponse,
     AtaInspecaoPublic,
     AtaInspecaoWithUrl,
-    AtaOrfaPublic,
-    AtasOrfasDelete,
-    AtasOrfasDeleteResponse,
-    AtasOrfasResumo,
     AtaUpdate,
     AtaUploadResponse,
     DadosExtraidos,
@@ -410,91 +406,6 @@ async def get_atas_by_user(
         data.append(AtaInspecaoWithUrl(**ata_dict))
 
     return success_response(data=data)
-
-
-@router.get(
-    '/orfas',
-    response_model=ApiResponse[AtasOrfasResumo],
-    dependencies=[DeleteCartao],
-)
-async def get_atas_orfas(session: Session, active_org: ActiveOrg):
-    """Lista atas de usuarios inativos."""
-    result = await session.execute(
-        select(AtaInspecao, User.nome_guerra, User.nome_completo)
-        .join(User, AtaInspecao.user_id == User.id)
-        .where(User.active.is_(False), User.unidade == active_org)
-        .order_by(User.nome_guerra, AtaInspecao.id)
-    )
-    rows = result.all()
-
-    atas = []
-    total_size = 0
-    for ata, nome_guerra, nome_completo in rows:
-        total_size += ata.file_size
-        atas.append(
-            AtaOrfaPublic(
-                id=ata.id,
-                user_id=ata.user_id,
-                nome_guerra=nome_guerra,
-                nome_completo=nome_completo,
-                file_name=ata.file_name,
-                file_size=ata.file_size,
-                created_at=ata.created_at,
-            )
-        )
-
-    return success_response(
-        data=AtasOrfasResumo(
-            total_atas=len(atas),
-            total_size=total_size,
-            atas=atas,
-        ),
-    )
-
-
-@router.delete(
-    '/orfas',
-    response_model=ApiResponse[AtasOrfasDeleteResponse],
-    dependencies=[DeleteCartao],
-)
-async def delete_atas_orfas(
-    payload: AtasOrfasDelete, session: Session, active_org: ActiveOrg
-):
-    """Remove atas orfas selecionadas (apenas de usuarios inativos)."""
-    result = await session.execute(
-        select(AtaInspecao)
-        .join(User, AtaInspecao.user_id == User.id)
-        .where(
-            AtaInspecao.id.in_(payload.ids),
-            User.active.is_(False),
-            User.unidade == active_org,
-        )
-    )
-    atas = result.scalars().all()
-
-    for ata in atas:
-        # Tolera falha ao remover o arquivo (ex.: já ausente no storage)
-        # para garantir consistência banco↔storage: o registro é sempre
-        # removido do banco mesmo que o objeto físico não exista mais.
-        try:
-            await asyncio.to_thread(delete_file, BUCKET, ata.file_path)
-        except Exception:
-            logger.warning(
-                'Falha ao remover arquivo da ata órfã %s (%s)',
-                ata.id,
-                ata.file_path,
-                exc_info=True,
-            )
-        await session.delete(ata)
-
-    await session.commit()
-
-    deleted = len(atas)
-
-    return success_response(
-        data=AtasOrfasDeleteResponse(deleted=deleted),
-        message=f'{deleted} ata(s) órfã(s) removida(s)',
-    )
 
 
 @router.patch(

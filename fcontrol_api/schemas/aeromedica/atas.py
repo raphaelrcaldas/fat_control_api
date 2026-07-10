@@ -44,27 +44,3 @@ class AtaUpdate(BaseModel):
     letra_finalidade: str | None = Field(default=None, max_length=1)
     data_realizacao: date | None = None
     validade_inspsau: date | None = None
-
-
-class AtaOrfaPublic(BaseModel):
-    id: int
-    user_id: int
-    nome_guerra: str
-    nome_completo: str
-    file_name: str
-    file_size: int
-    created_at: datetime
-
-
-class AtasOrfasResumo(BaseModel):
-    total_atas: int
-    total_size: int
-    atas: list[AtaOrfaPublic]
-
-
-class AtasOrfasDelete(BaseModel):
-    ids: list[int] = Field(min_length=1)
-
-
-class AtasOrfasDeleteResponse(BaseModel):
-    deleted: int

@@ -40,3 +40,32 @@ class UserCartaoSaude(BaseModel):
     total_atas: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OrfaoAeromedicaPublic(BaseModel):
+    """Militar inativo com documentos aeromédicos (cartão e/ou atas)."""
+
+    user_id: int
+    p_g: str
+    nome_guerra: str
+    nome_completo: str | None = None
+    tem_cartao: bool
+    total_atas: int
+    atas_size: int
+
+
+class OrfaosAeromedicaResumo(BaseModel):
+    total_militares: int
+    total_cartoes: int
+    total_atas: int
+    atas_size: int
+    itens: list[OrfaoAeromedicaPublic]
+
+
+class OrfaosAeromedicaDelete(BaseModel):
+    user_ids: list[int] = Field(min_length=1)
+
+
+class OrfaosAeromedicaDeleteResponse(BaseModel):
+    cartoes: int
+    atas: int

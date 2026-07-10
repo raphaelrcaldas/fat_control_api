@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 NivelIdioma = Literal['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 
@@ -44,3 +44,25 @@ class TripCartoesOut(BaseModel):
     cartao: CartoesPublic | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CartaoOrfaoPublic(BaseModel):
+    """Militar inativo com cartão de instrução (limpeza)."""
+
+    user_id: int
+    p_g: str
+    nome_guerra: str
+    nome_completo: str | None
+
+
+class CartoesOrfaosResumo(BaseModel):
+    total_registros: int
+    itens: list[CartaoOrfaoPublic]
+
+
+class CartoesOrfaosDelete(BaseModel):
+    user_ids: list[int] = Field(min_length=1)
+
+
+class CartoesOrfaosDeleteResponse(BaseModel):
+    deleted: int

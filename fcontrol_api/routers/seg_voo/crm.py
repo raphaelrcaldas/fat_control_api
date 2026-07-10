@@ -12,6 +12,10 @@ from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.seg_voo.crm import (
+    CrmOrfaoPublic,
+    CrmOrfaosDelete,
+    CrmOrfaosDeleteResponse,
+    CrmOrfaosResumo,
     CrmPublic,
     CrmUpdate,
     TripCrmOut,
@@ -115,6 +119,72 @@ async def get_crm_by_user(
         )
     )
     return success_response(data=crm)
+
+
+@router.get(
+    '/orfaos',
+    response_model=ApiResponse[CrmOrfaosResumo],
+)
+async def get_crm_orfaos(session: Session, active_org: ActiveOrg):
+    """Certificados CRM de militares inativos da org (limpeza)."""
+    result = await session.execute(
+        select(User)
+        .join(CrmCertificado, CrmCertificado.user_id == User.id)
+        .where(
+            User.active.is_(False),
+            User.unidade == active_org,
+        )
+        .order_by(User.nome_guerra, User.id)
+    )
+
+    itens = [
+        CrmOrfaoPublic(
+            user_id=militar.id,
+            p_g=militar.p_g,
+            nome_guerra=militar.nome_guerra,
+            nome_completo=militar.nome_completo,
+        )
+        for militar in result.scalars().all()
+    ]
+
+    return success_response(
+        data=CrmOrfaosResumo(total_registros=len(itens), itens=itens),
+    )
+
+
+@router.delete(
+    '/orfaos',
+    response_model=ApiResponse[CrmOrfaosDeleteResponse],
+)
+async def delete_crm_orfaos(
+    payload: CrmOrfaosDelete,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    """Remove os certificados CRM dos militares inativos selecionados."""
+    users_validos = select(User.id).where(
+        User.id.in_(payload.user_ids),
+        User.active.is_(False),
+        User.unidade == active_org,
+    )
+
+    crms = (
+        await session.scalars(
+            select(CrmCertificado).where(
+                CrmCertificado.user_id.in_(users_validos)
+            )
+        )
+    ).all()
+
+    for crm in crms:
+        await session.delete(crm)
+
+    await session.commit()
+
+    return success_response(
+        data=CrmOrfaosDeleteResponse(deleted=len(crms)),
+        message=f'{len(crms)} certificado(s) CRM removido(s)',
+    )
 
 
 @router.put(

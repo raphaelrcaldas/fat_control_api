@@ -1,6 +1,12 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class PassaporteBase(BaseModel):
@@ -70,8 +76,12 @@ class TripPassaporteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ImagemOrfaPublic(BaseModel):
-    """Militar inativo que ainda tem imagem(ns) de passaporte/visto."""
+class PassaporteOrfaoPublic(BaseModel):
+    """Militar inativo com registro de passaporte (limpeza).
+
+    `tem_passaporte`/`tem_visa` indicam imagens ainda no bucket — a
+    exclusão remove o registro inteiro e as imagens juntas.
+    """
 
     user_id: int
     p_g: str
@@ -81,15 +91,16 @@ class ImagemOrfaPublic(BaseModel):
     tem_visa: bool
 
 
-class ImagensOrfasResumo(BaseModel):
+class PassaportesOrfaosResumo(BaseModel):
+    total_registros: int
     total_imagens: int
-    total_militares: int
-    itens: list[ImagemOrfaPublic]
+    itens: list[PassaporteOrfaoPublic]
 
 
-class ImagensOrfasDelete(BaseModel):
-    user_ids: list[int]
+class PassaportesOrfaosDelete(BaseModel):
+    user_ids: list[int] = Field(min_length=1)
 
 
-class ImagensOrfasDeleteResponse(BaseModel):
-    deleted: int
+class PassaportesOrfaosDeleteResponse(BaseModel):
+    registros: int
+    imagens: int

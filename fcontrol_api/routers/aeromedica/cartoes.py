@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from http import HTTPStatus
 from typing import Annotated
 
@@ -18,15 +20,26 @@ from fcontrol_api.schemas.aeromedica.cartoes import (
     CartaoSaudePublic,
     CartaoSaudeUpdate,
     CartaoSaudeWithUser,
+    OrfaoAeromedicaPublic,
+    OrfaosAeromedicaDelete,
+    OrfaosAeromedicaDeleteResponse,
+    OrfaosAeromedicaResumo,
     UserCartaoSaude,
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.services.storage import delete_file
 from fcontrol_api.utils.responses import success_response
+
+logger = logging.getLogger(__name__)
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/cartoes-saude', tags=['Aeromedica'])
+
+# Bucket do domínio aeromédica (mesma constante do router de atas) — a
+# limpeza de órfãos remove os PDFs das atas junto com os registros.
+BUCKET = 'aeromedica'
 
 # Dados de saúde são sensíveis: toda leitura exige 'view' e cada escrita a
 # sua ação. Admin da org ativa tem bypass (ver permission_checker).
@@ -83,6 +96,7 @@ async def get_cartoes_saude(
             and_(
                 Tripulante.user_id == User.id,
                 Tripulante.active.is_(True),
+                Tripulante.uae == active_org,
             ),
         )
         .outerjoin(
@@ -91,24 +105,16 @@ async def get_cartoes_saude(
         )
         .where(
             User.active.is_(True),
+            User.unidade == active_org,
         )
     )
 
-    # Filtro base: tripulantes + nao-tripulantes lotados na org ativa
+    # Escopo por org via User.unidade; o param filtra apenas se o usuario
+    # tem vinculo de tripulante ativo.
     if tripulante is True:
         query = query.where(Tripulante.id.isnot(None))
     elif tripulante is False:
-        query = query.where(
-            Tripulante.id.is_(None),
-            User.unidade == active_org,
-        )
-    else:
-        query = query.where(
-            or_(
-                Tripulante.id.isnot(None),
-                User.unidade == active_org,
-            )
-        )
+        query = query.where(Tripulante.id.is_(None))
 
     if search:
         safe = (
@@ -152,6 +158,140 @@ async def get_cartoes_saude(
     ]
 
     return success_response(data=data)
+
+
+@router.get(
+    '/orfaos',
+    response_model=ApiResponse[OrfaosAeromedicaResumo],
+    dependencies=[DeleteCartao],
+)
+async def get_orfaos_aeromedica(session: Session, active_org: ActiveOrg):
+    """Documentos aeromédicos de militares inativos da org (limpeza).
+
+    Agrupa por militar: cartão de saúde e/ou atas de inspeção. A exclusão
+    (DELETE /orfaos) é conjunta — apaga cartão e atas do militar de uma vez.
+    """
+    result = await session.execute(
+        select(
+            User.id,
+            User.p_g,
+            User.nome_guerra,
+            User.nome_completo,
+            CartaoSaude.id.label('cartao_id'),
+            func.count(AtaInspecao.id).label('total_atas'),
+            func.coalesce(func.sum(AtaInspecao.file_size), 0).label(
+                'atas_size'
+            ),
+        )
+        .outerjoin(CartaoSaude, CartaoSaude.user_id == User.id)
+        .outerjoin(AtaInspecao, AtaInspecao.user_id == User.id)
+        .where(
+            User.active.is_(False),
+            User.unidade == active_org,
+        )
+        .group_by(
+            User.id,
+            User.p_g,
+            User.nome_guerra,
+            User.nome_completo,
+            CartaoSaude.id,
+        )
+        .having(
+            or_(
+                CartaoSaude.id.is_not(None),
+                func.count(AtaInspecao.id) > 0,
+            )
+        )
+        .order_by(User.nome_guerra, User.id)
+    )
+
+    itens = []
+    total_cartoes = 0
+    total_atas = 0
+    atas_size = 0
+    for row in result.all():
+        total_cartoes += int(row.cartao_id is not None)
+        total_atas += row.total_atas
+        atas_size += row.atas_size
+        itens.append(
+            OrfaoAeromedicaPublic(
+                user_id=row.id,
+                p_g=row.p_g,
+                nome_guerra=row.nome_guerra,
+                nome_completo=row.nome_completo,
+                tem_cartao=row.cartao_id is not None,
+                total_atas=row.total_atas,
+                atas_size=row.atas_size,
+            )
+        )
+
+    return success_response(
+        data=OrfaosAeromedicaResumo(
+            total_militares=len(itens),
+            total_cartoes=total_cartoes,
+            total_atas=total_atas,
+            atas_size=atas_size,
+            itens=itens,
+        ),
+    )
+
+
+@router.delete(
+    '/orfaos',
+    response_model=ApiResponse[OrfaosAeromedicaDeleteResponse],
+    dependencies=[DeleteCartao],
+)
+async def delete_orfaos_aeromedica(
+    payload: OrfaosAeromedicaDelete,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    """Remove cartão E atas dos militares inativos selecionados."""
+    users_validos = select(User.id).where(
+        User.id.in_(payload.user_ids),
+        User.active.is_(False),
+        User.unidade == active_org,
+    )
+
+    atas = (
+        await session.scalars(
+            select(AtaInspecao).where(AtaInspecao.user_id.in_(users_validos))
+        )
+    ).all()
+    for ata in atas:
+        # Tolera falha ao remover o PDF (ex.: já ausente no storage) para
+        # garantir consistência banco↔storage: o registro sai do banco
+        # mesmo que o objeto físico não exista mais.
+        try:
+            await asyncio.to_thread(delete_file, BUCKET, ata.file_path)
+        except Exception:
+            logger.warning(
+                'Falha ao remover arquivo da ata órfã %s (%s)',
+                ata.id,
+                ata.file_path,
+                exc_info=True,
+            )
+        await session.delete(ata)
+
+    cartoes = (
+        await session.scalars(
+            select(CartaoSaude).where(CartaoSaude.user_id.in_(users_validos))
+        )
+    ).all()
+    for cartao in cartoes:
+        await session.delete(cartao)
+
+    await session.commit()
+
+    return success_response(
+        data=OrfaosAeromedicaDeleteResponse(
+            cartoes=len(cartoes),
+            atas=len(atas),
+        ),
+        message=(
+            f'{len(cartoes)} cartão(ões) e {len(atas)} ata(s) removido(s)'
+        ),
+    )
 
 
 @router.get(
@@ -202,10 +342,17 @@ async def get_cartao_saude_by_user(
 )
 async def create_cartao_saude(
     session: Session,
+    active_org: ActiveOrg,
     dados: CartaoSaudeCreate,
 ):
     """Cria novo cartao de saude para um usuario"""
-    user = await session.scalar(select(User).where(User.id == dados.user_id))
+    user = await session.scalar(
+        select(User).where(
+            User.id == dados.user_id,
+            User.unidade == active_org,
+            User.active.is_(True),
+        )
+    )
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -252,11 +399,18 @@ async def create_cartao_saude(
 async def update_cartao_saude(
     cartao_id: int,
     session: Session,
+    active_org: ActiveOrg,
     dados: CartaoSaudeUpdate,
 ):
     """Atualiza cartao de saude existente"""
     db_cartao = await session.scalar(
-        select(CartaoSaude).where(CartaoSaude.id == cartao_id)
+        select(CartaoSaude)
+        .join(User, User.id == CartaoSaude.user_id)
+        .where(
+            CartaoSaude.id == cartao_id,
+            User.unidade == active_org,
+            User.active.is_(True),
+        )
     )
 
     if not db_cartao:
@@ -282,10 +436,17 @@ async def update_cartao_saude(
 async def delete_cartao_saude(
     cartao_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     """Deleta cartao de saude"""
     db_cartao = await session.scalar(
-        select(CartaoSaude).where(CartaoSaude.id == cartao_id)
+        select(CartaoSaude)
+        .join(User, User.id == CartaoSaude.user_id)
+        .where(
+            CartaoSaude.id == cartao_id,
+            User.unidade == active_org,
+            User.active.is_(True),
+        )
     )
 
     if not db_cartao:
