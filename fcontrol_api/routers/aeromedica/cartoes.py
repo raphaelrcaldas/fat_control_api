@@ -27,13 +27,20 @@ from fcontrol_api.schemas.aeromedica.cartoes import (
     UserCartaoSaude,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    ActiveOrgOptional,
+    ensure_org_permission_or_owner,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.storage import delete_file
 from fcontrol_api.utils.responses import success_response
 
 logger = logging.getLogger(__name__)
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/cartoes-saude', tags=['Aeromedica'])
 
@@ -320,13 +327,24 @@ async def get_cartao_saude_by_id(
 @router.get(
     '/user/{user_id}',
     response_model=ApiResponse[CartaoSaudePublic | None],
-    dependencies=[ViewCartao],
 )
 async def get_cartao_saude_by_user(
     user_id: int,
     session: Session,
+    user: CurrentUser,
+    active_org: ActiveOrgOptional,
 ):
-    """Busca cartao de saude por ID do usuario"""
+    """Busca cartao de saude por ID do usuario.
+
+    O próprio militar vê o seu cartão (self-service do FatBird) sem a
+    permissão; terceiros exigem 'cartoes-saude.view' no vínculo da org
+    ativa. Gate no handler (não como dependência) para permitir o owner.
+    Org opcional: a busca é por user_id, o owner nunca depende de org.
+    """
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'cartoes-saude', 'view', user_id
+    )
+
     cartao = await session.scalar(
         select(CartaoSaude).where(CartaoSaude.user_id == user_id)
     )

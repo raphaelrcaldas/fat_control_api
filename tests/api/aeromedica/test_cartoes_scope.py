@@ -254,3 +254,38 @@ async def test_orfaos_delete_nao_remove_de_outra_org(
     # Cartão e ata da '1gt' continuam no banco.
     assert await session.get(CartaoSaude, cartao.id) is not None
     assert await session.get(AtaInspecao, ata.id) is not None
+
+
+# ── Self-service FatBird (GET /user/{id}) ──────────────────────────
+
+
+@pytest.fixture
+async def user_token_11gt(users, session, make_org_token):
+    """Token '11gt' de usuário com role não-admin (sem permissões)."""
+    _, other = users
+    session.add(UserRole(user_id=other.id, role_id=2, organizacao_id='11gt'))
+    await session.commit()
+    return other, await make_org_token(other, active_org='11gt')
+
+
+async def test_by_user_owner_self_service(client, session, user_token_11gt):
+    """O próprio militar vê seu cartão sem 'cartoes-saude.view' (FatBird)."""
+    other, tok = user_token_11gt
+    cartao = await _mk_cartao(session, other.id)
+    await session.commit()
+
+    resp = await client.get(f'{URL}user/{other.id}', headers=_auth(tok))
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['data']['id'] == cartao.id
+
+
+async def test_by_user_terceiro_sem_view_403(
+    client, session, user_token_11gt
+):
+    """Terceiro sem 'cartoes-saude.view' não lê o cartão de outro militar."""
+    _, tok = user_token_11gt
+    outro = await _mk_user(session, unidade='11gt')
+    await session.commit()
+
+    resp = await client.get(f'{URL}user/{outro.id}', headers=_auth(tok))
+    assert resp.status_code == HTTPStatus.FORBIDDEN
