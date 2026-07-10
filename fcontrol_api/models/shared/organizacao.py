@@ -24,6 +24,10 @@ class Organizacao(Base):
     alias: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None
     )
+    # Coluna dormente: o brasão passou a ser servido como asset estático do
+    # frontend (client/public/brasoes), sem bucket/endpoint. A coluna é
+    # mantida para não exigir migration; pode ser removida no futuro se a
+    # abordagem por bucket não for retomada.
     brasao_path: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None
     )

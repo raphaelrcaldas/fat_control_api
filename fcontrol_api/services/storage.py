@@ -2,7 +2,6 @@ import logging
 import threading
 from functools import cache
 from io import BytesIO
-from urllib.parse import quote
 
 from botocore.exceptions import ClientError
 
@@ -131,31 +130,6 @@ def get_signed_url(bucket: str, path: str, expires: int = 900) -> str:
         Params={'Bucket': bucket, 'Key': path},
         ExpiresIn=expires,
     )
-
-
-def get_public_url(bucket: str, path: str) -> str:
-    """URL pública (estável, sem assinatura) de um objeto.
-
-    Ao contrário da URL assinada, o path é permanente — o navegador
-    cacheia a imagem entre navegações e trocas de org. Exige que o bucket
-    tenha leitura pública (só usar em conteúdo não sensível, ex.: brasões).
-
-    O esquema varia por provedor de storage:
-    - Supabase (endpoint termina em `/storage/v1/s3`): serve objetos
-      públicos em `/storage/v1/object/public/{bucket}/{path}`.
-    - MinIO / S3 genérico (path-style): `{endpoint}/{bucket}/{path}`.
-    """
-    settings = Settings()
-    protocol = 'https' if settings.STORAGE_SECURE else 'http'
-    endpoint = settings.STORAGE_ENDPOINT
-    # Percent-encoding defensivo: keys com espaço/acento/`..` virariam URL
-    # inválida ou normalizável pelo navegador. `/` separa segmentos, mantém.
-    safe_bucket = quote(bucket, safe='')
-    safe_path = quote(path, safe='/')
-    if endpoint.endswith('/storage/v1/s3'):
-        base = endpoint[: -len('/s3')]  # -> .../storage/v1
-        return f'{protocol}://{base}/object/public/{safe_bucket}/{safe_path}'
-    return f'{protocol}://{endpoint}/{safe_bucket}/{safe_path}'
 
 
 def delete_file(bucket: str, path: str) -> None:

@@ -28,8 +28,4 @@ class OrganizacaoUpdate(BaseModel):
 class OrganizacaoOut(OrganizacaoBase):
     model_config = ConfigDict(from_attributes=True)
 
-    brasao_path: str | None = None
-    # URL pública do brasão (preenchida pelo router a partir de brasao_path).
-    # None quando a org não tem brasão.
-    brasao_url: str | None = None
     created_at: datetime
