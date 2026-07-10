@@ -20,17 +20,30 @@ from fcontrol_api.schemas.seg_voo.crm import (
     CrmUpdate,
     TripCrmOut,
 )
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import (
+    ActiveOrg,
+    ensure_org_permission_or_owner,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/crm', tags=['Seguranca de Voo'])
+
+# CRM é qualificação da tripulação: leitura exige 'view' e cada escrita a
+# sua ação. Admin da org ativa tem bypass (ver permission_checker). O
+# self-service do FatBird (get por user) usa owner-OR-permission.
+ViewCrm = Depends(permission_checker('crm', 'view'))
+DeleteCrm = Depends(permission_checker('crm', 'delete'))
 
 
 @router.get(
     '/',
     response_model=ApiResponse[list[TripCrmOut]],
+    dependencies=[ViewCrm],
 )
 async def list_crm(
     session: Session,
@@ -107,8 +120,17 @@ async def list_crm(
 
 @router.get('/user/{user_id}', response_model=ApiResponse[CrmPublic | None])
 async def get_crm_by_user(
-    user_id: int, session: Session, active_org: ActiveOrg
+    user_id: int,
+    session: Session,
+    active_org: ActiveOrg,
+    user: CurrentUser,
 ):
+    # O próprio militar vê o seu CRM (self-service do FatBird) sem a
+    # permissão; terceiros exigem 'crm.view' no vínculo da org ativa.
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'crm', 'view', user_id
+    )
+
     # Só retorna o CRM se o usuário for tripulante da org ativa.
     crm = await session.scalar(
         select(CrmCertificado)
@@ -124,6 +146,7 @@ async def get_crm_by_user(
 @router.get(
     '/orfaos',
     response_model=ApiResponse[CrmOrfaosResumo],
+    dependencies=[ViewCrm],
 )
 async def get_crm_orfaos(session: Session, active_org: ActiveOrg):
     """Certificados CRM de militares inativos da org (limpeza)."""
@@ -155,6 +178,7 @@ async def get_crm_orfaos(session: Session, active_org: ActiveOrg):
 @router.delete(
     '/orfaos',
     response_model=ApiResponse[CrmOrfaosDeleteResponse],
+    dependencies=[DeleteCrm],
 )
 async def delete_crm_orfaos(
     payload: CrmOrfaosDelete,
@@ -195,6 +219,7 @@ async def upsert_crm(
     trip_id: int,
     session: Session,
     active_org: ActiveOrg,
+    user: CurrentUser,
     dados: CrmUpdate,
 ):
     """Cria ou atualiza certificado CRM de um tripulante."""
@@ -215,6 +240,17 @@ async def upsert_crm(
         select(CrmCertificado).where(
             CrmCertificado.user_id == tripulante.user_id
         )
+    )
+
+    # Upsert exige a ação correspondente: 'update' se já existe, senão
+    # 'create'. owner_id=None → cai direto na checagem de permissão.
+    await ensure_org_permission_or_owner(
+        user,
+        session,
+        active_org,
+        'crm',
+        'update' if crm else 'create',
+        owner_id=None,
     )
 
     if crm:
@@ -238,6 +274,7 @@ async def upsert_crm(
 @router.delete(
     '/{trip_id}',
     response_model=ApiResponse[None],
+    dependencies=[DeleteCrm],
 )
 async def delete_crm(
     trip_id: int,

@@ -9,6 +9,7 @@ from http import HTTPStatus
 
 import pytest
 
+from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.models.seg_voo.crm import CrmCertificado
 from tests.factories import TripFactory, UserFactory
 
@@ -102,3 +103,87 @@ async def test_orfaos_delete_nao_remove_de_outra_org(
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data']['deleted'] == 0
     assert await session.get(CrmCertificado, crm.id) is not None
+
+
+# ── RBAC (recurso 'crm') ───────────────────────────────────────────
+
+
+@pytest.fixture
+async def user_token_11gt(users, session, make_org_token):
+    """Token '11gt' de usuário com role não-admin (sem permissões).
+
+    role_id=2 ('user') não tem grants no seed de teste, então serve para
+    validar que o gate barra quem não é admin nem tem a permissão.
+    """
+    _, other = users
+    session.add(UserRole(user_id=other.id, role_id=2, organizacao_id='11gt'))
+    await session.commit()
+    return other, await make_org_token(other, active_org='11gt')
+
+
+async def test_list_sem_view_403(client, user_token_11gt):
+    """Sem 'crm.view' (e não-admin) a listagem é negada."""
+    _, tok = user_token_11gt
+    resp = await client.get(URL, headers=_auth(tok))
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_delete_orfaos_sem_delete_403(client, user_token_11gt):
+    """Sem 'crm.delete' a limpeza de órfãos é negada."""
+    _, tok = user_token_11gt
+    resp = await client.request(
+        'DELETE', ORFAOS_URL, json={'user_ids': [1]}, headers=_auth(tok)
+    )
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_upsert_sem_permissao_403(client, session, user_token_11gt):
+    """Sem 'crm.create'/'update' o upsert é negado (owner não conta)."""
+    other, tok = user_token_11gt
+    trip = TripFactory(user_id=other.id, uae='11gt')
+    session.add(trip)
+    await session.commit()
+
+    resp = await client.put(
+        f'{URL}{trip.id}',
+        json={
+            'data_realizacao': '2025-01-01',
+            'data_validade': '2026-01-01',
+        },
+        headers=_auth(tok),
+    )
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_get_by_user_owner_self_service(
+    client, session, user_token_11gt
+):
+    """O próprio militar vê seu CRM sem a permissão (self-service FatBird)."""
+    other, tok = user_token_11gt
+    trip = TripFactory(user_id=other.id, uae='11gt')
+    session.add(trip)
+    session.add(
+        CrmCertificado(
+            user_id=other.id,
+            data_realizacao=date(2025, 1, 1),
+            data_validade=date(2026, 1, 1),
+        )
+    )
+    await session.commit()
+
+    resp = await client.get(f'{URL}user/{other.id}', headers=_auth(tok))
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['data']['user_id'] == other.id
+
+
+async def test_get_by_user_terceiro_sem_view_403(
+    client, session, user_token_11gt
+):
+    """Terceiro sem 'crm.view' não lê o CRM de outro militar."""
+    _, tok = user_token_11gt
+    outro = UserFactory(unidade='11gt')
+    session.add(outro)
+    await session.commit()
+
+    resp = await client.get(f'{URL}user/{outro.id}', headers=_auth(tok))
+    assert resp.status_code == HTTPStatus.FORBIDDEN

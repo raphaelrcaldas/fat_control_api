@@ -20,17 +20,29 @@ from fcontrol_api.schemas.instrucao.cartoes import (
     TripCartoesOut,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import (
+    ActiveOrg,
+    ensure_org_permission_or_owner,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/cartoes', tags=['Instrucao'])
+
+# Cartão de instrução (idiomas/CVI) é qualificação do piloto: leitura
+# exige 'view' e cada escrita a sua ação. Admin da org ativa tem bypass.
+ViewCartao = Depends(permission_checker('instrucao-cartoes', 'view'))
+DeleteCartao = Depends(permission_checker('instrucao-cartoes', 'delete'))
 
 
 @router.get(
     '/',
     response_model=ApiResponse[list[TripCartoesOut]],
+    dependencies=[ViewCartao],
 )
 async def list_cartoes(
     session: Session,
@@ -111,6 +123,7 @@ async def list_cartoes(
 @router.get(
     '/orfaos',
     response_model=ApiResponse[CartoesOrfaosResumo],
+    dependencies=[ViewCartao],
 )
 async def get_cartoes_orfaos(session: Session, active_org: ActiveOrg):
     """Cartoes de instrucao de militares inativos da org (limpeza)."""
@@ -142,6 +155,7 @@ async def get_cartoes_orfaos(session: Session, active_org: ActiveOrg):
 @router.delete(
     '/orfaos',
     response_model=ApiResponse[CartoesOrfaosDeleteResponse],
+    dependencies=[DeleteCartao],
 )
 async def delete_cartoes_orfaos(
     payload: CartoesOrfaosDelete,
@@ -180,6 +194,7 @@ async def upsert_cartao(
     trip_id: int,
     session: Session,
     active_org: ActiveOrg,
+    user: CurrentUser,
     dados: CartoesUpdate,
 ):
     """Cria ou atualiza o cartao (idiomas e CVI) de um tripulante."""
@@ -198,6 +213,17 @@ async def upsert_cartao(
 
     cartao = await session.scalar(
         select(Cartao).where(Cartao.user_id == tripulante.user_id)
+    )
+
+    # Upsert exige a ação correspondente: 'update' se já existe, senão
+    # 'create'. owner_id=None → cai direto na checagem de permissão.
+    await ensure_org_permission_or_owner(
+        user,
+        session,
+        active_org,
+        'instrucao-cartoes',
+        'update' if cartao else 'create',
+        owner_id=None,
     )
 
     if cartao:
@@ -227,6 +253,7 @@ async def upsert_cartao(
 @router.delete(
     '/{trip_id}',
     response_model=ApiResponse[None],
+    dependencies=[DeleteCartao],
 )
 async def delete_cartao(
     trip_id: int,
