@@ -116,10 +116,22 @@ async def create_quad(
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[list[QuadPublic]],
 )
-async def quads_by_trip(trip_id: int, type_id: int, session: Session):
+async def quads_by_trip(
+    trip_id: int,
+    type_id: int,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    # Escopo por org: sem o join em Tripulante, qualquer autenticado lia o
+    # quadrinho de tripulante de outra unidade só chutando o trip_id.
     query = (
         select(Quad)
-        .where((Quad.trip_id == trip_id) & (Quad.type_id == type_id))
+        .join(Tripulante, Tripulante.id == Quad.trip_id)
+        .where(
+            (Quad.trip_id == trip_id)
+            & (Quad.type_id == type_id)
+            & (Tripulante.uae == active_org)
+        )
         .order_by(
             Quad.value.desc().nulls_last()
         )  # valores em DESC, NULLs por último
