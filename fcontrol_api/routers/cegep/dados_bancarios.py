@@ -21,11 +21,17 @@ from fcontrol_api.schemas.cegep.dados_bancarios import (
     DadosBancariosWithUser,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    ensure_org_permission_or_owner,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.portal_transparencia import buscar_remuneracao
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/dados-bancarios', tags=['CEGEP'])
 
@@ -181,14 +187,23 @@ async def get_dados_bancarios_by_id(
 @router.get(
     '/user/{user_id}',
     response_model=ApiResponse[DadosBancariosPublic],
-    dependencies=[ViewBanco],
 )
 async def get_dados_bancarios_by_user(
     user_id: int,
     session: Session,
     active_org: ActiveOrg,
+    user: CurrentUser,
 ):
-    """Busca dados bancários por ID do usuário"""
+    """Busca dados bancários por ID do usuário.
+
+    O próprio militar vê os seus dados (self-service do FatBird) sem a
+    permissão; terceiros exigem 'dados_bancarios.view' na org ativa. Gate
+    no handler (não como dependência) para permitir o dono.
+    """
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'dados_bancarios', 'view', user_id
+    )
+
     dados = await session.scalar(
         select(DadosBancarios)
         .join(User)

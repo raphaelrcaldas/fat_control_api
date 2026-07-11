@@ -21,6 +21,39 @@ from tests.factories import IndispFactory, TripFactory
 
 
 @pytest.fixture
+async def token(org_admin_token):
+    """Token com org ativa, sombreando o `token` global do conftest de cima.
+
+    As rotas de indisp viraram data-plane escopado: exigem `active_org` no
+    token (dependência `ActiveOrg`) e que o alvo seja tripulante da org.
+    O `token` global não define org, então responderiam 400. Aqui o token
+    do pacote já vem com `active_org='11gt'` e vínculo admin — os testes
+    deste módulo exercitam o CRUD, não a autorização (essa fica no POV do
+    FatBird, em `tests/api/fatbird/`).
+    """
+    return org_admin_token
+
+
+@pytest.fixture(autouse=True)
+async def trip_alvo(session, users):
+    """Torna o `other_user` (alvo das indisps) tripulante da '11gt'.
+
+    O create/update/delete agora exigem que o dono da indisponibilidade
+    seja tripulante da org ativa. A função é fixada em 'mc' de propósito:
+    o teste de crew filtra por 'pil', então este tripulante não polui
+    aquelas asserções.
+    """
+    _, other_user = users
+
+    trip = TripFactory(
+        user_id=other_user.id, uae='11gt', active=True, func='mc'
+    )
+    session.add(trip)
+    await session.commit()
+    return trip
+
+
+@pytest.fixture
 async def indisp(session, users):
     """
     Cria uma indisponibilidade básica para testes.

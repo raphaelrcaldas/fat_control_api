@@ -5,6 +5,7 @@ from http import HTTPStatus
 import pytest
 
 from fcontrol_api.security import create_access_token
+from tests.factories import TripFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -29,15 +30,24 @@ async def test_example_authenticated_request(client, token):
     assert 'nome_guerra' in data
 
 
-async def test_example_post_with_token(client, token, users):
+async def test_example_post_with_token(
+    client, session, users, org_admin_token
+):
     """
     Exemplo de POST com autenticação.
+
+    `/indisp/` é data-plane escopado: exige `active_org` no token e que o
+    alvo seja tripulante da org ativa. Daí o `org_admin_token` (traz a org)
+    e o vínculo de tripulante — o `token` puro responderia 400.
     """
     user, _ = users
 
+    session.add(TripFactory(user_id=user.id, uae='11gt', active=True))
+    await session.commit()
+
     response = await client.post(
         '/indisp/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {org_admin_token}'},
         json={
             'user_id': user.id,  # Usa o ID real do usuário
             'date_start': '2023-03-23',

@@ -27,7 +27,11 @@ from fcontrol_api.schemas.indisp import (
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.users import UserPublic
-from fcontrol_api.security import ActiveOrg, get_current_user
+from fcontrol_api.security import (
+    ActiveOrg,
+    ensure_org_permission_or_owner,
+    get_current_user,
+)
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
 
@@ -177,8 +181,29 @@ async def get_crew_indisp(
 async def create_indisp(
     indisp: IndispSchema,
     session: Session,
+    active_org: ActiveOrg,
     user: CurrentUser,
 ):
+    # O tripulante lança a PRÓPRIA indisponibilidade pelo FatBird (sem
+    # role); lançar para outro militar exige 'indisp_trips.create'.
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'indisp_trips', 'create', indisp.user_id
+    )
+
+    # O alvo tem de ser tripulante da org ativa — barra cross-org mesmo
+    # para quem tem a permissão.
+    alvo = await session.scalar(
+        select(Tripulante).where(
+            Tripulante.user_id == indisp.user_id,
+            Tripulante.uae == active_org,
+        )
+    )
+    if not alvo:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante nao encontrado',
+        )
+
     if indisp.date_end < indisp.date_start:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
@@ -223,10 +248,25 @@ async def create_indisp(
 async def get_indisp_user(
     id: int,
     session: Session,
+    active_org: ActiveOrg,
     date_from: date | None = None,
     date_to: date | None = None,
     mtv: str | None = None,
 ):
+    # Leitura fica aberta dentro da org (a lista de tripulação já expõe as
+    # indisponibilidades de todos, e o tripulante não tem role) — mas o
+    # alvo precisa ser da org ativa, senão vaza cross-org. Fora do escopo
+    # devolve lista vazia (é rota de lista): não vaza a existência do
+    # militar nem quebra quem consulta um não-tripulante.
+    alvo = await session.scalar(
+        select(Tripulante).where(
+            Tripulante.user_id == id,
+            Tripulante.uae == active_org,
+        )
+    )
+    if not alvo:
+        return success_response(data=[])
+
     # Construção dinâmica dos filtros
     filters = [Indisp.user_id == id]
 
@@ -252,15 +292,26 @@ async def get_indisp_user(
 async def delete_indisp(
     id: int,
     session: Session,
+    active_org: ActiveOrg,
     user: CurrentUser,
 ):
-    indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
+    indisp = await session.scalar(
+        select(Indisp)
+        .join(Tripulante, Tripulante.user_id == Indisp.user_id)
+        .where(Indisp.id == id, Tripulante.uae == active_org)
+    )
 
     if not indisp:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Indisponibilidade não encontrada',
         )
+
+    # O dono remove a própria (FatBird); remover a de outro exige
+    # 'indisp_trips.delete' na org ativa.
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'indisp_trips', 'delete', indisp.user_id
+    )
 
     # Soft delete - setar deleted_at
     indisp.deleted_at = datetime.now(timezone.utc)
@@ -284,15 +335,26 @@ async def update_indisp(
     id: int,
     indisp: BaseIndisp,
     session: Session,
+    active_org: ActiveOrg,
     user: CurrentUser,
 ):
-    db_indisp = await session.scalar(select(Indisp).where(Indisp.id == id))
+    db_indisp = await session.scalar(
+        select(Indisp)
+        .join(Tripulante, Tripulante.user_id == Indisp.user_id)
+        .where(Indisp.id == id, Tripulante.uae == active_org)
+    )
 
     if not db_indisp:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Indisponibilidade não encontrada',
         )
+
+    # O dono edita a própria (FatBird); editar a de outro exige
+    # 'indisp_trips.update' na org ativa.
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'indisp_trips', 'update', db_indisp.user_id
+    )
 
     if db_indisp.deleted_at is not None:
         raise HTTPException(
