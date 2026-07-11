@@ -17,7 +17,7 @@ from fcontrol_api.models.shared.quads import (
 )
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import funcs, proj
+from fcontrol_api.schemas.funcoes import funcs
 from fcontrol_api.schemas.ops.quads import (
     QuadBatchDelete,
     QuadOrfaoTripInfo,
@@ -153,20 +153,23 @@ async def list_quads(
     active_org: ActiveOrg,
     tipo_quad: int = 1,  # sobr preto
     funcao: funcs = 'mc',
-    proj: proj = 'kc-390',
+    proj: str | None = None,
 ):
     # 1. CTE para obter os IDs dos tripulantes que correspondem aos filtros
+    trip_filters = [
+        Tripulante.uae == active_org,
+        Tripulante.active,
+        Tripulante.func == funcao,
+        Tripulante.oper != 'al',
+        Tripulante.data_op.is_not(None),
+    ]
+
+    # Sem `proj`, o quadro considera todos os projetos operados pela org.
+    if proj:
+        trip_filters.append(Tripulante.proj == proj)
+
     trip_ids_cte = (
-        select(Tripulante.id)
-        .where(
-            Tripulante.uae == active_org,
-            Tripulante.active,
-            Tripulante.func == funcao,
-            Tripulante.oper != 'al',
-            Tripulante.proj == proj,
-            Tripulante.data_op.is_not(None),
-        )
-        .cte('trip_ids_cte')
+        select(Tripulante.id).where(*trip_filters).cte('trip_ids_cte')
     )
 
     # 2. CTE para contar o total de quadrinhos de cada tripulante

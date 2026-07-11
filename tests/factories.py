@@ -30,7 +30,7 @@ from fcontrol_api.models.shared.posto_grad import Soldo
 from fcontrol_api.models.shared.quads import Quad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import funcs, opers, proj
+from fcontrol_api.schemas.funcoes import funcs, opers
 from fcontrol_api.utils.validators import calcular_dv_saram
 
 
@@ -134,7 +134,10 @@ class TripFactory(factory.Factory):
     # Função única (1:1) agora vive no próprio tripulante.
     func = factory.fuzzy.FuzzyChoice(typing.get_args(funcs))
     oper = factory.fuzzy.FuzzyChoice(typing.get_args(opers))
-    proj = factory.fuzzy.FuzzyChoice(typing.get_args(proj))
+    # FK para `projetos_anvs.modelo`: o catálogo é dinâmico (não há mais
+    # Literal). Default no projeto que a org canônica dos testes opera
+    # (11gt -> kc-390, em tests/seed/tenants.py); casos de 1gt passam 'c-130'.
+    proj = 'kc-390'
     data_op = None
 
 

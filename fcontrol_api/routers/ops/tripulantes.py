@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.shared.aeronaves import ProjetoAnv, TenantProjeto
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -62,6 +63,22 @@ async def create_trip(
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Tripulante já registrado',
+        )
+
+    # `tripulantes.proj` é FK para `projetos_anvs.modelo` e a org só opera
+    # os projetos associados em tenant_projetos.
+    proj_autorizado = await session.scalar(
+        select(ProjetoAnv.modelo)
+        .join(TenantProjeto, TenantProjeto.projeto == ProjetoAnv.id_projeto)
+        .where(
+            TenantProjeto.uae == active_org,
+            ProjetoAnv.modelo == trip.proj,
+        )
+    )
+    if not proj_autorizado:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Projeto não disponível para a organização',
         )
 
     tripulante = Tripulante(
@@ -264,6 +281,20 @@ async def update_trip(
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Trigrama já registrado',
+        )
+
+    proj_autorizado = await session.scalar(
+        select(ProjetoAnv.modelo)
+        .join(TenantProjeto, TenantProjeto.projeto == ProjetoAnv.id_projeto)
+        .where(
+            TenantProjeto.uae == active_org,
+            ProjetoAnv.modelo == trip.proj,
+        )
+    )
+    if not proj_autorizado:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Projeto não disponível para a organização',
         )
 
     trip_search.active = trip.active

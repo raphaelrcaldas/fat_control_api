@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict
 
 opers = Literal['ba', 'op', 'in', 'al']
 funcs = Literal['pil', 'mc', 'lm', 'oe', 'os', 'tf', 'ml', 'md']
-proj = Literal['kc-390']
 
 # =============================================================================
 # POSIÇÕES A BORDO
@@ -71,6 +70,9 @@ class BaseFunc(BaseModel):
 
     func: funcs
     oper: opers
-    proj: proj
+    # FK para `projetos_anvs.modelo`: o catálogo é dinâmico e o conjunto
+    # válido depende da org (tenant_projetos), então a checagem é feita na
+    # rota contra os projetos da org ativa, não por Literal fechado aqui.
+    proj: str
     data_op: Annotated[date | None, Body()] = None
     model_config = ConfigDict(from_attributes=True)

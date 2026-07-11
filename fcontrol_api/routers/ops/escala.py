@@ -18,7 +18,7 @@ from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import funcs, proj
+from fcontrol_api.schemas.funcoes import funcs
 from fcontrol_api.schemas.ops.escala import (
     EscalaFuncSection,
     EscalaIndispInfo,
@@ -49,7 +49,7 @@ async def get_escala_disponiveis(
     funcs_param: Annotated[list[funcs], Query(alias='funcs', min_length=1)],
     sort: Annotated[Literal['horas_voo', 'quads_asc'], Query()],
     active_org: ActiveOrg,
-    proj_param: Annotated[proj, Query(alias='proj')] = 'kc-390',
+    proj_param: Annotated[str | None, Query(alias='proj')] = None,
 ):
     """Tripulantes disponíveis para escala em uma janela de datas."""
     if date_end < date_start:
@@ -160,10 +160,13 @@ async def get_escala_disponiveis(
             Tripulante.active.is_(True),
             Tripulante.func.in_(funcs_param),
             Tripulante.oper != 'al',
-            Tripulante.proj == proj_param,
             Tripulante.data_op.is_not(None),
         )
     )
+
+    # Sem `proj`, a escala considera todos os projetos operados pela org.
+    if proj_param:
+        trips_query = trips_query.where(Tripulante.proj == proj_param)
 
     if sort == 'horas_voo':
         trips_query = trips_query.order_by(
