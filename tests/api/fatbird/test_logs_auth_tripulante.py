@@ -40,9 +40,7 @@ async def test_le_o_proprio_historico(client, session, trip_user, trip_token):
 
 async def test_refresh_do_proprio_token(client, trip_token):
     """O portal renova o token do tripulante (sem role)."""
-    resp = await client.post(
-        '/auth/refresh_token', headers=auth(trip_token)
-    )
+    resp = await client.post('/auth/refresh_token', headers=auth(trip_token))
 
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data']['access_token']

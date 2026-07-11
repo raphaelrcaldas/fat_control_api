@@ -98,9 +98,7 @@ async def test_crm_sem_cadastro_nao_da_403(client, trip_user, trip_token):
 # ── Passaporte ─────────────────────────────────────────────────────
 
 
-async def test_le_o_proprio_passaporte(
-    client, session, trip_user, trip_token
-):
+async def test_le_o_proprio_passaporte(client, session, trip_user, trip_token):
     """O militar vê o próprio passaporte sem 'passaportes.view'."""
     user, _ = trip_user
     pp = Passaporte(
