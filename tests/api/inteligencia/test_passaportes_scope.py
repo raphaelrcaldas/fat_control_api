@@ -173,3 +173,24 @@ async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     assert resp.json()['data']['registros'] == 0
 
     assert await session.get(Passaporte, pp.id) is not None
+
+
+# ── Busca por usuário (self-service do FatBird) ────────────────────
+
+
+async def test_by_user_cross_org_nao_vaza(client, session, admin_1gt_token):
+    """Ter a permissão na SUA org não dá acesso ao passaporte de OUTRA.
+
+    A permissão responde "pode ver passaportes?", não "pode ver ESTE
+    passaporte". Sem escopo do alvo, um admin da '1gt' leria o número do
+    passaporte de um tripulante da '11gt' só trocando o id na URL.
+    """
+    alheio, _ = await _mk_trip(session, uae='11gt')
+    await _mk_passaporte(session, alheio.id)
+    await session.commit()
+
+    resp = await client.get(
+        f'{URL}user/{alheio.id}', headers=_auth(admin_1gt_token)
+    )
+
+    assert resp.json()['data'] is None

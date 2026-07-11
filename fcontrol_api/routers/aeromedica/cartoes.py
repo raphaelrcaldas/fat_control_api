@@ -29,7 +29,6 @@ from fcontrol_api.schemas.aeromedica.cartoes import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     ActiveOrg,
-    ActiveOrgOptional,
     ensure_org_permission_or_owner,
     get_current_user,
     permission_checker,
@@ -332,21 +331,29 @@ async def get_cartao_saude_by_user(
     user_id: int,
     session: Session,
     user: CurrentUser,
-    active_org: ActiveOrgOptional,
+    active_org: ActiveOrg,
 ):
     """Busca cartao de saude por ID do usuario.
 
     O próprio militar vê o seu cartão (self-service do FatBird) sem a
     permissão; terceiros exigem 'cartoes-saude.view' no vínculo da org
     ativa. Gate no handler (não como dependência) para permitir o owner.
-    Org opcional: a busca é por user_id, o owner nunca depende de org.
+
+    O gate autoriza a AÇÃO, não o ALVO: quem tem a permissão na sua unidade
+    a teria sobre qualquer `user_id`. O escopo do alvo é a query — só cartões
+    de militares da org ativa (`User.unidade`), como no resto do módulo.
     """
     await ensure_org_permission_or_owner(
         user, session, active_org, 'cartoes-saude', 'view', user_id
     )
 
     cartao = await session.scalar(
-        select(CartaoSaude).where(CartaoSaude.user_id == user_id)
+        select(CartaoSaude)
+        .join(User, User.id == CartaoSaude.user_id)
+        .where(
+            CartaoSaude.user_id == user_id,
+            User.unidade == active_org,
+        )
     )
 
     return success_response(data=cartao)

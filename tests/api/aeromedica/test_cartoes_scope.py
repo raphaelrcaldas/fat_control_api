@@ -279,3 +279,21 @@ async def test_by_user_terceiro_sem_view_403(client, session, user_token_11gt):
 
     resp = await client.get(f'{URL}user/{outro.id}', headers=_auth(tok))
     assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_by_user_cross_org_nao_vaza(client, session, admin_1gt_token):
+    """Ter a permissão na SUA org não dá acesso ao cartão de OUTRA.
+
+    A permissão responde "pode ver cartões?", não "pode ver ESTE cartão".
+    Sem escopo do alvo, um admin da '1gt' leria o prontuário de um militar
+    da '11gt' só trocando o id na URL.
+    """
+    alheio = await _mk_user(session, unidade='11gt')
+    await _mk_cartao(session, alheio.id)
+    await session.commit()
+
+    resp = await client.get(
+        f'{URL}user/{alheio.id}', headers=_auth(admin_1gt_token)
+    )
+
+    assert resp.json()['data'] is None

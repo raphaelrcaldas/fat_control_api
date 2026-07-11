@@ -27,7 +27,6 @@ from fcontrol_api.schemas.inteligencia.passaportes import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     ActiveOrg,
-    ActiveOrgOptional,
     ensure_org_permission_or_owner,
     get_current_user,
     has_org_permission,
@@ -225,18 +224,27 @@ async def get_passaporte_by_user(
     user_id: int,
     session: Session,
     user: Annotated[User, Depends(get_current_user)],
-    active_org: ActiveOrgOptional,
+    active_org: ActiveOrg,
 ):
     # Self-service: o próprio militar vê o seu passaporte (portal FatBird),
     # mesmo sem `passaportes.view` (recurso administrativo, que o tripulante
     # não possui). Terceiros exigem a permissão de role na org ativa.
+    #
+    # O gate autoriza a AÇÃO, não o ALVO: quem tem a permissão na sua unidade
+    # a teria sobre qualquer `user_id`. O escopo do alvo é a query — só
+    # tripulantes da org ativa (`Tripulante.uae`), como no resto do módulo.
     is_owner = user.id == user_id
     await ensure_org_permission_or_owner(
         user, session, active_org, 'passaportes', 'view', user_id
     )
 
     passaporte = await session.scalar(
-        select(Passaporte).where(Passaporte.user_id == user_id)
+        select(Passaporte)
+        .join(Tripulante, Tripulante.user_id == Passaporte.user_id)
+        .where(
+            Passaporte.user_id == user_id,
+            Tripulante.uae == active_org,
+        )
     )
     if not passaporte:
         return success_response(data=None)
