@@ -12,9 +12,27 @@ from http import HTTPStatus
 import pytest
 
 from tests.api.fatbird.conftest import auth
-from tests.factories import ComissFactory, DadosBancariosFactory
+from tests.factories import (
+    ComissFactory,
+    DadosBancariosFactory,
+    TripFactory,
+    UserFactory,
+)
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+async def comiss_1gt(session):
+    """Um comissionamento de OUTRA organização."""
+    user = UserFactory(unidade='1gt')
+    session.add(user)
+    await session.flush()
+    session.add(TripFactory(user_id=user.id, uae='1gt', active=True))
+    comiss = ComissFactory(user_id=user.id, uae='1gt')
+    session.add(comiss)
+    await session.commit()
+    return comiss
 
 
 # ── Comissionamentos ───────────────────────────────────────────────
@@ -55,6 +73,27 @@ async def test_nao_lista_comiss_de_outro(
     )
 
     assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_lista_comiss_sem_user_id_e_negada(client, trip_token):
+    """Sem `user_id` não há dono a reconhecer → exige 'comiss.view'.
+
+    É o vetor óbvio de escalada: omitir o filtro para listar TODOS os
+    comissionamentos da unidade. O `owner_id=None` cai direto na checagem
+    de permissão, que o tripulante não tem.
+    """
+    resp = await client.get('/cegep/comiss/', headers=auth(trip_token))
+
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_nao_abre_comiss_de_outra_org(client, trip_token, comiss_1gt):
+    """Comissionamento de outra unidade não existe para este token (404)."""
+    resp = await client.get(
+        f'/cegep/comiss/{comiss_1gt.id}', headers=auth(trip_token)
+    )
+
+    assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 async def test_abre_o_proprio_comiss(client, session, trip_user, trip_token):
@@ -140,6 +179,21 @@ async def test_consulta_os_proprios_pagamentos(client, trip_user, trip_token):
     )
 
     assert resp.status_code == HTTPStatus.OK
+
+
+async def test_pagamentos_sem_user_id_e_negado(client, trip_token):
+    """Sem `user_id` os pagamentos exigem 'missoes_cegep.view'.
+
+    Mesmo vetor do comiss: omitir o filtro para varrer os pagamentos da
+    unidade inteira.
+    """
+    resp = await client.get(
+        '/cegep/financeiro/pgts',
+        params={'sit': ['d', 'g'], 'page': 1, 'limit': 20},
+        headers=auth(trip_token),
+    )
+
+    assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
 async def test_nao_consulta_pagamentos_de_outro(
