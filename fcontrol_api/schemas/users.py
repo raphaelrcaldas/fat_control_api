@@ -1,8 +1,6 @@
 import re
 from datetime import date
-from typing import Annotated
 
-from fastapi import Body
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -26,107 +24,25 @@ from fcontrol_api.utils.validators import (
 
 
 class UserSchema(BaseModel):
-    p_g: PostoGradEnum
-    quadro: QuadroEnum | None = None
-    esp: EspecialidadeEnum | None = None
-    nome_guerra: str
-    nome_completo: str
-    id_fab: str | None = Field(default=None, min_length=6, max_length=6)
-    saram: str = Field(min_length=7, max_length=7)
-    cpf: str
-    telefone: str | None = None
-    ult_promo: Annotated[date | None, Body()]
-    nasc: Annotated[date | None, Body()]
-    data_praca: Annotated[date | None, Body()]
-    email_pess: EmailStr | None
-    email_fab: EmailStr | None
-    active: bool
-    ant_rel: int | None = Field(gt=0)
+    """Payload de cadastro do militar.
 
-    model_config = ConfigDict(from_attributes=True)
+    A obrigatoriedade espelha as colunas NOT NULL do model `User`: só
+    `p_g`, `nome_guerra` e `saram` são exigidos (`unidade` não vem do
+    payload — é a org ativa de quem cadastra). Todo o resto é opcional de
+    fato: o cadastro nasce enxuto e a completude é cobrada depois via
+    `campos_pendentes`.
 
-    @field_validator('esp', 'quadro', mode='before')
-    @classmethod
-    def normalize_upper(cls, v: str | None) -> str | None:
-        """
-        Normaliza especialidade/quadro para uppercase antes da validação
-        do enum.
-        """
-        if isinstance(v, str):
-            return v.strip().upper()
-        return v
-
-    @field_validator('id_fab')
-    @classmethod
-    def validate_id_fab(cls, v: str | None) -> str | None:
-        """
-        Valida que id_fab contém apenas dígitos.
-        """
-        if v is not None and not v.isdigit():
-            raise ValueError('ID FAB deve conter apenas dígitos')
-        return v
-
-    @field_validator('saram')
-    @classmethod
-    def validate_saram(cls, v: str) -> str:
-        """
-        Valida o dígito verificador do SARAM.
-        Usa algoritmo módulo 11 com pesos de 2 a 7.
-        """
-        if not v.isdigit():
-            raise ValueError('SARAM deve conter apenas dígitos')
-        if not validar_saram(v):
-            raise ValueError('SARAM inválido')
-        return v
-
-    @field_validator('cpf')
-    @classmethod
-    def validate_cpf(cls, v: str) -> str:
-        """
-        Valida o CPF brasileiro.
-        Permite string vazia (CPF opcional).
-        """
-        if v and not validar_cpf(v):
-            raise ValueError('CPF inválido')
-        return v
-
-    @field_validator('telefone')
-    @classmethod
-    def validate_telefone(cls, v: str | None) -> str | None:
-        """
-        Valida que telefone contém 10 ou 11 dígitos.
-        """
-        if v is not None:
-            digits = re.sub(r'\D', '', v)
-            if len(digits) not in {10, 11}:
-                raise ValueError('Telefone deve conter 10 ou 11 dígitos')
-        return v
-
-    @field_validator('email_fab')
-    @classmethod
-    def validate_email_fab(cls, v: str) -> str:
-        """
-        Valida que o email FAB (Zimbra) termina com @fab.mil.br.
-        """
-        if v and not validar_zimbra(v):
-            raise ValueError('Email FAB deve terminar com @fab.mil.br')
-        return v
-
-
-class UserUpdate(BaseModel):
-    """Schema para atualização parcial do usuário.
-
-    Todos os campos são opcionais. Apenas os campos fornecidos
-    serão atualizados no banco de dados.
+    `active` também fica de fora: o usuário é sempre criado ativo
+    (`User.active` é `init=False, default=True`).
     """
 
-    p_g: PostoGradEnum | None = None
+    p_g: PostoGradEnum
+    nome_guerra: str
+    saram: str = Field(min_length=7, max_length=7)
     quadro: QuadroEnum | None = None
     esp: EspecialidadeEnum | None = None
-    nome_guerra: str | None = None
     nome_completo: str | None = None
     id_fab: str | None = Field(default=None, min_length=6, max_length=6)
-    saram: str | None = Field(default=None, min_length=7, max_length=7)
     cpf: str | None = None
     telefone: str | None = None
     ult_promo: date | None = None
@@ -134,20 +50,45 @@ class UserUpdate(BaseModel):
     data_praca: date | None = None
     email_pess: EmailStr | None = None
     email_fab: EmailStr | None = None
-    active: bool | None = None
     ant_rel: int | None = Field(default=None, gt=0)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator(
+        'nome_completo',
+        'id_fab',
+        'cpf',
+        'telefone',
+        'ult_promo',
+        'nasc',
+        'data_praca',
+        'email_pess',
+        'email_fab',
+        'ant_rel',
+        mode='before',
+    )
+    @classmethod
+    def empty_to_none(cls, v: object) -> object:
+        """
+        Trata string vazia como campo não preenchido.
+
+        Formulário HTML manda `''` para input em branco (data, número,
+        texto). Sem isso, deixar um campo opcional vazio viraria erro de
+        tipo ("valid date"/"valid string") em vez de gravar NULL.
+        """
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     @field_validator('esp', 'quadro', mode='before')
     @classmethod
     def normalize_upper(cls, v: str | None) -> str | None:
         """
         Normaliza especialidade/quadro para uppercase antes da validação
-        do enum.
+        do enum. Vazio equivale a não preenchido.
         """
         if isinstance(v, str):
-            return v.strip().upper()
+            return v.strip().upper() or None
         return v
 
     @field_validator('id_fab')
@@ -178,10 +119,9 @@ class UserUpdate(BaseModel):
     @classmethod
     def validate_cpf(cls, v: str | None) -> str | None:
         """
-        Valida o CPF brasileiro.
-        Permite None ou string vazia (CPF opcional).
+        Valida o CPF brasileiro (campo opcional).
         """
-        if v and not validar_cpf(v):
+        if v is not None and not validar_cpf(v):
             raise ValueError('CPF inválido')
         return v
 
@@ -202,11 +142,25 @@ class UserUpdate(BaseModel):
     def validate_email_fab(cls, v: str | None) -> str | None:
         """
         Valida que o email FAB (Zimbra) termina com @fab.mil.br.
-        Permite None (campo opcional em update), mas rejeita string vazia.
         """
         if v is not None and not validar_zimbra(v):
             raise ValueError('Email FAB deve terminar com @fab.mil.br')
         return v
+
+
+class UserUpdate(UserSchema):
+    """Schema para atualização parcial do usuário.
+
+    Herda campos e validadores de `UserSchema`, relaxando os três campos
+    obrigatórios do cadastro: no PATCH nada é exigido, e só os campos
+    presentes no corpo são gravados (`exclude_unset` no router). Enviar
+    `null` num campo opcional o limpa.
+    """
+
+    p_g: PostoGradEnum | None = None
+    nome_guerra: str | None = None
+    saram: str | None = Field(default=None, min_length=7, max_length=7)
+    active: bool | None = None
 
 
 class UserPromoCreate(BaseModel):
@@ -232,6 +186,9 @@ class UserFull(UserSchema):
     # via update. Fica fora de UserSchema (payload de criação) e reaparece
     # aqui só para exibição.
     unidade: str
+    # Idem `active`: não entra no cadastro (nasce ativo), mas é exibido e
+    # editável via UserUpdate.
+    active: bool
 
     @computed_field
     @property
@@ -249,12 +206,12 @@ class UserPublic(BaseModel):
     id_fab: str | None
     nome_guerra: str
     saram: str
-    nome_completo: str
+    nome_completo: str | None = None
     active: bool
     unidade: str
     telefone: str | None = None
-    ult_promo: Annotated[date | None, Body()]
-    ant_rel: int | None = Field(gt=0)
+    ult_promo: date | None = None
+    ant_rel: int | None = None
     promocoes: list[UserPromoPublic] = []
     model_config = ConfigDict(from_attributes=True)
 

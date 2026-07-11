@@ -63,6 +63,82 @@ async def test_create_user_success(
     assert db_user.first_login is True
 
 
+async def test_create_user_apenas_obrigatorios(
+    client, session, user_with_create_permission, make_org_token
+):
+    """
+    Cadastro enxuto: só os campos NOT NULL do model. Os opcionais em branco
+    chegam do formulário como '' ou null e devem virar NULL, não 422.
+    """
+    token = await make_org_token(user_with_create_permission)
+
+    user_data = {
+        'p_g': '2s',
+        'nome_guerra': 'minimo',
+        'saram': '9876545',
+        # Como o formulário envia os campos opcionais não preenchidos:
+        'quadro': None,
+        'esp': None,
+        'nome_completo': '',
+        'id_fab': None,
+        'cpf': None,
+        'telefone': None,
+        'email_pess': None,
+        'email_fab': None,
+        'nasc': '',
+        'data_praca': '',
+        'ult_promo': '',
+        'ant_rel': None,
+    }
+
+    response = await client.post(
+        '/users/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=user_data,
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+    db_user = await session.scalar(
+        select(User).where(User.saram == user_data['saram'])
+    )
+    assert db_user is not None
+    assert db_user.cpf is None
+    assert db_user.nasc is None
+    assert db_user.data_praca is None
+    assert db_user.ult_promo is None
+    assert db_user.nome_completo is None
+    assert db_user.ant_rel is None
+    # Nasce ativo — `active` não faz parte do payload de cadastro.
+    assert db_user.active is True
+
+
+async def test_create_user_erro_validacao_identifica_campo(
+    client, user_with_create_permission, make_org_token
+):
+    """
+    O 422 devolve `errors` como campo → mensagem, para o formulário marcar o
+    input culpado em vez de exibir um "Erro de validação" genérico.
+    """
+    token = await make_org_token(user_with_create_permission)
+
+    response = await client.post(
+        '/users/',
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'p_g': '2s',
+            'nome_guerra': 'fulano',
+            'saram': '9876545',
+            'cpf': '12345678900',  # DV inválido
+        },
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    resp = response.json()
+    assert resp['message'] == 'Erro de validação'
+    assert 'CPF inválido' in resp['errors']['body.cpf']
+
+
 async def test_create_user_without_permission_fails(
     client, users, make_org_token
 ):

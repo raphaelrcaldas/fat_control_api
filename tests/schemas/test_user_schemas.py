@@ -199,12 +199,44 @@ class TestUserSchemaEmailFabValidation:
         # EmailStr normaliza para lowercase
         assert user.email_fab == 'fulano@fab.mil.br'
 
-    def test_email_fab_vazio_rejeitado(self):
-        """Email FAB vazio deve ser rejeitado."""
+    def test_email_fab_vazio_vira_none(self):
+        """Email FAB vazio equivale a campo nao preenchido."""
         data = {**VALID_USER_DATA, 'email_fab': ''}
-        with pytest.raises(ValidationError) as exc_info:
-            UserSchema(**data)
-        assert 'email' in str(exc_info.value).lower()
+        user = UserSchema(**data)
+        assert user.email_fab is None
+
+
+class TestUserSchemaCamposOpcionais:
+    """Obrigatoriedade do cadastro espelha as colunas NOT NULL do model."""
+
+    def test_apenas_campos_obrigatorios_aceito(self):
+        """Cadastro so com p_g, nome_guerra e saram deve ser aceito."""
+        user = UserSchema(p_g='2s', nome_guerra='fulano', saram='9876545')
+
+        assert user.cpf is None
+        assert user.nasc is None
+        assert user.nome_completo is None
+        assert user.ant_rel is None
+
+    @pytest.mark.parametrize(
+        'campo',
+        ['cpf', 'nasc', 'data_praca', 'ult_promo', 'ant_rel', 'quadro'],
+    )
+    def test_campo_opcional_vazio_vira_none(self, campo):
+        """String vazia (input em branco do form) equivale a NULL."""
+        data = {**VALID_USER_DATA, campo: ''}
+        user = UserSchema(**data)
+        assert getattr(user, campo) is None
+
+    @pytest.mark.parametrize(
+        'campo',
+        ['cpf', 'nasc', 'data_praca', 'ult_promo', 'ant_rel', 'telefone'],
+    )
+    def test_campo_opcional_none_aceito(self, campo):
+        """None explicito deve ser aceito em qualquer campo opcional."""
+        data = {**VALID_USER_DATA, campo: None}
+        user = UserSchema(**data)
+        assert getattr(user, campo) is None
 
 
 class TestUserUpdateSaramValidation:
@@ -294,12 +326,29 @@ class TestUserUpdateEmailFabValidation:
         error_msg = str(exc_info.value).lower()
         assert 'email' in error_msg or 'fab.mil.br' in error_msg
 
-    def test_email_fab_vazio_rejeitado(self):
-        """Email FAB vazio deve ser rejeitado em update."""
-        with pytest.raises(ValidationError) as exc_info:
-            UserUpdate(email_fab='')
-        error_msg = str(exc_info.value).lower()
-        assert 'email' in error_msg or 'fab.mil.br' in error_msg
+    def test_email_fab_vazio_limpa_campo(self):
+        """Email FAB vazio equivale a limpar o campo (NULL)."""
+        update = UserUpdate(email_fab='')
+        assert update.email_fab is None
+
+
+class TestUserUpdateCamposOpcionais:
+    """No PATCH nada e obrigatorio e vazio limpa o campo."""
+
+    def test_update_vazio_aceito(self):
+        """Nenhum campo e obrigatorio no update."""
+        update = UserUpdate()
+        assert update.model_dump(exclude_unset=True) == {}
+
+    @pytest.mark.parametrize(
+        'campo', ['cpf', 'nasc', 'data_praca', 'ult_promo', 'ant_rel']
+    )
+    def test_campo_vazio_limpa(self, campo):
+        """String vazia no PATCH grava NULL, sem erro de tipo."""
+        update = UserUpdate(**{campo: ''})
+        assert getattr(update, campo) is None
+        # Presente no dump: o campo foi enviado para ser limpo.
+        assert campo in update.model_dump(exclude_unset=True)
 
 
 class TestPwdSchemaValidation:
