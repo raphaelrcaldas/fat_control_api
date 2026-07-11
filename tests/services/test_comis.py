@@ -68,11 +68,34 @@ def test_missoes_consecutivas_somam():
     assert verificar_modulo(missoes) is True
 
 
-def test_missoes_sobrepostas_nao_acumula():
-    """
-    Missões sobrepostas não contam dias duplicados.
+def test_missoes_sobrepostas_nao_inflam_a_contagem():
+    """Sobreposição não conta o mesmo dia duas vezes.
 
-    Datas repetidas têm diff=0 (não 1), reiniciando o contador.
+    10 dias (01→10) + 8 dias (05→12) somam 18 na conta ingênua, o que
+    ativaria o módulo. Mas o militar ficou afastado de 01 a 12 — 12 dias
+    corridos. O que conta é a UNIÃO das datas, não a soma dos intervalos.
+    """
+    missoes = [
+        {
+            'afast': datetime(2026, 2, 1, 8, 0),
+            'regres': datetime(2026, 2, 10, 18, 0),
+        },
+        {
+            'afast': datetime(2026, 2, 5, 8, 0),
+            'regres': datetime(2026, 2, 12, 18, 0),
+        },
+    ]
+    assert verificar_modulo(missoes) is False
+
+
+def test_missoes_sobrepostas_uniao_contigua_ativa_modulo():
+    """A união de missões sobrepostas conta como afastamento contínuo.
+
+    01→10 e 08→18 se sobrepõem, mas cobrem 01 a 18 de fevereiro sem buraco:
+    18 dias corridos fora de casa, logo o módulo é ativado. É o outro lado da
+    dedup — ela impede inflar a contagem, não zerá-la: antes do `set`, a data
+    repetida dava `dif == 0` e reiniciava o contador, e módulos reais de 16+
+    dias passavam despercebidos.
     """
     missoes = [
         {
@@ -84,4 +107,4 @@ def test_missoes_sobrepostas_nao_acumula():
             'regres': datetime(2026, 2, 18, 18, 0),
         },
     ]
-    assert verificar_modulo(missoes) is False
+    assert verificar_modulo(missoes) is True

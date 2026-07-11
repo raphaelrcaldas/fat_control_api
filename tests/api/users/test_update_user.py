@@ -17,18 +17,15 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_update_user_success(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que um usuário com permissão pode atualizar outro usuário.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     _, other_user = users
 
-    update_data = {
-        'nome_guerra': 'atualizado',
-        'unidade': '1gt',
-    }
+    update_data = {'nome_guerra': 'atualizado'}
 
     response = await client.put(
         f'/users/{other_user.id}',
@@ -49,22 +46,21 @@ async def test_update_user_success(
     )
 
     assert db_user.nome_guerra == update_data['nome_guerra']
-    assert db_user.unidade == update_data['unidade']
 
 
 async def test_update_user_partial_update(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que é possível fazer atualização parcial (apenas alguns campos).
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     _, other_user = users
 
     original_nome_guerra = other_user.nome_guerra
 
-    # Atualiza apenas a unidade
-    update_data = {'unidade': '1gt'}
+    # Atualiza apenas o telefone
+    update_data = {'telefone': '21999998888'}
 
     response = await client.put(
         f'/users/{other_user.id}',
@@ -77,16 +73,46 @@ async def test_update_user_partial_update(
     await session.refresh(other_user)
 
     # Verifica que apenas o campo atualizado mudou
-    assert other_user.unidade == update_data['unidade']
+    assert other_user.telefone == update_data['telefone']
     assert other_user.nome_guerra == original_nome_guerra
 
 
-async def test_update_user_without_permission_fails(client, users, make_token):
+async def test_update_user_nao_move_de_unidade(
+    client, session, users, user_with_update_permission, make_org_token
+):
+    """A unidade não é editável pelo PUT — `UserUpdate` sequer a aceita.
+
+    O usuário pertence à organização em que foi cadastrado; "mover" alguém de
+    unidade não é operação do PUT. Mandar `unidade` no corpo é simplesmente
+    ignorado, e o guard é este teste: se alguém devolver o campo ao schema, o
+    registro passaria a trocar de organização por um PATCH silencioso.
+    """
+    token = await make_org_token(user_with_update_permission)
+    _, other_user = users
+
+    response = await client.put(
+        f'/users/{other_user.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'nome_guerra': 'atualizado', 'unidade': '1gt'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    await session.refresh(other_user)
+    assert other_user.nome_guerra == 'atualizado'
+    assert other_user.unidade == '11gt'
+
+
+async def test_update_user_without_permission_fails(
+    client, users, make_org_token
+):
     """
     Testa que usuário sem permissão não pode atualizar usuários.
     """
     user, other_user = users
-    token = await make_token(user)
+    # ensure_role=False: o teste valida a ausência de permissão, então NÃO
+    # pode receber a role default (admin), que tem bypass no gate.
+    token = await make_org_token(user, ensure_role=False)
 
     update_data = {'nome_guerra': 'atualizado'}
 
@@ -100,12 +126,12 @@ async def test_update_user_without_permission_fails(client, users, make_token):
 
 
 async def test_update_user_not_found(
-    client, user_with_update_permission, make_token
+    client, user_with_update_permission, make_org_token
 ):
     """
     Testa que atualizar usuário inexistente retorna 404.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
 
     update_data = {'nome_guerra': 'atualizado'}
 
@@ -122,12 +148,12 @@ async def test_update_user_not_found(
 
 
 async def test_update_user_duplicate_saram_fails(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que não é possível atualizar para um saram já existente.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     user, other_user = users
 
     # Tenta atualizar other_user para ter o saram de user
@@ -146,12 +172,12 @@ async def test_update_user_duplicate_saram_fails(
 
 
 async def test_update_user_duplicate_cpf_fails(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que não é possível atualizar para um CPF já existente.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     user, other_user = users
 
     # Tenta atualizar other_user para ter o CPF de user
@@ -170,12 +196,12 @@ async def test_update_user_duplicate_cpf_fails(
 
 
 async def test_update_user_duplicate_id_fab_fails(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que não é possível atualizar para um ID FAB já existente.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     user, other_user = users
 
     # Tenta atualizar other_user para ter o CPF de user
@@ -194,12 +220,12 @@ async def test_update_user_duplicate_id_fab_fails(
 
 
 async def test_update_user_duplicate_zimbra_fails(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que não é possível atualizar para um Zimbra já existente.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     user, other_user = users
 
     # Tenta atualizar other_user para ter o Zimbra de user
@@ -218,12 +244,12 @@ async def test_update_user_duplicate_zimbra_fails(
 
 
 async def test_update_user_duplicate_email_pessoal_fails(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que não é possível atualizar para um email pessoal já existente.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     user, other_user = users
 
     # Tenta atualizar other_user para ter o Email pessoal de user
@@ -258,7 +284,7 @@ async def test_update_user_without_token_fails(client, users):
 
 
 async def test_update_user_can_update_same_user_unique_fields(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que é possível atualizar outros campos mantendo o mesmo saram/cpf.
@@ -266,13 +292,14 @@ async def test_update_user_can_update_same_user_unique_fields(
     Importante para verificar que a validação de unicidade
     exclui o próprio usuário.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     _, other_user = users
 
-    # Atualiza mantendo o mesmo saram mas mudando outro campo
+    # Reenvia o próprio saram (não pode colidir consigo mesmo) e muda outro
+    # campo, para provar que o update de fato ocorreu.
     update_data = {
         'saram': other_user.saram,  # Mantém o mesmo
-        'unidade': '1gt',  # Muda outro campo
+        'nome_guerra': 'atualizado',  # Muda outro campo
     }
 
     response = await client.put(
@@ -284,11 +311,11 @@ async def test_update_user_can_update_same_user_unique_fields(
     assert response.status_code == HTTPStatus.OK
 
     await session.refresh(other_user)
-    assert other_user.unidade == '1gt'
+    assert other_user.nome_guerra == 'atualizado'
 
 
 async def test_update_user_with_date_field(
-    client, session, users, user_with_update_permission, make_token
+    client, session, users, user_with_update_permission, make_org_token
 ):
     """
     Testa que é possível atualizar campos do tipo date.
@@ -296,7 +323,7 @@ async def test_update_user_with_date_field(
     Este teste garante que a cobertura inclui o código que
     converte datas para isoformat() no log de auditoria.
     """
-    token = await make_token(user_with_update_permission)
+    token = await make_org_token(user_with_update_permission)
     _, other_user = users
 
     # Atualiza um campo de data

@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om'
 
 
-async def test_get_ordem_success(client, session, users, org_admin_token):
+async def test_get_ordem_success(client, session, users, token):
     """Busca por ID retorna ordem com todos os campos."""
     user, _ = users
 
@@ -28,7 +28,7 @@ async def test_get_ordem_success(client, session, users, org_admin_token):
 
     response = await client.get(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -42,9 +42,7 @@ async def test_get_ordem_success(client, session, users, org_admin_token):
     assert data['status'] == ordem.status
 
 
-async def test_get_ordem_includes_etapas(
-    client, session, users, org_admin_token
-):
+async def test_get_ordem_includes_etapas(client, session, users, token):
     """Resposta inclui etapas da ordem (via POST)."""
     etapa_payload = {
         'dt_dep': '2025-06-15T10:00:00',
@@ -61,7 +59,9 @@ async def test_get_ordem_includes_etapas(
         'tipo': 'instrucao',
         'projeto': 'KC-390',
         'status': 'rascunho',
-        'esf_aer': 2,
+        # Em MINUTOS, e a integridade exige esf_aer >= soma do tempo de voo
+        # das etapas — a etapa acima voa 10:00→11:30, ou seja 90 min.
+        'esf_aer': 90,
         'campos_especiais': [],
         'etapas': [etapa_payload],
         'tripulacao': None,
@@ -71,14 +71,14 @@ async def test_get_ordem_includes_etapas(
     create_resp = await client.post(
         f'{BASE_URL}/',
         json=payload,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
     assert create_resp.status_code == HTTPStatus.CREATED
     ordem_id = create_resp.json()['data']['id']
 
     response = await client.get(
         f'{BASE_URL}/{ordem_id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -88,9 +88,43 @@ async def test_get_ordem_includes_etapas(
     assert data['etapas'][0]['dest'] == 'SBBR'
 
 
-async def test_get_ordem_includes_etiquetas(
-    client, session, users, org_admin_token
-):
+async def test_create_persiste_esf_aer(client, users, token):
+    """O esforço aéreo informado na criação é gravado na ordem.
+
+    Regressão: o `create` validava `esf_aer` mas não o passava ao model, cuja
+    coluna tem `default=0`. Toda OM nascia com esforço zero — e um PUT que não
+    reenviasse o campo era rejeitado com 400 pela própria validação de
+    integridade (0 < soma do tempo de voo), travando a edição das etapas.
+    """
+    payload = {
+        'matricula_anv': '2850',
+        'tipo': 'instrucao',
+        'projeto': 'KC-390',
+        'status': 'rascunho',
+        'esf_aer': 120,
+        'campos_especiais': [],
+        'etapas': [],
+        'tripulacao': None,
+        'etiquetas_ids': [],
+    }
+
+    create_resp = await client.post(
+        f'{BASE_URL}/',
+        json=payload,
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+
+    ordem_id = create_resp.json()['data']['id']
+    response = await client.get(
+        f'{BASE_URL}/{ordem_id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.json()['data']['esf_aer'] == 120
+
+
+async def test_get_ordem_includes_etiquetas(client, session, users, token):
     """Resposta inclui etiquetas da ordem (via POST)."""
     etiqueta = Etiqueta(
         nome='Tag', cor='#00FF00', descricao='desc', uae='11gt'
@@ -114,14 +148,14 @@ async def test_get_ordem_includes_etiquetas(
     create_resp = await client.post(
         f'{BASE_URL}/',
         json=payload,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
     assert create_resp.status_code == HTTPStatus.CREATED
     ordem_id = create_resp.json()['data']['id']
 
     response = await client.get(
         f'{BASE_URL}/{ordem_id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -130,19 +164,17 @@ async def test_get_ordem_includes_etiquetas(
     assert data['etiquetas'][0]['nome'] == 'Tag'
 
 
-async def test_get_ordem_not_found(client, session, org_admin_token):
+async def test_get_ordem_not_found(client, session, token):
     """ID inexistente retorna 404."""
     response = await client.get(
         f'{BASE_URL}/99999',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_get_ordem_deleted_returns_404(
-    client, session, users, org_admin_token
-):
+async def test_get_ordem_deleted_returns_404(client, session, users, token):
     """Ordem com soft delete retorna 404."""
     user, _ = users
 
@@ -156,7 +188,7 @@ async def test_get_ordem_deleted_returns_404(
 
     response = await client.get(
         f'{BASE_URL}/{ordem.id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND

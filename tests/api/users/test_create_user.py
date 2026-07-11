@@ -16,12 +16,12 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_create_user_success(
-    client, session, user_with_create_permission, make_token
+    client, session, user_with_create_permission, make_org_token
 ):
     """
     Testa que um usuário com permissão pode criar outro usuário.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
 
     user_data = {
         'p_g': '2s',
@@ -63,14 +63,16 @@ async def test_create_user_success(
     assert db_user.first_login is True
 
 
-async def test_create_user_without_permission_fails(client, users, make_token):
+async def test_create_user_without_permission_fails(
+    client, users, make_org_token
+):
     """
     Testa que usuário sem permissão não pode criar usuários.
     """
     user, _ = users
     # ensure_role=False: o teste valida ausência de permissão, então NÃO
-    # pode receber a role default (admin) que make_token atribuiria.
-    token = await make_token(user, ensure_role=False)
+    # pode receber a role default (admin) que make_org_token atribuiria.
+    token = await make_org_token(user, ensure_role=False)
 
     user_data = {
         'p_g': '2s',
@@ -100,12 +102,12 @@ async def test_create_user_without_permission_fails(client, users, make_token):
 
 
 async def test_create_user_duplicate_saram_fails(
-    client, session, user_with_create_permission, make_token, users
+    client, session, user_with_create_permission, make_org_token, users
 ):
     """
     Testa que não é possível criar usuário com saram duplicado.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
     existing_user, _ = users
 
     user_data = {
@@ -139,12 +141,12 @@ async def test_create_user_duplicate_saram_fails(
 
 
 async def test_create_user_duplicate_cpf_fails(
-    client, session, user_with_create_permission, make_token, users
+    client, session, user_with_create_permission, make_org_token, users
 ):
     """
     Testa que não é possível criar usuário com CPF duplicado.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
     existing_user, _ = users
 
     user_data = {
@@ -178,12 +180,12 @@ async def test_create_user_duplicate_cpf_fails(
 
 
 async def test_create_user_duplicate_id_fab_fails(
-    client, session, user_with_create_permission, make_token, users
+    client, session, user_with_create_permission, make_org_token, users
 ):
     """
     Testa que não é possível criar usuário com ID FAB duplicado.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
     existing_user, _ = users
 
     user_data = {
@@ -217,12 +219,12 @@ async def test_create_user_duplicate_id_fab_fails(
 
 
 async def test_create_user_duplicate_zimbra_fails(
-    client, session, user_with_create_permission, make_token, users
+    client, session, user_with_create_permission, make_org_token, users
 ):
     """
     Testa que não é possível criar usuário com Zimbra duplicado.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
     existing_user, _ = users
 
     user_data = {
@@ -256,12 +258,12 @@ async def test_create_user_duplicate_zimbra_fails(
 
 
 async def test_create_user_duplicate_email_pess_fails(
-    client, session, user_with_create_permission, make_token, users
+    client, session, user_with_create_permission, make_org_token, users
 ):
     """
     Testa que não é possível criar usuário com Email pessoal duplicado.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
     existing_user, _ = users
 
     user_data = {
@@ -322,12 +324,12 @@ async def test_create_user_without_token_fails(client):
 
 
 async def test_create_user_with_invalid_data_fails(
-    client, user_with_create_permission, make_token
+    client, user_with_create_permission, make_org_token
 ):
     """
     Testa que criação com dados inválidos é rejeitada.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
 
     # Saram inválido (muito curto)
     user_data = {
@@ -358,12 +360,12 @@ async def test_create_user_with_invalid_data_fails(
 
 
 async def test_create_user_with_invalid_saram_dv_fails(
-    client, user_with_create_permission, make_token
+    client, user_with_create_permission, make_org_token
 ):
     """
     Testa que criação com SARAM com dígito verificador incorreto é rejeitada.
     """
-    token = await make_token(user_with_create_permission)
+    token = await make_org_token(user_with_create_permission)
 
     # SARAM com DV incorreto (deveria ser 5, mas está como 3)
     user_data = {

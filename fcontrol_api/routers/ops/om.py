@@ -341,6 +341,7 @@ async def create_ordem(
         created_by=current_user.id,
         projeto=ordem_data.projeto,
         status='rascunho',  # Regra de negócio: nova ordem é sempre rascunho
+        esf_aer=ordem_data.esf_aer,
         campos_especiais=[
             ce.model_dump() for ce in ordem_data.campos_especiais
         ],

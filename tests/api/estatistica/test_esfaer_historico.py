@@ -78,26 +78,37 @@ async def _get(client, token, ano_ref=ANO):
     return resp.json()['data']
 
 
-async def test_programa_sem_hist_timeline_vazia(client, session, org_token):
-    """Programa sem histórico aparece com `atual` e timeline vazia."""
+async def test_programa_sem_hist_ancora_em_1o_de_janeiro(
+    client, session, token_sem_perm
+):
+    """Programa sem histórico ancora o valor vigente em 1º/jan.
+
+    É o fallback do read-path para alocações anteriores ao mecanismo de
+    histórico (seed/migração). Sem ele a timeline sairia vazia, e o programa
+    sumiria do gráfico e do Σ do grupo — apesar de ter esforço alocado.
+    """
     esf = await _programa(session)
     await _aloc(session, esf.id, alocado=100)
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     assert data['ano_ref'] == ANO
     assert len(data['programas']) == 1
     programa = data['programas'][0]
     assert programa['esfaer_id'] == esf.id
     assert programa['atual'] == 100
-    assert programa['timeline'] == []
-    # Sem hists não há datas: total só tem o valor atual
+    # delta 0: o valor-base do ponto é ele mesmo (não houve mudança)
+    assert programa['timeline'] == [
+        {'data': '2025-01-01', 'alocado': 100, 'delta': 0},
+    ]
     assert data['total']['atual'] == 100
-    assert data['total']['timeline'] == []
+    assert data['total']['timeline'] == [
+        {'data': '2025-01-01', 'alocado': 100, 'delta': 0},
+    ]
 
 
-async def test_programa_com_um_hist_criacao(client, session, org_token):
+async def test_programa_com_um_hist_criacao(client, session, token_sem_perm):
     """Criação (hist com valor anterior 0) colapsa base + mudança no dia.
 
     O primeiro ponto tem a data do timestamp e, como a mudança ocorre no
@@ -109,7 +120,7 @@ async def test_programa_com_um_hist_criacao(client, session, org_token):
     await _hist(session, aloc.id, 0, datetime(2025, 2, 10, 14, 30))
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     programa = data['programas'][0]
     assert programa['atual'] == 150
@@ -118,7 +129,9 @@ async def test_programa_com_um_hist_criacao(client, session, org_token):
     ]
 
 
-async def test_step_function_multiplas_revisoes(client, session, org_token):
+async def test_step_function_multiplas_revisoes(
+    client, session, token_sem_perm
+):
     """N revisões: valor entre h_i e h_{i+1} é h_{i+1}.aloc_hist; após a
     última o valor é `alocado`. Deltas assinados e ordenação ascendente."""
     esf = await _programa(session)
@@ -129,7 +142,7 @@ async def test_step_function_multiplas_revisoes(client, session, org_token):
     await _hist(session, aloc.id, 50, datetime(2025, 8, 20, 9, 0))
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     programa = data['programas'][0]
     assert programa['atual'] == 80
@@ -140,7 +153,7 @@ async def test_step_function_multiplas_revisoes(client, session, org_token):
     ]
 
 
-async def test_mudancas_no_mesmo_dia_colapsam(client, session, org_token):
+async def test_mudancas_no_mesmo_dia_colapsam(client, session, token_sem_perm):
     """Várias mudanças no mesmo dia geram um único ponto com o último
     valor vigente do dia."""
     esf = await _programa(session)
@@ -150,7 +163,7 @@ async def test_mudancas_no_mesmo_dia_colapsam(client, session, org_token):
     await _hist(session, aloc.id, 500, datetime(2025, 4, 2, 16, 0))
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     programa = data['programas'][0]
     assert programa['timeline'] == [
@@ -158,7 +171,7 @@ async def test_mudancas_no_mesmo_dia_colapsam(client, session, org_token):
     ]
 
 
-async def test_total_carry_forward(client, session, org_token):
+async def test_total_carry_forward(client, session, token_sem_perm):
     """Total agrega os valores vigentes de todos os programas em cada
     data da união; programa sem hist contribui com `atual` constante."""
     # Programa A: 100 -> 200 em mar/01, 200 -> 250 em jul/10
@@ -172,27 +185,32 @@ async def test_total_carry_forward(client, session, org_token):
     aloc_b = await _aloc(session, esf_b.id, alocado=30)
     await _hist(session, aloc_b.id, 50, datetime(2025, 5, 5, 9, 0))
 
-    # Programa C: sem hist, contribui com 40 constante
+    # Programa C: sem hist, contribui com 40 constante — e, pelo fallback,
+    # ancora em jan/01, o que insere essa data na união.
     esf_c = await _programa(session, prog='PROG-C')
     await _aloc(session, esf_c.id, alocado=40)
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     assert data['total']['atual'] == 250 + 30 + 40
-    # Datas da união: mar/01 (A), mai/05 (B), jul/10 (A)
-    # mar/01: A=200, B=50 (inicial), C=40  -> 290
-    # mai/05: A=200, B=30,           C=40  -> 270
-    # jul/10: A=250, B=30,           C=40  -> 320
+    # Datas da união: jan/01 (C), mar/01 (A), mai/05 (B), jul/10 (A).
+    # Antes da 1ª mudança cada programa vale seu valor inicial (o aloc_hist
+    # do 1º hist; para quem não tem hist, o próprio alocado).
+    # jan/01: A=100 (inicial), B=50 (inicial), C=40  -> 190
+    # mar/01: A=200,           B=50 (inicial), C=40  -> 290
+    # mai/05: A=200,           B=30,           C=40  -> 270
+    # jul/10: A=250,           B=30,           C=40  -> 320
     # Delta do 1º ponto é 0 (base = valor do próprio 1º ponto)
     assert data['total']['timeline'] == [
-        {'data': '2025-03-01', 'alocado': 290, 'delta': 0},
+        {'data': '2025-01-01', 'alocado': 190, 'delta': 0},
+        {'data': '2025-03-01', 'alocado': 290, 'delta': 100},
         {'data': '2025-05-05', 'alocado': 270, 'delta': -20},
         {'data': '2025-07-10', 'alocado': 320, 'delta': 50},
     ]
 
 
-async def test_isolamento_por_org_e_ano(client, session, org_token):
+async def test_isolamento_por_org_e_ano(client, session, token_sem_perm):
     """Alocações de outra org (`uae != active_org`) e de outro `ano_ref`
     não aparecem na resposta."""
     esf = await _programa(session)
@@ -201,21 +219,21 @@ async def test_isolamento_por_org_e_ano(client, session, org_token):
     await _aloc(session, esf.id, alocado=700, ano_ref=2024)  # outro ano
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     assert len(data['programas']) == 1
     assert data['programas'][0]['atual'] == 100
     assert data['total']['atual'] == 100
 
 
-async def test_programa_zerado_com_hist_entra(client, session, org_token):
+async def test_programa_zerado_com_hist_entra(client, session, token_sem_perm):
     """Programa com alocado=0 (removido) e histórico entra na resposta."""
     esf = await _programa(session)
     aloc = await _aloc(session, esf.id, alocado=0)
     await _hist(session, aloc.id, 150, datetime(2025, 6, 1, 9, 0))
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     assert len(data['programas']) == 1
     programa = data['programas'][0]
@@ -225,7 +243,7 @@ async def test_programa_zerado_com_hist_entra(client, session, org_token):
     ]
 
 
-async def test_nome_derivado_e_grupo(client, session, org_token):
+async def test_nome_derivado_e_grupo(client, session, token_sem_perm):
     """`nome` usa aplicacao ?? sub_prog ?? prog; `grupo` é string livre."""
     esf_prog = await _programa(session, grupo='ADESTR', prog='SO-PROG')
     esf_sub = await _programa(
@@ -242,7 +260,7 @@ async def test_nome_derivado_e_grupo(client, session, org_token):
         await _aloc(session, esf.id, alocado=10)
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     por_id = {p['esfaer_id']: p for p in data['programas']}
     assert por_id[esf_prog.id]['nome'] == 'SO-PROG'

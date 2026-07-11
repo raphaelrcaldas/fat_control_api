@@ -68,8 +68,11 @@ async def test_reset_pwd_sets_first_login_flag(client, token, users, session):
 
 
 async def test_reset_pwd_user_not_found(client, token):
-    """
-    Testa que resetar senha de usuário inexistente retorna erro.
+    """Resetar senha de usuário inexistente responde 404.
+
+    É o mesmo status do guard de org: um usuário de outra unidade também
+    responde 404. Igualar os dois é proposital — um 400 aqui distinguiria
+    "não existe" de "existe em outra org" e viraria oráculo de enumeração.
     """
     response = await client.post(
         '/users/reset-pwd',
@@ -77,7 +80,7 @@ async def test_reset_pwd_user_not_found(client, token):
         params={'user_id': 99999},
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
     assert 'nao encontrado' in resp['message'].lower()
