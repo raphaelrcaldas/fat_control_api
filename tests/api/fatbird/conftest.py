@@ -6,7 +6,7 @@ O ponto central: um tripulante do FatBird **não tem `user_roles`**. O
 que o portal consome devolve 403 e, como os fetchers do FatBird engolem
 erro como "sem dado", vira regressão **silenciosa**.
 
-Por isso estas fixtures NÃO podem usar `make_org_token`/`org_token` do
+Por isso estas fixtures NÃO podem usar `make_org_token`/`token_sem_perm` do
 conftest de cima: eles **injetam uma role admin** quando o usuário não
 tem nenhuma (bypass), o que mascararia exatamente o bug que queremos
 pegar. Aqui o token é forjado na mão, sem role, com

@@ -19,7 +19,7 @@ async def test_read_quads_by_trip_success(
     client,
     session,
     trip,
-    org_admin_token,
+    token,
 ):
     """Testa listagem de quadrinhos por tripulante com sucesso."""
     # Cria quadrinhos de teste
@@ -41,7 +41,7 @@ async def test_read_quads_by_trip_success(
 
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -52,7 +52,7 @@ async def test_read_quads_by_trip_success(
 
 
 async def test_read_quads_by_trip_filters_by_type(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa que apenas quads do tipo especificado são retornados."""
     quad_type1 = QuadFactory(trip_id=trip.id, type_id=1, value=date.today())
@@ -64,7 +64,7 @@ async def test_read_quads_by_trip_filters_by_type(
     # Busca apenas type_id=1
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -79,12 +79,12 @@ async def test_read_quads_by_trip_empty_result(
     client,
     session,
     trip,
-    org_admin_token,
+    token,
 ):
     """Testa que retorna lista vazia quando não há quadrinhos."""
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -94,7 +94,7 @@ async def test_read_quads_by_trip_empty_result(
 
 
 async def test_read_quads_by_trip_ordered_by_value_desc(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa que quads são ordenados por value DESC (NULLs por último)."""
     quad1 = QuadFactory(trip_id=trip.id, type_id=1, value=date(2024, 1, 1))
@@ -106,7 +106,7 @@ async def test_read_quads_by_trip_ordered_by_value_desc(
 
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -124,7 +124,7 @@ async def test_read_quads_by_trip_nulls_last(
     client,
     session,
     trip,
-    org_admin_token,
+    token,
 ):
     """Testa que quads com value=NULL aparecem por último."""
     quad_with_value = QuadFactory(
@@ -137,7 +137,7 @@ async def test_read_quads_by_trip_nulls_last(
 
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -151,7 +151,7 @@ async def test_read_quads_by_trip_nulls_last(
 
 
 async def test_read_quads_by_trip_only_returns_own_quads(
-    client, session, trips, org_admin_token
+    client, session, trips, token
 ):
     """Testa que apenas quads do tripulante solicitado são retornados."""
     trip, other_trip = trips
@@ -166,7 +166,7 @@ async def test_read_quads_by_trip_only_returns_own_quads(
 
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -179,19 +179,19 @@ async def test_read_quads_by_trip_only_returns_own_quads(
 async def test_read_quads_by_trip_missing_type_id_fails(
     client,
     trip,
-    org_admin_token,
+    token,
 ):
     """Testa que requisição sem type_id falha."""
     response = await client.get(
         f'/ops/quads/trip/{trip.id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 async def test_read_quads_by_trip_response_format(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa o formato da resposta (QuadPublic schema)."""
     quad = QuadFactory(
@@ -207,7 +207,7 @@ async def test_read_quads_by_trip_response_format(
 
     response = await client.get(
         f'/ops/quads/trip/{trip.id}?type_id=1',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK

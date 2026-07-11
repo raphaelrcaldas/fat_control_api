@@ -144,7 +144,7 @@ async def _get(client, token, ano_ref=ANO, simulador=None):
     return resp.json()['data']
 
 
-async def test_default_inclui_simulador(client, session, org_token):
+async def test_default_inclui_simulador(client, session, token_sem_perm):
     """Sem a flag, programas SML entram nos itens e nos totais; passar
     `simulador=true` explícito (como o front envia) é equivalente."""
     normal = await _programa(session)
@@ -153,7 +153,7 @@ async def test_default_inclui_simulador(client, session, org_token):
     await _aloc(session, sml.id, alocado=50, meses=[50] + [0] * 11)
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     descricoes = {i['descricao'] for i in data['items']}
     assert descricoes == {'COMPREP PRPO', 'COMPREP PRPO SML'}
@@ -161,12 +161,12 @@ async def test_default_inclui_simulador(client, session, org_token):
     assert data['total_saldo'] == 150
     assert data['total_meses_sagem'][0] == 50
 
-    data_true = await _get(client, org_token, simulador=True)
+    data_true = await _get(client, token_sem_perm, simulador=True)
     assert data_true == data
 
 
 async def test_simulador_false_exclui_sml_itens_e_totais(
-    client, session, org_token, tipo_missao
+    client, session, token_sem_perm, tipo_missao
 ):
     """Com simulador=false o programa SML sai dos itens e de TODOS os
     totais (alocado, voado, saldo e séries mensais) — nada é subtraído
@@ -183,7 +183,7 @@ async def test_simulador_false_exclui_sml_itens_e_totais(
     )
     await session.commit()
 
-    data = await _get(client, org_token, simulador=False)
+    data = await _get(client, token_sem_perm, simulador=False)
 
     assert [i['descricao'] for i in data['items']] == ['COMPREP PRPO']
     item = data['items'][0]
@@ -197,7 +197,7 @@ async def test_simulador_false_exclui_sml_itens_e_totais(
     assert data['total_meses_sagem'] == [0] * 12
 
     # Default (sem flag) soma também o simulador
-    data_all = await _get(client, org_token)
+    data_all = await _get(client, token_sem_perm)
     assert data_all['total_alocado'] == 150
     assert data_all['total_voado'] == 90
     assert data_all['total_saldo'] == 60
@@ -205,7 +205,7 @@ async def test_simulador_false_exclui_sml_itens_e_totais(
 
 
 async def test_item_so_voado_sem_alocacao(
-    client, session, org_token, tipo_missao
+    client, session, token_sem_perm, tipo_missao
 ):
     """Programa SML sem alocação mas com voo aparece por default (saldo
     negativo) e some com simulador=false."""
@@ -215,21 +215,21 @@ async def test_item_so_voado_sem_alocacao(
     )
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
     assert len(data['items']) == 1
     assert data['items'][0]['alocado'] == 0
     assert data['items'][0]['voado'] == 30
     assert data['items'][0]['saldo'] == -30
 
-    data_sem = await _get(client, org_token, simulador=False)
+    data_sem = await _get(client, token_sem_perm, simulador=False)
     assert data_sem['items'] == []
     assert data_sem['total_voado'] == 0
     assert data_sem['total_saldo'] == 0
 
 
-async def test_org_sem_dados(client, org_token):
+async def test_org_sem_dados(client, token_sem_perm):
     """Org sem alocações/voos: itens vazios e totais zerados."""
-    data = await _get(client, org_token, simulador=False)
+    data = await _get(client, token_sem_perm, simulador=False)
 
     assert data['items'] == []
     assert data['total_alocado'] == 0
@@ -239,7 +239,7 @@ async def test_org_sem_dados(client, org_token):
     assert data['total_meses_voados'] == [0] * 12
 
 
-async def test_isolamento_por_org_e_ano(client, session, org_token):
+async def test_isolamento_por_org_e_ano(client, session, token_sem_perm):
     """Alocações de outra org (`uae != active_org`) e de outro `ano_ref`
     não entram no resumo."""
     esf = await _programa(session)
@@ -248,7 +248,7 @@ async def test_isolamento_por_org_e_ano(client, session, org_token):
     await _aloc(session, esf.id, alocado=700, ano_ref=2024)  # outro ano
     await session.commit()
 
-    data = await _get(client, org_token)
+    data = await _get(client, token_sem_perm)
 
     assert len(data['items']) == 1
     assert data['total_alocado'] == 100

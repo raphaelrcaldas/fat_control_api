@@ -2,10 +2,10 @@
 
 Soldos e Diárias são control-plane de sistema: o grupo `/admin` aplica
 `require_system_admin` uma única vez. Só o admin de SISTEMA (contexto
-Sistema, active_org NULL — a fixture `token`) acessa; qualquer outro
+Sistema, active_org NULL — a fixture `token_sistema`) acessa; qualquer outro
 contexto responde 403 SCOPE_FORBIDDEN.
 
-O `org_token` tem vínculo admin de sistema (org NULL) mas está com a org
+O `token_sem_perm` tem vínculo admin de sistema (org NULL) mas está com a org
 ativa '11gt' — logo NÃO é admin de sistema naquele contexto e deve ser
 barrado. Se o gate do grupo cair, estes casos quebram.
 """
@@ -28,17 +28,17 @@ GATED = [
 
 @pytest.mark.parametrize(('method', 'url'), GATED)
 async def test_admin_route_forbidden_outside_system(
-    client, org_token, method, url
+    client, token_sem_perm, method, url
 ):
     """Com org ativa '11gt' (não é admin de sistema) → 403."""
     response = await client.request(
-        method, url, headers={'Authorization': f'Bearer {org_token}'}
+        method, url, headers={'Authorization': f'Bearer {token_sem_perm}'}
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 @pytest.mark.parametrize(('method', 'url'), GATED)
 async def test_admin_route_requires_token(client, method, url):
-    """Sem token → 401 (middleware de autenticação global)."""
+    """Sem token_sistema → 401 (middleware de autenticação global)."""
     response = await client.request(method, url)
     assert response.status_code == HTTPStatus.UNAUTHORIZED

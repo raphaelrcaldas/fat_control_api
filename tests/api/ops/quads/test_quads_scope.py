@@ -40,9 +40,7 @@ async def _mk_trip(session, *, uae, active):
     return trip
 
 
-async def test_orfaos_delete_nao_remove_de_outra_org(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     """Admin da '11gt' não apaga quad órfão de tripulante inativo da '1gt'."""
     trip1 = await _mk_trip(session, uae='1gt', active=False)
     quad = QuadFactory(trip_id=trip1.id)
@@ -53,7 +51,7 @@ async def test_orfaos_delete_nao_remove_de_outra_org(
         'DELETE',
         ORFAOS_URL,
         json={'trip_ids': [trip1.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 

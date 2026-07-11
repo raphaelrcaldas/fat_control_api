@@ -16,7 +16,7 @@ from fcontrol_api.models.shared.posto_grad import Soldo
 pytestmark = pytest.mark.anyio
 
 
-async def test_update_soldo_success(client, session, token, soldos):
+async def test_update_soldo_success(client, session, token_sistema, soldos):
     """Testa atualizacao de soldo com sucesso."""
     soldo = soldos[0]
 
@@ -26,7 +26,7 @@ async def test_update_soldo_success(client, session, token, soldos):
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -41,7 +41,7 @@ async def test_update_soldo_success(client, session, token, soldos):
     assert soldo.valor == 5500.00
 
 
-async def test_update_soldo_partial(client, session, token, soldos):
+async def test_update_soldo_partial(client, session, token_sistema, soldos):
     """Testa atualizacao parcial de soldo."""
     soldo = soldos[0]
     original_pg = soldo.pg
@@ -52,7 +52,7 @@ async def test_update_soldo_partial(client, session, token, soldos):
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -65,7 +65,7 @@ async def test_update_soldo_partial(client, session, token, soldos):
 
 
 async def test_update_soldo_change_posto_conflito(
-    client, session, token, soldos
+    client, session, token_sistema, soldos
 ):
     """Mudar pg para um posto com vigencia aberta sobreposta -> 409.
 
@@ -81,7 +81,7 @@ async def test_update_soldo_change_posto_conflito(
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -90,7 +90,7 @@ async def test_update_soldo_change_posto_conflito(
 
 
 async def test_update_soldo_change_posto_slot_livre(
-    client, session, token, soldos
+    client, session, token_sistema, soldos
 ):
     """Mudar pg para um periodo passado que nao sobrepoe nada -> 200.
 
@@ -107,7 +107,7 @@ async def test_update_soldo_change_posto_slot_livre(
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -117,7 +117,7 @@ async def test_update_soldo_change_posto_slot_livre(
 
 
 async def test_update_soldo_estende_para_periodo_ocupado_conflito(
-    client, session, token
+    client, session, token_sistema
 ):
     """Estender data_fim para dentro de outra vigencia da mesma chave -> 409.
 
@@ -137,7 +137,7 @@ async def test_update_soldo_estende_para_periodo_ocupado_conflito(
 
     response = await client.put(
         f'/admin/soldos/{band.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json={'data_fim': '2026-06-01'},
     )
 
@@ -146,7 +146,7 @@ async def test_update_soldo_estende_para_periodo_ocupado_conflito(
 
 
 async def test_update_soldo_apenas_valor_nao_dispara_overlap(
-    client, session, token
+    client, session, token_sistema
 ):
     """Editar so o valor nao roda a checagem de sobreposicao.
 
@@ -166,7 +166,7 @@ async def test_update_soldo_apenas_valor_nao_dispara_overlap(
 
     response = await client.put(
         f'/admin/soldos/{band.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json={'valor': 2600.00},
     )
 
@@ -175,7 +175,7 @@ async def test_update_soldo_apenas_valor_nao_dispara_overlap(
     assert band.valor == Decimal('2600.00')
 
 
-async def test_update_soldo_invalid_posto(client, token, soldos):
+async def test_update_soldo_invalid_posto(client, token_sistema, soldos):
     """Testa que posto/graduacao invalido falha."""
     soldo = soldos[0]
 
@@ -185,7 +185,7 @@ async def test_update_soldo_invalid_posto(client, token, soldos):
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -193,7 +193,9 @@ async def test_update_soldo_invalid_posto(client, token, soldos):
     assert 'Posto/Graduacao invalido' in response.json()['message']
 
 
-async def test_update_soldo_data_fim_before_data_inicio(client, token, soldos):
+async def test_update_soldo_data_fim_before_data_inicio(
+    client, token_sistema, soldos
+):
     """Testa que data_fim <= data_inicio falha na atualizacao."""
     soldo = soldos[0]
 
@@ -203,7 +205,7 @@ async def test_update_soldo_data_fim_before_data_inicio(client, token, soldos):
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -212,7 +214,7 @@ async def test_update_soldo_data_fim_before_data_inicio(client, token, soldos):
 
 
 async def test_update_soldo_data_inicio_after_existing_data_fim(
-    client, token, soldos
+    client, token_sistema, soldos
 ):
     """Testa que data_inicio > data_fim existente falha."""
     # Soldo com data_fim definida (soldos[1])
@@ -224,7 +226,7 @@ async def test_update_soldo_data_inicio_after_existing_data_fim(
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -232,7 +234,7 @@ async def test_update_soldo_data_inicio_after_existing_data_fim(
     assert 'Data fim deve ser maior' in response.json()['message']
 
 
-async def test_update_soldo_not_found(client, token):
+async def test_update_soldo_not_found(client, token_sistema):
     """Testa atualizacao de soldo inexistente."""
     update_data = {
         'valor': 5000.00,
@@ -240,7 +242,7 @@ async def test_update_soldo_not_found(client, token):
 
     response = await client.put(
         '/admin/soldos/999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -249,7 +251,7 @@ async def test_update_soldo_not_found(client, token):
 
 
 async def test_update_soldo_without_token(client, soldos):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     soldo = soldos[0]
 
     update_data = {
@@ -264,14 +266,14 @@ async def test_update_soldo_without_token(client, soldos):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_update_soldo_empty_body(client, session, token, soldos):
+async def test_update_soldo_empty_body(client, session, token_sistema, soldos):
     """Testa atualizacao com body vazio nao altera nada."""
     soldo = soldos[0]
     original_valor = soldo.valor
 
     response = await client.put(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json={},
     )
 

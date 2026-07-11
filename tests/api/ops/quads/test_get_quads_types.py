@@ -12,11 +12,11 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-async def test_get_quads_types_success(client, org_token):
+async def test_get_quads_types_success(client, token_sem_perm):
     """Testa listagem de tipos de quadrinhos com sucesso."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -28,11 +28,11 @@ async def test_get_quads_types_success(client, org_token):
     assert isinstance(data, list)
 
 
-async def test_get_quads_types_returns_groups(client, org_token):
+async def test_get_quads_types_returns_groups(client, token_sem_perm):
     """Testa que retorna grupos de quadrinhos do seed."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -51,11 +51,11 @@ async def test_get_quads_types_returns_groups(client, org_token):
     assert 'types' in group
 
 
-async def test_get_quads_types_group_contains_types(client, org_token):
+async def test_get_quads_types_group_contains_types(client, token_sem_perm):
     """Testa que cada grupo contém seus tipos."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -75,11 +75,11 @@ async def test_get_quads_types_group_contains_types(client, org_token):
     assert 'funcs_list' in quad_type
 
 
-async def test_get_quads_types_type_has_funcs_list(client, org_token):
+async def test_get_quads_types_type_has_funcs_list(client, token_sem_perm):
     """Testa que tipos têm lista de funções."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -101,7 +101,7 @@ async def test_get_quads_types_type_has_funcs_list(client, org_token):
 
 
 async def test_get_quads_types_scoped_by_active_org(
-    client, users, org_token, make_org_token
+    client, users, token_sem_perm, make_org_token
 ):
     """Testa que o escopo segue a org ativa do token, não um query param.
 
@@ -113,7 +113,7 @@ async def test_get_quads_types_scoped_by_active_org(
 
     response_11gt = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
     response_1gt = await client.get(
         '/ops/quads/types',
@@ -128,21 +128,21 @@ async def test_get_quads_types_scoped_by_active_org(
     assert response_1gt.json()['data'] == []
 
 
-async def test_get_quads_types_missing_active_org_fails(client, token):
-    """Sem org ativa no token (fixture `token`), o data-plane responde 400."""
+async def test_get_quads_types_missing_active_org_fails(client, token_sistema):
+    """Sem org ativa no token, o data-plane responde 400."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_get_quads_types_types_ordered_by_id(client, org_token):
+async def test_get_quads_types_types_ordered_by_id(client, token_sem_perm):
     """Testa que tipos são ordenados por ID."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -158,11 +158,11 @@ async def test_get_quads_types_types_ordered_by_id(client, org_token):
             assert type_ids == sorted(type_ids)
 
 
-async def test_get_quads_types_response_schema(client, org_token):
+async def test_get_quads_types_response_schema(client, token_sem_perm):
     """Testa o schema completo da resposta (QuadsGroupSchema)."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -185,11 +185,11 @@ async def test_get_quads_types_response_schema(client, org_token):
             assert isinstance(quad_type['funcs_list'], list)
 
 
-async def test_get_quads_types_known_groups_exist(client, org_token):
+async def test_get_quads_types_known_groups_exist(client, token_sem_perm):
     """Testa que grupos conhecidos do seed existem."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -210,11 +210,11 @@ async def test_get_quads_types_known_groups_exist(client, org_token):
     )
 
 
-async def test_get_quads_types_known_types_exist(client, org_token):
+async def test_get_quads_types_known_types_exist(client, token_sem_perm):
     """Testa que tipos conhecidos do seed existem."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -237,11 +237,11 @@ async def test_get_quads_types_known_types_exist(client, org_token):
     )
 
 
-async def test_get_quads_types_known_funcs_exist(client, org_token):
+async def test_get_quads_types_known_funcs_exist(client, token_sem_perm):
     """Testa que funções conhecidas do seed existem."""
     response = await client.get(
         '/ops/quads/types',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK

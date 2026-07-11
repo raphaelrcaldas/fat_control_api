@@ -57,48 +57,40 @@ async def trip_crm_1gt(session):
     return user, trip
 
 
-async def test_get_by_user_cross_org_retorna_none(
-    client, trip_crm_1gt, org_admin_token
-):
+async def test_get_by_user_cross_org_retorna_none(client, trip_crm_1gt, token):
     user, _ = trip_crm_1gt
-    resp = await client.get(
-        f'{URL}user/{user.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.get(f'{URL}user/{user.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data'] is None
 
 
-async def test_delete_cross_org_404(client, trip_crm_1gt, org_admin_token):
+async def test_delete_cross_org_404(client, trip_crm_1gt, token):
     _, trip = trip_crm_1gt
-    resp = await client.delete(
-        f'{URL}{trip.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{URL}{trip.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
     # Escopo (tripulante fora da org), não rota inexistente ('Not Found').
     assert resp.json()['message'] == 'Tripulante nao encontrado'
 
 
-async def test_orfaos_escopado_por_org(client, session, org_admin_token):
+async def test_orfaos_escopado_por_org(client, session, token):
     u11, _ = await _mk_user_crm(session, unidade='11gt')
     u1, _ = await _mk_user_crm(session, unidade='1gt')
 
-    resp = await client.get(ORFAOS_URL, headers=_auth(org_admin_token))
+    resp = await client.get(ORFAOS_URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {i['user_id'] for i in resp.json()['data']['itens']}
     assert u11.id in ids
     assert u1.id not in ids
 
 
-async def test_orfaos_delete_nao_remove_de_outra_org(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     u1, crm = await _mk_user_crm(session, unidade='1gt')
 
     resp = await client.request(
         'DELETE',
         ORFAOS_URL,
         json={'user_ids': [u1.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data']['deleted'] == 0

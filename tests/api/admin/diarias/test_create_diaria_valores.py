@@ -17,7 +17,7 @@ from tests.factories import DiariaValorFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_diaria_valor_success(client, session, token):
+async def test_create_diaria_valor_success(client, session, token_sistema):
     """Testa criacao de valor de diaria com sucesso."""
     valor_data = {
         'grupo_pg': 1,
@@ -28,7 +28,7 @@ async def test_create_diaria_valor_success(client, session, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
@@ -50,7 +50,9 @@ async def test_create_diaria_valor_success(client, session, token):
     assert db_valor.valor == 320.00
 
 
-async def test_create_diaria_valor_with_data_fim(client, session, token):
+async def test_create_diaria_valor_with_data_fim(
+    client, session, token_sistema
+):
     """Testa criacao de valor de diaria com data_fim."""
     today = date.today()
     valor_data = {
@@ -63,7 +65,7 @@ async def test_create_diaria_valor_with_data_fim(client, session, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
@@ -74,7 +76,7 @@ async def test_create_diaria_valor_with_data_fim(client, session, token):
     assert data['data_fim'] == (today + timedelta(days=365)).isoformat()
 
 
-async def test_create_diaria_valor_future_start_date(client, token):
+async def test_create_diaria_valor_future_start_date(client, token_sistema):
     """Testa criacao de valor com data_inicio futura (status proximo)."""
     future_date = date.today() + timedelta(days=30)
     valor_data = {
@@ -86,7 +88,7 @@ async def test_create_diaria_valor_future_start_date(client, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
@@ -97,7 +99,9 @@ async def test_create_diaria_valor_future_start_date(client, token):
     assert data['status'] == 'proximo'
 
 
-async def test_create_diaria_valor_data_fim_before_data_inicio(client, token):
+async def test_create_diaria_valor_data_fim_before_data_inicio(
+    client, token_sistema
+):
     """Testa que data_fim <= data_inicio falha."""
     today = date.today()
     valor_data = {
@@ -110,7 +114,7 @@ async def test_create_diaria_valor_data_fim_before_data_inicio(client, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
@@ -118,7 +122,9 @@ async def test_create_diaria_valor_data_fim_before_data_inicio(client, token):
     assert 'Data fim deve ser maior' in response.json()['message']
 
 
-async def test_create_diaria_valor_data_fim_equal_data_inicio(client, token):
+async def test_create_diaria_valor_data_fim_equal_data_inicio(
+    client, token_sistema
+):
     """Testa que data_fim == data_inicio falha."""
     today = date.today()
     valor_data = {
@@ -131,7 +137,7 @@ async def test_create_diaria_valor_data_fim_equal_data_inicio(client, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
@@ -140,7 +146,7 @@ async def test_create_diaria_valor_data_fim_equal_data_inicio(client, token):
 
 
 async def test_create_diaria_valor_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     valor_data = {
         'grupo_pg': 1,
         'grupo_cid': 1,
@@ -153,7 +159,9 @@ async def test_create_diaria_valor_without_token(client):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_create_diaria_valor_missing_required_field(client, token):
+async def test_create_diaria_valor_missing_required_field(
+    client, token_sistema
+):
     """Testa que campo obrigatorio faltando falha."""
     # Falta o campo 'valor'
     valor_data = {
@@ -164,14 +172,14 @@ async def test_create_diaria_valor_missing_required_field(client, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_diaria_valor_zero_fails(client, token):
+async def test_create_diaria_valor_zero_fails(client, token_sistema):
     """Testa que valor zero falha (schema exige valor > 0)."""
     valor_data = {
         'grupo_pg': 1,
@@ -182,14 +190,14 @@ async def test_create_diaria_valor_zero_fails(client, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_diaria_valor_negative_fails(client, token):
+async def test_create_diaria_valor_negative_fails(client, token_sistema):
     """Testa que valor negativo falha."""
     valor_data = {
         'grupo_pg': 1,
@@ -200,14 +208,16 @@ async def test_create_diaria_valor_negative_fails(client, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=valor_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_diaria_valor_auto_close_previous(client, session, token):
+async def test_create_diaria_valor_auto_close_previous(
+    client, session, token_sistema
+):
     """Testa que criar novo valor fecha o anterior."""
     today = date.today()
 
@@ -232,7 +242,7 @@ async def test_create_diaria_valor_auto_close_previous(client, session, token):
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 
@@ -243,7 +253,7 @@ async def test_create_diaria_valor_auto_close_previous(client, session, token):
 
 
 async def test_create_diaria_valor_auto_close_validation_error(
-    client, session, token
+    client, session, token_sistema
 ):
     """Testa erro quando novo valor comeca antes do vigente."""
     today = date.today()
@@ -267,7 +277,7 @@ async def test_create_diaria_valor_auto_close_validation_error(
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 
@@ -277,7 +287,7 @@ async def test_create_diaria_valor_auto_close_validation_error(
 
 
 async def test_create_diaria_valor_sobreposicao_banda_fechada_conflito(
-    client, session, token
+    client, session, token_sistema
 ):
     """Criar faixa que sobrepoe uma banda fechada da mesma chave -> 409.
 
@@ -304,7 +314,7 @@ async def test_create_diaria_valor_sobreposicao_banda_fechada_conflito(
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 
@@ -313,7 +323,7 @@ async def test_create_diaria_valor_sobreposicao_banda_fechada_conflito(
 
 
 async def test_create_diaria_valor_no_auto_close_different_group(
-    client, session, token
+    client, session, token_sistema
 ):
     """Testa que auto-close nao afeta grupos diferentes."""
     today = date.today()
@@ -340,7 +350,7 @@ async def test_create_diaria_valor_no_auto_close_different_group(
 
     response = await client.post(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 

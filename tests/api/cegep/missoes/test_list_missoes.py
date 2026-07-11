@@ -21,11 +21,11 @@ from tests.factories import (
 pytestmark = pytest.mark.anyio
 
 
-async def test_list_missoes_success(client, org_admin_token, missao_existente):
+async def test_list_missoes_success(client, token, missao_existente):
     """Testa listagem de missoes sem filtros."""
     response = await client.get(
         '/cegep/missoes/',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -36,15 +36,13 @@ async def test_list_missoes_success(client, org_admin_token, missao_existente):
 
 
 async def test_list_missoes_without_token(client):
-    """Testa que requisicao sem org_admin_token falha."""
+    """Testa que requisicao sem token falha."""
     response = await client.get('/cegep/missoes/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_list_missoes_pagination(
-    client, session, org_admin_token, users
-):
+async def test_list_missoes_pagination(client, session, token, users):
     """Testa paginacao de missoes."""
     user, _ = users
     today = date.today()
@@ -80,7 +78,7 @@ async def test_list_missoes_pagination(
     response = await client.get(
         '/cegep/missoes/',
         params={'page': 1, 'per_page': 2},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -90,14 +88,12 @@ async def test_list_missoes_pagination(
     assert resp['per_page'] == 2
 
 
-async def test_list_missoes_filter_tipo_doc(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_filter_tipo_doc(client, token, missao_existente):
     """Testa filtro por tipo_doc."""
     response = await client.get(
         '/cegep/missoes/',
         params={'tipo_doc': 'om'},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -106,14 +102,12 @@ async def test_list_missoes_filter_tipo_doc(
         assert missao['tipo_doc'] == 'om'
 
 
-async def test_list_missoes_filter_n_doc(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_filter_n_doc(client, token, missao_existente):
     """Testa filtro por n_doc."""
     response = await client.get(
         '/cegep/missoes/',
         params={'n_doc': 1001},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -123,14 +117,12 @@ async def test_list_missoes_filter_n_doc(
         assert missao['n_doc'] == '1001'
 
 
-async def test_list_missoes_filter_tipo(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_filter_tipo(client, token, missao_existente):
     """Testa filtro por tipo de missao."""
     response = await client.get(
         '/cegep/missoes/',
         params={'tipo': 'adm'},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -139,9 +131,7 @@ async def test_list_missoes_filter_tipo(
         assert missao['tipo'] == 'adm'
 
 
-async def test_list_missoes_filter_date_range(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_filter_date_range(client, token, missao_existente):
     """Testa filtro por intervalo de datas."""
     today = date.today()
     ini = (today + timedelta(days=5)).isoformat()
@@ -150,7 +140,7 @@ async def test_list_missoes_filter_date_range(
     response = await client.get(
         '/cegep/missoes/',
         params={'ini': ini, 'fim': fim},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -160,7 +150,7 @@ async def test_list_missoes_filter_date_range(
 
 
 async def test_list_missoes_filter_user_search(
-    client, org_admin_token, missao_existente, users
+    client, token, missao_existente, users
 ):
     """Testa filtro por nome de guerra."""
     user, _ = users
@@ -168,7 +158,7 @@ async def test_list_missoes_filter_user_search(
     response = await client.get(
         '/cegep/missoes/',
         params={'user_search': user.nome_guerra[:5]},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -176,14 +166,12 @@ async def test_list_missoes_filter_user_search(
     assert resp['total'] >= 1
 
 
-async def test_list_missoes_filter_city(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_filter_city(client, token, missao_existente):
     """Testa filtro por cidade."""
     response = await client.get(
         '/cegep/missoes/',
         params={'city': 'Paulo'},  # Sao Paulo
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -192,7 +180,7 @@ async def test_list_missoes_filter_city(
 
 
 async def test_list_missoes_filter_etiqueta_ids(
-    client, session, org_admin_token, missao_existente
+    client, session, token, missao_existente
 ):
     """Testa filtro por etiquetas."""
     # Criar etiqueta e associar a missao
@@ -209,7 +197,7 @@ async def test_list_missoes_filter_etiqueta_ids(
     response = await client.get(
         '/cegep/missoes/',
         params={'etiqueta_ids': str(etiqueta.id)},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -217,9 +205,7 @@ async def test_list_missoes_filter_etiqueta_ids(
     assert resp['total'] >= 1
 
 
-async def test_list_missoes_multiple_filters(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_multiple_filters(client, token, missao_existente):
     """Testa multiplos filtros combinados."""
     today = date.today()
 
@@ -231,7 +217,7 @@ async def test_list_missoes_multiple_filters(
             'ini': (today + timedelta(days=5)).isoformat(),
             'fim': (today + timedelta(days=20)).isoformat(),
         },
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -241,25 +227,23 @@ async def test_list_missoes_multiple_filters(
         assert missao['tipo'] == 'adm'
 
 
-async def test_list_missoes_per_page_max(
-    client, org_admin_token, missao_existente
-):
+async def test_list_missoes_per_page_max(client, token, missao_existente):
     """Testa que per_page e limitado a 100."""
     response = await client.get(
         '/cegep/missoes/',
         params={'per_page': 200},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_list_missoes_empty_result(client, org_admin_token):
+async def test_list_missoes_empty_result(client, token):
     """Testa listagem quando nao ha missoes no filtro."""
     response = await client.get(
         '/cegep/missoes/',
         params={'n_doc': 999999},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -269,13 +253,13 @@ async def test_list_missoes_empty_result(client, org_admin_token):
 
 
 async def test_list_missoes_invalid_etiqueta_ids(
-    client, org_admin_token, missao_existente
+    client, token, missao_existente
 ):
     """Testa que etiqueta_ids invalido e ignorado."""
     response = await client.get(
         '/cegep/missoes/',
         params={'etiqueta_ids': '99999'},
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK

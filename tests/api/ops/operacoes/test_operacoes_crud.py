@@ -37,17 +37,15 @@ def _auth(token):
 # --------------------------------------------------------------------------- #
 # Listagem
 # --------------------------------------------------------------------------- #
-async def test_list_empty(client, org_admin_token):
-    resp = await client.get(BASE, headers=_auth(org_admin_token))
+async def test_list_empty(client, token):
+    resp = await client.get(BASE, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     body = resp.json()['data']
     assert body['items'] == []
     assert body['counts']['todas'] == 0
 
 
-async def test_list_returns_items_with_counts(
-    client, session, users, org_admin_token
-):
+async def test_list_returns_items_with_counts(client, session, users, token):
     user, _ = users
     session.add_all([
         OperacaoFactory(created_by=user.id, status='planejada'),
@@ -56,7 +54,7 @@ async def test_list_returns_items_with_counts(
     ])
     await session.commit()
 
-    resp = await client.get(BASE, headers=_auth(org_admin_token))
+    resp = await client.get(BASE, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     body = resp.json()['data']
     assert len(body['items']) == 3
@@ -67,7 +65,7 @@ async def test_list_returns_items_with_counts(
     assert all(i['horas'] == 0 and i['etapas'] == 0 for i in body['items'])
 
 
-async def test_list_filter_status(client, session, users, org_admin_token):
+async def test_list_filter_status(client, session, users, token):
     user, _ = users
     session.add_all([
         OperacaoFactory(created_by=user.id, status='planejada'),
@@ -76,7 +74,7 @@ async def test_list_filter_status(client, session, users, org_admin_token):
     await session.commit()
 
     resp = await client.get(
-        BASE, params={'status': 'encerrada'}, headers=_auth(org_admin_token)
+        BASE, params={'status': 'encerrada'}, headers=_auth(token)
     )
     items = resp.json()['data']['items']
     assert len(items) == 1
@@ -85,7 +83,7 @@ async def test_list_filter_status(client, session, users, org_admin_token):
     assert resp.json()['data']['counts']['todas'] == 2
 
 
-async def test_list_filter_tipo(client, session, users, org_admin_token):
+async def test_list_filter_tipo(client, session, users, token):
     user, _ = users
     session.add_all([
         OperacaoFactory(created_by=user.id, tipo='manobra'),
@@ -94,14 +92,14 @@ async def test_list_filter_tipo(client, session, users, org_admin_token):
     await session.commit()
 
     resp = await client.get(
-        BASE, params={'tipo': 'manobra'}, headers=_auth(org_admin_token)
+        BASE, params={'tipo': 'manobra'}, headers=_auth(token)
     )
     items = resp.json()['data']['items']
     assert len(items) == 1
     assert items[0]['tipo'] == 'manobra'
 
 
-async def test_list_filter_busca(client, session, users, org_admin_token):
+async def test_list_filter_busca(client, session, users, token):
     user, _ = users
     session.add_all([
         OperacaoFactory(created_by=user.id, nome='Operação Singular'),
@@ -110,16 +108,14 @@ async def test_list_filter_busca(client, session, users, org_admin_token):
     await session.commit()
 
     resp = await client.get(
-        BASE, params={'q': 'Singular'}, headers=_auth(org_admin_token)
+        BASE, params={'q': 'Singular'}, headers=_auth(token)
     )
     items = resp.json()['data']['items']
     assert len(items) == 1
     assert items[0]['nome'] == 'Operação Singular'
 
 
-async def test_list_filter_date_overlap(
-    client, session, users, org_admin_token
-):
+async def test_list_filter_date_overlap(client, session, users, token):
     user, _ = users
     session.add_all([
         OperacaoFactory(
@@ -138,16 +134,14 @@ async def test_list_filter_date_overlap(
     resp = await client.get(
         BASE,
         params={'date_start': '2025-05-01', 'date_end': '2025-07-01'},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     items = resp.json()['data']['items']
     assert len(items) == 1
     assert items[0]['data_inicio'] == '2025-06-01'
 
 
-async def test_list_scoped_by_active_org(
-    client, session, users, org_admin_token
-):
+async def test_list_scoped_by_active_org(client, session, users, token):
     """Lista só operações da org ativa ('11gt'), não de outra unidade."""
     user, _ = users
     session.add_all([
@@ -156,7 +150,7 @@ async def test_list_scoped_by_active_org(
     ])
     await session.commit()
 
-    resp = await client.get(BASE, headers=_auth(org_admin_token))
+    resp = await client.get(BASE, headers=_auth(token))
     items = resp.json()['data']['items']
     assert len(items) == 1
 
@@ -166,14 +160,14 @@ async def test_list_viewer_allowed(client, oper_viewer_token):
     assert resp.status_code == HTTPStatus.OK
 
 
-async def test_list_without_permission_forbidden(client, org_token):
-    """org_token (admin de Sistema) não tem operacoes.view em '11gt'."""
-    resp = await client.get(BASE, headers=_auth(org_token))
+async def test_list_without_permission_forbidden(client, token_sem_perm):
+    """token_sem_perm (admin de Sistema) não tem operacoes.view em '11gt'."""
+    resp = await client.get(BASE, headers=_auth(token_sem_perm))
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
-async def test_list_missing_active_org(client, token):
-    resp = await client.get(BASE, headers=_auth(token))
+async def test_list_missing_active_org(client, token_sistema):
+    resp = await client.get(BASE, headers=_auth(token_sistema))
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
@@ -185,10 +179,8 @@ async def test_list_requires_auth(client):
 # --------------------------------------------------------------------------- #
 # Criação
 # --------------------------------------------------------------------------- #
-async def test_create_success(client, org_admin_token):
-    resp = await client.post(
-        BASE, json=_payload(), headers=_auth(org_admin_token)
-    )
+async def test_create_success(client, token):
+    resp = await client.post(BASE, json=_payload(), headers=_auth(token))
     assert resp.status_code == HTTPStatus.CREATED
     data = resp.json()['data']
     assert data['nome'] == 'Operação Alfa'
@@ -197,12 +189,12 @@ async def test_create_success(client, org_admin_token):
     assert data['horas'] == 0
 
 
-async def test_create_numero_sequential(client, org_admin_token):
+async def test_create_numero_sequential(client, token):
     r1 = await client.post(
-        BASE, json=_payload(nome='Um'), headers=_auth(org_admin_token)
+        BASE, json=_payload(nome='Um'), headers=_auth(token)
     )
     r2 = await client.post(
-        BASE, json=_payload(nome='Dois'), headers=_auth(org_admin_token)
+        BASE, json=_payload(nome='Dois'), headers=_auth(token)
     )
     assert r1.json()['data']['numero'] == 1
     assert r2.json()['data']['numero'] == 2
@@ -223,26 +215,28 @@ async def test_create_viewer_forbidden(client, oper_viewer_token):
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
-async def test_create_missing_active_org(client, token):
-    resp = await client.post(BASE, json=_payload(), headers=_auth(token))
+async def test_create_missing_active_org(client, token_sistema):
+    resp = await client.post(
+        BASE, json=_payload(), headers=_auth(token_sistema)
+    )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_create_duplicate_nome_conflict(client, org_admin_token):
+async def test_create_duplicate_nome_conflict(client, token):
     await client.post(
-        BASE, json=_payload(nome='Repetida'), headers=_auth(org_admin_token)
+        BASE, json=_payload(nome='Repetida'), headers=_auth(token)
     )
     resp = await client.post(
-        BASE, json=_payload(nome='Repetida'), headers=_auth(org_admin_token)
+        BASE, json=_payload(nome='Repetida'), headers=_auth(token)
     )
     assert resp.status_code == HTTPStatus.CONFLICT
 
 
-async def test_create_invalid_period_422(client, org_admin_token):
+async def test_create_invalid_period_422(client, token):
     resp = await client.post(
         BASE,
         json=_payload(data_inicio='2025-06-10', data_fim='2025-06-01'),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
@@ -250,14 +244,14 @@ async def test_create_invalid_period_422(client, org_admin_token):
 # --------------------------------------------------------------------------- #
 # Detalhe
 # --------------------------------------------------------------------------- #
-async def test_get_detail_success(client, session, users, org_admin_token):
+async def test_get_detail_success(client, session, users, token):
     user, _ = users
     op = OperacaoFactory(created_by=user.id)
     session.add(op)
     await session.commit()
     await session.refresh(op)
 
-    resp = await client.get(f'{BASE}{op.id}', headers=_auth(org_admin_token))
+    resp = await client.get(f'{BASE}{op.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
     assert data['id'] == op.id
@@ -266,28 +260,26 @@ async def test_get_detail_success(client, session, users, org_admin_token):
     assert data['sebo'] == []
 
 
-async def test_get_detail_not_found(client, org_admin_token):
-    resp = await client.get(f'{BASE}999999', headers=_auth(org_admin_token))
+async def test_get_detail_not_found(client, token):
+    resp = await client.get(f'{BASE}999999', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_get_detail_cross_org_404(
-    client, session, users, org_admin_token
-):
+async def test_get_detail_cross_org_404(client, session, users, token):
     user, _ = users
     op = OperacaoFactory(created_by=user.id, uae='1gt')
     session.add(op)
     await session.commit()
     await session.refresh(op)
 
-    resp = await client.get(f'{BASE}{op.id}', headers=_auth(org_admin_token))
+    resp = await client.get(f'{BASE}{op.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 # --------------------------------------------------------------------------- #
 # Edição
 # --------------------------------------------------------------------------- #
-async def test_update_success(client, session, users, org_admin_token):
+async def test_update_success(client, session, users, token):
     user, _ = users
     op = OperacaoFactory(created_by=user.id, status='planejada')
     session.add(op)
@@ -297,29 +289,25 @@ async def test_update_success(client, session, users, org_admin_token):
     resp = await client.put(
         f'{BASE}{op.id}',
         json={'nome': 'Renomeada', 'status': 'andamento'},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 
-    get_resp = await client.get(
-        f'{BASE}{op.id}', headers=_auth(org_admin_token)
-    )
+    get_resp = await client.get(f'{BASE}{op.id}', headers=_auth(token))
     assert get_resp.json()['data']['nome'] == 'Renomeada'
     assert get_resp.json()['data']['status'] == 'andamento'
 
 
-async def test_update_not_found(client, org_admin_token):
+async def test_update_not_found(client, token):
     resp = await client.put(
         f'{BASE}999999',
         json={'nome': 'X'},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_update_invalid_period_400(
-    client, session, users, org_admin_token
-):
+async def test_update_invalid_period_400(client, session, users, token):
     user, _ = users
     op = OperacaoFactory(
         created_by=user.id,
@@ -333,14 +321,12 @@ async def test_update_invalid_period_400(
     resp = await client.put(
         f'{BASE}{op.id}',
         json={'data_fim': '2025-05-01'},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_update_explicit_null_422(
-    client, session, users, org_admin_token
-):
+async def test_update_explicit_null_422(client, session, users, token):
     """`null` explícito em coluna NOT NULL é barrado pelo schema (422)."""
     user, _ = users
     op = OperacaoFactory(created_by=user.id)
@@ -351,7 +337,7 @@ async def test_update_explicit_null_422(
     resp = await client.put(
         f'{BASE}{op.id}',
         json={'nome': None},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
@@ -376,21 +362,17 @@ async def test_update_viewer_forbidden(
 # --------------------------------------------------------------------------- #
 # Exclusão
 # --------------------------------------------------------------------------- #
-async def test_delete_success(client, session, users, org_admin_token):
+async def test_delete_success(client, session, users, token):
     user, _ = users
     op = OperacaoFactory(created_by=user.id)
     session.add(op)
     await session.commit()
     await session.refresh(op)
 
-    resp = await client.delete(
-        f'{BASE}{op.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{BASE}{op.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
 
-    get_resp = await client.get(
-        f'{BASE}{op.id}', headers=_auth(org_admin_token)
-    )
+    get_resp = await client.get(f'{BASE}{op.id}', headers=_auth(token))
     assert get_resp.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -413,19 +395,17 @@ async def test_delete_writer_without_delete_perm_forbidden(
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
-async def test_delete_not_found(client, org_admin_token):
-    resp = await client.delete(f'{BASE}999999', headers=_auth(org_admin_token))
+async def test_delete_not_found(client, token):
+    resp = await client.delete(f'{BASE}999999', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(client, session, users, org_admin_token):
+async def test_delete_cross_org_404(client, session, users, token):
     user, _ = users
     op = OperacaoFactory(created_by=user.id, uae='1gt')
     session.add(op)
     await session.commit()
     await session.refresh(op)
 
-    resp = await client.delete(
-        f'{BASE}{op.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{BASE}{op.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND

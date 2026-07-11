@@ -5,9 +5,19 @@ Este conftest.py contém fixtures usadas por múltiplos testes de endpoints:
 - users: Dois usuários de teste (user com senha, other_user)
 - client: Cliente HTTP para testar endpoints
 - oauth_client: Cliente OAuth2 para testes de autenticação
-- token: Token JWT genérico para endpoints autenticados
-- make_token: Factory para criar tokens customizados
 - generate_pkce_pair: Helper para gerar pares PKCE em testes OAuth2
+
+Tokens — são três posturas de autorização, e o nome diz qual é:
+
+- `token`: org ativa '11gt' + admin NA org (bypass). O caso comum, para
+  exercitar o acesso concedido no data-plane.
+- `token_sem_perm`: org ativa '11gt', sem permissão nenhuma nela. Para
+  exercitar a negação (403) — passa do `ActiveOrg` e morre no gate.
+- `token_sistema`: sem `active_org` (contexto Sistema), admin de sistema.
+  Para as rotas `/admin/*` e para provar o 400 do `ActiveOrg`.
+
+Para tokens fora desse padrão (outra org, outro usuário, sem role) use os
+factories `make_org_token` / `make_token`.
 """
 
 import base64
@@ -115,21 +125,30 @@ async def oauth_client(session):
 
 
 @pytest.fixture
-async def token(users, session):
+async def token_sistema(users, session):
     """
-    Gera um token JWT válido para o primeiro usuário da fixture 'users'.
-    Garante que o usuário tenha uma role (requisito Zero Trust).
+    Token JWT SEM organização ativa — o contexto "Sistema".
+
+    É a postura excepcional: o vínculo admin não tem org (`organizacao_id`
+    NULL), que é exatamente o que `require_system_admin` exige. Use-o em
+    duas situações:
+
+    - rotas de admin de sistema (`/admin/soldos`, `/admin/diarias`), que só
+      respondem no contexto Sistema;
+    - testar o 400 de `ActiveOrg` numa rota escopada por organização.
+
+    Para o caso comum (data-plane escopado) use `token`.
 
     Uso:
-        async def test_protected_endpoint(client, token):
+        async def test_admin_de_sistema(client, token_sistema):
             response = await client.get(
-                '/endpoint',
-                headers={'Authorization': f'Bearer {token}'}
+                '/admin/soldos',
+                headers={'Authorization': f'Bearer {token_sistema}'}
             )
             assert response.status_code == 200
 
     Returns:
-        str: Token JWT válido para uso em testes
+        str: Token JWT válido, sem `active_org`
     """
 
     user, _ = users
@@ -166,12 +185,10 @@ def make_org_token(session):
     """
     Factory de token JWT com organização ativa arbitrária.
 
-    As rotas de data-plane (tripulantes, quadrinhos, escala,
-    indisponibilidades, cartões de saúde, ordens de missão) são escopadas
-    por unidade e exigem `active_org` no token (dependência ActiveOrg). A
-    fixture `token` não define org ativa, então essas rotas respondem 400.
-    Use este factory quando precisar de uma org específica (ex.: '1gt' para
-    testar isolamento cross-org); para o caso comum '11gt' use `org_token`.
+    Use este factory quando o token precisar fugir do padrão das fixtures:
+    outra organização (ex.: '1gt', para testar isolamento cross-org), outro
+    usuário que não o primeiro da fixture `users`, ou sem role
+    (`ensure_role=False`). Para o caso comum use a fixture `token`.
 
     Uso:
         async def test_cross_org(client, users, make_org_token):
@@ -182,20 +199,25 @@ def make_org_token(session):
         user: Objeto User para o qual criar o token
         active_org: Sigla da organização ativa (default '11gt')
         client_id: ID do cliente OAuth2 (default 'test-client')
+        ensure_role: Se True, garante que o usuário tem role (default: True).
+            Passe False para testar negação de permissão: a role default é a
+            `admin` (id=1), que tem bypass — com ela, um teste de 403 acaba
+            autenticando um administrador e passando a 200.
 
     Returns:
         Callable: Função assíncrona que retorna um token JWT
     """
 
     async def _make_org_token(
-        user, active_org='11gt', client_id='test-client'
+        user, active_org='11gt', client_id='test-client', ensure_role=True
     ):
-        existing_role = await session.scalar(
-            select(UserRole).where(UserRole.user_id == user.id)
-        )
-        if not existing_role:
-            session.add(UserRole(user_id=user.id, role_id=1))
-            await session.commit()
+        if ensure_role:
+            existing_role = await session.scalar(
+                select(UserRole).where(UserRole.user_id == user.id)
+            )
+            if not existing_role:
+                session.add(UserRole(user_id=user.id, role_id=1))
+                await session.commit()
 
         db_user = await session.scalar(
             select(User)
@@ -215,40 +237,49 @@ def make_org_token(session):
 
 
 @pytest.fixture
-async def org_token(users, make_org_token):
+async def token_sem_perm(users, make_org_token):
     """
-    Token JWT com organização ativa '11gt' para o primeiro usuário.
+    Token com org ativa '11gt' mas SEM permissão alguma nessa org.
 
-    Conveniência sobre `make_org_token` para o caso mais comum (a unidade
-    canônica dos seeds/factories de teste). Para outra org, use o factory.
+    O vínculo admin que o factory cria não tem organização
+    (`organizacao_id` NULL), e o `permission_checker` resolve a role pela org
+    ativa (`organizacao_id IS NOT DISTINCT FROM active_org`) — logo o vínculo
+    de Sistema não casa com a '11gt' e o usuário chega sem nenhuma permissão.
+
+    É a postura para testar **negação**: satisfaz o `ActiveOrg` (não dá 400)
+    e chega até o gate, que responde 403. Para o acesso concedido use
+    `token`.
 
     Uso:
-        async def test_data_plane(client, org_token):
-            response = await client.get(
-                '/indisp/',
-                params={'funcao': 'pil'},
-                headers={'Authorization': f'Bearer {org_token}'},
+        async def test_sem_permissao(client, token_sem_perm):
+            response = await client.post(
+                '/ops/aeronaves/',
+                headers={'Authorization': f'Bearer {token_sem_perm}'},
+                json={...},
             )
-            assert response.status_code == 200
+            assert response.status_code == 403
 
     Returns:
-        str: Token JWT válido com active_org='11gt'
+        str: Token JWT com active_org='11gt' e sem permissões na org
     """
     user, _ = users
     return await make_org_token(user)
 
 
 @pytest.fixture
-async def org_admin_token(users, session, make_org_token):
+async def token(users, session, make_org_token):
     """
-    Token com org ativa '11gt' e vínculo admin NA org '11gt'.
+    Token padrão: org ativa '11gt' e vínculo admin NA org '11gt'.
 
-    Diferente de `org_token` (cujo vínculo admin não tem org e só satisfaz
-    rotas que exigem apenas `active_org`), este liga o usuário como admin de
-    '11gt'. O `permission_checker` resolve a role pela org ativa
-    (organizacao_id IS NOT DISTINCT FROM active_org), então o bypass de
-    admin só vale com o vínculo escopado à unidade — necessário nas rotas de
-    escrita do data-plane (ex.: POST /ops/trips, permission trips.create).
+    É a postura do caso comum — o data-plane é escopado por organização, e a
+    maioria das rotas exige `active_org` (dependência `ActiveOrg`, 400 sem
+    ela) mais uma permissão. O vínculo admin precisa ser **escopado à
+    unidade**: o `permission_checker` resolve a role pela org ativa
+    (`organizacao_id IS NOT DISTINCT FROM active_org`), então um admin de
+    Sistema (org NULL) não teria bypass na '11gt'.
+
+    As outras duas posturas são exceções e se nomeiam: `token_sistema` (sem
+    org) e `token_sem_perm` (org ativa, sem permissão).
 
     Returns:
         str: Token JWT com active_org='11gt' e admin scoped à '11gt'

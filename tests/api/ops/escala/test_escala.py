@@ -70,12 +70,14 @@ def _all_trip_ids(payload):
     return ids
 
 
-async def test_returns_eligible_trip(client, session, users, org_token):
+async def test_returns_eligible_trip(client, session, users, token_sem_perm):
     user, _ = users
     trip = await _trip_with_func(session, user.id)
     await session.commit()
 
-    resp = await client.get(URL, params=_params(), headers=_auth(org_token))
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sem_perm)
+    )
 
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
@@ -83,7 +85,9 @@ async def test_returns_eligible_trip(client, session, users, org_token):
     assert trip.id in _all_trip_ids(data)
 
 
-async def test_ineligible_quad_group_400(client, session, users, org_token):
+async def test_ineligible_quad_group_400(
+    client, session, users, token_sem_perm
+):
     user, _ = users
     await _trip_with_func(session, user.id)
     await session.commit()
@@ -91,67 +95,75 @@ async def test_ineligible_quad_group_400(client, session, users, org_token):
     resp = await client.get(
         URL,
         params=_params(tipo_quad_id=TIPO_INELEGIVEL),
-        headers=_auth(org_token),
+        headers=_auth(token_sem_perm),
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_date_end_before_start_422(client, org_token):
+async def test_date_end_before_start_422(client, token_sem_perm):
     resp = await client.get(
         URL,
         params=_params(date_start='2025-06-30', date_end='2025-06-01'),
-        headers=_auth(org_token),
+        headers=_auth(token_sem_perm),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_excludes_other_org_trip(client, session, users, org_token):
+async def test_excludes_other_org_trip(client, session, users, token_sem_perm):
     """Tripulante de outra unidade não aparece (escopo por Tripulante.uae)."""
     _, other = users
     trip = await _trip_with_func(session, other.id, uae='1gt')
     await session.commit()
 
-    resp = await client.get(URL, params=_params(), headers=_auth(org_token))
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sem_perm)
+    )
 
     assert trip.id not in _all_trip_ids(resp.json()['data'])
 
 
-async def test_excludes_inactive_trip(client, session, users, org_token):
+async def test_excludes_inactive_trip(client, session, users, token_sem_perm):
     user, _ = users
     trip = await _trip_with_func(session, user.id, active=False)
     await session.commit()
 
-    resp = await client.get(URL, params=_params(), headers=_auth(org_token))
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sem_perm)
+    )
 
     assert trip.id not in _all_trip_ids(resp.json()['data'])
 
 
 async def test_excludes_func_without_data_op(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Função sem `data_op` (não operacional) é descartada."""
     user, _ = users
     trip = await _trip_with_func(session, user.id, data_op=None)
     await session.commit()
 
-    resp = await client.get(URL, params=_params(), headers=_auth(org_token))
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sem_perm)
+    )
 
     assert trip.id not in _all_trip_ids(resp.json()['data'])
 
 
-async def test_excludes_oper_aluno(client, session, users, org_token):
+async def test_excludes_oper_aluno(client, session, users, token_sem_perm):
     """Função de aluno (`oper == 'al'`) não é elegível para escala."""
     user, _ = users
     trip = await _trip_with_func(session, user.id, oper='al')
     await session.commit()
 
-    resp = await client.get(URL, params=_params(), headers=_auth(org_token))
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sem_perm)
+    )
 
     assert trip.id not in _all_trip_ids(resp.json()['data'])
 
 
 async def test_section_empty_for_func_without_trips(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Pede 'pil' e 'md'; só há piloto → seção 'md' vem vazia."""
     user, _ = users
@@ -161,7 +173,7 @@ async def test_section_empty_for_func_without_trips(
     resp = await client.get(
         URL,
         params=_params(funcs=['pil', 'md']),
-        headers=_auth(org_token),
+        headers=_auth(token_sem_perm),
     )
     data = resp.json()['data']
     secoes = {s['func']: s['trips'] for s in data['sections']}
@@ -169,8 +181,10 @@ async def test_section_empty_for_func_without_trips(
     assert len(secoes['pil']) == 1
 
 
-async def test_missing_active_org_400(client, token):
-    resp = await client.get(URL, params=_params(), headers=_auth(token))
+async def test_missing_active_org_400(client, token_sistema):
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sistema)
+    )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 

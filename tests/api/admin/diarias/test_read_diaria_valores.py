@@ -20,11 +20,13 @@ pytestmark = pytest.mark.anyio
 # ============================================================
 
 
-async def test_list_diaria_valores_success(client, token, diaria_valores):
+async def test_list_diaria_valores_success(
+    client, token_sistema, diaria_valores
+):
     """Testa listagem de valores de diarias com sucesso."""
     response = await client.get(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -44,12 +46,12 @@ async def test_list_diaria_valores_success(client, token, diaria_valores):
 
 
 async def test_list_diaria_valores_filter_by_grupo_cid(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa filtro por grupo de cidade."""
     response = await client.get(
         '/admin/diarias/valores/?grupo_cid=1',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -63,12 +65,12 @@ async def test_list_diaria_valores_filter_by_grupo_cid(
 
 
 async def test_list_diaria_valores_filter_by_grupo_pg(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa filtro por grupo de P/G."""
     response = await client.get(
         '/admin/diarias/valores/?grupo_pg=1',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -82,12 +84,12 @@ async def test_list_diaria_valores_filter_by_grupo_pg(
 
 
 async def test_list_diaria_valores_filter_active_only(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa filtro active_only (apenas valores vigentes)."""
     response = await client.get(
         '/admin/diarias/valores/?active_only=true',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -101,12 +103,12 @@ async def test_list_diaria_valores_filter_active_only(
 
 
 async def test_list_diaria_valores_status_calculated(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa que o status e calculado corretamente."""
     response = await client.get(
         '/admin/diarias/valores/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -123,12 +125,12 @@ async def test_list_diaria_valores_status_calculated(
 
 
 async def test_list_diaria_valores_filter_combined(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa filtros combinados (grupo_pg + active_only)."""
     response = await client.get(
         '/admin/diarias/valores/?grupo_pg=1&active_only=true',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -142,7 +144,7 @@ async def test_list_diaria_valores_filter_combined(
 
 
 async def test_list_diaria_valores_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     response = await client.get('/admin/diarias/valores/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -153,13 +155,15 @@ async def test_list_diaria_valores_without_token(client):
 # ============================================================
 
 
-async def test_get_diaria_valor_by_id_success(client, token, diaria_valores):
+async def test_get_diaria_valor_by_id_success(
+    client, token_sistema, diaria_valores
+):
     """Testa busca por ID com sucesso."""
     valor = diaria_valores[0]
 
     response = await client.get(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -171,11 +175,11 @@ async def test_get_diaria_valor_by_id_success(client, token, diaria_valores):
     assert 'status' in data
 
 
-async def test_get_diaria_valor_by_id_not_found(client, token):
+async def test_get_diaria_valor_by_id_not_found(client, token_sistema):
     """Testa busca por ID inexistente."""
     response = await client.get(
         '/admin/diarias/valores/999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -183,7 +187,7 @@ async def test_get_diaria_valor_by_id_not_found(client, token):
 
 
 async def test_get_diaria_valor_by_id_without_token(client, diaria_valores):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     valor = diaria_valores[0]
 
     response = await client.get(f'/admin/diarias/valores/{valor.id}')
@@ -196,11 +200,11 @@ async def test_get_diaria_valor_by_id_without_token(client, diaria_valores):
 # ============================================================
 
 
-async def test_list_grupos_cidade_success(client, token):
+async def test_list_grupos_cidade_success(client, token_sistema):
     """Testa listagem de grupos de cidade com sucesso."""
     response = await client.get(
         '/admin/diarias/grupos-cidade/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -219,11 +223,11 @@ async def test_list_grupos_cidade_success(client, token):
     assert item['cidade']['nome'] is not None
 
 
-async def test_list_grupos_cidade_includes_cidade_info(client, token):
+async def test_list_grupos_cidade_includes_cidade_info(client, token_sistema):
     """Testa que os grupos incluem informacoes da cidade."""
     response = await client.get(
         '/admin/diarias/grupos-cidade/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -239,7 +243,7 @@ async def test_list_grupos_cidade_includes_cidade_info(client, token):
 
 
 async def test_list_grupos_cidade_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     response = await client.get('/admin/diarias/grupos-cidade/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -250,11 +254,11 @@ async def test_list_grupos_cidade_without_token(client):
 # ============================================================
 
 
-async def test_list_grupos_pg_success(client, token):
+async def test_list_grupos_pg_success(client, token_sistema):
     """Testa listagem de grupos de P/G com sucesso."""
     response = await client.get(
         '/admin/diarias/grupos-pg/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -273,11 +277,11 @@ async def test_list_grupos_pg_success(client, token):
     assert 'circulo' in item
 
 
-async def test_list_grupos_pg_includes_posto_info(client, token):
+async def test_list_grupos_pg_includes_posto_info(client, token_sistema):
     """Testa que os grupos incluem informacoes do posto/graduacao."""
     response = await client.get(
         '/admin/diarias/grupos-pg/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -292,7 +296,7 @@ async def test_list_grupos_pg_includes_posto_info(client, token):
 
 
 async def test_list_grupos_pg_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     response = await client.get('/admin/diarias/grupos-pg/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED

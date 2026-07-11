@@ -22,14 +22,14 @@ from tests.factories import (
 pytestmark = pytest.mark.anyio
 
 
-async def test_delete_soldo_success(client, session, token, soldos):
+async def test_delete_soldo_success(client, session, token_sistema, soldos):
     """Testa delecao de soldo com sucesso."""
     soldo = soldos[0]
     soldo_id = soldo.id
 
     response = await client.delete(
         f'/admin/soldos/{soldo_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -40,11 +40,11 @@ async def test_delete_soldo_success(client, session, token, soldos):
     assert db_soldo is None
 
 
-async def test_delete_soldo_not_found(client, token):
+async def test_delete_soldo_not_found(client, token_sistema):
     """Testa delecao de soldo inexistente."""
     response = await client.delete(
         '/admin/soldos/999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -52,7 +52,7 @@ async def test_delete_soldo_not_found(client, token):
 
 
 async def test_delete_soldo_without_token(client, soldos):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     soldo = soldos[0]
 
     response = await client.delete(f'/admin/soldos/{soldo.id}')
@@ -61,7 +61,7 @@ async def test_delete_soldo_without_token(client, soldos):
 
 
 async def test_delete_soldo_blocked_by_missao_grat(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que nao pode deletar soldo com missao sit=g."""
     user, _ = users
@@ -110,7 +110,7 @@ async def test_delete_soldo_blocked_by_missao_grat(
 
     response = await client.delete(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
@@ -119,7 +119,7 @@ async def test_delete_soldo_blocked_by_missao_grat(
 
 
 async def test_delete_soldo_allowed_with_comiss_only(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que pode deletar soldo se so tem missao sit=c."""
     user, _ = users
@@ -168,14 +168,14 @@ async def test_delete_soldo_allowed_with_comiss_only(
 
     response = await client.delete(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
 
 
 async def test_delete_soldo_allowed_outside_period(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que pode deletar soldo se missao esta fora."""
     user, _ = users
@@ -224,7 +224,7 @@ async def test_delete_soldo_allowed_outside_period(
 
     response = await client.delete(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK

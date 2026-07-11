@@ -32,25 +32,21 @@ async def comiss_1gt(session, users):
     return comiss
 
 
-async def test_lista_nao_traz_comiss_de_outra_org(
-    client, comiss_1gt, org_admin_token
-):
-    resp = await client.get(URL, headers=_auth(org_admin_token))
+async def test_lista_nao_traz_comiss_de_outra_org(client, comiss_1gt, token):
+    resp = await client.get(URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {c['id'] for c in resp.json()['data']}
     assert comiss_1gt.id not in ids
 
 
-async def test_get_by_id_cross_org_404(client, comiss_1gt, org_admin_token):
-    resp = await client.get(
-        f'{URL}{comiss_1gt.id}', headers=_auth(org_admin_token)
-    )
+async def test_get_by_id_cross_org_404(client, comiss_1gt, token):
+    resp = await client.get(f'{URL}{comiss_1gt.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(client, comiss_1gt, org_admin_token):
+async def test_delete_cross_org_404(client, comiss_1gt, token):
     resp = await client.delete(
-        f'{URL}{comiss_1gt.id}?confirm=true', headers=_auth(org_admin_token)
+        f'{URL}{comiss_1gt.id}?confirm=true', headers=_auth(token)
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 

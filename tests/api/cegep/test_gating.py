@@ -1,7 +1,7 @@
 """Gating RBAC do módulo CEGEP (trava de regressão).
 
 Cada rota do CEGEP exige permissão no recurso correspondente
-(`comiss`, `missoes_cegep`, `orcamento`, `dados_bancarios`). O `org_token`
+(`comiss`, `missoes_cegep`, `orcamento`, `dados_bancarios`). O `token_sem_perm`
 é um usuário autenticado cujo único vínculo admin é de SISTEMA (org NULL);
 com a org ativa '11gt' ele não é admin nem tem grant → toda rota gateada
 responde 403.
@@ -34,11 +34,11 @@ GATED = [
 
 @pytest.mark.parametrize(('method', 'url'), GATED)
 async def test_cegep_route_forbidden_without_permission(
-    client, org_token, method, url
+    client, token_sem_perm, method, url
 ):
     """Sem grant na org ativa '11gt' → 403 em toda rota CEGEP gateada."""
     response = await client.request(
-        method, url, headers={'Authorization': f'Bearer {org_token}'}
+        method, url, headers={'Authorization': f'Bearer {token_sem_perm}'}
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 

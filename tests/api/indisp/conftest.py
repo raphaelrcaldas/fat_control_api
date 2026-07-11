@@ -20,20 +20,6 @@ import pytest
 from tests.factories import IndispFactory, TripFactory
 
 
-@pytest.fixture
-async def token(org_admin_token):
-    """Token com org ativa, sombreando o `token` global do conftest de cima.
-
-    As rotas de indisp viraram data-plane escopado: exigem `active_org` no
-    token (dependência `ActiveOrg`) e que o alvo seja tripulante da org.
-    O `token` global não define org, então responderiam 400. Aqui o token
-    do pacote já vem com `active_org='11gt'` e vínculo admin — os testes
-    deste módulo exercitam o CRUD, não a autorização (essa fica no POV do
-    FatBird, em `tests/api/fatbird/`).
-    """
-    return org_admin_token
-
-
 @pytest.fixture(autouse=True)
 async def trip_alvo(session, users):
     """Torna o `other_user` (alvo das indisps) tripulante da '11gt'.

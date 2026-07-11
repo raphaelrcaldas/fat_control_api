@@ -54,15 +54,15 @@ async def _bind_role(session, user_id, role_id, org=None):
 
 
 @pytest.fixture
-async def sysadmin_token(token):
-    """`token` já é admin de sistema (role 1 org NULL, sem active_org)."""
-    return token
+async def sysadmin_token(token_sistema):
+    """Admin de sistema: role 1 com org NULL e token sem org ativa."""
+    return token_sistema
 
 
 @pytest.fixture
-async def unit_admin_token(org_admin_token):
+async def unit_admin_token(token):
     """Admin de unidade '11gt' (require_admin ok; require_system_admin 403)."""
-    return org_admin_token
+    return token
 
 
 @pytest.fixture

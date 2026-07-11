@@ -23,11 +23,11 @@ pytestmark = pytest.mark.anyio
 # ============================================================
 
 
-async def test_list_comiss_empty(client, org_admin_token):
+async def test_list_comiss_empty(client, token):
     """Testa listagem vazia."""
     response = await client.get(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -36,7 +36,7 @@ async def test_list_comiss_empty(client, org_admin_token):
     assert resp['data'] == []
 
 
-async def test_list_comiss_success(client, session, org_admin_token, users):
+async def test_list_comiss_success(client, session, token, users):
     """Testa listagem de comissionamentos."""
     user, other_user = users
 
@@ -48,7 +48,7 @@ async def test_list_comiss_success(client, session, org_admin_token, users):
 
     response = await client.get(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -56,9 +56,7 @@ async def test_list_comiss_success(client, session, org_admin_token, users):
     assert len(resp['data']) == 2
 
 
-async def test_list_comiss_filter_by_user_id(
-    client, session, org_admin_token, users
-):
+async def test_list_comiss_filter_by_user_id(client, session, token, users):
     """Testa filtro por user_id."""
     user, other_user = users
 
@@ -69,7 +67,7 @@ async def test_list_comiss_filter_by_user_id(
 
     response = await client.get(
         f'/cegep/comiss/?user_id={user.id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -78,9 +76,7 @@ async def test_list_comiss_filter_by_user_id(
     assert resp['data'][0]['user']['id'] == user.id
 
 
-async def test_list_comiss_filter_by_status(
-    client, session, org_admin_token, users
-):
+async def test_list_comiss_filter_by_status(client, session, token, users):
     """Testa filtro por status."""
     user, other_user = users
 
@@ -92,7 +88,7 @@ async def test_list_comiss_filter_by_status(
     # Filtra abertos
     response = await client.get(
         '/cegep/comiss/?status=aberto',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -101,9 +97,7 @@ async def test_list_comiss_filter_by_status(
     assert resp['data'][0]['status'] == 'aberto'
 
 
-async def test_list_comiss_fechado_limit_20(
-    client, session, org_admin_token, users
-):
+async def test_list_comiss_fechado_limit_20(client, session, token, users):
     """Testa que status='fechado' limita a 20 resultados."""
     user, other_user = users
     today = date.today()
@@ -125,7 +119,7 @@ async def test_list_comiss_fechado_limit_20(
     # Filtra fechados - deve retornar no maximo 20
     response = await client.get(
         '/cegep/comiss/?status=fechado',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -133,9 +127,7 @@ async def test_list_comiss_fechado_limit_20(
     assert len(resp['data']) == 20  # Limite de 20 para status fechado
 
 
-async def test_list_comiss_filter_by_search(
-    client, session, org_admin_token, users
-):
+async def test_list_comiss_filter_by_search(client, session, token, users):
     """Testa filtro por nome_guerra."""
     user, other_user = users
 
@@ -146,7 +138,7 @@ async def test_list_comiss_filter_by_search(
     # Busca pelo nome_guerra do usuario
     response = await client.get(
         f'/cegep/comiss/?search={user.nome_guerra}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -156,7 +148,7 @@ async def test_list_comiss_filter_by_search(
 
 
 async def test_list_comiss_includes_cache_values(
-    client, session, org_admin_token, users
+    client, session, token, users
 ):
     """Testa que listagem inclui valores do cache."""
     user, _ = users
@@ -167,7 +159,7 @@ async def test_list_comiss_includes_cache_values(
 
     response = await client.get(
         '/cegep/comiss/',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -183,7 +175,7 @@ async def test_list_comiss_includes_cache_values(
 
 
 async def test_list_comiss_without_token(client):
-    """Testa que requisicao sem org_admin_token falha."""
+    """Testa que requisicao sem token falha."""
     response = await client.get('/cegep/comiss/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -194,9 +186,7 @@ async def test_list_comiss_without_token(client):
 # ============================================================
 
 
-async def test_get_comiss_by_id_success(
-    client, session, org_admin_token, users
-):
+async def test_get_comiss_by_id_success(client, session, token, users):
     """Testa busca de comissionamento por ID."""
     user, _ = users
 
@@ -207,7 +197,7 @@ async def test_get_comiss_by_id_success(
 
     response = await client.get(
         f'/cegep/comiss/{comiss.id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -218,11 +208,11 @@ async def test_get_comiss_by_id_success(
     assert 'missoes' in resp['data']
 
 
-async def test_get_comiss_by_id_not_found(client, org_admin_token):
+async def test_get_comiss_by_id_not_found(client, token):
     """Testa busca de comissionamento inexistente."""
     response = await client.get(
         '/cegep/comiss/99999',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -231,7 +221,7 @@ async def test_get_comiss_by_id_not_found(client, org_admin_token):
 
 
 async def test_get_comiss_by_id_includes_missoes(
-    client, session, org_admin_token, users
+    client, session, token, users
 ):
     """Testa que detalhes incluem missoes vinculadas."""
     user, _ = users
@@ -268,7 +258,7 @@ async def test_get_comiss_by_id_includes_missoes(
 
     response = await client.get(
         f'/cegep/comiss/{comiss.id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -278,7 +268,7 @@ async def test_get_comiss_by_id_includes_missoes(
 
 
 async def test_get_comiss_by_id_without_token(client, session, users):
-    """Testa que requisicao sem org_admin_token falha."""
+    """Testa que requisicao sem token falha."""
     user, _ = users
 
     comiss = ComissFactory(user_id=user.id)

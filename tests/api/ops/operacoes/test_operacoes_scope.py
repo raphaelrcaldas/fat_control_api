@@ -30,10 +30,8 @@ async def op_1gt(session, users):
     return op
 
 
-async def test_delete_cross_org_404(client, session, op_1gt, org_admin_token):
-    resp = await client.delete(
-        f'{URL}{op_1gt.id}', headers=_auth(org_admin_token)
-    )
+async def test_delete_cross_org_404(client, session, op_1gt, token):
+    resp = await client.delete(f'{URL}{op_1gt.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
     # Operação da '1gt' segue no banco.
@@ -41,8 +39,8 @@ async def test_delete_cross_org_404(client, session, op_1gt, org_admin_token):
     assert still is not None
 
 
-async def test_lista_nao_traz_op_de_outra_org(client, op_1gt, org_admin_token):
-    resp = await client.get(URL, headers=_auth(org_admin_token))
+async def test_lista_nao_traz_op_de_outra_org(client, op_1gt, token):
+    resp = await client.get(URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {op['id'] for op in resp.json()['data']['items']}
     assert op_1gt.id not in ids

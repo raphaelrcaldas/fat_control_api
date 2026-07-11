@@ -20,11 +20,11 @@ pytestmark = pytest.mark.anyio
 # ============================================================
 
 
-async def test_list_soldos_success(client, token, soldos):
+async def test_list_soldos_success(client, token_sistema, soldos):
     """Testa listagem de soldos com sucesso."""
     response = await client.get(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -35,12 +35,12 @@ async def test_list_soldos_success(client, token, soldos):
     assert len(data) >= 3
 
 
-async def test_list_soldos_filter_by_circulo(client, token, soldos):
+async def test_list_soldos_filter_by_circulo(client, token_sistema, soldos):
     """Testa filtro por circulo."""
     # 'cb' pertence ao circulo 'praca'
     response = await client.get(
         '/admin/soldos/?circulo=praça',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -53,11 +53,11 @@ async def test_list_soldos_filter_by_circulo(client, token, soldos):
         assert soldo['posto_grad']['circulo'] == 'praça'
 
 
-async def test_list_soldos_filter_active_only(client, token, soldos):
+async def test_list_soldos_filter_active_only(client, token_sistema, soldos):
     """Testa filtro active_only (apenas soldos vigentes)."""
     response = await client.get(
         '/admin/soldos/?active_only=true',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -73,11 +73,11 @@ async def test_list_soldos_filter_active_only(client, token, soldos):
             assert date.fromisoformat(data_fim) >= today
 
 
-async def test_list_soldos_filter_combined(client, token, soldos):
+async def test_list_soldos_filter_combined(client, token_sistema, soldos):
     """Testa filtros combinados (circulo + active_only)."""
     response = await client.get(
         '/admin/soldos/?circulo=grad&active_only=true',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -90,11 +90,13 @@ async def test_list_soldos_filter_combined(client, token, soldos):
         assert soldo['posto_grad']['circulo'] == 'grad'
 
 
-async def test_list_soldos_ordered_by_data_inicio_desc(client, token, soldos):
+async def test_list_soldos_ordered_by_data_inicio_desc(
+    client, token_sistema, soldos
+):
     """Testa que os soldos sao ordenados por data_inicio decrescente."""
     response = await client.get(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -108,7 +110,7 @@ async def test_list_soldos_ordered_by_data_inicio_desc(client, token, soldos):
 
 
 async def test_list_soldos_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     response = await client.get('/admin/soldos/')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -119,13 +121,13 @@ async def test_list_soldos_without_token(client):
 # ============================================================
 
 
-async def test_get_soldo_by_id_success(client, token, soldos):
+async def test_get_soldo_by_id_success(client, token_sistema, soldos):
     """Testa busca por ID com sucesso."""
     soldo = soldos[0]
 
     response = await client.get(
         f'/admin/soldos/{soldo.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -137,11 +139,11 @@ async def test_get_soldo_by_id_success(client, token, soldos):
     assert data['valor'] == soldo.valor
 
 
-async def test_get_soldo_by_id_not_found(client, token):
+async def test_get_soldo_by_id_not_found(client, token_sistema):
     """Testa busca por ID inexistente."""
     response = await client.get(
         '/admin/soldos/999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -149,7 +151,7 @@ async def test_get_soldo_by_id_not_found(client, token):
 
 
 async def test_get_soldo_by_id_without_token(client, soldos):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     soldo = soldos[0]
 
     response = await client.get(f'/admin/soldos/{soldo.id}')
@@ -162,11 +164,11 @@ async def test_get_soldo_by_id_without_token(client, soldos):
 # ============================================================
 
 
-async def test_get_soldo_stats_success(client, token, soldos):
+async def test_get_soldo_stats_success(client, token_sistema, soldos):
     """Testa estatisticas de soldos com sucesso."""
     response = await client.get(
         '/admin/soldos/stats',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -179,11 +181,13 @@ async def test_get_soldo_stats_success(client, token, soldos):
     assert data['total'] >= 3
 
 
-async def test_get_soldo_stats_filter_by_circulo(client, token, soldos):
+async def test_get_soldo_stats_filter_by_circulo(
+    client, token_sistema, soldos
+):
     """Testa estatisticas filtradas por circulo."""
     response = await client.get(
         '/admin/soldos/stats?circulo=grad',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -194,12 +198,12 @@ async def test_get_soldo_stats_filter_by_circulo(client, token, soldos):
     assert data['total'] >= 1
 
 
-async def test_get_soldo_stats_empty(client, token):
+async def test_get_soldo_stats_empty(client, token_sistema):
     """Testa estatisticas quando nao ha soldos."""
     # Filtra por circulo que nao existe
     response = await client.get(
         '/admin/soldos/stats?circulo=inexistente',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -212,7 +216,7 @@ async def test_get_soldo_stats_empty(client, token):
 
 
 async def test_get_soldo_stats_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     response = await client.get('/admin/soldos/stats')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED

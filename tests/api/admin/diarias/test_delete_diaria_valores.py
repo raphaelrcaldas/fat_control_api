@@ -23,7 +23,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_delete_diaria_valor_success(
-    client, session, token, diaria_valores
+    client, session, token_sistema, diaria_valores
 ):
     """Testa delecao de valor de diaria com sucesso."""
     valor = diaria_valores[0]
@@ -31,7 +31,7 @@ async def test_delete_diaria_valor_success(
 
     response = await client.delete(
         f'/admin/diarias/valores/{valor_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -44,11 +44,11 @@ async def test_delete_diaria_valor_success(
     assert db_valor is None
 
 
-async def test_delete_diaria_valor_not_found(client, token):
+async def test_delete_diaria_valor_not_found(client, token_sistema):
     """Testa delecao de valor de diaria inexistente."""
     response = await client.delete(
         '/admin/diarias/valores/999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -56,7 +56,7 @@ async def test_delete_diaria_valor_not_found(client, token):
 
 
 async def test_delete_diaria_valor_without_token(client, diaria_valores):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     valor = diaria_valores[0]
 
     response = await client.delete(f'/admin/diarias/valores/{valor.id}')
@@ -65,7 +65,7 @@ async def test_delete_diaria_valor_without_token(client, diaria_valores):
 
 
 async def test_delete_diaria_valor_blocked_by_missao_comiss(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que nao pode deletar diaria com missao sit=c."""
     user, _ = users
@@ -115,7 +115,7 @@ async def test_delete_diaria_valor_blocked_by_missao_comiss(
 
     response = await client.delete(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
@@ -124,7 +124,7 @@ async def test_delete_diaria_valor_blocked_by_missao_comiss(
 
 
 async def test_delete_diaria_valor_blocked_by_missao_diaria(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que nao pode deletar diaria com missao sit=d."""
     user, _ = users
@@ -174,14 +174,14 @@ async def test_delete_diaria_valor_blocked_by_missao_diaria(
 
     response = await client.delete(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
 
 
 async def test_delete_diaria_valor_allowed_with_grat_only(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que pode deletar diaria se so tem missao sit=g."""
     user, _ = users
@@ -231,14 +231,14 @@ async def test_delete_diaria_valor_allowed_with_grat_only(
 
     response = await client.delete(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
 
 
 async def test_delete_diaria_valor_allowed_outside_period(
-    client, session, token, users
+    client, session, token_sistema, users
 ):
     """Testa que pode deletar diaria se missao esta fora."""
     user, _ = users
@@ -288,7 +288,7 @@ async def test_delete_diaria_valor_allowed_outside_period(
 
     response = await client.delete(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK

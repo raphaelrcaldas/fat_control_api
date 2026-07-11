@@ -43,17 +43,13 @@ async def om_1gt(session, users):
     return om
 
 
-async def test_get_by_id_cross_org_404(client, om_1gt, org_admin_token):
-    resp = await client.get(
-        f'{URL}{om_1gt.id}', headers=_auth(org_admin_token)
-    )
+async def test_get_by_id_cross_org_404(client, om_1gt, token):
+    resp = await client.get(f'{URL}{om_1gt.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(client, om_1gt, org_admin_token):
-    resp = await client.delete(
-        f'{URL}{om_1gt.id}', headers=_auth(org_admin_token)
-    )
+async def test_delete_cross_org_404(client, om_1gt, token):
+    resp = await client.delete(f'{URL}{om_1gt.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
     # Prova que caiu no handler (escopo), não em rota inexistente.
     assert resp.json()['message'] == 'Ordem de missão não encontrada'

@@ -17,7 +17,7 @@ from tests.factories import TripFactory
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_quad_success(client, session, trip, org_admin_token):
+async def test_create_quad_success(client, session, trip, token):
     """Testa criação de quadrinho com sucesso."""
     quad_data = [
         {
@@ -31,7 +31,7 @@ async def test_create_quad_success(client, session, trip, org_admin_token):
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -46,9 +46,7 @@ async def test_create_quad_success(client, session, trip, org_admin_token):
     assert db_quad.type_id == 1
 
 
-async def test_create_multiple_quads_success(
-    client, session, trip, org_admin_token
-):
+async def test_create_multiple_quads_success(client, session, trip, token):
     """Testa criação de múltiplos quadrinhos de uma vez."""
     quad_data = [
         {
@@ -74,7 +72,7 @@ async def test_create_multiple_quads_success(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -86,7 +84,7 @@ async def test_create_multiple_quads_success(
 
 
 async def test_create_quad_with_null_value_success(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa criação de quadrinho sem valor (NULL)."""
     quad_data = [
@@ -101,7 +99,7 @@ async def test_create_quad_with_null_value_success(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -112,7 +110,7 @@ async def test_create_quad_with_null_value_success(
 
 
 async def test_create_quad_with_null_description_success(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa criação de quadrinho sem descrição (NULL)."""
     quad_data = [
@@ -127,7 +125,7 @@ async def test_create_quad_with_null_description_success(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -137,11 +135,9 @@ async def test_create_quad_with_null_description_success(
     assert db_quad.description is None
 
 
-async def test_create_quad_duplicate_fails(
-    client, session, trip, org_admin_token
-):
+async def test_create_quad_duplicate_fails(client, session, trip, token):
     """Testa que duplicata (mesma value, type_id e trip_id) falha."""
-    headers = {'Authorization': f'Bearer {org_admin_token}'}
+    headers = {'Authorization': f'Bearer {token}'}
 
     # Cria primeiro quadrinho
     quad_data = [
@@ -179,10 +175,10 @@ async def test_create_quad_duplicate_fails(
 
 
 async def test_create_quad_same_value_different_type_success(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa que mesma data com tipo diferente não é duplicata."""
-    headers = {'Authorization': f'Bearer {org_admin_token}'}
+    headers = {'Authorization': f'Bearer {token}'}
     today = date.today().isoformat()
 
     # Cria com type_id=1
@@ -222,10 +218,10 @@ async def test_create_quad_same_value_different_type_success(
 
 
 async def test_create_quad_same_value_different_trip_success(
-    client, session, trips, org_admin_token
+    client, session, trips, token
 ):
     """Testa que mesma data com tripulante diferente não é duplicata."""
-    headers = {'Authorization': f'Bearer {org_admin_token}'}
+    headers = {'Authorization': f'Bearer {token}'}
     trip, other_trip = trips
     today = date.today().isoformat()
 
@@ -261,9 +257,7 @@ async def test_create_quad_same_value_different_trip_success(
     assert response.status_code == HTTPStatus.CREATED
 
 
-async def test_create_quad_missing_required_field_fails(
-    client, trip, org_admin_token
-):
+async def test_create_quad_missing_required_field_fails(client, trip, token):
     """Testa que campo obrigatório faltando falha."""
     # Falta type_id
     quad_data = [
@@ -277,15 +271,13 @@ async def test_create_quad_missing_required_field_fails(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_quad_invalid_date_format_fails(
-    client, trip, org_admin_token
-):
+async def test_create_quad_invalid_date_format_fails(client, trip, token):
     """Testa que formato de data inválido falha."""
     quad_data = [
         {
@@ -299,25 +291,25 @@ async def test_create_quad_invalid_date_format_fails(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_quad_empty_list_success(client, org_admin_token):
+async def test_create_quad_empty_list_success(client, token):
     """Testa que lista vazia não causa erro."""
     response = await client.post(
         '/ops/quads/',
         json=[],
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.CREATED
 
 
 async def test_create_multiple_quads_with_null_values_no_duplicate(
-    client, session, trip, org_admin_token
+    client, session, trip, token
 ):
     """Testa que múltiplos quads com value=NULL não são duplicatas."""
     quad_data = [
@@ -338,7 +330,7 @@ async def test_create_multiple_quads_with_null_values_no_duplicate(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     # Com value=None, a verificação de duplicidade é pulada
@@ -350,7 +342,7 @@ async def test_create_multiple_quads_with_null_values_no_duplicate(
 
 
 async def test_create_quad_without_token_fails(client, trip):
-    """Testa que requisição sem org_admin_token falha."""
+    """Testa que requisição sem token falha."""
     quad_data = [
         {
             'value': date.today().isoformat(),
@@ -366,7 +358,7 @@ async def test_create_quad_without_token_fails(client, trip):
 
 
 async def test_create_quad_without_permission_forbidden(
-    client, trip, org_token
+    client, trip, token_sem_perm
 ):
     """Sem grant quad_ops.create na org ativa → 403."""
     quad_data = [
@@ -380,13 +372,15 @@ async def test_create_quad_without_permission_forbidden(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-async def test_create_quad_missing_active_org_fails(client, trip, token):
-    """Sem org ativa no token → 400."""
+async def test_create_quad_missing_active_org_fails(
+    client, trip, token_sistema
+):
+    """Sem org ativa no token_sistema → 400."""
     quad_data = [
         {
             'value': date.today().isoformat(),
@@ -398,14 +392,12 @@ async def test_create_quad_missing_active_org_fails(client, trip, token):
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_create_quad_cross_org_trip_404(
-    client, session, users, org_admin_token
-):
+async def test_create_quad_cross_org_trip_404(client, session, users, token):
     """Gravar quadrinho em tripulante de outra org → 404."""
     _, other = users
     foreign = TripFactory(user_id=other.id, uae='1gt')
@@ -424,6 +416,6 @@ async def test_create_quad_cross_org_trip_404(
     response = await client.post(
         '/ops/quads/',
         json=quad_data,
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
     assert response.status_code == HTTPStatus.NOT_FOUND

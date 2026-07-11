@@ -83,18 +83,20 @@ async def cenario(session):
     await session.commit()
 
 
-async def test_sem_org_ativa_retorna_400(client, token):
-    """Sem org ativa no token (contexto sem lente) → 400."""
-    resp = await client.get(URL, params={'ano_ref': ANO}, headers=_auth(token))
+async def test_sem_org_ativa_retorna_400(client, token_sistema):
+    """Sem org ativa no token_sistema (contexto sem lente) → 400."""
+    resp = await client.get(
+        URL, params={'ano_ref': ANO}, headers=_auth(token_sistema)
+    )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_org_ve_so_frota_e_horas_da_propria_org(
-    client, cenario, org_token
+    client, cenario, token_sem_perm
 ):
     """'11gt' vê só a '2850' (C8) e só as horas da própria missão (60)."""
     resp = await client.get(
-        URL, params={'ano_ref': ANO}, headers=_auth(org_token)
+        URL, params={'ano_ref': ANO}, headers=_auth(token_sem_perm)
     )
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']

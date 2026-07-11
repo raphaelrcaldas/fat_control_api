@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_get_crew_indisp_success(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa listagem de indisponibilidades de tripulantes com sucesso."""
     user, _ = users
@@ -36,7 +36,7 @@ async def test_get_crew_indisp_success(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -48,7 +48,7 @@ async def test_get_crew_indisp_success(
 
 
 async def test_get_crew_indisp_response_structure(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa estrutura correta da resposta (trip, indisps)."""
     user, _ = users
@@ -64,7 +64,7 @@ async def test_get_crew_indisp_response_structure(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -90,12 +90,12 @@ async def test_get_crew_indisp_response_structure(
     assert 'nome_guerra' in user_data
 
 
-async def test_get_crew_indisp_no_trips_returns_empty(client, org_token):
+async def test_get_crew_indisp_no_trips_returns_empty(client, token_sem_perm):
     """Testa que sem tripulantes retorna lista vazia."""
     response = await client.get(
         '/indisp/',
         params={'funcao': 'pil'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -105,7 +105,7 @@ async def test_get_crew_indisp_no_trips_returns_empty(client, org_token):
 
 
 async def test_get_crew_indisp_excludes_inactive_users(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que usuários inativos não são retornados."""
     user, other_user = users
@@ -124,7 +124,7 @@ async def test_get_crew_indisp_excludes_inactive_users(
     response = await client.get(
         '/indisp/',
         params={'funcao': 'pil'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -134,7 +134,7 @@ async def test_get_crew_indisp_excludes_inactive_users(
 
 
 async def test_get_crew_indisp_excludes_inactive_trips(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que tripulantes inativos não são retornados."""
     user, _ = users
@@ -147,7 +147,7 @@ async def test_get_crew_indisp_excludes_inactive_trips(
     response = await client.get(
         '/indisp/',
         params={'funcao': 'pil'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -157,7 +157,7 @@ async def test_get_crew_indisp_excludes_inactive_trips(
 
 
 async def test_get_crew_indisp_filters_old_indisps(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa que indisps com mais de 30 dias são filtradas."""
     user, _ = users
@@ -184,7 +184,7 @@ async def test_get_crew_indisp_filters_old_indisps(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -202,7 +202,7 @@ async def test_get_crew_indisp_filters_old_indisps(
 
 
 async def test_get_crew_indisp_trip_without_indisps(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa que tripulante sem indisps retorna lista vazia de indisps."""
     trip, func = trip_with_func
@@ -210,7 +210,7 @@ async def test_get_crew_indisp_trip_without_indisps(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -222,7 +222,7 @@ async def test_get_crew_indisp_trip_without_indisps(
 
 
 async def test_get_crew_indisp_groups_indisps_by_user(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa que múltiplas indisps de um usuário são agrupadas."""
     user, _ = users
@@ -250,7 +250,7 @@ async def test_get_crew_indisp_groups_indisps_by_user(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -264,7 +264,7 @@ async def test_get_crew_indisp_groups_indisps_by_user(
 
 
 async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa que indisps são ordenadas por date_end desc dentro do grupo."""
     user, _ = users
@@ -289,7 +289,7 @@ async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -304,7 +304,7 @@ async def test_get_crew_indisp_indisps_ordered_by_date_end_desc(
 
 
 async def test_get_crew_indisp_filters_by_funcao(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que filtro por funcao funciona corretamente."""
     user, other_user = users
@@ -329,7 +329,7 @@ async def test_get_crew_indisp_filters_by_funcao(
     response = await client.get(
         '/indisp/',
         params={'funcao': 'pil'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -341,11 +341,11 @@ async def test_get_crew_indisp_filters_by_funcao(
 
 
 async def test_get_crew_indisp_scoped_by_active_org(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que a lente por active_org isola tripulantes de outra unidade.
 
-    O org_token carrega active_org='11gt', então apenas tripulantes dessa
+    O token_sem_perm carrega active_org='11gt', então apenas tripulantes dessa
     unidade são retornados — os da '1gt' ficam de fora.
     """
     user, other_user = users
@@ -369,7 +369,7 @@ async def test_get_crew_indisp_scoped_by_active_org(
     response = await client.get(
         '/indisp/',
         params={'funcao': 'pil'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -381,7 +381,7 @@ async def test_get_crew_indisp_scoped_by_active_org(
 
 
 async def test_get_crew_indisp_func_in_response(
-    client, session, users, trip_with_func, org_token
+    client, session, users, trip_with_func, token_sem_perm
 ):
     """Testa que a função é incluída na resposta."""
     trip, func = trip_with_func
@@ -389,7 +389,7 @@ async def test_get_crew_indisp_func_in_response(
     response = await client.get(
         '/indisp/',
         params={'funcao': func.func},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK

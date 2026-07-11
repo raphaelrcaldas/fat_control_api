@@ -16,12 +16,12 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_list_user_actions_success(
-    client, session, users, token, user_action_logs
+    client, session, users, token_sistema, user_action_logs
 ):
     """Testa listagem de logs com sucesso."""
     response = await client.get(
         '/logs/user-actions',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -42,14 +42,14 @@ async def test_list_user_actions_success(
 
 
 async def test_list_user_actions_filter_by_user_id(
-    client, users, token, user_action_logs
+    client, users, token_sistema, user_action_logs
 ):
     """Testa filtro por user_id."""
     user, _ = users
 
     response = await client.get(
         f'/logs/user-actions?user_id={user.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -63,12 +63,12 @@ async def test_list_user_actions_filter_by_user_id(
 
 
 async def test_list_user_actions_filter_by_resource(
-    client, token, user_action_logs
+    client, token_sistema, user_action_logs
 ):
     """Testa filtro por resource."""
     response = await client.get(
         '/logs/user-actions?resource=users',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -82,12 +82,12 @@ async def test_list_user_actions_filter_by_resource(
 
 
 async def test_list_user_actions_filter_by_action(
-    client, token, user_action_logs
+    client, token_sistema, user_action_logs
 ):
     """Testa filtro por action."""
     response = await client.get(
         '/logs/user-actions?action=create',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -101,12 +101,12 @@ async def test_list_user_actions_filter_by_action(
 
 
 async def test_list_user_actions_filter_by_resource_id(
-    client, token, user_action_logs
+    client, token_sistema, user_action_logs
 ):
     """Testa filtro por resource_id."""
     response = await client.get(
         '/logs/user-actions?resource_id=100',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -120,7 +120,7 @@ async def test_list_user_actions_filter_by_resource_id(
 
 
 async def test_list_user_actions_filter_by_start_date(
-    client, session, users, token
+    client, session, users, token_sistema
 ):
     """Testa filtro por data inicial (start)."""
     user, _ = users
@@ -140,7 +140,7 @@ async def test_list_user_actions_filter_by_start_date(
 
     response = await client.get(
         f'/logs/user-actions?start={today}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -157,7 +157,7 @@ async def test_list_user_actions_filter_by_start_date(
 
 
 async def test_list_user_actions_filter_by_end_date(
-    client, session, users, token
+    client, session, users, token_sistema
 ):
     """Testa filtro por data final (end)."""
     user, _ = users
@@ -177,7 +177,7 @@ async def test_list_user_actions_filter_by_end_date(
 
     response = await client.get(
         f'/logs/user-actions?end={today}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -194,7 +194,7 @@ async def test_list_user_actions_filter_by_end_date(
 
 
 async def test_list_user_actions_filter_by_date_range(
-    client, session, users, token
+    client, session, users, token_sistema
 ):
     """Testa filtro por intervalo de datas (start e end)."""
     user, _ = users
@@ -213,7 +213,7 @@ async def test_list_user_actions_filter_by_date_range(
 
     response = await client.get(
         f'/logs/user-actions?start={today}&end={today}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -229,7 +229,9 @@ async def test_list_user_actions_filter_by_date_range(
         assert log_date == date.today()
 
 
-async def test_list_user_actions_limit_25(client, session, users, token):
+async def test_list_user_actions_limit_25(
+    client, session, users, token_sistema
+):
     """Testa que o limite de 25 resultados e respeitado."""
     user, _ = users
 
@@ -248,7 +250,7 @@ async def test_list_user_actions_limit_25(client, session, users, token):
 
     response = await client.get(
         '/logs/user-actions',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -261,12 +263,12 @@ async def test_list_user_actions_limit_25(client, session, users, token):
 
 
 async def test_list_user_actions_ordered_by_timestamp_desc(
-    client, token, user_action_logs
+    client, token_sistema, user_action_logs
 ):
     """Testa que os logs sao ordenados por timestamp decrescente."""
     response = await client.get(
         '/logs/user-actions',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -285,14 +287,14 @@ async def test_list_user_actions_ordered_by_timestamp_desc(
 
 
 async def test_list_user_actions_combined_filters(
-    client, users, token, user_action_logs
+    client, users, token_sistema, user_action_logs
 ):
     """Testa multiplos filtros combinados."""
     user, _ = users
 
     response = await client.get(
         f'/logs/user-actions?user_id={user.id}&action=create',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -306,11 +308,11 @@ async def test_list_user_actions_combined_filters(
         assert log['action'] == 'create'
 
 
-async def test_list_user_actions_no_results(client, token):
+async def test_list_user_actions_no_results(client, token_sistema):
     """Testa filtro que nao retorna resultados."""
     response = await client.get(
         '/logs/user-actions?user_id=999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -320,7 +322,7 @@ async def test_list_user_actions_no_results(client, token):
 
 
 async def test_list_user_actions_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     response = await client.get('/logs/user-actions')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED

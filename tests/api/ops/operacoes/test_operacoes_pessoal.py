@@ -39,21 +39,21 @@ async def operacao(session, users):
     return op
 
 
-async def test_list_pessoal_empty(client, operacao, org_admin_token):
+async def test_list_pessoal_empty(client, operacao, token):
     resp = await client.get(
         f'/ops/operacoes/{operacao.id}/pessoal',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data'] == []
 
 
-async def test_add_pessoal_success(client, operacao, users, org_admin_token):
+async def test_add_pessoal_success(client, operacao, users, token):
     _, other = users
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(other.id),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.CREATED
     data = resp.json()['data']
@@ -62,35 +62,31 @@ async def test_add_pessoal_success(client, operacao, users, org_admin_token):
     assert data['dias'] == 7
 
 
-async def test_add_pessoal_duplicate_conflict(
-    client, operacao, users, org_admin_token
-):
+async def test_add_pessoal_duplicate_conflict(client, operacao, users, token):
     _, other = users
     await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(other.id),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(other.id),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.CONFLICT
 
 
-async def test_add_pessoal_invalid_user_400(client, operacao, org_admin_token):
+async def test_add_pessoal_invalid_user_400(client, operacao, token):
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(999999),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_add_pessoal_invalid_period_422(
-    client, operacao, users, org_admin_token
-):
+async def test_add_pessoal_invalid_period_422(client, operacao, users, token):
     _, other = users
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
@@ -99,7 +95,7 @@ async def test_add_pessoal_invalid_period_422(
             data_ingresso='2025-06-08',
             data_regresso='2025-06-02',
         ),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
@@ -116,71 +112,65 @@ async def test_add_pessoal_viewer_forbidden(
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
-async def test_update_pessoal_success(
-    client, operacao, users, org_admin_token
-):
+async def test_update_pessoal_success(client, operacao, users, token):
     _, other = users
     add = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(other.id),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     pessoal_id = add.json()['data']['id']
 
     resp = await client.put(
         f'/ops/operacoes/{operacao.id}/pessoal/{pessoal_id}',
         json=_pessoal(other.id, func='Manutenção', sit='g'),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 
     lst = await client.get(
         f'/ops/operacoes/{operacao.id}/pessoal',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     item = lst.json()['data'][0]
     assert item['func'] == 'Manutenção'
     assert item['sit'] == 'g'
 
 
-async def test_update_pessoal_not_found(
-    client, operacao, users, org_admin_token
-):
+async def test_update_pessoal_not_found(client, operacao, users, token):
     resp = await client.put(
         f'/ops/operacoes/{operacao.id}/pessoal/999999',
         json=_pessoal(users[1].id),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_remove_pessoal_success(
-    client, operacao, users, org_admin_token
-):
+async def test_remove_pessoal_success(client, operacao, users, token):
     _, other = users
     add = await client.post(
         f'/ops/operacoes/{operacao.id}/pessoal',
         json=_pessoal(other.id),
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     pessoal_id = add.json()['data']['id']
 
     resp = await client.delete(
         f'/ops/operacoes/{operacao.id}/pessoal/{pessoal_id}',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 
     lst = await client.get(
         f'/ops/operacoes/{operacao.id}/pessoal',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert lst.json()['data'] == []
 
 
-async def test_remove_pessoal_not_found(client, operacao, org_admin_token):
+async def test_remove_pessoal_not_found(client, operacao, token):
     resp = await client.delete(
         f'/ops/operacoes/{operacao.id}/pessoal/999999',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND

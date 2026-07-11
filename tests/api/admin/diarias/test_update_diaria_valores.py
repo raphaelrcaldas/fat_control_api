@@ -16,7 +16,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_update_diaria_valor_success(
-    client, session, token, diaria_valores
+    client, session, token_sistema, diaria_valores
 ):
     """Testa atualizacao de valor de diaria com sucesso."""
     valor = diaria_valores[0]
@@ -27,7 +27,7 @@ async def test_update_diaria_valor_success(
 
     response = await client.put(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -43,7 +43,7 @@ async def test_update_diaria_valor_success(
 
 
 async def test_update_diaria_valor_partial(
-    client, session, token, diaria_valores
+    client, session, token_sistema, diaria_valores
 ):
     """Testa atualizacao parcial de valor de diaria."""
     valor = diaria_valores[0]
@@ -55,7 +55,7 @@ async def test_update_diaria_valor_partial(
 
     response = await client.put(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -68,7 +68,7 @@ async def test_update_diaria_valor_partial(
 
 
 async def test_update_diaria_valor_data_fim_before_data_inicio(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa que data_fim <= data_inicio falha na atualizacao."""
     valor = diaria_valores[0]
@@ -79,7 +79,7 @@ async def test_update_diaria_valor_data_fim_before_data_inicio(
 
     response = await client.put(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -88,7 +88,7 @@ async def test_update_diaria_valor_data_fim_before_data_inicio(
 
 
 async def test_update_diaria_valor_data_inicio_after_existing_data_fim(
-    client, token, diaria_valores
+    client, token_sistema, diaria_valores
 ):
     """Testa que data_inicio > data_fim existente falha."""
     # Valor com data_fim definida (diaria_valores[1])
@@ -100,7 +100,7 @@ async def test_update_diaria_valor_data_inicio_after_existing_data_fim(
 
     response = await client.put(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -108,7 +108,7 @@ async def test_update_diaria_valor_data_inicio_after_existing_data_fim(
     assert 'Data fim deve ser maior' in response.json()['message']
 
 
-async def test_update_diaria_valor_not_found(client, token):
+async def test_update_diaria_valor_not_found(client, token_sistema):
     """Testa atualizacao de valor de diaria inexistente."""
     update_data = {
         'valor': 300.00,
@@ -116,7 +116,7 @@ async def test_update_diaria_valor_not_found(client, token):
 
     response = await client.put(
         '/admin/diarias/valores/999999',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=update_data,
     )
 
@@ -125,7 +125,7 @@ async def test_update_diaria_valor_not_found(client, token):
 
 
 async def test_update_diaria_valor_without_token(client, diaria_valores):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     valor = diaria_valores[0]
 
     update_data = {
@@ -141,7 +141,7 @@ async def test_update_diaria_valor_without_token(client, diaria_valores):
 
 
 async def test_update_diaria_valor_estende_para_ocupado_conflito(
-    client, session, token
+    client, session, token_sistema
 ):
     """Estender data_fim ate dentro de outra faixa da mesma chave -> 409.
 
@@ -169,7 +169,7 @@ async def test_update_diaria_valor_estende_para_ocupado_conflito(
 
     response = await client.put(
         f'/admin/diarias/valores/{fechado.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json={'data_fim': '2025-06-01'},
     )
 
@@ -178,7 +178,7 @@ async def test_update_diaria_valor_estende_para_ocupado_conflito(
 
 
 async def test_update_diaria_valor_apenas_valor_nao_dispara_overlap(
-    client, session, token
+    client, session, token_sistema
 ):
     """Editar so o valor nao roda a checagem de sobreposicao.
 
@@ -205,7 +205,7 @@ async def test_update_diaria_valor_apenas_valor_nao_dispara_overlap(
 
     response = await client.put(
         f'/admin/diarias/valores/{a.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json={'valor': 305.00},
     )
 
@@ -214,7 +214,7 @@ async def test_update_diaria_valor_apenas_valor_nao_dispara_overlap(
 
 
 async def test_update_diaria_valor_empty_body(
-    client, session, token, diaria_valores
+    client, session, token_sistema, diaria_valores
 ):
     """Testa atualizacao com body vazio nao altera nada."""
     valor = diaria_valores[0]
@@ -222,7 +222,7 @@ async def test_update_diaria_valor_empty_body(
 
     response = await client.put(
         f'/admin/diarias/valores/{valor.id}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json={},
     )
 

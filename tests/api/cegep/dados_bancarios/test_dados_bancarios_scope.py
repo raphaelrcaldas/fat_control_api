@@ -45,21 +45,21 @@ async def _mk_dados(session, user_id):
     return dados
 
 
-async def test_lista_so_traz_usuarios_da_org(client, session, org_admin_token):
+async def test_lista_so_traz_usuarios_da_org(client, session, token):
     u11 = await _mk_user(session, unidade='11gt')
     u1 = await _mk_user(session, unidade='1gt')
     await _mk_dados(session, u11.id)
     await _mk_dados(session, u1.id)
     await session.commit()
 
-    resp = await client.get(URL, headers=_auth(org_admin_token))
+    resp = await client.get(URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {row['user']['id'] for row in resp.json()['data']}
     assert u11.id in ids
     assert u1.id not in ids
 
 
-async def test_create_cross_org_404(client, session, org_admin_token):
+async def test_create_cross_org_404(client, session, token):
     u1 = await _mk_user(session, unidade='1gt')
     await session.commit()
 
@@ -72,39 +72,35 @@ async def test_create_cross_org_404(client, session, org_admin_token):
             'agencia': '1234-5',
             'conta': '12345-6',
         },
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(client, session, org_admin_token):
+async def test_delete_cross_org_404(client, session, token):
     u1 = await _mk_user(session, unidade='1gt')
     dados = await _mk_dados(session, u1.id)
     await session.commit()
 
-    resp = await client.delete(
-        f'{URL}{dados.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{URL}{dados.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_orfaos_escopado_por_org(client, session, org_admin_token):
+async def test_orfaos_escopado_por_org(client, session, token):
     u11 = await _mk_user(session, unidade='11gt', active=False)
     u1 = await _mk_user(session, unidade='1gt', active=False)
     await _mk_dados(session, u11.id)
     await _mk_dados(session, u1.id)
     await session.commit()
 
-    resp = await client.get(ORFAOS_URL, headers=_auth(org_admin_token))
+    resp = await client.get(ORFAOS_URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {item['user_id'] for item in resp.json()['data']}
     assert u11.id in ids
     assert u1.id not in ids
 
 
-async def test_orfaos_delete_nao_remove_de_outra_org(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     u1 = await _mk_user(session, unidade='1gt', active=False)
     dados = await _mk_dados(session, u1.id)
     await session.commit()
@@ -113,7 +109,7 @@ async def test_orfaos_delete_nao_remove_de_outra_org(
         'DELETE',
         ORFAOS_URL,
         json={'ids': [dados.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     still = await session.get(DadosBancarios, dados.id)

@@ -17,7 +17,7 @@ from fcontrol_api.models.shared.posto_grad import Soldo
 pytestmark = pytest.mark.anyio
 
 
-async def test_create_soldo_success(client, session, token):
+async def test_create_soldo_success(client, session, token_sistema):
     """Testa criacao de soldo com sucesso."""
     soldo_data = {
         'pg': 'cb',
@@ -27,7 +27,7 @@ async def test_create_soldo_success(client, session, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
@@ -47,7 +47,7 @@ async def test_create_soldo_success(client, session, token):
     assert db_soldo.valor == 4500.00
 
 
-async def test_create_soldo_with_data_fim(client, session, token):
+async def test_create_soldo_with_data_fim(client, session, token_sistema):
     """Testa criacao de soldo com data_fim."""
     today = date.today()
     soldo_data = {
@@ -59,7 +59,7 @@ async def test_create_soldo_with_data_fim(client, session, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
@@ -70,7 +70,7 @@ async def test_create_soldo_with_data_fim(client, session, token):
     assert data['data_fim'] == (today + timedelta(days=365)).isoformat()
 
 
-async def test_create_soldo_invalid_posto(client, token):
+async def test_create_soldo_invalid_posto(client, token_sistema):
     """Testa que posto/graduacao invalido falha."""
     soldo_data = {
         'pg': 'XX',  # Posto invalido
@@ -80,7 +80,7 @@ async def test_create_soldo_invalid_posto(client, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
@@ -88,7 +88,7 @@ async def test_create_soldo_invalid_posto(client, token):
     assert 'Posto/Graduacao invalido' in response.json()['message']
 
 
-async def test_create_soldo_data_fim_before_data_inicio(client, token):
+async def test_create_soldo_data_fim_before_data_inicio(client, token_sistema):
     """Testa que data_fim <= data_inicio falha."""
     today = date.today()
     soldo_data = {
@@ -100,7 +100,7 @@ async def test_create_soldo_data_fim_before_data_inicio(client, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
@@ -108,7 +108,7 @@ async def test_create_soldo_data_fim_before_data_inicio(client, token):
     assert 'Data fim deve ser maior' in response.json()['message']
 
 
-async def test_create_soldo_data_fim_equal_data_inicio(client, token):
+async def test_create_soldo_data_fim_equal_data_inicio(client, token_sistema):
     """Testa que data_fim == data_inicio falha."""
     today = date.today()
     soldo_data = {
@@ -120,7 +120,7 @@ async def test_create_soldo_data_fim_equal_data_inicio(client, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
@@ -129,7 +129,7 @@ async def test_create_soldo_data_fim_equal_data_inicio(client, token):
 
 
 async def test_create_soldo_without_token(client):
-    """Testa que requisicao sem token falha."""
+    """Testa que requisicao sem token_sistema falha."""
     soldo_data = {
         'pg': 'cb',
         'data_inicio': date.today().isoformat(),
@@ -141,7 +141,7 @@ async def test_create_soldo_without_token(client):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_create_soldo_missing_required_field(client, token):
+async def test_create_soldo_missing_required_field(client, token_sistema):
     """Testa que campo obrigatorio faltando falha."""
     # Falta o campo 'valor'
     soldo_data = {
@@ -151,14 +151,14 @@ async def test_create_soldo_missing_required_field(client, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_soldo_valor_zero_fails(client, token):
+async def test_create_soldo_valor_zero_fails(client, token_sistema):
     """Testa que valor zero falha (schema exige valor > 0)."""
     soldo_data = {
         'pg': 'cb',
@@ -168,14 +168,14 @@ async def test_create_soldo_valor_zero_fails(client, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_soldo_valor_negative_fails(client, token):
+async def test_create_soldo_valor_negative_fails(client, token_sistema):
     """Testa que valor negativo falha."""
     soldo_data = {
         'pg': 'cb',
@@ -185,14 +185,16 @@ async def test_create_soldo_valor_negative_fails(client, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=soldo_data,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_create_soldo_auto_close_previous(client, session, token):
+async def test_create_soldo_auto_close_previous(
+    client, session, token_sistema
+):
     """Testa que criar novo soldo fecha o anterior."""
     today = date.today()
 
@@ -204,7 +206,7 @@ async def test_create_soldo_auto_close_previous(client, session, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 
@@ -224,7 +226,7 @@ async def test_create_soldo_auto_close_previous(client, session, token):
 
 
 async def test_create_soldo_auto_close_validation_error(
-    client, session, token
+    client, session, token_sistema
 ):
     """Testa erro quando novo soldo comeca antes do vigente."""
     novo_data = {
@@ -235,7 +237,7 @@ async def test_create_soldo_auto_close_validation_error(
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 
@@ -245,7 +247,7 @@ async def test_create_soldo_auto_close_validation_error(
 
 
 async def test_create_soldo_sobreposicao_banda_fechada_conflito(
-    client, session, token
+    client, session, token_sistema
 ):
     """Criar faixa que sobrepoe uma banda fechada existente -> 409.
 
@@ -270,7 +272,7 @@ async def test_create_soldo_sobreposicao_banda_fechada_conflito(
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 
@@ -278,7 +280,9 @@ async def test_create_soldo_sobreposicao_banda_fechada_conflito(
     assert 'sobrep' in response.json()['message'].lower()
 
 
-async def test_create_soldo_no_auto_close_different_pg(client, session, token):
+async def test_create_soldo_no_auto_close_different_pg(
+    client, session, token_sistema
+):
     """Testa que auto-close nao afeta PGs diferentes."""
     today = date.today()
 
@@ -300,7 +304,7 @@ async def test_create_soldo_no_auto_close_different_pg(client, session, token):
 
     response = await client.post(
         '/admin/soldos/',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {token_sistema}'},
         json=novo_data,
     )
 

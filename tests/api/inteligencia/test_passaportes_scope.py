@@ -64,9 +64,7 @@ async def _mk_passaporte(session, user_id, *, file_path=None):
 # ── Lista ──────────────────────────────────────────────────────────
 
 
-async def test_lista_so_traz_tripulantes_da_org(
-    client, session, org_admin_token
-):
+async def test_lista_so_traz_tripulantes_da_org(client, session, token):
     """Lista da '11gt' não mostra tripulante da '1gt'."""
     u11, _ = await _mk_trip(session, uae='11gt')
     u1, _ = await _mk_trip(session, uae='1gt')
@@ -74,7 +72,7 @@ async def test_lista_so_traz_tripulantes_da_org(
     await _mk_passaporte(session, u1.id)
     await session.commit()
 
-    resp = await client.get(URL, headers=_auth(org_admin_token))
+    resp = await client.get(URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {row['user_id'] for row in resp.json()['data']}
     assert u11.id in ids
@@ -97,7 +95,7 @@ async def test_lista_exige_org_ativa(client, session, users, make_token):
 # ── Upsert / Delete por trip_id ────────────────────────────────────
 
 
-async def test_upsert_cross_org_404(client, session, org_admin_token):
+async def test_upsert_cross_org_404(client, session, token):
     """Admin da '11gt' não faz upsert em tripulante da '1gt'."""
     _, trip1 = await _mk_trip(session, uae='1gt')
     await session.commit()
@@ -105,27 +103,25 @@ async def test_upsert_cross_org_404(client, session, org_admin_token):
     resp = await client.put(
         f'{URL}{trip1.id}',
         json={'passaporte': 'ZZ999999'},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(client, session, org_admin_token):
+async def test_delete_cross_org_404(client, session, token):
     """Admin da '11gt' não apaga passaporte de tripulante da '1gt'."""
     u1, trip1 = await _mk_trip(session, uae='1gt')
     await _mk_passaporte(session, u1.id)
     await session.commit()
 
-    resp = await client.delete(
-        f'{URL}{trip1.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{URL}{trip1.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 # ── Registros órfãos ───────────────────────────────────────────────
 
 
-async def test_orfaos_escopado_por_org(client, session, org_admin_token):
+async def test_orfaos_escopado_por_org(client, session, token):
     """Órfãos só listam registros de inativos da própria org."""
     u11, _ = await _mk_trip(session, uae='11gt', active=False)
     u1, _ = await _mk_trip(session, uae='1gt', active=False)
@@ -133,7 +129,7 @@ async def test_orfaos_escopado_por_org(client, session, org_admin_token):
     await _mk_passaporte(session, u1.id, file_path='passaporte/y/b.jpg')
     await session.commit()
 
-    resp = await client.get(ORFAOS_URL, headers=_auth(org_admin_token))
+    resp = await client.get(ORFAOS_URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
     ids = {item['user_id'] for item in data['itens']}
@@ -142,9 +138,7 @@ async def test_orfaos_escopado_por_org(client, session, org_admin_token):
     assert data['total_registros'] == 1
 
 
-async def test_orfaos_delete_remove_registro(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_remove_registro(client, session, token):
     """DELETE /orfaos apaga o registro inteiro do militar inativo."""
     u11, _ = await _mk_trip(session, uae='11gt', active=False)
     pp = await _mk_passaporte(session, u11.id, file_path='passaporte/x/a.jpg')
@@ -154,7 +148,7 @@ async def test_orfaos_delete_remove_registro(
         'DELETE',
         ORFAOS_URL,
         json={'user_ids': [u11.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data']['registros'] == 1
@@ -163,9 +157,7 @@ async def test_orfaos_delete_remove_registro(
     assert await session.get(Passaporte, pp.id) is None
 
 
-async def test_orfaos_delete_nao_remove_de_outra_org(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     """DELETE /orfaos da '11gt' ignora registro órfão da '1gt'."""
     u1, _ = await _mk_trip(session, uae='1gt', active=False)
     pp = await _mk_passaporte(session, u1.id, file_path='passaporte/y/b.jpg')
@@ -175,7 +167,7 @@ async def test_orfaos_delete_nao_remove_de_outra_org(
         'DELETE',
         ORFAOS_URL,
         json={'user_ids': [u1.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data']['registros'] == 0

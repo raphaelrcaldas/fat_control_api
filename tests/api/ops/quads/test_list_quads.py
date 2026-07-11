@@ -76,7 +76,9 @@ async def trips_with_func(session, users):
     return (trip1, trip2)
 
 
-async def test_list_quads_success(client, session, trip_with_func, org_token):
+async def test_list_quads_success(
+    client, session, trip_with_func, token_sem_perm
+):
     """Testa listagem de quadrinhos com sucesso."""
     trip = trip_with_func
 
@@ -92,7 +94,7 @@ async def test_list_quads_success(client, session, trip_with_func, org_token):
             'funcao': 'mc',
             'proj': 'kc-390',
         },
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -109,7 +111,7 @@ async def test_list_quads_success(client, session, trip_with_func, org_token):
 
 
 async def test_list_quads_empty_result(
-    client, session, trip_with_func, org_token
+    client, session, trip_with_func, token_sem_perm
 ):
     """Testa que retorna lista vazia quando não há quads."""
     response = await client.get(
@@ -119,7 +121,7 @@ async def test_list_quads_empty_result(
             'funcao': 'mc',
             'proj': 'kc-390',
         },
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -132,7 +134,9 @@ async def test_list_quads_empty_result(
         assert data[0]['quads_len'] == 0
 
 
-async def test_list_quads_filters_by_uae(client, session, users, org_token):
+async def test_list_quads_filters_by_uae(
+    client, session, users, token_sem_perm
+):
     """Testa que apenas tripulantes da UAE são retornados."""
     user, other_user = users
 
@@ -166,7 +170,7 @@ async def test_list_quads_filters_by_uae(client, session, users, org_token):
     response = await client.get(
         '/ops/quads/',
         params={'funcao': 'mc', 'proj': 'kc-390'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -180,7 +184,9 @@ async def test_list_quads_filters_by_uae(client, session, users, org_token):
     assert trip_other.id not in trip_ids
 
 
-async def test_list_quads_filters_by_funcao(client, session, users, org_token):
+async def test_list_quads_filters_by_funcao(
+    client, session, users, token_sem_perm
+):
     """Testa que apenas tripulantes com a função são retornados."""
     user, other_user = users
 
@@ -212,7 +218,7 @@ async def test_list_quads_filters_by_funcao(client, session, users, org_token):
     response = await client.get(
         '/ops/quads/',
         params={'funcao': 'mc', 'proj': 'kc-390'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -225,7 +231,9 @@ async def test_list_quads_filters_by_funcao(client, session, users, org_token):
     assert trip_lm.id not in trip_ids
 
 
-async def test_list_quads_filters_by_proj(client, session, users, org_token):
+async def test_list_quads_filters_by_proj(
+    client, session, users, token_sem_perm
+):
     """Testa que apenas tripulantes do projeto são retornados."""
     user, other_user = users
 
@@ -257,7 +265,7 @@ async def test_list_quads_filters_by_proj(client, session, users, org_token):
     response = await client.get(
         '/ops/quads/',
         params={'proj': 'kc-390', 'funcao': 'mc'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -271,7 +279,7 @@ async def test_list_quads_filters_by_proj(client, session, users, org_token):
 
 
 async def test_list_quads_excludes_inactive_trips(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que tripulantes inativos não são retornados."""
     user, other_user = users
@@ -304,7 +312,7 @@ async def test_list_quads_excludes_inactive_trips(
     response = await client.get(
         '/ops/quads/',
         params={'funcao': 'mc', 'proj': 'kc-390'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -318,7 +326,7 @@ async def test_list_quads_excludes_inactive_trips(
 
 
 async def test_list_quads_excludes_aluno_oper(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que tripulantes com oper='al' (aluno) não são retornados."""
     user, other_user = users
@@ -351,7 +359,7 @@ async def test_list_quads_excludes_aluno_oper(
     response = await client.get(
         '/ops/quads/',
         params={'funcao': 'mc', 'proj': 'kc-390'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -365,7 +373,7 @@ async def test_list_quads_excludes_aluno_oper(
 
 
 async def test_list_quads_excludes_without_data_op(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa que tripulantes sem data_op não são retornados."""
     user, other_user = users
@@ -398,7 +406,7 @@ async def test_list_quads_excludes_without_data_op(
     response = await client.get(
         '/ops/quads/',
         params={'funcao': 'mc', 'proj': 'kc-390'},
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -412,7 +420,7 @@ async def test_list_quads_excludes_without_data_op(
 
 
 async def test_list_quads_returns_quads_len(
-    client, session, trip_with_func, org_token
+    client, session, trip_with_func, token_sem_perm
 ):
     """Testa que quads_len retorna a contagem total de quadrinhos."""
     trip = trip_with_func
@@ -435,7 +443,7 @@ async def test_list_quads_returns_quads_len(
             'funcao': 'mc',
             'proj': 'kc-390',
         },
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -451,13 +459,13 @@ async def test_list_quads_returns_quads_len(
 
 
 async def test_list_quads_uses_default_params(
-    client, session, trip_with_func, org_token
+    client, session, trip_with_func, token_sem_perm
 ):
     """Testa que parâmetros padrão são aplicados."""
     # Faz requisição sem parâmetros (usa defaults)
     response = await client.get(
         '/ops/quads/',
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -465,7 +473,7 @@ async def test_list_quads_uses_default_params(
 
 
 async def test_list_quads_response_structure(
-    client, session, trip_with_func, org_token
+    client, session, trip_with_func, token_sem_perm
 ):
     """Testa a estrutura completa da resposta."""
     trip = trip_with_func
@@ -486,7 +494,7 @@ async def test_list_quads_response_structure(
             'funcao': 'mc',
             'proj': 'kc-390',
         },
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -522,7 +530,7 @@ async def test_list_quads_without_token_fails(client):
 
 
 async def test_list_quads_no_trips_with_matching_funcao_returns_empty(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa lista vazia quando há trips mas nenhum com a função solicitada.
 
@@ -552,7 +560,7 @@ async def test_list_quads_no_trips_with_matching_funcao_returns_empty(
             'funcao': 'pil',  # Nenhum trip tem essa função
             'proj': 'kc-390',
         },
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -562,7 +570,7 @@ async def test_list_quads_no_trips_with_matching_funcao_returns_empty(
 
 
 async def test_list_quads_no_trips_with_matching_proj_returns_empty(
-    client, session, users, org_token
+    client, session, users, token_sem_perm
 ):
     """Testa lista vazia quando há trips mas nenhum com o projeto solicitado.
 
@@ -592,7 +600,7 @@ async def test_list_quads_no_trips_with_matching_proj_returns_empty(
             'funcao': 'mc',
             'proj': 'kc-390',  # Nenhum trip tem esse projeto
         },
-        headers={'Authorization': f'Bearer {org_token}'},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
     )
 
     assert response.status_code == HTTPStatus.OK

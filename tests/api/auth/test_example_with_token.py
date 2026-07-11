@@ -30,14 +30,12 @@ async def test_example_authenticated_request(client, token):
     assert 'nome_guerra' in data
 
 
-async def test_example_post_with_token(
-    client, session, users, org_admin_token
-):
+async def test_example_post_with_token(client, session, users, token):
     """
     Exemplo de POST com autenticação.
 
     `/indisp/` é data-plane escopado: exige `active_org` no token e que o
-    alvo seja tripulante da org ativa. Daí o `org_admin_token` (traz a org)
+    alvo seja tripulante da org ativa. Daí o `token` (traz a org)
     e o vínculo de tripulante — o `token` puro responderia 400.
     """
     user, _ = users
@@ -47,7 +45,7 @@ async def test_example_post_with_token(
 
     response = await client.post(
         '/indisp/',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'user_id': user.id,  # Usa o ID real do usuário
             'date_start': '2023-03-23',

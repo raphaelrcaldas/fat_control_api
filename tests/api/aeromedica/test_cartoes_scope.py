@@ -55,9 +55,7 @@ async def _mk_cartao(session, user_id):
 # ── Lista ──────────────────────────────────────────────────────────
 
 
-async def test_lista_so_traz_usuarios_da_org_ativa(
-    client, session, org_admin_token
-):
+async def test_lista_so_traz_usuarios_da_org_ativa(client, session, token):
     """A lista da '11gt' não mostra usuário lotado na '1gt'."""
     u11 = await _mk_user(session, unidade='11gt')
     u1 = await _mk_user(session, unidade='1gt')
@@ -65,7 +63,7 @@ async def test_lista_so_traz_usuarios_da_org_ativa(
     await _mk_cartao(session, u1.id)
     await session.commit()
 
-    resp = await client.get(URL, headers=_auth(org_admin_token))
+    resp = await client.get(URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     ids = {row['user']['id'] for row in resp.json()['data']}
     assert u11.id in ids
@@ -73,7 +71,7 @@ async def test_lista_so_traz_usuarios_da_org_ativa(
 
 
 async def test_vinculo_tripulante_de_outra_org_nao_conta(
-    client, session, org_admin_token
+    client, session, token
 ):
     """Vínculo de tripulante em outra org não marca `tripulante=True`.
 
@@ -86,14 +84,14 @@ async def test_vinculo_tripulante_de_outra_org_nao_conta(
     session.add(trip)
     await session.commit()
 
-    resp = await client.get(URL, headers=_auth(org_admin_token))
+    resp = await client.get(URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     row = next(r for r in resp.json()['data'] if r['user']['id'] == u11.id)
     assert row['tripulante'] is False
 
     # E o filtro tripulante=true não o traz.
     resp = await client.get(
-        URL, params={'tripulante': True}, headers=_auth(org_admin_token)
+        URL, params={'tripulante': True}, headers=_auth(token)
     )
     ids = {r['user']['id'] for r in resp.json()['data']}
     assert u11.id not in ids
@@ -102,7 +100,7 @@ async def test_vinculo_tripulante_de_outra_org_nao_conta(
 # ── Create ─────────────────────────────────────────────────────────
 
 
-async def test_create_cross_org_404(client, session, org_admin_token):
+async def test_create_cross_org_404(client, session, token):
     """Admin da '11gt' não cria cartão p/ usuário da '1gt'."""
     u1 = await _mk_user(session, unidade='1gt')
     await session.commit()
@@ -116,12 +114,12 @@ async def test_create_cross_org_404(client, session, org_admin_token):
             'tovn': None,
             'imae': None,
         },
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_create_para_inativo_404(client, session, org_admin_token):
+async def test_create_para_inativo_404(client, session, token):
     """Não cria cartão p/ usuário inativo (mesmo da própria org)."""
     u11 = await _mk_user(session, unidade='11gt', active=False)
     await session.commit()
@@ -135,7 +133,7 @@ async def test_create_para_inativo_404(client, session, org_admin_token):
             'tovn': None,
             'imae': None,
         },
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
@@ -143,7 +141,7 @@ async def test_create_para_inativo_404(client, session, org_admin_token):
 # ── Update / Delete ────────────────────────────────────────────────
 
 
-async def test_update_cross_org_404(client, session, org_admin_token):
+async def test_update_cross_org_404(client, session, token):
     """Admin da '11gt' não edita cartão de usuário da '1gt'."""
     u1 = await _mk_user(session, unidade='1gt')
     cartao = await _mk_cartao(session, u1.id)
@@ -152,20 +150,18 @@ async def test_update_cross_org_404(client, session, org_admin_token):
     resp = await client.put(
         f'{URL}{cartao.id}',
         json={'prontuario': '999'},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_delete_cross_org_404(client, session, org_admin_token):
+async def test_delete_cross_org_404(client, session, token):
     """Admin da '11gt' não apaga cartão de usuário da '1gt'."""
     u1 = await _mk_user(session, unidade='1gt')
     cartao = await _mk_cartao(session, u1.id)
     await session.commit()
 
-    resp = await client.delete(
-        f'{URL}{cartao.id}', headers=_auth(org_admin_token)
-    )
+    resp = await client.delete(f'{URL}{cartao.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -185,7 +181,7 @@ async def _mk_ata(session, user_id):
 
 
 async def test_orfaos_escopado_por_org(
-    client, session, org_admin_token, admin_1gt_token
+    client, session, token, admin_1gt_token
 ):
     """Órfãos agrega cartão + atas de inativos, só da própria org."""
     u11 = await _mk_user(session, unidade='11gt', active=False)
@@ -196,7 +192,7 @@ async def test_orfaos_escopado_por_org(
     await _mk_cartao(session, u1.id)
     await session.commit()
 
-    resp = await client.get(ORFAOS_URL, headers=_auth(org_admin_token))
+    resp = await client.get(ORFAOS_URL, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
     ids = {item['user_id'] for item in data['itens']}
@@ -210,9 +206,7 @@ async def test_orfaos_escopado_por_org(
     assert data['total_atas'] == 2
 
 
-async def test_orfaos_delete_remove_cartao_e_atas(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_remove_cartao_e_atas(client, session, token):
     """DELETE /orfaos da própria org apaga cartão E atas do militar."""
     u11 = await _mk_user(session, unidade='11gt', active=False)
     cartao = await _mk_cartao(session, u11.id)
@@ -223,7 +217,7 @@ async def test_orfaos_delete_remove_cartao_e_atas(
         'DELETE',
         ORFAOS_URL,
         json={'user_ids': [u11.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data'] == {'cartoes': 1, 'atas': 1}
@@ -233,9 +227,7 @@ async def test_orfaos_delete_remove_cartao_e_atas(
     assert await session.get(AtaInspecao, ata.id) is None
 
 
-async def test_orfaos_delete_nao_remove_de_outra_org(
-    client, session, org_admin_token
-):
+async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     """DELETE /orfaos da '11gt' ignora documentos órfãos da '1gt'."""
     u1 = await _mk_user(session, unidade='1gt', active=False)
     cartao = await _mk_cartao(session, u1.id)
@@ -246,7 +238,7 @@ async def test_orfaos_delete_nao_remove_de_outra_org(
         'DELETE',
         ORFAOS_URL,
         json={'user_ids': [u1.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data'] == {'cartoes': 0, 'atas': 0}
@@ -279,9 +271,7 @@ async def test_by_user_owner_self_service(client, session, user_token_11gt):
     assert resp.json()['data']['id'] == cartao.id
 
 
-async def test_by_user_terceiro_sem_view_403(
-    client, session, user_token_11gt
-):
+async def test_by_user_terceiro_sem_view_403(client, session, user_token_11gt):
     """Terceiro sem 'cartoes-saude.view' não lê o cartão de outro militar."""
     _, tok = user_token_11gt
     outro = await _mk_user(session, unidade='11gt')

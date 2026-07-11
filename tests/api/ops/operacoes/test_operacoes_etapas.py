@@ -81,7 +81,7 @@ async def operacao(session, users):
 # Candidatas
 # --------------------------------------------------------------------------- #
 async def test_candidatas_scoped_by_missao_org(
-    client, session, aeronave, operacao, org_admin_token
+    client, session, aeronave, operacao, token
 ):
     """Candidatas só trazem etapas de missões da org ativa ('11gt')."""
     m_org = await _missao(session, '11gt')
@@ -92,7 +92,7 @@ async def test_candidatas_scoped_by_missao_org(
 
     resp = await client.get(
         f'/ops/operacoes/{operacao.id}/candidatas',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     ids = [c['id'] for c in resp.json()['data']]
@@ -100,7 +100,7 @@ async def test_candidatas_scoped_by_missao_org(
 
 
 async def test_candidatas_excludes_out_of_period(
-    client, session, aeronave, operacao, org_admin_token
+    client, session, aeronave, operacao, token
 ):
     m = await _missao(session, '11gt')
     e_dentro = await _etapa(session, m.id, date(2025, 6, 5))
@@ -109,7 +109,7 @@ async def test_candidatas_excludes_out_of_period(
 
     resp = await client.get(
         f'/ops/operacoes/{operacao.id}/candidatas',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     ids = [c['id'] for c in resp.json()['data']]
     assert ids == [e_dentro.id]
@@ -118,9 +118,7 @@ async def test_candidatas_excludes_out_of_period(
 # --------------------------------------------------------------------------- #
 # Associar
 # --------------------------------------------------------------------------- #
-async def test_associar_success(
-    client, session, aeronave, operacao, org_admin_token
-):
+async def test_associar_success(client, session, aeronave, operacao, token):
     m = await _missao(session, '11gt')
     etapa = await _etapa(session, m.id, date(2025, 6, 5))
     await session.commit()
@@ -128,7 +126,7 @@ async def test_associar_success(
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/etapas',
         json={'etapa_ids': [etapa.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
@@ -137,13 +135,13 @@ async def test_associar_success(
 
     lst = await client.get(
         f'/ops/operacoes/{operacao.id}/etapas',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert [e['id'] for e in lst.json()['data']] == [etapa.id]
 
 
 async def test_associar_rejects_other_org_etapa(
-    client, session, aeronave, operacao, org_admin_token
+    client, session, aeronave, operacao, token
 ):
     """Etapa de missão de outra org não é associada (escopo via missão)."""
     m_outra = await _missao(session, '1gt')
@@ -153,14 +151,14 @@ async def test_associar_rejects_other_org_etapa(
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/etapas',
         json={'etapa_ids': [etapa.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['data']['associadas'] == 0
 
 
 async def test_associar_blocks_etapa_in_other_op(
-    client, session, users, aeronave, operacao, org_admin_token
+    client, session, users, aeronave, operacao, token
 ):
     """Etapa já vinculada a outra operação entra em `bloqueadas`."""
     user, _ = users
@@ -180,7 +178,7 @@ async def test_associar_blocks_etapa_in_other_op(
     resp = await client.post(
         f'/ops/operacoes/{operacao.id}/etapas',
         json={'etapa_ids': [etapa.id]},
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     data = resp.json()['data']
     assert data['associadas'] == 0
@@ -205,9 +203,7 @@ async def test_associar_viewer_forbidden(
 # --------------------------------------------------------------------------- #
 # Desassociar
 # --------------------------------------------------------------------------- #
-async def test_desassociar_success(
-    client, session, aeronave, operacao, org_admin_token
-):
+async def test_desassociar_success(client, session, aeronave, operacao, token):
     m = await _missao(session, '11gt')
     etapa = await _etapa(session, m.id, date(2025, 6, 5))
     session.add(OperacaoEtapa(etapa_id=etapa.id, operacao_id=operacao.id))
@@ -215,19 +211,19 @@ async def test_desassociar_success(
 
     resp = await client.delete(
         f'/ops/operacoes/{operacao.id}/etapas/{etapa.id}',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 
     lst = await client.get(
         f'/ops/operacoes/{operacao.id}/etapas',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert lst.json()['data'] == []
 
 
 async def test_desassociar_not_associated_404(
-    client, session, aeronave, operacao, org_admin_token
+    client, session, aeronave, operacao, token
 ):
     m = await _missao(session, '11gt')
     etapa = await _etapa(session, m.id, date(2025, 6, 5))
@@ -235,6 +231,6 @@ async def test_desassociar_not_associated_404(
 
     resp = await client.delete(
         f'/ops/operacoes/{operacao.id}/etapas/{etapa.id}',
-        headers=_auth(org_admin_token),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND

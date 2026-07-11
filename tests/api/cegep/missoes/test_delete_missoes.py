@@ -22,15 +22,13 @@ from tests.factories import (
 pytestmark = pytest.mark.anyio
 
 
-async def test_delete_missao_success(
-    client, session, org_admin_token, missao_existente
-):
+async def test_delete_missao_success(client, session, token, missao_existente):
     """Testa remocao de missao com sucesso."""
     missao_id = missao_existente.id
 
     response = await client.delete(
         f'/cegep/missoes/{missao_id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -45,11 +43,11 @@ async def test_delete_missao_success(
     assert db_missao is None
 
 
-async def test_delete_missao_not_found(client, org_admin_token):
+async def test_delete_missao_not_found(client, token):
     """Testa remocao de missao inexistente."""
     response = await client.delete(
         '/cegep/missoes/99999',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -57,15 +55,13 @@ async def test_delete_missao_not_found(client, org_admin_token):
 
 
 async def test_delete_missao_without_token(client, missao_existente):
-    """Testa que requisicao sem org_admin_token falha."""
+    """Testa que requisicao sem token falha."""
     response = await client.delete(f'/cegep/missoes/{missao_existente.id}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-async def test_delete_missao_recalcula_comiss(
-    client, session, org_admin_token, users
-):
+async def test_delete_missao_recalcula_comiss(client, session, token, users):
     """Testa que deletar missao recalcula comissionamentos afetados."""
     user, _ = users
     today = date.today()
@@ -109,7 +105,7 @@ async def test_delete_missao_recalcula_comiss(
     # Deletar missao
     response = await client.delete(
         f'/cegep/missoes/{missao_id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -121,7 +117,7 @@ async def test_delete_missao_recalcula_comiss(
 
 
 async def test_delete_missao_cascade_pernoites(
-    client, session, org_admin_token, missao_existente
+    client, session, token, missao_existente
 ):
     """Testa que deletar missao remove pernoites em cascade."""
     missao_id = missao_existente.id
@@ -135,7 +131,7 @@ async def test_delete_missao_cascade_pernoites(
     # Deletar missao
     response = await client.delete(
         f'/cegep/missoes/{missao_id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -148,7 +144,7 @@ async def test_delete_missao_cascade_pernoites(
 
 
 async def test_delete_missao_cascade_users_frag(
-    client, session, org_admin_token, missao_existente
+    client, session, token, missao_existente
 ):
     """Testa que deletar missao remove users_frag em cascade."""
     missao_id = missao_existente.id
@@ -162,7 +158,7 @@ async def test_delete_missao_cascade_users_frag(
     # Deletar missao
     response = await client.delete(
         f'/cegep/missoes/{missao_id}',
-        headers={'Authorization': f'Bearer {org_admin_token}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert response.status_code == HTTPStatus.OK
