@@ -18,7 +18,11 @@ from fcontrol_api.schemas.cegep.orcamento import (
     OrcamentoLogOut,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import get_current_user, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
 
@@ -52,11 +56,15 @@ def _orcamento_to_dict(orc: OrcamentoAnual) -> dict:
 )
 async def get_orcamento(
     session: Session,
+    active_org: ActiveOrg,
     ano: int,
 ):
     """Retorna o orçamento anual do ano escolhido (ou null se não existir)."""
     orc = await session.scalar(
-        select(OrcamentoAnual).where(OrcamentoAnual.ano_ref == ano)
+        select(OrcamentoAnual).where(
+            OrcamentoAnual.ano_ref == ano,
+            OrcamentoAnual.uae == active_org,
+        )
     )
     return success_response(data=orc)
 
@@ -71,9 +79,13 @@ async def create_orcamento(
     payload: OrcamentoAnualCreate,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     existing = await session.scalar(
-        select(OrcamentoAnual).where(OrcamentoAnual.ano_ref == payload.ano_ref)
+        select(OrcamentoAnual).where(
+            OrcamentoAnual.ano_ref == payload.ano_ref,
+            OrcamentoAnual.uae == active_org,
+        )
     )
     if existing:
         raise HTTPException(
@@ -86,6 +98,7 @@ async def create_orcamento(
         total=payload.total,
         abertura=payload.abertura,
         fechamento=payload.fechamento,
+        uae=active_org,
     )
     session.add(new_orc)
     await session.flush()
@@ -116,9 +129,13 @@ async def update_orcamento(
     payload: OrcamentoAnualUpdate,
     session: Session,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ):
     db_orc = await session.scalar(
-        select(OrcamentoAnual).where(OrcamentoAnual.id == orc_id)
+        select(OrcamentoAnual).where(
+            OrcamentoAnual.id == orc_id,
+            OrcamentoAnual.uae == active_org,
+        )
     )
     if not db_orc:
         raise HTTPException(
@@ -130,6 +147,7 @@ async def update_orcamento(
         conflict = await session.scalar(
             select(OrcamentoAnual).where(
                 OrcamentoAnual.ano_ref == payload.ano_ref,
+                OrcamentoAnual.uae == active_org,
                 OrcamentoAnual.id != orc_id,
             )
         )
@@ -177,9 +195,13 @@ async def update_orcamento(
 async def list_orcamento_logs(
     orc_id: int,
     session: Session,
+    active_org: ActiveOrg,
 ):
     db_orc = await session.scalar(
-        select(OrcamentoAnual).where(OrcamentoAnual.id == orc_id)
+        select(OrcamentoAnual).where(
+            OrcamentoAnual.id == orc_id,
+            OrcamentoAnual.uae == active_org,
+        )
     )
     if not db_orc:
         raise HTTPException(

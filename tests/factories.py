@@ -4,6 +4,7 @@ Factories para criação de objetos de teste usando factory_boy.
 
 import datetime
 import typing
+from decimal import Decimal
 
 import factory
 import factory.fuzzy
@@ -18,6 +19,7 @@ from fcontrol_api.models.cegep.missoes import (
     PernoiteFrag,
     UserFrag,
 )
+from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
 from fcontrol_api.models.nav.aerodromos import Aerodromo
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.models.security.logs import UserActionLog
@@ -509,6 +511,28 @@ class ComissFactory(factory.Factory):
     doc_prop = factory.Sequence(lambda n: f'PROP-{n:04d}/2025')
     doc_aut = factory.Sequence(lambda n: f'AUT-{n:04d}/2025')
     doc_enc = None
+
+
+class OrcamentoFactory(factory.Factory):
+    """
+    Factory para criar orçamentos anuais de teste.
+
+    IMPORTANTE: `uae` default é '11gt'; passe outra org para os testes
+    de isolamento cross-org.
+
+    Uso:
+        orc = OrcamentoFactory(ano_ref=2026)
+        orc_1gt = OrcamentoFactory(ano_ref=2026, uae='1gt')
+    """
+
+    class Meta:
+        model = OrcamentoAnual
+
+    uae = '11gt'
+    ano_ref = 2026
+    abertura = Decimal('50000.00')
+    fechamento = Decimal('50000.00')
+    total = Decimal('100000.00')
 
 
 class FragMisFactory(factory.Factory):

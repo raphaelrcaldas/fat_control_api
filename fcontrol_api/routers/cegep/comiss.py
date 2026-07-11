@@ -209,7 +209,10 @@ async def get_summary(
     comiss_list = result.all()
 
     orcamento = await session.scalar(
-        select(OrcamentoAnual).where(OrcamentoAnual.ano_ref == ano)
+        select(OrcamentoAnual).where(
+            OrcamentoAnual.ano_ref == ano,
+            OrcamentoAnual.uae == active_org,
+        )
     )
 
     orc_total = orcamento.total if orcamento else 0.0
