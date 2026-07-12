@@ -1,10 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, func, text
+from sqlalchemy import (
+    ForeignKey,
+    Identity,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .organizacao import Organizacao
+from .users import User
 
 
 class Tenant(Base):
@@ -39,3 +47,51 @@ class Tenant(Base):
     organizacao: Mapped[Organizacao] = relationship(
         Organizacao, lazy='selectin', init=False
     )
+
+
+class TenantCargo(Base):
+    """Titular de cada cargo institucional da org (assina documentos).
+
+    Uma linha por (org, cargo) — a `UniqueConstraint` e o que garante o
+    "um titular por cargo"; a troca de titular e um UPDATE do `user_id`.
+
+    O titular e uma FK para `users` (nunca o nome/posto em texto): o
+    documento renderiza `nome_completo`, `posto.mid` e `quadro` no momento
+    da geracao, entao promocao e mudanca de comando se propagam sem
+    reescrever nada. Nao ha vigencia historica: reimprimir um documento
+    antigo mostra o titular *atual* (o documento e sempre emitido no
+    presente).
+
+    Cargo novo = novo valor em `CargoEnum` + linha aqui; sem migration.
+    """
+
+    __tablename__ = 'tenant_cargos'
+    __table_args__ = (
+        UniqueConstraint('uae', 'cargo', name='uq_tenant_cargo'),
+    )
+
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True, init=False)
+    uae: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey(
+            'tenants.organizacao_id',
+            ondelete='CASCADE',
+            onupdate='CASCADE',
+            name='fk_tenant_cargos_uae',
+        ),
+    )
+    # CargoEnum. String livre no banco; a validacao contra a lista fechada
+    # mora no schema Pydantic (mesmo contrato do `tema` acima).
+    cargo: Mapped[str] = mapped_column(String(30))
+    # RESTRICT: um militar que assina documentos nao pode ser removido sem
+    # que o cargo seja reatribuido antes.
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            'users.id',
+            ondelete='RESTRICT',
+            onupdate='CASCADE',
+            name='fk_tenant_cargos_user',
+        )
+    )
+
+    user: Mapped[User] = relationship(User, lazy='selectin', init=False)

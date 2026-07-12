@@ -7,6 +7,7 @@ from fcontrol_api.routers import (
     auth,
     cegep,
     cities,
+    config,
     estatistica,
     indisp,
     instrucao,
@@ -31,6 +32,7 @@ router.include_router(aeromedica.router)
 router.include_router(auth.router)
 router.include_router(cegep.router)
 router.include_router(cities.router)
+router.include_router(config.router)
 router.include_router(estatistica.router)
 router.include_router(indisp.router)
 router.include_router(instrucao.router)
