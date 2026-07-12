@@ -40,6 +40,12 @@ class Tenant(Base):
     tema: Mapped[str] = mapped_column(
         String(20), default='red', server_default=text("'red'")
     )
+    # Lema/saudação da unidade, exibida na tela de carregamento do client.
+    # NOT NULL com default '': string vazia = org sem saudação definida
+    # (o PATCH de tenant usa exclude_none, então limpar é enviar '').
+    saudacao: Mapped[str] = mapped_column(
+        String(120), default='', server_default=text("''")
+    )
     created_at: Mapped[datetime] = mapped_column(
         init=False, server_default=func.now()
     )

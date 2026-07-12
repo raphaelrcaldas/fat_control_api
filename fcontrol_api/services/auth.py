@@ -94,6 +94,7 @@ async def list_user_orgs(
         # Tripulante sempre tem lotação (uae) — não há escopo Sistema aqui.
         # Tema vem do tenant (outerjoin); sem tenant cai no default 'red'.
         tema_col = func.coalesce(Tenant.tema, 'red')
+        saudacao_col = func.coalesce(Tenant.saudacao, '')
         rows = await session.execute(
             select(
                 Tripulante.uae,
@@ -101,6 +102,7 @@ async def list_user_orgs(
                 Organizacao.nome,
                 Tripulante.trig,
                 tema_col,
+                saudacao_col,
             )
             .outerjoin(Organizacao, Organizacao.sigla == Tripulante.uae)
             .outerjoin(Tenant, Tenant.organizacao_id == Tripulante.uae)
@@ -114,8 +116,9 @@ async def list_user_orgs(
                 nome=nome,
                 role=trig,
                 tema=tema,
+                saudacao=saudacao,
             )
-            for uae, sigla, nome, trig, tema in rows.all()
+            for uae, sigla, nome, trig, tema, saudacao in rows.all()
         ]
 
     # Escopo Sistema (organizacao_id NULL) usa tema neutro 'slate'; demais
@@ -124,6 +127,7 @@ async def list_user_orgs(
         (UserRole.organizacao_id.is_(None), 'slate'),
         else_=func.coalesce(Tenant.tema, 'red'),
     )
+    saudacao_col = func.coalesce(Tenant.saudacao, '')
     rows = await session.execute(
         select(
             UserRole.organizacao_id,
@@ -131,6 +135,7 @@ async def list_user_orgs(
             Organizacao.nome,
             Roles.name,
             tema_col,
+            saudacao_col,
         )
         .join(Roles, Roles.id == UserRole.role_id)
         .outerjoin(Organizacao, Organizacao.sigla == UserRole.organizacao_id)
@@ -145,8 +150,9 @@ async def list_user_orgs(
             nome=nome,
             role=role,
             tema=tema,
+            saudacao=saudacao,
         )
-        for oid, sigla, nome, role, tema in rows.all()
+        for oid, sigla, nome, role, tema, saudacao in rows.all()
     ]
 
 

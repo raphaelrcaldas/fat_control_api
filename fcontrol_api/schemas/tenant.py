@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from fcontrol_api.enums.cargo import CARGO_LABELS, CargoEnum
 from fcontrol_api.enums.tema import TemaEnum
@@ -15,10 +15,11 @@ class TenantCreate(BaseModel):
 
 
 class TenantUpdate(BaseModel):
-    """Atualização parcial de um tenant (ativação e/ou tema)."""
+    """Atualização parcial de um tenant (ativação, tema e/ou saudação)."""
 
     active: bool | None = None
     tema: TemaEnum | None = None
+    saudacao: str | None = Field(default=None, max_length=120)
 
 
 class TenantOut(BaseModel):
@@ -27,6 +28,7 @@ class TenantOut(BaseModel):
     organizacao_id: str
     active: bool
     tema: TemaEnum
+    saudacao: str
     created_at: datetime
     organizacao: OrganizacaoOut
 

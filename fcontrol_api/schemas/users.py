@@ -265,6 +265,8 @@ class OrgScope(BaseModel):
     # Tema de cor de marca do tenant. 'red' (default do produto) quando o
     # escopo não tem tenant associado (ex: escopo de sistema).
     tema: str = 'red'
+    # Lema da org, exibido na tela de carregamento. '' = não definida.
+    saudacao: str = ''
 
 
 class UserProfile(BaseModel):
