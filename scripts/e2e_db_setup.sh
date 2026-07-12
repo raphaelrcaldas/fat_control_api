@@ -32,9 +32,9 @@ echo "✅ Banco de dados pronto!"
 # Executa as migrations do Alembic
 echo "📖 Executando migrations do Alembic..."
 export DATABASE_URL="postgresql+asyncpg://$DB_USER:$DB_PASS@localhost:$PORT/$DB_NAME"
-poetry run alembic upgrade head
+uv run alembic upgrade head
 
 echo "🌱 Populando dados de seed..."
-poetry run python scripts/seed_e2e_db.py
+uv run python scripts/seed_e2e_db.py
 
 echo "✨ Ambiente de teste preparado com sucesso!"

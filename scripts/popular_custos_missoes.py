@@ -2,7 +2,7 @@
 Script para popular a coluna custos JSONB em todas as missões existentes.
 
 Execução:
-    poetry run python scripts/popular_custos_missoes.py
+    uv run python scripts/popular_custos_missoes.py
 """
 
 import asyncio
