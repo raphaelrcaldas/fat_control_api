@@ -9,20 +9,12 @@ from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.security.logs import UserActionLog
-from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.logs import UserActionLogOut
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import (
-    ActiveOrgOptional,
-    ensure_org_permission_or_owner,
-    get_current_user,
-    is_system_admin,
-    require_system_admin,
-)
+from fcontrol_api.security import require_system_admin
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/logs', tags=['Logs'])
 
@@ -33,8 +25,6 @@ router = APIRouter(prefix='/logs', tags=['Logs'])
 )
 async def listar_logs(
     session: Session,
-    active_org: ActiveOrgOptional,
-    current_user: CurrentUser,
     user_id: int | None = None,
     resource: str | None = None,
     resource_id: int | None = None,
@@ -42,37 +32,6 @@ async def listar_logs(
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
 ):
-    # Acesso em camadas (o log expõe atores de todas as orgs):
-    # 1. Próprios logs (home: "último acesso") — qualquer usuário.
-    # 2. Admin de sistema — listagem global (tela admin/logs).
-    # 3. Auditoria de um usuário (aba histórico) — exige user.view na
-    #    org ativa e alvo dentro da org, mesma lente do GET /users/{id}.
-    if user_id == current_user.id:
-        pass
-    elif await is_system_admin(current_user.id, session, active_org):
-        pass
-    elif resource == 'user' and resource_id is not None:
-        if resource_id != current_user.id:
-            target = await session.scalar(
-                select(User).where(User.id == resource_id)
-            )
-            if (
-                target
-                and active_org is not None
-                and target.unidade != active_org
-            ):
-                raise HTTPException(
-                    status_code=HTTPStatus.NOT_FOUND,
-                    detail='Usuario nao encontrado',
-                )
-        await ensure_org_permission_or_owner(
-            current_user, session, active_org, 'user', 'view', resource_id
-        )
-    else:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail='SCOPE_FORBIDDEN'
-        )
-
     query = select(UserActionLog).options(selectinload(UserActionLog.user))
 
     filters = []

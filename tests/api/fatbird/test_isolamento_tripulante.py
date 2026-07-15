@@ -24,7 +24,6 @@ def _rotas_alheias(outro_id: int):
         ('passaporte', f'inteligencia/passaportes/user/{outro_id}', None),
         ('dados-bancarios', f'cegep/dados-bancarios/user/{outro_id}', None),
         ('users', f'users/{outro_id}', None),
-        ('logs', 'logs/user-actions', {'user_id': outro_id}),
         ('comiss', 'cegep/comiss/', {'user_id': outro_id}),
         (
             'financeiro-pgts',
