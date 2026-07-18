@@ -191,9 +191,15 @@ async def list_trips(
     if search:
         search_term = search.lower()
         filter_query = filter_query.where(
-            (Tripulante.trig.ilike(f'%{search_term}%'))
-            | (User.nome_guerra.ilike(f'%{search_term}%'))
-            | (User.nome_completo.ilike(f'%{search_term}%'))
+            sql_func.unaccent(Tripulante.trig).ilike(
+                sql_func.unaccent(f'%{search_term}%')
+            )
+            | sql_func.unaccent(User.nome_guerra).ilike(
+                sql_func.unaccent(f'%{search_term}%')
+            )
+            | sql_func.unaccent(User.nome_completo).ilike(
+                sql_func.unaccent(f'%{search_term}%')
+            )
         )
 
     # Filtro por posto/graduação

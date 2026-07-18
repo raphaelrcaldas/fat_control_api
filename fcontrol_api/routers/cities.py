@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -17,7 +18,12 @@ router = APIRouter(prefix='/cities', tags=['cities'])
 
 @router.get('/', response_model=ApiResponse[list[CidadeSchema]])
 async def get_cities(search: str, session: Session):
-    stmt = select(Cidade).where(Cidade.nome.ilike(f'%{search}%')).limit(20)
+    # Busca insensível a acento (unaccent): "brasilia" casa "Brasília".
+    stmt = (
+        select(Cidade)
+        .where(func.unaccent(Cidade.nome).ilike(func.unaccent(f'%{search}%')))
+        .limit(20)
+    )
     result = await session.scalars(stmt)
     cidades = result.all()
 

@@ -5,7 +5,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -80,8 +80,10 @@ async def get_dados_bancarios(
 
     if search:
         query = query.where(
-            User.nome_guerra.ilike(f'%{search}%')
-            | User.nome_completo.ilike(f'%{search}%')
+            func.unaccent(User.nome_guerra).ilike(func.unaccent(f'%{search}%'))
+            | func.unaccent(User.nome_completo).ilike(
+                func.unaccent(f'%{search}%')
+            )
         )
 
     query = query.order_by(DadosBancarios.id)

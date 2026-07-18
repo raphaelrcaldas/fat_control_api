@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, time, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from http import HTTPStatus
 from typing import Annotated
 
@@ -20,6 +21,11 @@ from fcontrol_api.models.cegep.missoes import (
 from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.estados_cidades import Cidade
 from fcontrol_api.models.shared.users import User
+from fcontrol_api.schemas.cegep.custos import (
+    CustoFragMisInput,
+    CustoPernoiteInput,
+    CustoUserFragInput,
+)
 from fcontrol_api.schemas.cegep.missoes import (
     CidadePernoiteSchema,
     FragMisSchema,
@@ -27,6 +33,12 @@ from fcontrol_api.schemas.cegep.missoes import (
     MissaoLogOut,
     MissoesFilterParams,
     PernoiteFragMis,
+    SimulacaoCombinacaoOut,
+    SimulacaoInput,
+    SimulacaoOut,
+    SimulacaoPernoiteCombOut,
+    SimulacaoPernoiteOut,
+    SimulacaoValOut,
     UserFragMis,
 )
 from fcontrol_api.schemas.etiquetas import EtiquetaInput, EtiquetaSchema
@@ -44,6 +56,11 @@ from fcontrol_api.services.comis import (
     recalcular_comiss_afetados,
     verificar_usrs_comiss,
 )
+from fcontrol_api.services.custos import (
+    calcular_custos_frag_mis,
+    carregar_caches_custo,
+)
+from fcontrol_api.services.custos.integridade import chave_pg_sit
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.missao import (
     adicionar_missao,
@@ -53,6 +70,8 @@ from fcontrol_api.services.missao import (
     verificar_integridade_missao,
 )
 from fcontrol_api.utils.responses import paginated_response, success_response
+
+CENTAVO = Decimal('0.01')
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -204,13 +223,21 @@ async def get_fragmentos(
             base_query
             .join(PernoiteFrag)
             .join(Cidade)
-            .where(Cidade.nome.ilike(f'%{params.city}%'))
+            .where(
+                func.unaccent(Cidade.nome).ilike(
+                    func.unaccent(f'%{params.city}%')
+                )
+            )
         )
         count_query = (
             count_query
             .join(PernoiteFrag)
             .join(Cidade)
-            .where(Cidade.nome.ilike(f'%{params.city}%'))
+            .where(
+                func.unaccent(Cidade.nome).ilike(
+                    func.unaccent(f'%{params.city}%')
+                )
+            )
         )
 
     # Filtro por nome de guerra (busca parcial case-insensitive)
@@ -221,13 +248,21 @@ async def get_fragmentos(
             base_query
             .join(UserFrag)
             .join(User)
-            .where(User.nome_guerra.ilike(f'%{params.user_search}%'))
+            .where(
+                func.unaccent(User.nome_guerra).ilike(
+                    func.unaccent(f'%{params.user_search}%')
+                )
+            )
         )
         count_query = (
             count_query
             .join(UserFrag)
             .join(User)
-            .where(User.nome_guerra.ilike(f'%{params.user_search}%'))
+            .where(
+                func.unaccent(User.nome_guerra).ilike(
+                    func.unaccent(f'%{params.user_search}%')
+                )
+            )
         )
 
     # Filtro por etiquetas (multi-select)
@@ -414,7 +449,9 @@ async def buscar_cidades_pernoite(
 
     termo = search.strip()
     if termo:
-        stmt = stmt.where(Cidade.nome.ilike(f'%{termo}%'))
+        stmt = stmt.where(
+            func.unaccent(Cidade.nome).ilike(func.unaccent(f'%{termo}%'))
+        )
 
     rows = (await session.execute(stmt)).all()
 
@@ -430,6 +467,165 @@ async def buscar_cidades_pernoite(
     ]
 
     return success_response(data=data)
+
+
+@router.post(
+    '/simular',
+    response_model=ApiResponse[SimulacaoOut],
+    dependencies=[ViewMis],
+)
+async def simular_custo_missao(payload: SimulacaoInput, session: Session):
+    """Simula o custo de uma missão planejada, sem persistir nada.
+
+    Reusa o cálculo puro `calcular_custos_frag_mis` sobre as tabelas de
+    referência globais (diárias, soldos, grupos), então não há org ativa,
+    auditoria nem commit. Os pernoites recebem **IDs sintéticos**
+    sequenciais (1-based, na ordem do payload) — uma simulação não tem
+    pernoite de banco. `total_dias`/`total_diarias` são **universais** da
+    missão (dias para comissionamento não se multiplicam por militar); só
+    `subtotal`/`total_geral` escalam pela quantidade de cada combinação.
+    """
+    # 1. Validações estruturais (400 com motivos acumulados). Sem período
+    # de missão (afast/regres): só as datas dos pernoites importam — conta
+    # rápida. Dia de fronteira compartilhado entre pernoites não é conflito
+    # (mesma semântica do cadastro real: comparação estrita).
+    erros: list[str] = []
+
+    for i, p in enumerate(payload.pernoites, start=1):
+        if p.data_fim < p.data_ini:
+            erros.append(f'- Pernoite {i}: data de fim anterior à de início')
+
+    for i, p in enumerate(payload.pernoites):
+        for outro in payload.pernoites[i + 1 :]:
+            if p.data_ini < outro.data_fim and outro.data_ini < p.data_fim:
+                erros.append('- Há pernoites com datas sobrepostas')
+                break
+        else:
+            continue
+        break
+
+    vistas: set[tuple[str, str]] = set()
+    for c in payload.combinacoes:
+        chave = (c.p_g.value, c.sit)
+        if chave in vistas:
+            erros.append(
+                f'- Combinação repetida: {c.p_g.value} ({c.sit})'.upper()
+            )
+        vistas.add(chave)
+
+    if erros:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Corrija os seguintes itens:\n' + '\n'.join(erros),
+        )
+
+    # 2. Montar inputs reusando os schemas de custo existentes. Militares
+    # entram como combinação única (a função deduplica); a multiplicação
+    # por quantidade é feita depois, fora do cálculo.
+    frag_input = CustoFragMisInput(acrec_desloc=payload.acrec_desloc)
+    users_input = [
+        CustoUserFragInput(p_g=c.p_g, sit=c.sit) for c in payload.combinacoes
+    ]
+    pernoites_input = [
+        CustoPernoiteInput(
+            id=i + 1,
+            data_ini=p.data_ini,
+            data_fim=p.data_fim,
+            meia_diaria=p.meia_diaria,
+            acrec_desloc=p.acrec_desloc,
+            cidade_codigo=p.cidade_id,
+        )
+        for i, p in enumerate(payload.pernoites)
+    ]
+
+    # 3. Calcular sobre os caches de referência globais
+    (
+        valores_cache,
+        soldos_cache,
+        grupos_pg,
+        grupos_cidade,
+    ) = await carregar_caches_custo(session)
+    custos = calcular_custos_frag_mis(
+        frag_input,
+        users_input,
+        pernoites_input,
+        grupos_pg,
+        grupos_cidade,
+        valores_cache,
+        soldos_cache,
+    )
+
+    # 4. Totais por combinação: valor_unitario já inclui o R$95 global 1×
+    totais_pg_sit: dict = custos.get('totais_pg_sit', {})
+    total_geral = Decimal('0')
+    combinacoes_out: list[SimulacaoCombinacaoOut] = []
+    for c in payload.combinacoes:
+        chave = chave_pg_sit(c.p_g, c.sit)
+        valor_unit = Decimal(
+            str(totais_pg_sit.get(chave, {}).get('total_valor', 0))
+        )
+        subtotal = (valor_unit * c.qtd).quantize(
+            CENTAVO, rounding=ROUND_HALF_UP
+        )
+        total_geral += subtotal
+        combinacoes_out.append(
+            SimulacaoCombinacaoOut(
+                p_g=c.p_g,
+                sit=c.sit,
+                qtd=c.qtd,
+                valor_unitario=float(valor_unit),
+                subtotal=float(subtotal),
+            )
+        )
+
+    # 5. Extrato por pernoite (lido do JSONB por ID sintético) + varredura
+    # de valores zerados (vigência ausente na tabela para a data simulada).
+    valores_zerados = False
+    pernoites_out: list[SimulacaoPernoiteOut] = []
+    for i, p in enumerate(payload.pernoites):
+        pnt = custos.get(f'pernoite_{i + 1}', {})
+        combs_pnt: list[SimulacaoPernoiteCombOut] = []
+        for c in payload.combinacoes:
+            bloco = pnt.get(chave_pg_sit(c.p_g, c.sit), {})
+            vals = [
+                SimulacaoValOut(valor=v['valor'], qtd=v['qtd'])
+                for v in bloco.get('vals', [])
+            ]
+            for v in vals:
+                if v.valor == 0 and v.qtd > 0:
+                    valores_zerados = True
+            combs_pnt.append(
+                SimulacaoPernoiteCombOut(
+                    p_g=c.p_g,
+                    sit=c.sit,
+                    vals=vals,
+                    subtotal=bloco.get('subtotal', 0),
+                )
+            )
+        pernoites_out.append(
+            SimulacaoPernoiteOut(
+                indice=i,
+                cidade_id=p.cidade_id,
+                grupo_cid=pnt.get('grupo_cid', 3),
+                data_ini=p.data_ini,
+                data_fim=p.data_fim,
+                dias=pnt.get('dias', 0),
+                ac_desloc=pnt.get('ac_desloc', 0),
+                combinacoes=combs_pnt,
+            )
+        )
+
+    resultado = SimulacaoOut(
+        total_geral=float(total_geral),
+        total_dias=custos.get('total_dias', 0),
+        total_diarias=custos.get('total_diarias', 0),
+        acrec_desloc_missao=custos.get('acrec_desloc_missao', 0),
+        valores_zerados=valores_zerados,
+        combinacoes=combinacoes_out,
+        pernoites=pernoites_out,
+    )
+
+    return success_response(data=resultado)
 
 
 @router.get(

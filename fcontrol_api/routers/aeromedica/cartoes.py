@@ -131,7 +131,8 @@ async def get_cartoes_saude(
         )
         pattern = f'%{safe}%'
         query = query.where(
-            User.nome_guerra.ilike(pattern) | User.nome_completo.ilike(pattern)
+            func.unaccent(User.nome_guerra).ilike(func.unaccent(pattern))
+            | func.unaccent(User.nome_completo).ilike(func.unaccent(pattern))
         )
 
     if p_g:

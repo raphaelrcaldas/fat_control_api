@@ -91,9 +91,9 @@ async def get_pgto(
         count_query = count_query.where(UserFrag.user_id == user_id)
 
     if user:
-        user_filter = User.nome_guerra.ilike(
-            f'%{user}%'
-        ) | User.nome_completo.ilike(f'%{user}%')
+        user_filter = func.unaccent(User.nome_guerra).ilike(
+            func.unaccent(f'%{user}%')
+        ) | func.unaccent(User.nome_completo).ilike(func.unaccent(f'%{user}%'))
         base_query = base_query.where(user_filter)
         count_query = count_query.where(user_filter)
 

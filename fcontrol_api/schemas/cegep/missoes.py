@@ -198,3 +198,99 @@ class MissaoDetail(FragMisSchema):
     # True quando o cache de custos não reflete os inputs atuais da
     # missão (hash de integridade divergente — ver verificar_integridade).
     custo_inconsistente: bool = False
+
+
+# ============ SIMULAÇÃO DE CUSTO (planejamento, sem persistência) ============
+
+
+class SimulacaoPernoiteIn(BaseModel):
+    """Pernoite genérico de uma simulação (sem cidade/obs, só o cálculo)."""
+
+    data_ini: date
+    data_fim: date
+    cidade_id: int = Field(gt=0, description='Código da cidade do pernoite')
+    meia_diaria: bool
+    acrec_desloc: bool
+
+
+class SimulacaoCombinacaoIn(BaseModel):
+    """Combinação genérica posto/graduação + situação + quantidade."""
+
+    p_g: PostoGradEnum
+    sit: Literal['c', 'd', 'g']
+    qtd: int = Field(ge=1, le=500, description='Nº de militares na combinação')
+
+
+class SimulacaoInput(BaseModel):
+    """Payload de simulação de custo de missão planejada.
+
+    Nada persiste: o usuário informa pernoites e combinações genéricas
+    (posto + situação + quantidade) e recebe o custo estimado. Não há
+    período de missão (afast/regres) — só as datas dos pernoites importam
+    para o cálculo. Exige ao menos um pernoite e uma combinação.
+    """
+
+    acrec_desloc: bool = Field(
+        description='Acréscimo de deslocamento global da missão (R$ 95)'
+    )
+    pernoites: list[SimulacaoPernoiteIn] = Field(min_length=1, max_length=50)
+    combinacoes: list[SimulacaoCombinacaoIn] = Field(
+        min_length=1, max_length=50
+    )
+
+
+class SimulacaoValOut(BaseModel):
+    """Valor unitário agregado (diária ou 2% de soldo) e sua quantidade."""
+
+    valor: float
+    qtd: float
+
+
+class SimulacaoPernoiteCombOut(BaseModel):
+    """Extrato de uma combinação dentro de um pernoite (custo por militar)."""
+
+    p_g: PostoGradEnum
+    sit: str
+    vals: list[SimulacaoValOut] = []
+    subtotal: float = 0
+
+
+class SimulacaoPernoiteOut(BaseModel):
+    """Extrato de um pernoite da simulação."""
+
+    indice: int
+    cidade_id: int
+    grupo_cid: int
+    data_ini: date
+    data_fim: date
+    dias: int
+    ac_desloc: float
+    combinacoes: list[SimulacaoPernoiteCombOut] = []
+
+
+class SimulacaoCombinacaoOut(BaseModel):
+    """Total de uma combinação: custo unitário (com R$95 global) × qtd."""
+
+    p_g: PostoGradEnum
+    sit: str
+    qtd: int
+    valor_unitario: float
+    subtotal: float
+
+
+class SimulacaoOut(BaseModel):
+    """Resultado da simulação de custo.
+
+    `total_dias`/`total_diarias` são universais da missão (não somam por
+    militar — dias para comissionamento não se multiplicam por pessoa).
+    """
+
+    total_geral: float
+    total_dias: int
+    total_diarias: float
+    acrec_desloc_missao: int
+    # True se alguma diária/soldo do extrato saiu 0 (vigência ausente na
+    # tabela de referência para a data simulada) — o front avisa o usuário.
+    valores_zerados: bool
+    combinacoes: list[SimulacaoCombinacaoOut] = []
+    pernoites: list[SimulacaoPernoiteOut] = []

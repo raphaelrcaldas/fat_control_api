@@ -268,8 +268,12 @@ async def read_users(
         search_term = f'%{search.strip()}%'
         filters.append(
             or_(
-                User.nome_guerra.ilike(search_term),
-                User.nome_completo.ilike(search_term),
+                func.unaccent(User.nome_guerra).ilike(
+                    func.unaccent(search_term)
+                ),
+                func.unaccent(User.nome_completo).ilike(
+                    func.unaccent(search_term)
+                ),
             )
         )
 

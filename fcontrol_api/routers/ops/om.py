@@ -124,7 +124,11 @@ async def list_ordens(
             select(OrdemTripulacao.ordem_id)
             .join(OrdemTripulacao.tripulante)
             .join(Tripulante.user)
-            .where(User.nome_guerra.ilike(f'%{escaped_busca}%', escape='\\'))
+            .where(
+                func.unaccent(User.nome_guerra).ilike(
+                    func.unaccent(f'%{escaped_busca}%'), escape='\\'
+                )
+            )
             .distinct()
         )
 

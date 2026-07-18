@@ -175,8 +175,12 @@ async def list_etapas(
                 )
                 .join(User, User.id == Tripulante.user_id)
                 .where(
-                    User.nome_guerra.ilike(search_term, escape='\\')
-                    | Tripulante.trig.ilike(search_term, escape='\\')
+                    sql_func.unaccent(User.nome_guerra).ilike(
+                        sql_func.unaccent(search_term), escape='\\'
+                    )
+                    | sql_func.unaccent(Tripulante.trig).ilike(
+                        sql_func.unaccent(search_term), escape='\\'
+                    )
                 )
             )
         if funcao:

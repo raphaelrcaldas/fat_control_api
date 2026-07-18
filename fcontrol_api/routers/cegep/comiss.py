@@ -117,8 +117,10 @@ async def get_cmtos(
 
     if search:
         query = query.where(
-            User.nome_guerra.ilike(f'%{search}%')
-            | User.nome_completo.ilike(f'%{search}%')
+            func.unaccent(User.nome_guerra).ilike(func.unaccent(f'%{search}%'))
+            | func.unaccent(User.nome_completo).ilike(
+                func.unaccent(f'%{search}%')
+            )
         )
 
     if pg:
