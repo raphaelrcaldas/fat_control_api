@@ -80,7 +80,8 @@ async def listar_logs(
         count_query = count_query.where(and_(*filters))
 
     query = (
-        query.order_by(
+        query
+        .order_by(
             UserActionLog.timestamp.desc(),
             UserActionLog.id.desc(),
         )

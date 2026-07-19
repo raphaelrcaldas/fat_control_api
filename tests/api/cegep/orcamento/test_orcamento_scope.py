@@ -72,9 +72,7 @@ async def test_logs_cross_org_404(client, orc_11gt, token_1gt):
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-async def test_post_mesmo_ano_outra_org_permitido(
-    client, orc_11gt, token_1gt
-):
+async def test_post_mesmo_ano_outra_org_permitido(client, orc_11gt, token_1gt):
     """Orgs distintas podem ter orcamento do mesmo ano_ref."""
     payload = {
         'ano_ref': 2026,

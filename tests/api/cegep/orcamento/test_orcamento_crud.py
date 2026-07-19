@@ -87,9 +87,7 @@ async def test_post_orcamento_soma_invalida(client, token, orc_payload):
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-async def test_post_orcamento_duplicado_mesma_org(
-    client, token, orc_payload
-):
+async def test_post_orcamento_duplicado_mesma_org(client, token, orc_payload):
     """Duplicata do mesmo ano, na mesma org, e 400."""
     await client.post(URL, headers=_auth(token), json=orc_payload)
 

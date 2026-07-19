@@ -29,9 +29,7 @@ class BaseTrip(BaseFunc):
     def validate_data_op(self) -> 'BaseTrip':
         """Tripulante operacional (oper != 'al') exige data_op."""
         if self.oper != 'al' and self.data_op is None:
-            raise ValueError(
-                'Data operacional é obrigatória para não-alunos'
-            )
+            raise ValueError('Data operacional é obrigatória para não-alunos')
         return self
 
 
