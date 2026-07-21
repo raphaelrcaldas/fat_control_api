@@ -42,7 +42,7 @@ from fcontrol_api.services.comis import (
     verificar_conflito_comiss,
 )
 from fcontrol_api.services.custos import custo_missao
-from fcontrol_api.services.logs import log_user_action
+from fcontrol_api.services.logs import log_user_action, missao_snapshot
 from fcontrol_api.services.missao import verificar_integridade_missao
 from fcontrol_api.utils.responses import success_response
 
@@ -52,6 +52,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 router = APIRouter(prefix='/comiss', tags=['CEGEP'])
 
 RESOURCE = 'comissionamento'
+RESOURCE_MISSAO = 'missao'
 
 # Gating RBAC pelo recurso `comiss` (apoio_avancado tem CRUD; a leitura é
 # concedida também a dout/ops). O escopo por org já é feito via active_org.
@@ -62,9 +63,13 @@ DeleteComiss = Depends(permission_checker('comiss', 'delete'))
 
 
 def _comiss_to_dict(c: Comissionamento) -> dict:
-    """Snapshot JSON-serializável para auditoria (before/after)."""
+    """Snapshot JSON-serializável para auditoria (before/after).
+
+    `user_id` é incluído de propósito: trocar o militar titular do
+    comissionamento precisa aparecer no diff.
+    """
     return ComissSchema.model_validate(c).model_dump(
-        mode='json', exclude={'id', 'user_id'}
+        mode='json', exclude={'id'}
     )
 
 
@@ -630,6 +635,7 @@ async def delete_cmto(
     comiss_id: int,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
     confirm: bool = False,
 ):
     db_comiss = await session.scalar(
@@ -707,8 +713,35 @@ async def delete_cmto(
         )
 
     # Com confirmacao → cascade delete + limpa logs
+    # Carrega as missões afetadas com os militares já resolvidos (users é
+    # lazy='noload') ANTES de desvincular, para os snapshots de auditoria
+    # abaixo não dispararem lazy-load fora do greenlet.
+    frag_ids_registro = {missao.id for missao, _ in registros}
+    missoes_carregadas = {
+        m.id: m
+        for m in (
+            await session.scalars(
+                select(FragMis)
+                .options(selectinload(FragMis.users))
+                .where(FragMis.id.in_(frag_ids_registro))
+            )
+        ).all()
+    }
+
+    snapshots_antes: dict[int, dict] = {}
+    militares_restantes: dict[int, list[UserFrag]] = {}
     frag_ids = set()
     for missao, user_frag in registros:
+        missao_carregada = missoes_carregadas[missao.id]
+        snapshots_antes[missao.id] = missao_snapshot(
+            missao_carregada,
+            missao_carregada.users,
+            missao_carregada.pernoites,
+            missao_carregada.etiquetas,
+        )
+        militares_restantes[missao.id] = [
+            u for u in missao_carregada.users if u.id != user_frag.id
+        ]
         frag_ids.add(missao.id)
         await session.delete(user_frag)
 
@@ -724,11 +757,35 @@ async def delete_cmto(
                 UserFrag.sit == 'c',
             )
         )
+        missao_carregada = missoes_carregadas[frag_id]
         if remaining == 0:
-            orphan_mission = await session.get(FragMis, frag_id)
-            if orphan_mission:
-                await session.delete(orphan_mission)
-                orphan_count += 1
+            await log_user_action(
+                session=session,
+                user_id=current_user.id,
+                action='delete',
+                resource=RESOURCE_MISSAO,
+                resource_id=frag_id,
+                before=snapshots_antes[frag_id],
+                after=None,
+            )
+            await session.delete(missao_carregada)
+            orphan_count += 1
+        else:
+            after_snapshot = missao_snapshot(
+                missao_carregada,
+                militares_restantes[frag_id],
+                missao_carregada.pernoites,
+                missao_carregada.etiquetas,
+            )
+            await log_user_action(
+                session=session,
+                user_id=current_user.id,
+                action='update',
+                resource=RESOURCE_MISSAO,
+                resource_id=frag_id,
+                before=snapshots_antes[frag_id],
+                after=after_snapshot,
+            )
 
     await session.execute(
         delete(UserActionLog).where(

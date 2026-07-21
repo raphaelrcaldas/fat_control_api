@@ -61,7 +61,7 @@ from fcontrol_api.services.custos import (
     carregar_caches_custo,
 )
 from fcontrol_api.services.custos.integridade import chave_pg_sit
-from fcontrol_api.services.logs import log_user_action
+from fcontrol_api.services.logs import log_user_action, missao_snapshot
 from fcontrol_api.services.missao import (
     adicionar_missao,
     sincronizar_custos_missao,
@@ -79,31 +79,13 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 
 RESOURCE = 'missao'
+RESOURCE_ETIQUETA = 'etiqueta'
 
 # Gating RBAC pelo recurso `missoes_cegep` (apoio_avancado). O escopo por
 # org já é feito via active_org. Etiquetas herdam o mesmo recurso.
 ViewMis = Depends(permission_checker('missoes_cegep', 'view'))
 CreateMis = Depends(permission_checker('missoes_cegep', 'create'))
 DeleteMis = Depends(permission_checker('missoes_cegep', 'delete'))
-
-
-def _missao_to_dict(m: FragMis) -> dict:
-    """Snapshot JSON-serializável para auditoria (before/after).
-
-    Acessa apenas atributos escalares para evitar lazy-load assíncrono
-    de relacionamentos (pernoites/users/etiquetas) fora do greenlet.
-    """
-    return {
-        'n_doc': m.n_doc,
-        'tipo_doc': m.tipo_doc,
-        'indenizavel': m.indenizavel,
-        'acrec_desloc': m.acrec_desloc,
-        'afast': m.afast.isoformat() if m.afast else None,
-        'regres': m.regres.isoformat() if m.regres else None,
-        'desc': m.desc,
-        'obs': m.obs,
-        'tipo': m.tipo,
-    }
 
 
 @router.get(
@@ -336,9 +318,14 @@ async def get_etiquetas(session: Session, active_org: ActiveOrg):
     dependencies=[CreateMis],
 )
 async def create_or_update_etiqueta(
-    payload: EtiquetaInput, session: Session, active_org: ActiveOrg
+    payload: EtiquetaInput,
+    session: Session,
+    active_org: ActiveOrg,
+    current_user: CurrentUser,
 ):
     """Cria ou atualiza uma etiqueta"""
+    before_snapshot: dict | None = None
+
     if payload.id:
         # Atualização (escopada: etiqueta de outra org -> 404)
         db_etiqueta = await session.scalar(
@@ -351,6 +338,11 @@ async def create_or_update_etiqueta(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Etiqueta não encontrada',
             )
+        before_snapshot = {
+            'nome': db_etiqueta.nome,
+            'cor': db_etiqueta.cor,
+            'descricao': db_etiqueta.descricao,
+        }
         db_etiqueta.nome = payload.nome
         db_etiqueta.cor = payload.cor
         db_etiqueta.descricao = payload.descricao
@@ -364,7 +356,36 @@ async def create_or_update_etiqueta(
             uae=active_org,
         )
         session.add(db_etiqueta)
+        await session.flush()
         msg = 'Etiqueta criada com sucesso'
+
+    after_snapshot = {
+        'nome': db_etiqueta.nome,
+        'cor': db_etiqueta.cor,
+        'descricao': db_etiqueta.descricao,
+    }
+
+    if payload.id:
+        if before_snapshot != after_snapshot:
+            await log_user_action(
+                session=session,
+                user_id=current_user.id,
+                action='update',
+                resource=RESOURCE_ETIQUETA,
+                resource_id=db_etiqueta.id,
+                before=before_snapshot,
+                after=after_snapshot,
+            )
+    else:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='create',
+            resource=RESOURCE_ETIQUETA,
+            resource_id=db_etiqueta.id,
+            before=None,
+            after=after_snapshot,
+        )
 
     await session.commit()
     await session.refresh(db_etiqueta)
@@ -381,7 +402,10 @@ async def create_or_update_etiqueta(
     dependencies=[DeleteMis],
 )
 async def delete_etiqueta(
-    etiqueta_id: int, session: Session, active_org: ActiveOrg
+    etiqueta_id: int,
+    session: Session,
+    active_org: ActiveOrg,
+    current_user: CurrentUser,
 ):
     """Remove uma etiqueta"""
     db_etiqueta = await session.scalar(
@@ -395,7 +419,24 @@ async def delete_etiqueta(
             detail='Etiqueta não encontrada',
         )
 
+    before_snapshot = {
+        'nome': db_etiqueta.nome,
+        'cor': db_etiqueta.cor,
+        'descricao': db_etiqueta.descricao,
+    }
+
     await session.delete(db_etiqueta)
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='delete',
+        resource=RESOURCE_ETIQUETA,
+        resource_id=etiqueta_id,
+        before=before_snapshot,
+        after=None,
+    )
+
     await session.commit()
 
     return success_response(message='Etiqueta removida com sucesso')
@@ -724,7 +765,12 @@ async def create_or_update_missao(
             .where(FragMis.id == payload.id, FragMis.uae == active_org)
         )
         if missao_antiga:
-            before_snapshot = _missao_to_dict(missao_antiga)
+            before_snapshot = missao_snapshot(
+                missao_antiga,
+                missao_antiga.users,
+                missao_antiga.pernoites,
+                missao_antiga.etiquetas,
+            )
             usuarios_antigos_comiss = [
                 (
                     u.user_id,
@@ -779,17 +825,23 @@ async def create_or_update_missao(
         footprints_antigos=tuple(usuarios_antigos_comiss),
     )
 
-    # Log de auditoria
-    after_snapshot = _missao_to_dict(missao)
-    await log_user_action(
-        session=session,
-        user_id=current_user.id,
-        action='update' if payload.id else 'create',
-        resource=RESOURCE,
-        resource_id=missao.id,
-        before=before_snapshot,
-        after=after_snapshot,
+    # Log de auditoria. O after-snapshot usa os dados aninhados do próprio
+    # payload (já validados) em vez dos objetos ORM recém-criados: estes
+    # não têm `user`/`cidade` carregados e acessá-los dispararia lazy-load
+    # fora do greenlet.
+    after_snapshot = missao_snapshot(
+        missao, payload.users, payload.pernoites, payload.etiquetas
     )
+    if not payload.id or before_snapshot != after_snapshot:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='update' if payload.id else 'create',
+            resource=RESOURCE,
+            resource_id=missao.id,
+            before=before_snapshot,
+            after=after_snapshot,
+        )
 
     await session.commit()
 
@@ -825,8 +877,11 @@ async def delete_fragmis(
         if u.sit == 'c'
     ]
 
-    # Snapshot para auditoria antes de remover (acessa só escalares)
-    before_snapshot = _missao_to_dict(db_frag)
+    # Snapshot rico para auditoria antes de remover (users/pernoites/
+    # etiquetas já vêm carregados via selectinload/lazy='selectin')
+    before_snapshot = missao_snapshot(
+        db_frag, db_frag.users, db_frag.pernoites, db_frag.etiquetas
+    )
 
     await session.execute(
         delete(PernoiteFrag).where(PernoiteFrag.frag_id == id)
