@@ -37,12 +37,16 @@ def missao_snapshot(
     sem isso, edições de tripulação, pernoite ou rótulo ficam invisíveis
     no before/after.
 
+    `obs` (da missão e de cada pernoite) só entra quando preenchida — em
+    branco vira ruído no log.
+
     ATENÇÃO (lazy-load/greenlet): esta função só lê atributos já em
     memória — nunca dispara select. `m` precisa ter os escalares (n_doc,
     tipo_doc, indenizavel, acrec_desloc, afast, regres, desc, obs, tipo);
     `militares` precisa ter, por item, `.user_id`/`.user.nome_guerra`/
     `.p_g`/`.sit` já carregados; `pernoites` precisa ter `.cidade.nome`/
-    `.data_ini`/`.data_fim`/`.acrec_desloc`/`.meia_diaria`/`.obs`;
+    `.cidade.uf`/`.data_ini`/`.data_fim`/`.acrec_desloc`/`.meia_diaria`/
+    `.obs`;
     `etiquetas` precisa ter `.nome`. Por duck-typing, tanto instâncias ORM
     (UserFrag/PernoiteFrag/Etiqueta, com `.user`/`.cidade` já eager
     carregados via lazy='selectin') quanto os itens já validados do
@@ -54,7 +58,7 @@ def missao_snapshot(
         (
             {
                 'user_id': u.user_id,
-                'nome': u.user.nome_guerra,
+                'nome': u.user.nome_guerra.upper(),
                 'p_g': u.p_g,
                 'sit': u.sit,
             }
@@ -65,12 +69,12 @@ def missao_snapshot(
     pernoites_out = sorted(
         (
             {
-                'cidade': p.cidade.nome,
+                'cidade': f'{p.cidade.nome}-{p.cidade.uf}',
                 'data_ini': p.data_ini.isoformat(),
                 'data_fim': p.data_fim.isoformat(),
                 'acrec_desloc': p.acrec_desloc,
                 'meia_diaria': p.meia_diaria,
-                'obs': p.obs,
+                **({'obs': p.obs} if p.obs else {}),
             }
             for p in pernoites
         ),
@@ -86,7 +90,7 @@ def missao_snapshot(
         'afast': m.afast.isoformat() if m.afast else None,
         'regres': m.regres.isoformat() if m.regres else None,
         'desc': m.desc,
-        'obs': m.obs,
+        **({'obs': m.obs} if m.obs else {}),
         'tipo': m.tipo,
         'militares': militares_out,
         'pernoites': pernoites_out,
