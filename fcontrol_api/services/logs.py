@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -94,5 +95,109 @@ def missao_snapshot(
         'tipo': m.tipo,
         'militares': militares_out,
         'pernoites': pernoites_out,
+        'etiquetas': etiquetas_out,
+    }
+
+
+def _iso_utc(dt: datetime) -> str:
+    """Serializa um datetime em ISO-8601 sempre normalizado para UTC.
+
+    As colunas de etapa (`dt_dep`/`dt_arr`) são `DateTime(timezone=True)`:
+    o banco devolve *aware* em UTC, mas o mesmo instante pode chegar
+    *naive* pelo payload validado. Sem normalizar, `before` e `after`
+    serializariam o mesmo instante de formas diferentes e **todo** update
+    pareceria ter mudado. Naive é assumido como UTC — é o que o asyncpg
+    faz ao gravar em `timestamptz`.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def ordem_snapshot(
+    o,
+    etapas,
+    tripulacao,
+    etiquetas,
+) -> dict:
+    """Snapshot JSON-serializável rico de uma OM para auditoria.
+
+    Além dos escalares da ordem, inclui campos especiais/etapas/
+    tripulação/etiquetas — sem isso, edições de rota, tripulante ou
+    rótulo ficam invisíveis no before/after.
+
+    `doc_ref` só entra quando preenchido — em branco vira ruído no log.
+    `tvoo_etp` é sempre **calculado** aqui (dt_arr - dt_dep em minutos),
+    nunca lido do atributo: o payload (`EtapaCreate`) não tem esse campo
+    e o model tem, e calcular nos dois lados é o que garante simetria do
+    diff.
+
+    ATENÇÃO (lazy-load/greenlet): esta função só lê atributos já em
+    memória — nunca dispara select. `o` precisa ter os escalares (numero,
+    tipo, matricula_anv, projeto, status, esf_aer, data_saida, doc_ref) e
+    `campos_especiais`; `etapas` precisa ter, por item, `.dt_dep`/
+    `.dt_arr`/`.origem`/`.dest`/`.alternativa`/`.tvoo_alt`/`.qtd_comb`/
+    `.esf_aer`; `tripulacao` precisa ter `.funcao`/`.tripulante_id`/
+    `.p_g`/`.tripulante.user.nome_guerra`; `etiquetas` precisa ter
+    `.nome`. Por duck-typing servem tanto as instâncias ORM (OrdemEtapa,
+    OrdemTripulacao com `.tripulante`/`.user` eager por lazy='selectin',
+    Etiqueta) quanto os itens já validados do payload (EtapaCreate) e as
+    linhas devolvidas por `criar_tripulacao_batch` — escolha a fonte que
+    já está garantidamente carregada no ponto de chamada, para não
+    disparar lazy-load assíncrono fora do greenlet. Em especial, as
+    coleções do próprio `ordem` ficam **stale** após criar etapas/
+    tripulação novas (elas nunca são anexadas à coleção): nesse caso use
+    o payload / o retorno do batch.
+    """
+    campos_out = sorted(
+        (
+            campo if isinstance(campo, dict) else campo.model_dump()
+            for campo in (o.campos_especiais or [])
+        ),
+        key=lambda item: (item['label'], item['valor']),
+    )
+    etapas_out = sorted(
+        (
+            {
+                'dt_dep': _iso_utc(e.dt_dep),
+                'dt_arr': _iso_utc(e.dt_arr),
+                'origem': e.origem,
+                'dest': e.dest,
+                'alternativa': e.alternativa,
+                'tvoo_etp': int((e.dt_arr - e.dt_dep).total_seconds() / 60),
+                'tvoo_alt': e.tvoo_alt,
+                'qtd_comb': e.qtd_comb,
+                'esf_aer': e.esf_aer,
+            }
+            for e in etapas
+        ),
+        key=lambda item: (item['dt_dep'], item['origem'], item['dest']),
+    )
+    tripulacao_out = sorted(
+        (
+            {
+                'funcao': t.funcao,
+                'tripulante_id': t.tripulante_id,
+                'p_g': t.p_g,
+                'nome': t.tripulante.user.nome_guerra.upper(),
+            }
+            for t in tripulacao
+        ),
+        key=lambda item: (item['funcao'], item['tripulante_id']),
+    )
+    etiquetas_out = sorted(e.nome for e in etiquetas)
+
+    return {
+        'numero': o.numero,
+        'tipo': o.tipo,
+        'matricula_anv': o.matricula_anv,
+        'projeto': o.projeto,
+        'status': o.status,
+        'esf_aer': o.esf_aer,
+        'data_saida': (o.data_saida.isoformat() if o.data_saida else None),
+        **({'doc_ref': o.doc_ref} if o.doc_ref else {}),
+        'campos_especiais': campos_out,
+        'etapas': etapas_out,
+        'tripulacao': tripulacao_out,
         'etiquetas': etiquetas_out,
     }

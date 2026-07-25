@@ -39,6 +39,7 @@ from fcontrol_api.security import (
     has_org_permission,
     permission_checker,
 )
+from fcontrol_api.services.logs import log_user_action, ordem_snapshot
 from fcontrol_api.services.om import (
     criar_tripulacao_batch,
     validar_integridade_etapas,
@@ -64,6 +65,15 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
 CreateOM = Depends(permission_checker('ordem_missao', 'create'))
 UpdateOM = Depends(permission_checker('ordem_missao', 'update'))
 DeleteOM = Depends(permission_checker('ordem_missao', 'delete'))
+
+# Auditoria. `RESOURCE` repete a string dos `permission_checker` acima de
+# propósito: unifica os logs de ação com os `access_denied` que o
+# security.py já grava sob o mesmo recurso.
+RESOURCE = 'ordem_missao'
+# Etiqueta de OM tem recurso próprio: 'etiqueta' já é do CEGEP, cuja
+# Etiqueta é outra tabela, com sequência de id independente — filtrar por
+# resource+resource_id misturaria as duas entidades.
+RESOURCE_ETIQUETA = 'om_etiqueta'
 
 
 @router.get(
@@ -378,8 +388,11 @@ async def create_ordem(
         session.add(etapa)
 
     # Criar tripulação (batch query para evitar N+1)
+    tripulacao_criada: list[OrdemTripulacao] = []
     if ordem_data.tripulacao:
-        await criar_tripulacao_batch(session, ordem.id, ordem_data.tripulacao)
+        tripulacao_criada = await criar_tripulacao_batch(
+            session, ordem.id, ordem_data.tripulacao
+        )
 
     # Vincular etiquetas (somente da org ativa)
     if ordem_data.etiquetas_ids:
@@ -390,6 +403,24 @@ async def create_ordem(
             )
         )
         ordem.etiquetas = list(etiquetas_result.scalars().all())
+
+    # Auditoria no mesmo commit da mutação. As etapas saem do payload e a
+    # tripulação das linhas devolvidas pelo batch (com `.tripulante` já
+    # carregado): as coleções de `ordem` nunca receberam essas linhas.
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='create',
+        resource=RESOURCE,
+        resource_id=ordem.id,
+        before=None,
+        after=ordem_snapshot(
+            ordem,
+            ordem_data.etapas,
+            tripulacao_criada,
+            ordem.etiquetas,
+        ),
+    )
 
     await session.commit()
 
@@ -480,9 +511,29 @@ async def update_ordem(
             ),
         )
 
+    # Snapshot anterior antes da 1ª mutação: sai do objeto já carregado
+    # (etapas/tripulação/etiquetas vêm por lazy='selectin', assim como o
+    # `tripulante` e seu `user`), sem select novo.
+    before_snapshot = ordem_snapshot(
+        ordem, ordem.etapas, ordem.tripulacao, ordem.etiquetas
+    )
+
     if ordem_data.status == 'cancelada':
         # Cancelamento: atualizar apenas o status
         ordem.status = 'cancelada'
+
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='update',
+            resource=RESOURCE,
+            resource_id=ordem.id,
+            before=before_snapshot,
+            after=ordem_snapshot(
+                ordem, ordem.etapas, ordem.tripulacao, ordem.etiquetas
+            ),
+        )
+
         await session.commit()
 
         ordem_atualizada = await session.scalar(
@@ -599,6 +650,14 @@ async def update_ordem(
     # Atualizar campos simples
     update_data = ordem_data.model_dump(exclude_unset=True)
 
+    # As chaves das coleções são consumidas (del) mais abaixo; guardar
+    # aqui quais delas o PUT trouxe, para o snapshot posterior saber se
+    # lê o payload/o retorno do batch (linhas recém-criadas, ausentes das
+    # coleções do `ordem`) ou as coleções originais já carregadas.
+    etapas_no_payload = 'etapas' in update_data
+    tripulacao_no_payload = 'tripulacao' in update_data
+    tripulacao_atualizada: list[OrdemTripulacao] = []
+
     # Se um número foi gerado automaticamente, remover 'numero' de update_data
     # para evitar sobrescrever o valor gerado
     if (
@@ -702,7 +761,7 @@ async def update_ordem(
 
         # Criar nova tripulação
         if ordem_data.tripulacao:
-            await criar_tripulacao_batch(
+            tripulacao_atualizada = await criar_tripulacao_batch(
                 session, ordem.id, ordem_data.tripulacao
             )
 
@@ -726,6 +785,28 @@ async def update_ordem(
     for key, value in update_data.items():
         if value is not None:
             setattr(ordem, key, value)
+
+    # Auditoria: quando a chave veio no PUT, o snapshot posterior lê o
+    # payload/o retorno do batch; senão, as coleções originais do `ordem`.
+    etapas_log = (
+        (ordem_data.etapas or []) if etapas_no_payload else ordem.etapas
+    )
+    tripulacao_log = (
+        tripulacao_atualizada if tripulacao_no_payload else ordem.tripulacao
+    )
+    after_snapshot = ordem_snapshot(
+        ordem, etapas_log, tripulacao_log, ordem.etiquetas
+    )
+    if before_snapshot != after_snapshot:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='update',
+            resource=RESOURCE,
+            resource_id=ordem.id,
+            before=before_snapshot,
+            after=after_snapshot,
+        )
 
     await session.commit()
 
@@ -787,7 +868,24 @@ async def delete_ordem(
             ),
         )
 
+    # Snapshot rico antes do soft delete (etapas/tripulação/etiquetas já
+    # vêm carregadas por lazy='selectin')
+    before_snapshot = ordem_snapshot(
+        ordem, ordem.etapas, ordem.tripulacao, ordem.etiquetas
+    )
+
     ordem.deleted_at = datetime.now(timezone.utc)
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='delete',
+        resource=RESOURCE,
+        resource_id=id,
+        before=before_snapshot,
+        after=None,
+    )
+
     await session.commit()
 
     return success_response(message='Ordem de missão excluída com sucesso')
@@ -829,6 +927,22 @@ async def create_etiqueta(
         uae=active_org,
     )
     session.add(etiqueta)
+    await session.flush()  # Para obter o ID usado no log
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='create',
+        resource=RESOURCE_ETIQUETA,
+        resource_id=etiqueta.id,
+        before=None,
+        after={
+            'nome': etiqueta.nome,
+            'cor': etiqueta.cor,
+            'descricao': etiqueta.descricao,
+        },
+    )
+
     await session.commit()
     await session.refresh(etiqueta)
     return success_response(
@@ -855,9 +969,31 @@ async def update_etiqueta(
             status_code=HTTPStatus.NOT_FOUND, detail='Etiqueta não encontrada'
         )
 
+    before_snapshot = {
+        'nome': etiqueta.nome,
+        'cor': etiqueta.cor,
+        'descricao': etiqueta.descricao,
+    }
+
     update_data = etiqueta_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(etiqueta, key, value)
+
+    after_snapshot = {
+        'nome': etiqueta.nome,
+        'cor': etiqueta.cor,
+        'descricao': etiqueta.descricao,
+    }
+    if before_snapshot != after_snapshot:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='update',
+            resource=RESOURCE_ETIQUETA,
+            resource_id=etiqueta.id,
+            before=before_snapshot,
+            after=after_snapshot,
+        )
 
     await session.commit()
     await session.refresh(etiqueta)
@@ -888,6 +1024,23 @@ async def delete_etiqueta(
             status_code=HTTPStatus.NOT_FOUND, detail='Etiqueta não encontrada'
         )
 
+    before_snapshot = {
+        'nome': etiqueta.nome,
+        'cor': etiqueta.cor,
+        'descricao': etiqueta.descricao,
+    }
+
     await session.delete(etiqueta)
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='delete',
+        resource=RESOURCE_ETIQUETA,
+        resource_id=id,
+        before=before_snapshot,
+        after=None,
+    )
+
     await session.commit()
     return success_response(message='Etiqueta removida com sucesso')

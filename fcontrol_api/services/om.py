@@ -100,7 +100,7 @@ def validar_integridade_etapas(
 
 async def criar_tripulacao_batch(
     session: AsyncSession, ordem_id: int, tripulacao_data
-) -> None:
+) -> list[OrdemTripulacao]:
     """
     Cria registros de tripulacao usando batch query para evitar N+1.
 
@@ -108,6 +108,11 @@ async def criar_tripulacao_batch(
         session: Sessao do banco de dados
         ordem_id: ID da ordem de missao
         tripulacao_data: Dados da tripulacao (TripulacaoOM schema)
+
+    Returns:
+        As linhas criadas, com `.tripulante` (e `.tripulante.user`, via
+        lazy='selectin') ja em memoria — o snapshot de auditoria le o
+        nome de guerra sem disparar lazy-load fora do greenlet.
     """
     # Coletar todos os IDs de tripulantes
     all_trip_ids = []
@@ -116,7 +121,7 @@ async def criar_tripulacao_batch(
         all_trip_ids.extend(trip_ids)
 
     if not all_trip_ids:
-        return
+        return []
 
     # Uma unica query para buscar todos os tripulantes
     tripulantes_result = await session.scalars(
@@ -127,6 +132,7 @@ async def criar_tripulacao_batch(
     tripulantes_map = {t.id: t for t in tripulantes_result.all()}
 
     # Criar registros de tripulacao usando o map
+    criadas: list[OrdemTripulacao] = []
     for funcao, trip_ids in tripulacao_dict.items():
         for trip_id in trip_ids:
             tripulante = tripulantes_map.get(trip_id)
@@ -141,4 +147,11 @@ async def criar_tripulacao_batch(
                 funcao=funcao,
                 p_g=tripulante.user.p_g,  # Snapshot do p_g atual
             )
+            # `tripulante` nao e anotado no model (logo nao e campo do
+            # dataclass): a atribuicao pos-construcao popula a relacao com
+            # o objeto ja carregado aqui, evitando lazy-load no snapshot.
+            trip_ordem.tripulante = tripulante
             session.add(trip_ordem)
+            criadas.append(trip_ordem)
+
+    return criadas
