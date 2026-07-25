@@ -106,11 +106,14 @@ def _iso_utc(dt: datetime) -> str:
     o banco devolve *aware* em UTC, mas o mesmo instante pode chegar
     *naive* pelo payload validado. Sem normalizar, `before` e `after`
     serializariam o mesmo instante de formas diferentes e **todo** update
-    pareceria ter mudado. Naive é assumido como UTC — é o que o asyncpg
-    faz ao gravar em `timestamptz`.
+    pareceria ter mudado.
+
+    Naive é interpretado como **hora local do processo** (é o que o
+    `astimezone` sem argumento faz), porque é exatamente essa a regra que
+    o asyncpg aplica ao gravar um datetime naive em `timestamptz`:
+    assumir UTC aqui deslocaria o `after` do fuso do servidor em relação
+    ao que foi realmente persistido.
     """
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat()
 
 
