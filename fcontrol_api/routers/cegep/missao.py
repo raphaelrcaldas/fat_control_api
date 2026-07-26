@@ -94,6 +94,10 @@ DeleteMis = Depends(permission_checker('missoes_cegep', 'delete'))
 MAX_DIAS_PERNOITE_SIM = 366
 MAX_DIAS_SIMULACAO = 400
 
+# Acima deste número de usos na janela a cidade vira "mais usada" (destaque
+# no topo da busca). Módulo, não local: o teste do ranking o importa.
+MIN_USOS_DESTAQUE = 3
+
 
 @router.get(
     '/',
@@ -452,7 +456,7 @@ async def delete_etiqueta(
 @router.get(
     '/pernoites/cidades',
     response_model=ApiResponse[list[CidadePernoiteSchema]],
-    dependencies=[ViewMis],
+    dependencies=[Depends(get_current_user)],
 )
 async def buscar_cidades_pernoite(
     session: Session,
@@ -466,10 +470,13 @@ async def buscar_cidades_pernoite(
     As cidades mais usadas em pernoites da org ativa (janela dos últimos
     `dias`, por `data_ini`) vêm no topo e marcadas com `mais_usada`. Usa
     OUTER JOIN para preservar cidades nunca usadas (`usos=0`) como opção.
-    """
-    # Só vira "mais usada" (destaque) acima deste número de usos na janela.
-    min_usos_destaque = 3
 
+    Sem gate de permissão, como `/simular`: o simulador do FatBird também
+    ranqueia a busca de cidade, e o tripulante não tem role. O escopo aqui
+    é a **org ativa do próprio token** (`ActiveOrg`), então ninguém enxerga
+    uso de outra unidade; o que se expõe é a contagem agregada de pernoites
+    da unidade a que o usuário já pertence — sem missão, data ou militar.
+    """
     corte = date.today() - timedelta(days=dias)
 
     usos_sub = (
@@ -509,7 +516,7 @@ async def buscar_cidades_pernoite(
             nome=cidade.nome,
             uf=cidade.uf,
             usos=total,
-            mais_usada=total > min_usos_destaque,
+            mais_usada=total > MIN_USOS_DESTAQUE,
         )
         for cidade, total in rows
     ]

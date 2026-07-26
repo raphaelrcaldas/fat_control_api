@@ -1,8 +1,10 @@
-"""Simulador de custo de missão do FatBird (`POST /cegep/missoes/simular`).
+"""Simulador de custo de missão do FatBird.
 
-Duas coisas se trancam aqui:
+Duas rotas servem a mesma tela: `POST /cegep/missoes/simular` (a conta) e
+`GET /cegep/missoes/pernoites/cidades` (a busca de cidade, ranqueada por
+uso recente da org). Três coisas se trancam aqui:
 
-1. **A postura da rota.** Ela é a única de `/cegep/missoes` sem gate de
+1. **A postura das rotas.** São as únicas de `/cegep/missoes` sem gate de
    permissão — o tripulante não tem role e `missoes_cegep.view` devolvia
    403, quebrando o simulador. Reintroduzir o gate é uma regressão
    silenciosa (o fetcher do portal engole o erro como "sem dado"), então o
@@ -15,6 +17,10 @@ Duas coisas se trancam aqui:
    soma ao vincular uma missão real. Se essa igualdade quebrar, a tela
    passa a exibir dinheiro errado sem nenhum sintoma — o teste de
    fidelidade abaixo é o que segura isso.
+
+3. **O escopo do ranking.** Sem gate de permissão, a única lente da busca
+   de cidades é a org ativa do token. Se a contagem vazar de outra
+   unidade, o tripulante passa a inferir para onde a vizinha voa.
 """
 
 from datetime import date, timedelta
@@ -26,6 +32,7 @@ from fcontrol_api.enums.posto_grad import PostoGradEnum
 from fcontrol_api.routers.cegep.missao import (
     MAX_DIAS_PERNOITE_SIM,
     MAX_DIAS_SIMULACAO,
+    MIN_USOS_DESTAQUE,
 )
 from fcontrol_api.schemas.cegep.custos import (
     CustoFragMisInput,
@@ -35,18 +42,24 @@ from fcontrol_api.schemas.cegep.custos import (
 from fcontrol_api.services.custos.cache_ref import carregar_caches_custo
 from fcontrol_api.services.custos.calculo import calcular_custos_frag_mis
 from fcontrol_api.services.custos.leitura import custo_missao
-from tests.api.fatbird.conftest import auth
+from tests.api.fatbird.conftest import ORG, auth
+from tests.factories import FragMisFactory, PernoiteFragFactory
 
 pytestmark = pytest.mark.anyio
 
 ROTA = '/cegep/missoes/simular'
+ROTA_CIDADES = '/cegep/missoes/pernoites/cidades'
 
 # Recife (grupo de cidade 2) e um 1º Tenente (grupo de P/G 3) → diária de
 # R$ 380,00 na seed. Datas fixas dentro da vigência semeada (2025-01-01+).
 CIDADE_RECIFE = 2611606
+CIDADE_SP = 3550308
 PG = PostoGradEnum.T1
 DATA_INI = date(2026, 8, 3)
 DATA_FIM = date(2026, 8, 7)
+
+# Org que não é a do tripulante (ele é da `ORG` do conftest).
+OUTRA_ORG = '1gt'
 
 
 def payload_simples(
@@ -268,3 +281,84 @@ async def test_data_invertida_acusa_a_data_e_nada_mais(client, trip_token):
     message = resp.json()['message']
     assert 'data de fim anterior à de início' in message
     assert 'no total' not in message
+
+
+# ── Busca de cidade ranqueada (a mesma tela) ───────────────────────
+
+
+async def semear_pernoites(session, *, uae, cidade_id, qtd):
+    """`qtd` pernoites de uma org numa cidade, dentro da janela padrão.
+
+    Um dia distinto por pernoite: datas iguais na mesma missão seriam
+    sobreposição, e o ranking conta pernoite, não missão.
+    """
+    missao = FragMisFactory(uae=uae)
+    session.add(missao)
+    await session.flush()
+
+    for i in range(qtd):
+        dia = date.today() - timedelta(days=i)
+        session.add(
+            PernoiteFragFactory(
+                frag_id=missao.id,
+                cidade_id=cidade_id,
+                data_ini=dia,
+                data_fim=dia,
+            )
+        )
+    await session.commit()
+
+
+def achar(data, codigo):
+    return next((c for c in data if c['codigo'] == codigo), None)
+
+
+async def test_tripulante_busca_cidade_sem_nenhuma_role(client, trip_token):
+    """O gate saiu daqui pelo mesmo motivo que saiu de `/simular`."""
+    resp = await client.get(
+        ROTA_CIDADES, params={'search': 'recife'}, headers=auth(trip_token)
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert achar(resp.json()['data'], CIDADE_RECIFE) is not None
+
+
+async def test_busca_de_cidade_sem_token_e_negada(client):
+    resp = await client.get(ROTA_CIDADES, params={'search': 'recife'})
+
+    assert resp.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def test_ranking_conta_so_pernoites_da_org_ativa(
+    client, session, trip_token
+):
+    """Uso da org vizinha não aparece — nem como contagem.
+
+    Sem gate de permissão, `ActiveOrg` é a única lente da rota. Se ela
+    falhar, o tripulante infere para onde a outra unidade vem voando.
+    """
+    usos = MIN_USOS_DESTAQUE + 1
+    await semear_pernoites(
+        session, uae=ORG, cidade_id=CIDADE_RECIFE, qtd=usos
+    )
+    await semear_pernoites(
+        session, uae=OUTRA_ORG, cidade_id=CIDADE_SP, qtd=usos
+    )
+
+    da_org = await client.get(
+        ROTA_CIDADES, params={'search': 'recife'}, headers=auth(trip_token)
+    )
+    da_outra = await client.get(
+        ROTA_CIDADES, params={'search': 'sao paulo'}, headers=auth(trip_token)
+    )
+    assert da_org.status_code == da_outra.status_code == HTTPStatus.OK
+
+    recife = achar(da_org.json()['data'], CIDADE_RECIFE)
+    assert recife['usos'] == usos
+    assert recife['mais_usada'] is True
+
+    # A cidade da outra org continua sendo uma opção de busca — o que ela
+    # não pode trazer é o uso de lá.
+    sp = achar(da_outra.json()['data'], CIDADE_SP)
+    assert sp['usos'] == 0
+    assert sp['mais_usada'] is False
