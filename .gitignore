@@ -14,7 +14,8 @@ claude.MD
 /.claude/
 
 # github
-.github/
+.github/*
+!.github/dependabot.yml
 
 # Distribution / packaging
 .Python
