@@ -87,6 +87,13 @@ ViewMis = Depends(permission_checker('missoes_cegep', 'view'))
 CreateMis = Depends(permission_checker('missoes_cegep', 'create'))
 DeleteMis = Depends(permission_checker('missoes_cegep', 'delete'))
 
+# Tetos de `/simular` (rota sem gate de permissão): o cálculo é dia a dia,
+# por combinação, e roda síncrono dentro do handler async. Um ano por
+# pernoite e pouco mais que isso no total cobrem qualquer planejamento real
+# e mantêm a conta na casa dos milissegundos.
+MAX_DIAS_PERNOITE_SIM = 366
+MAX_DIAS_SIMULACAO = 400
+
 
 @router.get(
     '/',
@@ -513,7 +520,7 @@ async def buscar_cidades_pernoite(
 @router.post(
     '/simular',
     response_model=ApiResponse[SimulacaoOut],
-    dependencies=[ViewMis],
+    dependencies=[Depends(get_current_user)],
 )
 async def simular_custo_missao(payload: SimulacaoInput, session: Session):
     """Simula o custo de uma missão planejada, sem persistir nada.
@@ -525,6 +532,15 @@ async def simular_custo_missao(payload: SimulacaoInput, session: Session):
     pernoite de banco. `total_dias`/`total_diarias` são **universais** da
     missão (dias para comissionamento não se multiplicam por militar); só
     `subtotal`/`total_geral` escalam pela quantidade de cada combinação.
+
+    **Sem gate de permissão de propósito**, mas com identidade validada: a
+    rota é uma calculadora pura sobre tabelas de referência públicas — não
+    lê nem escreve dado de organização nenhuma, não recebe identificador de
+    recurso e não persiste, então `missoes_cegep.view` só servia para
+    quebrar o simulador self-service do FatBird, cujo tripulante não tem
+    role. O `get_current_user` continua: o middleware global só confere a
+    assinatura do JWT, e é essa dependency que carrega o usuário do banco,
+    barra conta inativa e valida o vínculo token↔app_client.
     """
     # 1. Validações estruturais (400 com motivos acumulados). Sem período
     # de missão (afast/regres): só as datas dos pernoites importam — conta
@@ -532,9 +548,27 @@ async def simular_custo_missao(payload: SimulacaoInput, session: Session):
     # (mesma semântica do cadastro real: comparação estrita).
     erros: list[str] = []
 
+    # O cálculo percorre dia a dia, por combinação: sem teto, um único
+    # pernoite de séculos trava o event loop por minutos (a rota é aberta a
+    # qualquer autenticado, então o limite é o que impede o DoS trivial).
+    total_dias_payload = 0
     for i, p in enumerate(payload.pernoites, start=1):
         if p.data_fim < p.data_ini:
             erros.append(f'- Pernoite {i}: data de fim anterior à de início')
+            continue
+
+        dias = (p.data_fim - p.data_ini).days + 1
+        total_dias_payload += dias
+        if dias > MAX_DIAS_PERNOITE_SIM:
+            erros.append(
+                f'- Pernoite {i}: período maior que '
+                f'{MAX_DIAS_PERNOITE_SIM} dias'
+            )
+
+    if total_dias_payload > MAX_DIAS_SIMULACAO:
+        erros.append(
+            f'- Simulação maior que {MAX_DIAS_SIMULACAO} dias no total'
+        )
 
     for i, p in enumerate(payload.pernoites):
         for outro in payload.pernoites[i + 1 :]:
