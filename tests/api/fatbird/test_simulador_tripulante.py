@@ -220,9 +220,7 @@ async def test_pernoite_no_limite_passa(client, trip_token):
     assert resp.status_code == HTTPStatus.OK
 
 
-async def test_soma_dos_pernoites_acima_do_teto_e_recusada(
-    client, trip_token
-):
+async def test_soma_dos_pernoites_acima_do_teto_e_recusada(client, trip_token):
     """Cada perna cabe no limite individual, mas o total não.
 
     Pernoites encadeados (o fim de um é o início do outro) não se
@@ -338,9 +336,7 @@ async def test_ranking_conta_so_pernoites_da_org_ativa(
     falhar, o tripulante infere para onde a outra unidade vem voando.
     """
     usos = MIN_USOS_DESTAQUE + 1
-    await semear_pernoites(
-        session, uae=ORG, cidade_id=CIDADE_RECIFE, qtd=usos
-    )
+    await semear_pernoites(session, uae=ORG, cidade_id=CIDADE_RECIFE, qtd=usos)
     await semear_pernoites(
         session, uae=OUTRA_ORG, cidade_id=CIDADE_SP, qtd=usos
     )

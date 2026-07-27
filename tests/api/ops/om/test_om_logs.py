@@ -163,9 +163,7 @@ async def test_create_ordem_loga_snapshot_completo(
     ]
 
 
-async def test_create_ordem_sem_doc_ref_omite_a_chave(
-    client, session, token
-):
+async def test_create_ordem_sem_doc_ref_omite_a_chave(client, session, token):
     """`doc_ref` em branco nao entra no snapshot (evita ruido)."""
     await _criar_ordem(client, token)
 
@@ -268,9 +266,7 @@ async def test_update_tripulacao_entra_no_diff(
     ]
 
 
-async def test_update_etapas_removidas_entram_no_diff(
-    client, session, token
-):
+async def test_update_etapas_removidas_entram_no_diff(client, session, token):
     """Trocar a lista de etapas aparece nos dois lados do diff."""
     data = await _criar_ordem(client, token, etapas=[_make_etapa()])
 
@@ -412,9 +408,7 @@ async def test_update_etiqueta_sem_mudanca_nao_loga(client, session, token):
     assert await _logs(session, RESOURCE_ETIQUETA, action='update') == []
 
 
-async def test_delete_etiqueta_loga_snapshot_anterior(
-    client, session, token
-):
+async def test_delete_etiqueta_loga_snapshot_anterior(client, session, token):
     """Delete de etiqueta guarda o estado anterior e o id removido."""
     etq = Etiqueta(nome='Sai', cor='#123456', descricao='d', uae='11gt')
     session.add(etq)
