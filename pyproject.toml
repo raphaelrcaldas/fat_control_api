@@ -88,7 +88,11 @@ post_test = 'coverage html'
 
 cleanup = 'python -m scripts.run_cleanup'
 
-lint = 'ruff check . && ruff check . --diff'
+# `ruff check` NAO ve formatacao: um arquivo pode passar em "All checks
+# passed" e ainda estar por formatar, acumulando drift ate alguem rodar
+# `task format` — e aí a reformatacao cai no commit de quem passou por ali.
+# `ruff format --check` fecha esse buraco: drift vira falha de lint.
+lint = 'ruff check . && ruff format --check .'
 format = 'ruff check . --fix && ruff format .'
 
 [build-system]
