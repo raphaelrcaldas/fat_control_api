@@ -34,3 +34,8 @@ class Settings(BaseSettings):
     STORAGE_SECRET_KEY: str
     STORAGE_SECURE: bool = False
     STORAGE_REGION: str = 'sa-east-1'
+    # Cota de referência do storage, em MB. Nem S3 nem MinIO expõem a cota
+    # do plano por API, então ela é DECLARADA — e aqui, não no frontend: o
+    # farol de saturação e o "espaço disponível" da tela /admin/storage
+    # derivam inteiramente deste número, que muda por ambiente.
+    STORAGE_QUOTA_MB: int = 1024

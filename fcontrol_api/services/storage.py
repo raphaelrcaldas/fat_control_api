@@ -152,14 +152,14 @@ def get_bucket_stats(bucket: str, prefix: str | None = None) -> dict:
     if prefix:
         paginate_kwargs['Prefix'] = prefix
 
-    try:
-        paginator = client.get_paginator('list_objects_v2')
-        for page in paginator.paginate(**paginate_kwargs):
-            for obj in page.get('Contents', []):
-                total_size += obj.get('Size', 0)
-                total_objects += 1
-    except ClientError:
-        logger.exception('Erro ao listar objetos do bucket')
+    # Erro NÃO é engolido: devolver zeros aqui faz o storage fora do ar
+    # ficar idêntico a um bucket vazio, e quem consome não tem como
+    # distinguir. O router traduz a falha em 502.
+    paginator = client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(**paginate_kwargs):
+        for obj in page.get('Contents', []):
+            total_size += obj.get('Size', 0)
+            total_objects += 1
 
     return {
         'total_size': total_size,
@@ -173,34 +173,40 @@ def get_all_buckets_stats() -> dict:
     total_objects = 0
     buckets_stats: list[dict] = []
 
-    try:
-        response = client.list_buckets()
-        for bucket in response.get('Buckets', []):
-            bucket_name = bucket['Name']
-            bucket_size = 0
-            bucket_objects = 0
+    # Falha ao listar os buckets NÃO vira lista vazia: o storage fora do ar
+    # ficaria indistinguível de um storage sem nada dentro. Propaga — o
+    # router traduz em 502.
+    response = client.list_buckets()
+    for bucket in response.get('Buckets', []):
+        bucket_name = bucket['Name']
+        bucket_size = 0
+        bucket_objects = 0
+        # Falha em UM bucket (403 de bucket provisionado por outro admin,
+        # p.ex.) não derruba a página inteira — mas o bucket vai marcado
+        # como ilegível, para que o zero não seja lido como fato.
+        readable = True
 
-            try:
-                paginator = client.get_paginator('list_objects_v2')
-                for page in paginator.paginate(Bucket=bucket_name):
-                    for obj in page.get('Contents', []):
-                        bucket_size += obj.get('Size', 0)
-                        bucket_objects += 1
-            except ClientError:
-                logger.warning(
-                    'Erro ao listar objetos do bucket %s',
-                    bucket_name,
-                )
+        try:
+            paginator = client.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=bucket_name):
+                for obj in page.get('Contents', []):
+                    bucket_size += obj.get('Size', 0)
+                    bucket_objects += 1
+        except ClientError:
+            readable = False
+            logger.warning(
+                'Erro ao listar objetos do bucket %s',
+                bucket_name,
+            )
 
-            buckets_stats.append({
-                'name': bucket_name,
-                'total_size': bucket_size,
-                'total_objects': bucket_objects,
-            })
-            total_size += bucket_size
-            total_objects += bucket_objects
-    except ClientError:
-        logger.exception('Erro ao listar buckets do storage')
+        buckets_stats.append({
+            'name': bucket_name,
+            'total_size': bucket_size,
+            'total_objects': bucket_objects,
+            'readable': readable,
+        })
+        total_size += bucket_size
+        total_objects += bucket_objects
 
     return {
         'total_size': total_size,
