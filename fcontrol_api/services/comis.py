@@ -359,6 +359,58 @@ async def localizar_comiss_por_missao(
     return [id for (id,) in result.all()]
 
 
+async def localizar_comiss_por_footprints(
+    footprints: list[tuple[int, str, date, date]],
+    session: AsyncSession,
+) -> set[int]:
+    """Versão em lote de `localizar_comiss_por_missao`, em UMA query.
+
+    Recebe as pegadas `(user_id, uae, afast, regres)` de todas as missões
+    de um recálculo. Chamar a versão unitária num laço custa um
+    round-trip por militar comissionado — contra banco remoto isso domina
+    o tempo do request (ver `recalcular_custos_missoes`).
+
+    O SQL pré-filtra pelo envelope das pegadas (mesmos users/orgs, e o
+    período que engloba todas) e o casamento exato — `data_ab <= afast` e
+    `data_fc >= regres`, idêntico ao da versão unitária — é feito em
+    memória sobre esse conjunto pequeno.
+    """
+    if not footprints:
+        return set()
+
+    rows = await session.execute(
+        select(
+            Comissionamento.id,
+            Comissionamento.user_id,
+            Comissionamento.uae,
+            Comissionamento.data_ab,
+            Comissionamento.data_fc,
+        ).where(
+            and_(
+                Comissionamento.user_id.in_({f[0] for f in footprints}),
+                Comissionamento.uae.in_({f[1] for f in footprints}),
+                Comissionamento.data_ab <= max(f[3] for f in footprints),
+                Comissionamento.data_fc >= min(f[2] for f in footprints),
+            )
+        )
+    )
+
+    candidatos: dict[tuple[int, str], list[tuple[int, date, date]]] = {}
+    for comiss_id, user_id, uae, data_ab, data_fc in rows:
+        candidatos.setdefault((user_id, uae), []).append((
+            comiss_id,
+            data_ab,
+            data_fc,
+        ))
+
+    return {
+        comiss_id
+        for user_id, uae, afast, regres in footprints
+        for comiss_id, data_ab, data_fc in candidatos.get((user_id, uae), ())
+        if data_ab <= afast and data_fc >= regres
+    }
+
+
 async def recalcular_comiss_afetados(
     user_id: int,
     data_afast: date,

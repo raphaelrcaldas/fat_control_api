@@ -21,6 +21,7 @@ from fcontrol_api.schemas.cegep.custos import (
 )
 from fcontrol_api.schemas.cegep.missoes import FragMisSchema
 from fcontrol_api.services.comis import (
+    localizar_comiss_por_footprints,
     localizar_comiss_por_missao,
     recalcular_cache_comiss,
 )
@@ -363,11 +364,20 @@ async def recalcular_custos_missoes(
     data_inicio: date,
     data_fim: date | None,
     session: AsyncSession,
+    *,
+    afeta_comiss: bool = True,
 ) -> dict:
     """
     Recalcula custos de missoes com pernoites no periodo.
     Depois recalcula comissionamentos afetados (apenas sit='c').
     Retorna contagem de missoes e comissionamentos recalculados.
+
+    `afeta_comiss=False` pula o segundo nivel. Use quando a tabela de
+    referencia alterada so influencia `sit='g'` (soldo: gratificacao de
+    representacao, 2% do soldo/dia). O cache do comissionamento le
+    exclusivamente a chave `pg_<p_g>_sit_c` do JSONB, entao nesse caso o
+    recalculo sairia identico ao que ja esta gravado — e custa ~13
+    queries por comissionamento.
     """
     # 1. Buscar missoes afetadas via pernoites no periodo
     query = (
@@ -389,15 +399,22 @@ async def recalcular_custos_missoes(
     # 2. Carregar caches de referencia (1x so)
     caches = await carregar_caches_custo(session)
 
-    # 3. Set para coletar comissionamentos afetados
-    comiss_ids: set[int] = set()
+    # 3. Users de todas as missoes numa query so (lazy='noload' exige
+    # carga explicita). Uma query por missao aqui era o gargalo: contra
+    # banco remoto, o round-trip domina o tempo do request.
+    users_result = await session.scalars(
+        select(UserFrag).where(UserFrag.frag_id.in_([m.id for m in missoes]))
+    )
+    users_por_missao: dict[int, list[UserFrag]] = {}
+    for uf in users_result:
+        users_por_missao.setdefault(uf.frag_id, []).append(uf)
+
+    # Pegadas (user, org, afast, regres) dos comissionados, para uma
+    # unica busca de comissionamentos afetados no fim.
+    footprints: list[tuple[int, str, date, date]] = []
 
     for missao in missoes:
-        # Carregar users (lazy='noload', precisa query explicita)
-        users_result = await session.scalars(
-            select(UserFrag).where(UserFrag.frag_id == missao.id)
-        )
-        users_frag = list(users_result.all())
+        users_frag = users_por_missao.get(missao.id, [])
 
         # Pernoites ja vem via selectin
         pernoites = missao.pernoites
@@ -407,23 +424,24 @@ async def recalcular_custos_missoes(
 
         aplicar_custos_missao(missao, users_frag, pernoites, caches)
 
-        # Coletar comissionamentos afetados
+        if not afeta_comiss:
+            continue
+
         afast_date = missao.afast.date()
         regres_date = missao.regres.date()
-        for uf in users_frag:
-            if uf.sit == 'c':
-                ids = await localizar_comiss_por_missao(
-                    uf.user_id,
-                    afast_date,
-                    regres_date,
-                    session,
-                    uae=missao.uae,
-                )
-                comiss_ids.update(ids)
+        footprints.extend(
+            (uf.user_id, missao.uae, afast_date, regres_date)
+            for uf in users_frag
+            if uf.sit == 'c'
+        )
 
-    # 4. Recalcular comissionamentos afetados
-    for comiss_id in comiss_ids:
-        await recalcular_cache_comiss(comiss_id, session)
+    comiss_ids: set[int] = set()
+    if afeta_comiss:
+        comiss_ids = await localizar_comiss_por_footprints(footprints, session)
+
+        # 4. Recalcular comissionamentos afetados
+        for comiss_id in comiss_ids:
+            await recalcular_cache_comiss(comiss_id, session)
 
     await session.flush()
 

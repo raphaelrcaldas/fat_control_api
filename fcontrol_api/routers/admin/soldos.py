@@ -26,7 +26,70 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 # Tabela de soldos (referência financeira nacional): control-plane de
 # sistema. O gate `require_system_admin` é aplicado uma única vez no grupo
 # admin (routers/admin/__init__.py) — este router não repete a dependência.
+#
+# Todo recálculo aqui vai com `afeta_comiss=False`: soldo só entra no
+# cálculo de `sit='g'` (gratificação de representação), e o cache do
+# comissionamento lê só `sit='c'`. Diárias, que afetam os dois, mantêm o
+# padrão. Ver `recalcular_custos_missoes`.
 router = APIRouter(prefix='/soldos', tags=['Admin - Soldos'])
+
+
+def _janela_recalculo(
+    db_soldo: Soldo, update_data: dict
+) -> tuple[date, date | None] | None:
+    """Menor janela de datas cujas missões podem ter mudado de custo.
+
+    Recalcular a união das vigências (antiga ∪ nova) é caro sem
+    necessidade: editar a `data_fim` de um soldo que vige desde 2019
+    varreria seis anos de missões, quando só o trecho entre o fim antigo
+    e o novo troca de soldo. Aqui a janela é o **delta**:
+
+    - `valor`/`pg`: a vigência inteira muda de valor;
+    - `data_inicio`/`data_fim`: só o trecho entre a data antiga e a nova;
+    - fim que vira NULL (ou deixa de ser): trecho aberto a partir da data
+      conhecida — sem isso o recálculo parava no fim antigo e as missões
+      posteriores ficavam com o custo do soldo seguinte.
+
+    Retorna None quando nada que afete custo mudou.
+    """
+    old_inicio, old_fim = db_soldo.data_inicio, db_soldo.data_fim
+    new_inicio = update_data.get('data_inicio', old_inicio)
+    new_fim = update_data.get('data_fim', old_fim)
+
+    mudou_chave = (
+        update_data.get('pg', db_soldo.pg) != db_soldo.pg
+        or update_data.get('valor', db_soldo.valor) != db_soldo.valor
+    )
+    if mudou_chave:
+        fim = (
+            None
+            if old_fim is None or new_fim is None
+            else max(old_fim, new_fim)
+        )
+        return min(old_inicio, new_inicio), fim
+
+    trechos: list[tuple[date, date | None]] = []
+    if new_inicio != old_inicio:
+        trechos.append((
+            min(old_inicio, new_inicio),
+            max(old_inicio, new_inicio),
+        ))
+    if new_fim != old_fim:
+        if old_fim is None or new_fim is None:
+            trechos.append((old_fim or new_fim, None))
+        else:
+            trechos.append((min(old_fim, new_fim), max(old_fim, new_fim)))
+
+    if not trechos:
+        return None
+
+    inicio = min(t[0] for t in trechos)
+    fim = (
+        None
+        if any(t[1] is None for t in trechos)
+        else max(t[1] for t in trechos)
+    )
+    return inicio, fim
 
 
 @router.get(
@@ -172,7 +235,9 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
     session.add(new_soldo)
     await session.flush()
 
-    await recalcular_custos_missoes(soldo.data_inicio, soldo.data_fim, session)
+    await recalcular_custos_missoes(
+        soldo.data_inicio, soldo.data_fim, session, afeta_comiss=False
+    )
 
     await session.commit()
     await session.refresh(new_soldo)
@@ -197,11 +262,12 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
             detail='Soldo nao encontrado',
         )
 
-    # Guardar datas originais para recalculo
-    old_inicio = db_soldo.data_inicio
-    old_fim = db_soldo.data_fim
-
     update_data = soldo.model_dump(exclude_unset=True)
+
+    # Janela calculada ANTES do setattr (precisa dos valores atuais) e
+    # comparando com o banco, não por `exclude_unset`: o formulário do
+    # front reenvia os quatro campos a cada submit.
+    janela = _janela_recalculo(db_soldo, update_data)
 
     # Valida datas
     data_inicio = update_data.get('data_inicio', db_soldo.data_inicio)
@@ -241,12 +307,8 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
 
     await session.flush()
 
-    # Recalcular com uniao dos periodos (antigo + novo)
-    inicio_min = min(old_inicio, data_inicio)
-    fins = [f for f in (old_fim, data_fim) if f is not None]
-    fim_max = max(fins) if fins else None
-
-    await recalcular_custos_missoes(inicio_min, fim_max, session)
+    if janela is not None:
+        await recalcular_custos_missoes(*janela, session, afeta_comiss=False)
 
     await session.commit()
     await session.refresh(db_soldo)
@@ -304,7 +366,9 @@ async def delete_soldo(soldo_id: int, session: Session):
     await session.delete(db_soldo)
     await session.flush()
 
-    await recalcular_custos_missoes(del_inicio, del_fim, session)
+    await recalcular_custos_missoes(
+        del_inicio, del_fim, session, afeta_comiss=False
+    )
 
     await session.commit()
 
