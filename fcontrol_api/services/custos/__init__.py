@@ -24,7 +24,10 @@ from fcontrol_api.services.custos.integridade import (
     gerar_hash_custos,
     verificar_integridade_custos,
 )
-from fcontrol_api.services.custos.leitura import custo_missao
+from fcontrol_api.services.custos.leitura import (
+    custo_missao,
+    custo_totais,
+)
 
 __all__ = [
     'cache_diarias',
@@ -32,6 +35,7 @@ __all__ = [
     'calcular_custos_frag_mis',
     'carregar_caches_custo',
     'custo_missao',
+    'custo_totais',
     'gerar_hash_custos',
     'verificar_integridade_custos',
 ]

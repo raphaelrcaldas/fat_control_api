@@ -15,6 +15,67 @@ from fcontrol_api.services.custos.integridade import chave_pg_sit
 logger = logging.getLogger(__name__)
 
 
+def custo_totais(
+    p_g: str,
+    sit: str,
+    custos_jsonb: dict | None,
+    *,
+    tem_pernoites: bool,
+    missao_id=None,
+    n_doc=None,
+) -> dict:
+    """Totais de uma missão para um pg+sit, direto do JSONB.
+
+    Parte pura de `custo_missao` — não depende de `pernoites`, `users`
+    nem de mais nada da missão além do próprio cache. Existe separada
+    porque quem só precisa dos agregados (o cache do comissionamento) não
+    tem por que carregar e serializar a missão inteira para descartá-la
+    em seguida.
+
+    `qtd_ac` aqui conta só o acréscimo da missão; o dos pernoites é somado
+    por `custo_missao`, que é quem os tem em mãos.
+    """
+    chave = chave_pg_sit(p_g, sit)
+    zerado = {'dias': 0, 'diarias': 0, 'valor_total': 0, 'qtd_ac': 0}
+
+    # Cache vazio. É esperado em missão sem custo, mas suspeito quando há
+    # pernoites (indica recálculo pendente) — nesse caso, sinaliza.
+    if not custos_jsonb or not isinstance(custos_jsonb, dict):
+        if tem_pernoites:
+            logger.warning(
+                'Custos ausentes na missão id=%s n_doc=%s: cache vazio '
+                'com pernoites presentes (recálculo pendente). '
+                'Valores retornados como zero.',
+                missao_id,
+                n_doc,
+            )
+            return {**zerado, 'custo_inconsistente': True}
+        return {**zerado, 'custo_inconsistente': False}
+
+    acrec_desloc = custos_jsonb.get('acrec_desloc_missao', 0)
+    totais_pg_sit = custos_jsonb.get('totais_pg_sit', {})
+
+    inconsistente = chave not in totais_pg_sit
+    if inconsistente:
+        logger.warning(
+            'Custo inconsistente na missão id=%s n_doc=%s: combinação %s '
+            'ausente no cache (disponíveis: %s). '
+            'valor_total retornado como zero.',
+            missao_id,
+            n_doc,
+            chave,
+            list(totais_pg_sit.keys()),
+        )
+
+    return {
+        'dias': custos_jsonb.get('total_dias', 0),
+        'diarias': custos_jsonb.get('total_diarias', 0),
+        'valor_total': totais_pg_sit.get(chave, {}).get('total_valor', 0),
+        'qtd_ac': 1 if acrec_desloc > 0 else 0,
+        'custo_inconsistente': inconsistente,
+    }
+
+
 def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
     """
     Lê custos do JSONB pré-calculado e monta estrutura para o frontend.
@@ -28,45 +89,20 @@ def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
     chave = chave_pg_sit(p_g, sit)
     custos_jsonb = mis.get('custos', {})
 
-    # Cache vazio. É esperado em missão sem custo, mas suspeito quando há
-    # pernoites (indica recálculo pendente) — nesse caso, sinaliza.
-    if not custos_jsonb or not isinstance(custos_jsonb, dict):
-        if mis.get('pernoites'):
-            logger.warning(
-                'Custos ausentes na missão id=%s n_doc=%s: cache vazio '
-                'com pernoites presentes (recálculo pendente). '
-                'Valores retornados como zero.',
-                mis.get('id'),
-                mis.get('n_doc'),
-            )
-            mis['custo_inconsistente'] = True
-        mis['dias'] = 0
-        mis['diarias'] = 0
-        mis['valor_total'] = 0
-        mis['qtd_ac'] = 0
-        return mis
-
-    # Extrair totais gerais
-    mis['dias'] = custos_jsonb.get('total_dias', 0)
-    mis['diarias'] = custos_jsonb.get('total_diarias', 0)
-    acrec_desloc = custos_jsonb.get('acrec_desloc_missao', 0)
-    mis['qtd_ac'] = 1 if acrec_desloc > 0 else 0
-
-    # Extrair total de valor para este pg+sit
-    totais_pg_sit = custos_jsonb.get('totais_pg_sit', {})
-    if chave not in totais_pg_sit:
-        logger.warning(
-            'Custo inconsistente na missão id=%s n_doc=%s: combinação %s '
-            'ausente no cache (disponíveis: %s). '
-            'valor_total retornado como zero.',
-            mis.get('id'),
-            mis.get('n_doc'),
-            chave,
-            list(totais_pg_sit.keys()),
-        )
+    totais = custo_totais(
+        p_g,
+        sit,
+        custos_jsonb,
+        tem_pernoites=bool(mis.get('pernoites')),
+        missao_id=mis.get('id'),
+        n_doc=mis.get('n_doc'),
+    )
+    if totais.pop('custo_inconsistente'):
         mis['custo_inconsistente'] = True
-    total_valor = totais_pg_sit.get(chave, {}).get('total_valor', 0)
-    mis['valor_total'] = total_valor
+    mis.update(totais)
+
+    if not custos_jsonb or not isinstance(custos_jsonb, dict):
+        return mis
 
     # Popular custos de cada pernoite
     for pnt in mis.get('pernoites', []):

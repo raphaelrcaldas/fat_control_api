@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from fcontrol_api.models.cegep.comiss import Comissionamento
-from fcontrol_api.models.cegep.missoes import FragMis, UserFrag
-from fcontrol_api.schemas.cegep.missoes import FragMisSchema, UserFragMis
-from fcontrol_api.services.custos import custo_missao
+from fcontrol_api.models.cegep.missoes import FragMis, PernoiteFrag, UserFrag
+from fcontrol_api.schemas.cegep.missoes import UserFragMis
+from fcontrol_api.services.custos import custo_totais
 from fcontrol_api.utils.datas import listar_datas_entre
 
 
@@ -187,14 +187,42 @@ async def recalcular_cache_comiss(
     Recalcula o cache de um comissionamento específico.
     Retorna o dict com os valores calculados.
     """
-    # Buscar comissionamento
     comiss = await session.scalar(
         select(Comissionamento).where(Comissionamento.id == comiss_id)
     )
+    return await recalcular_cache_de(comiss, session)
 
-    # Buscar missões do comissionamento (mesma org do comissionamento)
+
+async def recalcular_cache_de(
+    comiss: Comissionamento,
+    session: AsyncSession,
+) -> dict:
+    """Idem, para quem já tem o comissionamento em mãos.
+
+    Evita reler do banco um por um quando o chamador já os carregou em
+    lote (ver `recalcular_custos_missoes`).
+    """
+    # Só as colunas que o cálculo usa. Carregar as entidades FragMis
+    # inteiras e serializá-las com Pydantic custava ~12 queries por
+    # comissionamento em lazy loads (users -> posto_grad/promo_users,
+    # pernoites -> cidades) — tudo descartado em seguida, já que o cache
+    # guarda apenas agregados.
+    n_pernoites = (
+        select(func.count(PernoiteFrag.id))
+        .where(PernoiteFrag.frag_id == FragMis.id)
+        .scalar_subquery()
+    )
     query = (
-        select(FragMis, UserFrag)
+        select(
+            FragMis.id,
+            FragMis.n_doc,
+            FragMis.afast,
+            FragMis.regres,
+            FragMis.custos,
+            UserFrag.p_g,
+            UserFrag.sit,
+            n_pernoites,
+        )
         .join(
             UserFrag,
             and_(
@@ -209,8 +237,7 @@ async def recalcular_cache_comiss(
         .order_by(FragMis.afast)
     )
 
-    result = await session.execute(query)
-    registros: list[tuple[FragMis, UserFrag]] = result.all()
+    registros = (await session.execute(query)).all()
 
     # Inicializar acumuladores
     dias_comp = 0
@@ -218,24 +245,22 @@ async def recalcular_cache_comiss(
     vals_comp = 0
     missoes_data = []
 
-    for missao, user_frag in registros:
-        # Serializar missão
-        missao_data = FragMisSchema.model_validate(missao).model_dump(
-            exclude={'users'}
-        )
-
-        # Calcular custos usando JSONB da missão
-        missao_data = custo_missao(
-            user_frag.p_g,
-            user_frag.sit,
-            missao_data,
+    for mis_id, n_doc, afast, regres, custos, p_g, sit, qtd_pnt in registros:
+        totais = custo_totais(
+            p_g,
+            sit,
+            custos,
+            tem_pernoites=qtd_pnt > 0,
+            missao_id=mis_id,
+            n_doc=n_doc,
         )
 
         # Acumular valores
-        diarias_comp += missao_data['diarias']
-        dias_comp += missao_data['dias']
-        vals_comp += missao_data['valor_total']
-        missoes_data.append(missao_data)
+        diarias_comp += totais['diarias']
+        dias_comp += totais['dias']
+        vals_comp += totais['valor_total']
+        # `verificar_modulo` só olha as datas.
+        missoes_data.append({'afast': afast, 'regres': regres})
 
     # Calcular módulo
     modulo = verificar_modulo(missoes_data) if missoes_data else False

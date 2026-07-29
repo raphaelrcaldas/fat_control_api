@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
+from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.missoes import (
     Etiqueta,
     FragEtiqueta,
@@ -24,6 +25,7 @@ from fcontrol_api.services.comis import (
     localizar_comiss_por_footprints,
     localizar_comiss_por_missao,
     recalcular_cache_comiss,
+    recalcular_cache_de,
 )
 from fcontrol_api.services.custos import (
     calcular_custos_frag_mis,
@@ -439,9 +441,13 @@ async def recalcular_custos_missoes(
     if afeta_comiss:
         comiss_ids = await localizar_comiss_por_footprints(footprints, session)
 
-        # 4. Recalcular comissionamentos afetados
-        for comiss_id in comiss_ids:
-            await recalcular_cache_comiss(comiss_id, session)
+        # 4. Recalcular comissionamentos afetados (carregados de uma vez;
+        # `recalcular_cache_comiss` releria um por um).
+        comissionamentos = await session.scalars(
+            select(Comissionamento).where(Comissionamento.id.in_(comiss_ids))
+        )
+        for comiss in comissionamentos:
+            await recalcular_cache_de(comiss, session)
 
     await session.flush()
 
