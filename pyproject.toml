@@ -74,6 +74,9 @@ ignore = [
 [tool.ruff.format]
 preview = true
 quote-style = 'single'
+# O ruff 0.16 passou a formatar blocos de codigo Python dentro de Markdown.
+# Docs de planejamento sao registro historico: o gate de estilo vale para o .py.
+exclude = ['**/*.md']
 
 [tool.pytest.ini_options]
 pythonpath = "."
