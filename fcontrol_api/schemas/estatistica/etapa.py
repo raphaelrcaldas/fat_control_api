@@ -74,6 +74,12 @@ class EtapaOut(BaseModel):
     sagem: bool
     parte1: bool
     obs: str | None
+    tow: int | None = None
+    pax: int | None = None
+    carga: int | None = None
+    comb: int | None = None
+    lub: float | None = None
+    nivel: str | None = None
     tripulantes: list['TripEtapaOut'] = []
     oi_etapas: list['OIEtapaOut'] = []
     pqd: list['PqdEtapaOut'] = []
@@ -152,14 +158,14 @@ class HeavyCdsEtapaOut(BaseModel):
 
 
 class EtapaDetailOut(EtapaOut):
-    """Detalhe completo de uma etapa."""
+    """Detalhe completo de uma etapa.
 
-    tow: int | None
-    pax: int | None
-    carga: int | None
-    comb: int | None
-    lub: float | None
-    nivel: str | None
+    Os campos de carga/combustivel/nivel migraram para `EtapaOut`
+    (consumidores externos precisam deles ja na listagem). Este
+    schema segue existindo como o contrato do detalhe: identico a
+    EtapaOut hoje, mas o ponto de extensao se o detalhe voltar a
+    divergir da listagem.
+    """
 
 
 class MissaoComEtapasDetailOut(BaseModel):
