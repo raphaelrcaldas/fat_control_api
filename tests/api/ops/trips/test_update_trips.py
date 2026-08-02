@@ -36,7 +36,7 @@ async def test_update_trip_success(client, trip, token):
     assert resp['status'] == 'success'
     assert 'message' in resp
     assert 'data' in resp
-    assert resp['data']['trig'] == 'new'
+    assert resp['data']['trig'] == 'NEW'
 
 
 async def test_update_trip_returns_correct_message(client, trip, token):
@@ -86,7 +86,7 @@ async def test_update_trip_change_trig(client, trip, token):
     resp = response.json()
 
     assert resp['status'] == 'success'
-    assert resp['data']['trig'] == 'xyz'
+    assert resp['data']['trig'] == 'XYZ'
     assert resp['data']['trig'] != original_trig
 
 

@@ -30,12 +30,12 @@ def _trip_schema(trig: str) -> TripSchema:
 
 def test_trig_valido_aceito():
     """Trigrama com 3 letras deve ser aceito."""
-    assert _base_trip('abc').trig == 'abc'
+    assert _base_trip('ABC').trig == 'ABC'
 
 
-def test_trig_maiusculo_normalizado():
-    """Trigrama em maiusculas deve ser normalizado para minusculas."""
-    assert _base_trip('ABC').trig == 'abc'
+def test_trig_minusculo_normalizado():
+    """Trigrama em minusculas deve ser normalizado para MAIUSCULAS."""
+    assert _base_trip('abc').trig == 'ABC'
 
 
 def test_trig_com_numeros_rejeitado():
@@ -82,7 +82,7 @@ def test_trig_muito_longo_rejeitado():
 
 def test_trip_schema_trig_valido():
     """Trigrama valido deve ser aceito em TripSchema."""
-    assert _trip_schema('abc').trig == 'abc'
+    assert _trip_schema('abc').trig == 'ABC'
 
 
 def test_trip_schema_trig_com_numeros_rejeitado():

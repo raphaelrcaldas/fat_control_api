@@ -1,3 +1,4 @@
+from datetime import date
 from http import HTTPStatus
 from typing import Annotated
 
@@ -15,6 +16,7 @@ from fcontrol_api.schemas.ops.tripulantes import (
     BaseTrip,
     TripCreate,
     TripSchema,
+    TripUpdate,
     TripWithFunc,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
@@ -23,6 +25,7 @@ from fcontrol_api.security import (
     get_current_user,
     permission_checker,
 )
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -38,7 +41,7 @@ async def create_trip(
     trip: TripCreate,
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('trips', 'create'))],
+    user: Annotated[User, Depends(permission_checker('trips', 'create'))],
 ):
     db_trig = await session.scalar(
         select(Tripulante).where(
@@ -93,6 +96,27 @@ async def create_trip(
     )
 
     session.add(tripulante)
+    await session.flush()
+
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='create',
+        resource='trips',
+        resource_id=tripulante.id,
+        after={
+            'user_id': tripulante.user_id,
+            'trig': tripulante.trig,
+            'active': tripulante.active,
+            'func': tripulante.func,
+            'oper': tripulante.oper,
+            'proj': tripulante.proj,
+            'data_op': (
+                tripulante.data_op.isoformat() if tripulante.data_op else None
+            ),
+        },
+    )
+
     await session.commit()
     await session.refresh(tripulante)
 
@@ -147,8 +171,16 @@ async def get_trip_user_ids(session: Session, active_org: ActiveOrg):
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[TripWithFunc],
 )
-async def get_trip(id: int, session: Session):
-    trip = await session.scalar(select(Tripulante).where(Tripulante.id == id))
+async def get_trip(
+    id: int,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    trip = await session.scalar(
+        select(Tripulante).where(
+            Tripulante.id == id, Tripulante.uae == active_org
+        )
+    )
 
     if not trip:
         raise HTTPException(
@@ -261,7 +293,7 @@ async def update_trip(
     trip: BaseTrip,
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('trips', 'update'))],
+    user: Annotated[User, Depends(permission_checker('trips', 'update'))],
 ):
     query = select(Tripulante).where(
         Tripulante.id == id, Tripulante.uae == active_org
@@ -303,12 +335,146 @@ async def update_trip(
             detail='Projeto não disponível para a organização',
         )
 
+    before_patch: dict = {}
+    after_patch: dict = {}
+    for field in ('trig', 'active', 'func', 'oper', 'proj', 'data_op'):
+        old_value = getattr(trip_search, field)
+        new_value = getattr(trip, field)
+        if old_value == new_value:
+            continue
+        before_patch[field] = (
+            old_value.isoformat() if isinstance(old_value, date) else old_value
+        )
+        after_patch[field] = (
+            new_value.isoformat() if isinstance(new_value, date) else new_value
+        )
+
+    # PUT com payload identico ao persistido nao e alteracao: sem esta
+    # guarda o historico ganharia uma entrada de diff vazio.
+    if after_patch:
+        await log_user_action(
+            session=session,
+            user_id=user.id,
+            action='patch',
+            resource='trips',
+            resource_id=trip_search.id,
+            before=before_patch,
+            after=after_patch,
+        )
+
     trip_search.active = trip.active
     trip_search.trig = trip.trig
     trip_search.func = trip.func
     trip_search.oper = trip.oper
     trip_search.proj = trip.proj
     trip_search.data_op = trip.data_op
+
+    await session.commit()
+    await session.refresh(trip_search)
+
+    return success_response(
+        data=TripSchema.model_validate(trip_search),
+        message='Tripulante atualizado com sucesso',
+    )
+
+
+@router.patch(
+    '/{id}', status_code=HTTPStatus.OK, response_model=ApiResponse[TripSchema]
+)
+async def patch_trip(
+    id: int,
+    trip: TripUpdate,
+    session: Session,
+    active_org: ActiveOrg,
+    user: Annotated[User, Depends(permission_checker('trips', 'update'))],
+):
+    query = select(Tripulante).where(
+        Tripulante.id == id, Tripulante.uae == active_org
+    )
+
+    trip_search = await session.scalar(query)
+
+    if not trip_search:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Tripulante não encontrado',
+        )
+
+    patch = trip.model_dump(exclude_unset=True)
+
+    # "data_op obrigatório quando oper != 'al'" precisa do valor
+    # efetivo pós-merge (body ∪ persistido): alterar só `oper` para
+    # 'op' sem `data_op` no body é inválido mesmo que `data_op` já
+    # esteja preenchido no registro, e vice-versa.
+    effective_oper = patch.get('oper', trip_search.oper)
+    effective_data_op = patch.get('data_op', trip_search.data_op)
+    if effective_oper != 'al' and effective_data_op is None:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Data operacional é obrigatória para não-alunos',
+        )
+
+    if 'trig' in patch:
+        db_trig = await session.scalar(
+            select(Tripulante).where(
+                (Tripulante.trig == patch['trig'])
+                & (Tripulante.uae == trip_search.uae)
+                & (Tripulante.id != id)
+            )
+        )
+
+        if db_trig:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Trigrama já registrado',
+            )
+
+    if 'proj' in patch:
+        proj_autorizado = await session.scalar(
+            select(ProjetoAnv.modelo)
+            .join(
+                TenantProjeto,
+                TenantProjeto.projeto == ProjetoAnv.id_projeto,
+            )
+            .where(
+                TenantProjeto.uae == active_org,
+                ProjetoAnv.modelo == patch['proj'],
+            )
+        )
+        if not proj_autorizado:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Projeto não disponível para a organização',
+            )
+
+    before_patch: dict = {}
+    after_patch: dict = {}
+    for field, new_value in patch.items():
+        old_value = getattr(trip_search, field)
+        if old_value == new_value:
+            continue
+        before_patch[field] = (
+            old_value.isoformat() if isinstance(old_value, date) else old_value
+        )
+        after_patch[field] = (
+            new_value.isoformat() if isinstance(new_value, date) else new_value
+        )
+
+    # Campo reenviado com o mesmo valor nao e alteracao: sem esta
+    # guarda o historico ganharia uma entrada de diff vazio.
+    if after_patch:
+        await log_user_action(
+            session=session,
+            user_id=user.id,
+            action='patch',
+            resource='trips',
+            resource_id=trip_search.id,
+            before=before_patch,
+            after=after_patch,
+        )
+
+    for field, value in patch.items():
+        setattr(trip_search, field, value)
 
     await session.commit()
     await session.refresh(trip_search)

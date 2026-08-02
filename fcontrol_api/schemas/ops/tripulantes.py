@@ -1,29 +1,45 @@
 from datetime import date
+from typing import Annotated
 
+from fastapi import Body
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
-    field_validator,
     model_validator,
 )
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
-from fcontrol_api.schemas.funcoes import BaseFunc
+from fcontrol_api.schemas.funcoes import BaseFunc, funcs, opers
 from fcontrol_api.schemas.users import UserPublic
 
 
-class BaseTrip(BaseFunc):
-    trig: str = Field(min_length=3, max_length=3)
-    active: bool = True
+def normaliza_trig(v: str) -> str:
+    """Valida letras e normaliza o trigrama em MAIÚSCULAS.
 
-    @field_validator('trig')
-    @classmethod
-    def validate_trig(cls, v: str) -> str:
-        """Valida que trig contém apenas letras."""
-        if not v.isalpha():
-            raise ValueError('Trigrama deve conter apenas letras')
-        return v.lower()
+    A normalizacao aqui e a unica garantia de forma canonica no banco:
+    a checagem de unicidade compara por igualdade exata, entao 'abc' e
+    'ABC' conviveriam como trigramas distintos se o valor chegasse cru
+    ate a query.
+    """
+    if not v.isalpha():
+        raise ValueError('Trigrama deve conter apenas letras')
+    return v.upper()
+
+
+# Tipo unico do trigrama: criacao e patch parcial compartilham a mesma
+# regra, entao ela nao pode morar duplicada em dois schemas.
+Trigrama = Annotated[
+    str,
+    Field(min_length=3, max_length=3),
+    AfterValidator(normaliza_trig),
+]
+
+
+class BaseTrip(BaseFunc):
+    trig: Trigrama
+    active: bool = True
 
     @model_validator(mode='after')
     def validate_data_op(self) -> 'BaseTrip':
@@ -37,6 +53,24 @@ class TripCreate(BaseTrip):
     """Entrada de criação. A UAE vem da org ativa do token, não do body."""
 
     user_id: int
+
+
+class TripUpdate(BaseModel):
+    """Patch parcial de tripulante — todos os campos opcionais.
+
+    A regra "`data_op` obrigatório quando `oper != 'al'`" precisa do
+    valor efetivo pós-merge (body ∪ estado persistido) para ser
+    avaliada corretamente num PATCH parcial — por isso não há
+    `model_validator` aqui; a checagem sobe para a rota.
+    """
+
+    trig: Trigrama | None = None
+    active: bool | None = None
+    func: funcs | None = None
+    oper: opers | None = None
+    proj: str | None = None
+    data_op: Annotated[date | None, Body()] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TripSchema(BaseTrip):

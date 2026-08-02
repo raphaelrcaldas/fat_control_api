@@ -43,7 +43,7 @@ async def test_create_trip_success(client, session, token):
     assert data['status'] == 'success'
     assert 'message' in data
     assert 'data' in data
-    assert data['data']['trig'] == 'abc'
+    assert data['data']['trig'] == 'ABC'
     assert data['data']['active'] is True
     assert data['data']['func'] == 'pil'
 
@@ -84,8 +84,8 @@ async def test_create_trip_duplicate_trig_same_uae_fails(
     """Testa que não permite trigrama duplicado na mesma UAE."""
     user, other_user = users
 
-    # Cria um tripulante com trigrama 'dup'
-    existing_trip = TripFactory(user_id=user.id, trig='dup', uae='11gt')
+    # Cria um tripulante com trigrama 'DUP' (forma canonica, maiuscula)
+    existing_trip = TripFactory(user_id=user.id, trig='DUP', uae='11gt')
     session.add(existing_trip)
     await session.commit()
 
@@ -119,7 +119,7 @@ async def test_create_trip_duplicate_user_same_uae_fails(
     user, _ = users
 
     # Cria um tripulante para o usuário
-    existing_trip = TripFactory(user_id=user.id, trig='aaa', uae='11gt')
+    existing_trip = TripFactory(user_id=user.id, trig='AAA', uae='11gt')
     session.add(existing_trip)
     await session.commit()
 

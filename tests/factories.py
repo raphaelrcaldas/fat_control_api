@@ -121,10 +121,14 @@ class TripFactory(factory.Factory):
         model = Tripulante
 
     user_id: int
+    # MAIUSCULO: e a forma canonica do trigrama no banco, normalizada no
+    # validador de `schemas/ops/tripulantes.py`. A factory grava pelo
+    # model, sem passar pelo Pydantic — se gerasse minusculo, os testes
+    # rodariam contra um estado que os bancos nao tem mais.
     trig = factory.Sequence(
         lambda n: (
-            f'{chr(97 + n % 26)}{chr(97 + (n // 26) % 26)}'
-            f'{chr(97 + (n // 676) % 26)}'
+            f'{chr(65 + n % 26)}{chr(65 + (n // 26) % 26)}'
+            f'{chr(65 + (n // 676) % 26)}'
         )
     )
     active = True  # Padrão ativo (mais comum em testes)
