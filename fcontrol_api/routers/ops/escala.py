@@ -12,7 +12,13 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
-from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
+from fcontrol_api.models.estatistica.etapa import (
+    Etapa,
+    Missao,
+    OIEtapa,
+    TripEtapa,
+)
+from fcontrol_api.models.shared.aeronaves import Aeronave, ProjetoAnv
 from fcontrol_api.models.shared.indisp import Indisp
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
@@ -73,7 +79,10 @@ async def get_escala_disponiveis(
             detail='Tipo de quadrinho fora dos grupos elegíveis para escala',
         )
 
-    # 2. Subquery data_ult_voo (excluindo simulador SML)
+    # 2. Subquery data_ult_voo (excluindo simulador SML). Mesmo escopo do
+    # tvoo_year: só missões da org ativa, só o projeto filtrado e só as
+    # etapas voadas na própria função do tripulante — voo como O3 não
+    # renova a data do piloto.
     sim_etapa_ids = (
         select(OIEtapa.etapa_id)
         .join(EsforcoAereo, EsforcoAereo.id == OIEtapa.esf_aer_id)
@@ -81,16 +90,28 @@ async def get_escala_disponiveis(
         .scalar_subquery()
     )
     nao_sim = ~Etapa.id.in_(sim_etapa_ids)
-    data_ult_voo_subq = (
+    data_ult_voo_select = (
         select(
             TripEtapa.trip_id.label('trip_id'),
+            TripEtapa.func.label('func'),
             sql_func.max(Etapa.data).label('data_ult_voo'),
         )
         .join(Etapa, Etapa.id == TripEtapa.etapa_id)
-        .where(nao_sim)
-        .group_by(TripEtapa.trip_id)
-        .subquery()
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(nao_sim, Missao.uae == active_org)
+        .group_by(TripEtapa.trip_id, TripEtapa.func)
     )
+
+    if proj_param:
+        data_ult_voo_select = data_ult_voo_select.join(
+            Aeronave, Aeronave.matricula == Etapa.anv
+        ).join(
+            ProjetoAnv,
+            (ProjetoAnv.id_projeto == Aeronave.projeto)
+            & (ProjetoAnv.modelo == proj_param),
+        )
+
+    data_ult_voo_subq = data_ult_voo_select.subquery()
 
     # 3. Subquery quads_count para o tipo solicitado
     quads_count_subq = (
@@ -107,18 +128,38 @@ async def get_escala_disponiveis(
         quads_count_subq.c.total_quads, 0
     ).label('total_quads')
 
-    # 3b. Subquery tvoo_year: minutos voados no ano de date_end (sem SML)
+    # 3b. Subquery tvoo_year: minutos voados no ano de date_end (sem SML).
+    # A soma tem o mesmo escopo da tela: só missões da org ativa e, quando
+    # há filtro de projeto, só etapas voadas em aeronave daquele projeto.
+    # Separada por função exercida na etapa — o piloto que voou como O3
+    # (função `oe`) não acumula essas horas na prioridade de piloto.
     ano_ref = date_end.year
-    tvoo_year_subq = (
+    tvoo_year_select = (
         select(
             TripEtapa.trip_id.label('trip_id'),
+            TripEtapa.func.label('func'),
             sql_func.coalesce(sql_func.sum(Etapa.tvoo), 0).label('tvoo_year'),
         )
         .join(Etapa, Etapa.id == TripEtapa.etapa_id)
-        .where(nao_sim, extract('year', Etapa.data) == ano_ref)
-        .group_by(TripEtapa.trip_id)
-        .subquery()
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(
+            nao_sim,
+            extract('year', Etapa.data) == ano_ref,
+            Missao.uae == active_org,
+        )
+        .group_by(TripEtapa.trip_id, TripEtapa.func)
     )
+
+    if proj_param:
+        tvoo_year_select = tvoo_year_select.join(
+            Aeronave, Aeronave.matricula == Etapa.anv
+        ).join(
+            ProjetoAnv,
+            (ProjetoAnv.id_projeto == Aeronave.projeto)
+            & (ProjetoAnv.modelo == proj_param),
+        )
+
+    tvoo_year_subq = tvoo_year_select.subquery()
 
     tvoo_year_expr = sql_func.coalesce(tvoo_year_subq.c.tvoo_year, 0).label(
         'tvoo_year'
@@ -145,7 +186,8 @@ async def get_escala_disponiveis(
         .outerjoin(CartaoSaude, CartaoSaude.user_id == User.id)
         .outerjoin(
             data_ult_voo_subq,
-            data_ult_voo_subq.c.trip_id == Tripulante.id,
+            (data_ult_voo_subq.c.trip_id == Tripulante.id)
+            & (data_ult_voo_subq.c.func == Tripulante.func),
         )
         .outerjoin(
             quads_count_subq,
@@ -153,7 +195,8 @@ async def get_escala_disponiveis(
         )
         .outerjoin(
             tvoo_year_subq,
-            tvoo_year_subq.c.trip_id == Tripulante.id,
+            (tvoo_year_subq.c.trip_id == Tripulante.id)
+            & (tvoo_year_subq.c.func == Tripulante.func),
         )
         .where(
             Tripulante.uae == active_org,
