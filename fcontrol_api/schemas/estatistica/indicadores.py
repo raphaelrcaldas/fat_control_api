@@ -8,6 +8,10 @@ class Metricas(BaseModel):
 
     Unidades: `tvoo` em minutos, `carga` e `peso_lancado` em kg,
     `comb`/`comb_transf` e `lub` em litros.
+
+    Lancamentos em branco (procedimento simulado, nada largado) nao
+    entram em `heavy_qtd`/`cds_qtd` e somam zero em `pqd` e
+    `peso_lancado`. Eles seguem contando como etapa voada.
     """
 
     etapas: int
@@ -67,14 +71,21 @@ class AeronaveLinha(BaseModel):
 
 
 class PqdTipoLinha(BaseModel):
-    """Paraquedistas lancados por tipo (VTC, LV, PREC, LIVRE)."""
+    """Paraquedistas lancados por tipo (VTC, LV, PREC, LIVRE).
+
+    Tipo que so teve lancamento em branco no recorte nao aparece.
+    """
 
     tipo: str
     qtd: int
 
 
 class LancamentoLinha(BaseModel):
-    """Cargas lancadas por tipo (heavy, cds): quantidade e peso em kg."""
+    """Cargas lancadas por tipo (heavy, cds): quantidade e peso em kg.
+
+    Lancamento em branco (`peso = 0`) nao entra em `qtd`; tipo que so
+    teve branco no recorte nao aparece.
+    """
 
     tipo: str
     qtd: int

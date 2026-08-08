@@ -212,7 +212,13 @@ class OIEtapaIn(BaseModel):
 
 
 class PqdEtapaIn(BaseModel):
-    """Lancamento de paraquedista a vincular em uma etapa."""
+    """Lancamento de paraquedista a vincular em uma etapa.
+
+    `qtd = 0` e um lancamento **em branco**: a passagem foi voada e
+    todo o procedimento executado, mas nada foi largado (simulado).
+    O registro existe para o procedimento contar; nos indicadores
+    ele soma zero paraquedista.
+    """
 
     tipo: Literal['VTC', 'LV', 'PREC', 'LIVRE']
     qtd: int = Field(ge=0, le=32767)
@@ -225,7 +231,14 @@ class RevoEtapaIn(BaseModel):
 
 
 class HeavyCdsEtapaIn(BaseModel):
-    """Lancamento de carga pesada a vincular em uma etapa."""
+    """Lancamento de carga pesada a vincular em uma etapa.
+
+    `peso = 0` e um lancamento **em branco**: a passagem foi voada e
+    todo o procedimento executado, mas nada foi largado (simulado).
+    Sem largada nao existe ponto de impacto, entao `dist`/`radial`
+    tambem vem 0 — e a contagem de cargas lancadas nos indicadores
+    ignora essas linhas.
+    """
 
     tipo: Literal['heavy', 'cds']
     peso: int = Field(ge=0, le=32767)

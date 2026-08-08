@@ -141,11 +141,14 @@ async def get_indicadores(
     )
 
     # 4. Cargas lancadas: mes x tipo (heavy/cds), quantidade e peso.
+    # `peso = 0` e lancamento em branco (procedimento executado, nada
+    # largado): a linha existe, mas nao e carga lancada — por isso a
+    # contagem filtra peso > 0 em vez de contar tudo.
     base_lanc = await session.execute(
         select(
             col.mes,
             HeavyCDS.tipo,
-            func.count().label('qtd'),
+            func.count().filter(HeavyCDS.peso > 0).label('qtd'),
             func.coalesce(func.sum(HeavyCDS.peso), 0).label('peso'),
         )
         .select_from(HeavyCDS)
@@ -290,16 +293,21 @@ async def get_indicadores(
                 )
                 for r in base_anv.all()
             ],
+            # Tipo cujos unicos lancamentos foram em branco fecha em
+            # zero: fica fora da quebra para nao exibir "PREC 0" ao
+            # lado dos numeros reais.
             pqd_por_tipo=[
                 PqdTipoLinha(tipo=t, qtd=q)
                 for t, q in sorted(
                     pqd_tipo.items(),
                     key=lambda kv: (-kv[1], kv[0]),
                 )
+                if q > 0
             ],
             lancamentos=[
                 LancamentoLinha(tipo=t, qtd=v[0], peso=v[1])
                 for t, v in sorted(lanc_tipo.items())
+                if v[0] > 0
             ],
         )
     )
