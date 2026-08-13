@@ -9,7 +9,7 @@ Regras de negocio:
 - Nao pode excluir missoes do escopo ao alterar datas
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from http import HTTPStatus
 
 import pytest
@@ -35,6 +35,70 @@ async def comiss_existente(session, users):
     await session.refresh(comiss)
 
     return comiss
+
+
+@pytest.fixture
+async def comiss_fechavel(session, users):
+    """Comissionamento pronto para fechar: uma missão e completude 100%.
+
+    `dias_cumprir` casa com o `total_dias` do cache de custos da missão,
+    então a única regra de `validar_fechamento_comiss` ainda em jogo é a
+    da data de fechamento — que é o que os testes abaixo exercitam.
+    Devolve `(comiss, regresso)` com o regresso já em `date`.
+    """
+    user, _ = users
+    today = date.today()
+    afast = datetime.combine(today + timedelta(days=30), time(8, 0))
+    regres = datetime.combine(today + timedelta(days=33), time(18, 0))
+
+    comiss = ComissFactory(
+        user_id=user.id,
+        data_ab=today,
+        data_fc=today + timedelta(days=90),
+        dias_cumprir=4,
+    )
+    missao = FragMisFactory(afast=afast, regres=regres)
+    session.add_all([comiss, missao])
+    await session.commit()
+    await session.refresh(missao)
+
+    missao.custos = {
+        'total_dias': 4,
+        'total_diarias': 3.5,
+        'acrec_desloc_missao': 0,
+        'totais_pg_sit': {f'pg_{user.p_g}_sit_c': {'total_valor': 1200.00}},
+    }
+    session.add(
+        UserFragFactory(
+            frag_id=missao.id,
+            user_id=user.id,
+            sit='c',
+            p_g=user.p_g,
+        )
+    )
+    await session.commit()
+    await session.refresh(comiss)
+
+    return comiss, regres.date()
+
+
+def _payload_fechamento(comiss, user_id: int, data_fc: date) -> dict:
+    """Payload de update que só muda status e data de fechamento."""
+    return {
+        'user_id': user_id,
+        'status': 'fechado',
+        'dep': comiss.dep,
+        'data_ab': comiss.data_ab.isoformat(),
+        'qtd_aj_ab': comiss.qtd_aj_ab,
+        'valor_aj_ab': comiss.valor_aj_ab,
+        'data_fc': data_fc.isoformat(),
+        'qtd_aj_fc': comiss.qtd_aj_fc,
+        'valor_aj_fc': comiss.valor_aj_fc,
+        'dias_cumprir': comiss.dias_cumprir,
+        'doc_prop': comiss.doc_prop,
+        'doc_aut': comiss.doc_aut,
+        'doc_enc': 'ENC-0001/2025',
+    }
 
 
 async def test_update_comiss_success(
@@ -212,7 +276,7 @@ async def test_update_comiss_close_incompleto_rejeitado(
     """Fechar um comissionamento sem missões/completude → 400.
 
     Regra (validar_fechamento_comiss): exige ao menos uma missão vinculada,
-    completude 100% e data_fc no dia seguinte à última missão. O
+    completude 100% e data_fc no dia de regresso da última missão. O
     `comiss_existente` não tem missões, então o fechamento é barrado.
     """
     user, _ = users
@@ -241,6 +305,56 @@ async def test_update_comiss_close_incompleto_rejeitado(
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
     assert 'missõ' in response.json()['message'].lower()
+
+
+async def test_update_comiss_close_data_fc_dia_do_regresso(
+    client, session, token, users, comiss_fechavel
+):
+    """Fechar com data_fc no dia de regresso da última missão → 200.
+
+    A data de fechamento é o próprio dia do regresso, não o seguinte: o
+    dia extra não pertencia a missão nenhuma e encostava a janela no
+    comissionamento seguinte (`verificar_conflito_comiss` é inclusivo nas
+    duas pontas).
+    """
+    user, _ = users
+    comiss, regres = comiss_fechavel
+
+    response = await client.put(
+        f'/cegep/comiss/{comiss.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json=_payload_fechamento(comiss, user.id, regres),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    await session.refresh(comiss)
+    assert comiss.status == 'fechado'
+    assert comiss.data_fc == regres
+
+
+async def test_update_comiss_close_data_fc_dia_seguinte_rejeitado(
+    client, token, users, comiss_fechavel
+):
+    """Fechar com data_fc no dia seguinte ao regresso → 400.
+
+    Guarda contra a regra antiga: a missão continua no escopo (o filtro de
+    período é inclusivo), então o que reprova é a data — e a mensagem tem
+    que apontar o dia do regresso.
+    """
+    user, _ = users
+    comiss, regres = comiss_fechavel
+
+    response = await client.put(
+        f'/cegep/comiss/{comiss.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json=_payload_fechamento(comiss, user.id, regres + timedelta(days=1)),
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    msg = response.json()['message']
+    assert 'data de fechamento' in msg.lower()
+    assert regres.strftime('%d/%m/%Y') in msg
 
 
 async def test_update_comiss_without_token(client, session, users):

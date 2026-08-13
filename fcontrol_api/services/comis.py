@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from http import HTTPStatus
 
 from fastapi import HTTPException
@@ -308,7 +308,7 @@ async def validar_fechamento_comiss(
     Regras:
     - deve haver ao menos uma missão vinculada;
     - completude deve estar em 100%;
-    - data_fc deve ser o dia seguinte à última missão (maior regres).
+    - data_fc deve ser o dia de regresso da última missão (maior regres).
     """
     cache = await recalcular_cache_comiss(comiss.id, session)
 
@@ -329,7 +329,11 @@ async def validar_fechamento_comiss(
         )
 
     # Última missão = maior regresso entre as vinculadas (sit='c', no
-    # período). data_fc deve ser o dia seguinte.
+    # período). data_fc deve ser o próprio dia do regresso — não o
+    # seguinte: o dia extra não pertence a nenhuma missão, encostava a
+    # janela no comissionamento seguinte (`verificar_conflito_comiss` é
+    # inclusivo nas duas pontas) e ainda abria a porta para uma missão
+    # afastar/regressar nele, empurrando a "última missão" adiante.
     ultima_regres = await session.scalar(
         select(func.max(FragMis.regres))
         .join(
@@ -344,11 +348,11 @@ async def validar_fechamento_comiss(
             filtro_missoes_periodo(comiss.uae, comiss.data_ab, comiss.data_fc)
         )
     )
-    esperada = ultima_regres.date() + timedelta(days=1)
+    esperada = ultima_regres.date()
     if comiss.data_fc != esperada:
         errors.append(
             f'- Data de fechamento deve ser {esperada.strftime("%d/%m/%Y")} '
-            '(dia seguinte à última missão)'
+            '(dia de regresso da última missão)'
         )
 
     if errors:
