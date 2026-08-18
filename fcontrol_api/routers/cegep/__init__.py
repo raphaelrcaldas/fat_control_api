@@ -6,6 +6,7 @@ from fcontrol_api.routers.cegep import (
     financeiro,
     missao,
     orcamento,
+    propostas,
 )
 
 router = APIRouter(prefix='/cegep')
@@ -14,3 +15,4 @@ router.include_router(dados_bancarios.router)
 router.include_router(financeiro.router)
 router.include_router(missao.router)
 router.include_router(orcamento.router)
+router.include_router(propostas.router)

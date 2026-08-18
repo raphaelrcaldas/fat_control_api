@@ -19,6 +19,7 @@ from fcontrol_api.schemas.cegep.dados_bancarios import (
     DadosBancariosPublic,
     DadosBancariosUpdate,
     DadosBancariosWithUser,
+    RemuneracaoMilitar,
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
@@ -222,6 +223,55 @@ async def get_dados_bancarios_by_user(
         )
 
     return success_response(data=dados)
+
+
+@router.get(
+    '/user/{user_id}/remuneracao',
+    response_model=ApiResponse[RemuneracaoMilitar],
+)
+async def get_remuneracao_by_user(
+    user_id: int,
+    session: Session,
+    active_org: ActiveOrg,
+    user: CurrentUser,
+):
+    """Remuneração do militar, sem os dados bancários em volta.
+
+    Base de cálculo da ajuda de custo nas propostas de comissionamento.
+    Devolve só o valor e o mês de referência: quem planeja precisa do
+    número, não de banco/agência/conta — o endpoint irmão
+    `/user/{user_id}` continua para a tela de cadastro.
+
+    Sem cadastro, `remuneracao` vem nula com 200 (e não 404): para quem
+    planeja, militar sem remuneração cadastrada é caso normal, resolvido
+    digitando o valor. Mesmo gate do irmão — remuneração é PII.
+    """
+    await ensure_org_permission_or_owner(
+        user, session, active_org, 'dados_bancarios', 'view', user_id
+    )
+
+    # Projeção de duas colunas, não a entidade: `select(DadosBancarios)`
+    # traria banco/agência/conta e ainda dispararia o segundo SELECT do
+    # `lazy='selectin'` do relacionamento com User — o oposto da razão de
+    # existir deste endpoint.
+    row = (
+        await session.execute(
+            select(DadosBancarios.remuneracao, DadosBancarios.mes_ano)
+            .join(User, User.id == DadosBancarios.user_id)
+            .where(
+                DadosBancarios.user_id == user_id,
+                User.unidade == active_org,
+            )
+        )
+    ).first()
+
+    return success_response(
+        data=RemuneracaoMilitar(
+            user_id=user_id,
+            remuneracao=row.remuneracao if row else None,
+            mes_ano=row.mes_ano if row else None,
+        )
+    )
 
 
 @router.post(

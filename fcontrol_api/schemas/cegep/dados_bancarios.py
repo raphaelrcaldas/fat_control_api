@@ -46,6 +46,25 @@ class DadosBancariosWithUser(DadosBancariosPublic):
     user: UserPublic
 
 
+class RemuneracaoMilitar(BaseModel):
+    """Projeção mínima para quem só precisa do valor da remuneração.
+
+    Existe para não trafegar banco/agência/conta em telas que só usam a
+    remuneração como base de cálculo (ex.: propostas de comissionamento).
+    Militar sem cadastro devolve `remuneracao=None` — ausência de dado é
+    resposta normal aqui, não erro.
+    """
+
+    user_id: int
+    remuneracao: Optional[Decimal] = None
+    # Mês de referência da remuneração — procedência do valor.
+    mes_ano: Optional[date] = None
+
+    @field_serializer('remuneracao')
+    def serialize_decimal(self, v: Optional[Decimal]) -> Optional[float]:
+        return float(v) if v is not None else None
+
+
 class DadosBancariosBulkDelete(BaseModel):
     ids: list[int] = Field(min_length=1)
 

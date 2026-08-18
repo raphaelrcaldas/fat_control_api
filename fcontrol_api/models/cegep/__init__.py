@@ -4,4 +4,5 @@ from . import (
     diarias,
     missoes,
     orcamento,
+    propostas,
 )

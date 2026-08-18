@@ -29,6 +29,10 @@ GATED = [
     ('GET', '/cegep/orcamento/'),
     ('GET', '/cegep/dados-bancarios/'),
     ('DELETE', '/cegep/dados-bancarios/99999'),
+    # Propostas reusam o recurso `comiss`: são simulação sobre o mesmo teto.
+    ('GET', '/cegep/propostas/'),
+    ('GET', '/cegep/propostas/99999'),
+    ('DELETE', '/cegep/propostas/99999'),
 ]
 
 
@@ -48,3 +52,29 @@ async def test_cegep_route_requires_token(client, method, url):
     """Sem token → 401 (middleware de autenticação global)."""
     response = await client.request(method, url)
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+# Escrita de proposta fica fora da lista acima porque exige corpo válido —
+# sem ele o 422 mascararia a ausência do gate.
+ESCRITA_PROPOSTA = [
+    ('POST', '/cegep/propostas/', {'nome': 'X', 'ano_ref': 2026}),
+    (
+        'PUT',
+        '/cegep/propostas/99999',
+        {'nome': 'X', 'ano_ref': 2026, 'cenarios': []},
+    ),
+]
+
+
+@pytest.mark.parametrize(('method', 'url', 'corpo'), ESCRITA_PROPOSTA)
+async def test_escrita_de_proposta_gateada(
+    client, token_sem_perm, method, url, corpo
+):
+    """`create`/`update` de proposta também exigem grant em `comiss`."""
+    response = await client.request(
+        method,
+        url,
+        json=corpo,
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+    assert response.status_code == HTTPStatus.FORBIDDEN
