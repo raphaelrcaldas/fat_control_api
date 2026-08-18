@@ -39,6 +39,15 @@ class Permissions(Base):
 
 class RolePermissions(Base):
     __tablename__ = 'role_permissions'
+    # A mesma permissão duas vezes na mesma role não significa nada, mas
+    # aparece duplicada na tela de roles — e a tabela já tinha um caso
+    # (apoio_avancado × comiss.view).
+    __table_args__ = (
+        UniqueConstraint(
+            'role_id', 'permission_id', name='uq_role_permissions_role_perm'
+        ),
+        {'schema': 'security'},
+    )
 
     id: Mapped[int] = mapped_column(
         Identity(), init=False, primary_key=True, nullable=False

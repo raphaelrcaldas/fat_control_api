@@ -24,12 +24,16 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/propostas', tags=['CEGEP'])
 
-# Mesmo recurso RBAC dos comissionamentos: a proposta é simulação sobre o
-# mesmo teto e a mesma carteira, não um domínio à parte.
-ViewProposta = Depends(permission_checker('comiss', 'view'))
-CreateProposta = Depends(permission_checker('comiss', 'create'))
-UpdateProposta = Depends(permission_checker('comiss', 'update'))
-DeleteProposta = Depends(permission_checker('comiss', 'delete'))
+# Recurso próprio, no padrão pontilhado da casa (`operacoes.etapas`,
+# `ordem_missao.status`): planejar é simulação, não registra nada, e por isso
+# não tem de custar a mesma permissão que lançar comissionamento de verdade —
+# quem planeja pode não lançar, e quem lança pode não planejar.
+PROPOSTA = 'comiss.propostas'
+
+ViewProposta = Depends(permission_checker(PROPOSTA, 'view'))
+CreateProposta = Depends(permission_checker(PROPOSTA, 'create'))
+UpdateProposta = Depends(permission_checker(PROPOSTA, 'update'))
+DeleteProposta = Depends(permission_checker(PROPOSTA, 'delete'))
 
 #: Toda proposta nasce com um cenário: o sandbox sempre tem um ativo, e o
 #: front assume `cenarios.length >= 1`.
