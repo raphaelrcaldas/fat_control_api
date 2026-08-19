@@ -29,7 +29,7 @@ from http import HTTPStatus
 import pytest
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
-from fcontrol_api.routers.cegep.missao import (
+from fcontrol_api.routers.cegep.simulador import (
     MAX_DIAS_PERNOITE_SIM,
     MAX_DIAS_SIMULACAO,
     MIN_USOS_DESTAQUE,

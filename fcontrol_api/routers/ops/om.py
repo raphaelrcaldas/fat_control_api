@@ -19,11 +19,6 @@ from fcontrol_api.models.shared.om import (
 )
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.etiquetas import (
-    EtiquetaCreate,
-    EtiquetaSchema,
-    EtiquetaUpdate,
-)
 from fcontrol_api.schemas.ops.om import (
     ICAO_CODE_LENGTH,
     OrdemMissaoCreate,
@@ -60,8 +55,8 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
     'cancelada': set(),
 }
 
-# Guardas reutilizáveis: as rotas de OM e de etiqueta compartilham o
-# mesmo recurso `ordem_missao` (etiquetas herdam a permissão da OM).
+# Guardas reutilizáveis. `om_etiquetas.py` repete estes mesmos guardas: as
+# etiquetas herdam a permissão da OM (mesmo recurso `ordem_missao`).
 CreateOM = Depends(permission_checker('ordem_missao', 'create'))
 UpdateOM = Depends(permission_checker('ordem_missao', 'update'))
 DeleteOM = Depends(permission_checker('ordem_missao', 'delete'))
@@ -70,10 +65,6 @@ DeleteOM = Depends(permission_checker('ordem_missao', 'delete'))
 # propósito: unifica os logs de ação com os `access_denied` que o
 # security.py já grava sob o mesmo recurso.
 RESOURCE = 'ordem_missao'
-# Etiqueta de OM tem recurso próprio: 'etiqueta' já é do CEGEP, cuja
-# Etiqueta é outra tabela, com sequência de id independente — filtrar por
-# resource+resource_id misturaria as duas entidades.
-RESOURCE_ETIQUETA = 'om_etiqueta'
 
 
 @router.get(
@@ -889,158 +880,3 @@ async def delete_ordem(
     await session.commit()
 
     return success_response(message='Ordem de missão excluída com sucesso')
-
-
-# =============================================================================
-# Rotas de Etiquetas (CRUD)
-# =============================================================================
-
-
-@router.get('/etiquetas/', response_model=ApiResponse[list[EtiquetaSchema]])
-async def list_etiquetas(session: Session, active_org: ActiveOrg):
-    """Lista as etiquetas da org ativa"""
-    result = await session.execute(
-        select(Etiqueta)
-        .where(Etiqueta.uae == active_org)
-        .order_by(Etiqueta.nome)
-    )
-    return success_response(data=list(result.scalars().all()))
-
-
-@router.post(
-    '/etiquetas/',
-    response_model=ApiResponse[EtiquetaSchema],
-    status_code=HTTPStatus.CREATED,
-)
-async def create_etiqueta(
-    etiqueta_data: EtiquetaCreate,
-    session: Session,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
-    _: Annotated[User, CreateOM],
-):
-    """Cria uma nova etiqueta"""
-    etiqueta = Etiqueta(
-        nome=etiqueta_data.nome,
-        cor=etiqueta_data.cor,
-        descricao=etiqueta_data.descricao,
-        uae=active_org,
-    )
-    session.add(etiqueta)
-    await session.flush()  # Para obter o ID usado no log
-
-    await log_user_action(
-        session=session,
-        user_id=current_user.id,
-        action='create',
-        resource=RESOURCE_ETIQUETA,
-        resource_id=etiqueta.id,
-        before=None,
-        after={
-            'nome': etiqueta.nome,
-            'cor': etiqueta.cor,
-            'descricao': etiqueta.descricao,
-        },
-    )
-
-    await session.commit()
-    await session.refresh(etiqueta)
-    return success_response(
-        data=EtiquetaSchema.model_validate(etiqueta),
-        message='Etiqueta criada com sucesso',
-    )
-
-
-@router.put('/etiquetas/{id}', response_model=ApiResponse[EtiquetaSchema])
-async def update_etiqueta(
-    id: int,
-    etiqueta_data: EtiquetaUpdate,
-    session: Session,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
-    _: Annotated[User, UpdateOM],
-):
-    """Atualiza uma etiqueta existente"""
-    etiqueta = await session.scalar(
-        select(Etiqueta).where(Etiqueta.id == id, Etiqueta.uae == active_org)
-    )
-    if not etiqueta:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Etiqueta não encontrada'
-        )
-
-    before_snapshot = {
-        'nome': etiqueta.nome,
-        'cor': etiqueta.cor,
-        'descricao': etiqueta.descricao,
-    }
-
-    update_data = etiqueta_data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(etiqueta, key, value)
-
-    after_snapshot = {
-        'nome': etiqueta.nome,
-        'cor': etiqueta.cor,
-        'descricao': etiqueta.descricao,
-    }
-    if before_snapshot != after_snapshot:
-        await log_user_action(
-            session=session,
-            user_id=current_user.id,
-            action='update',
-            resource=RESOURCE_ETIQUETA,
-            resource_id=etiqueta.id,
-            before=before_snapshot,
-            after=after_snapshot,
-        )
-
-    await session.commit()
-    await session.refresh(etiqueta)
-    return success_response(
-        data=EtiquetaSchema.model_validate(etiqueta),
-        message='Etiqueta atualizada com sucesso',
-    )
-
-
-@router.delete(
-    '/etiquetas/{id}',
-    status_code=HTTPStatus.OK,
-    response_model=ApiResponse[None],
-)
-async def delete_etiqueta(
-    id: int,
-    session: Session,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
-    _: Annotated[User, DeleteOM],
-):
-    """Remove uma etiqueta"""
-    etiqueta = await session.scalar(
-        select(Etiqueta).where(Etiqueta.id == id, Etiqueta.uae == active_org)
-    )
-    if not etiqueta:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Etiqueta não encontrada'
-        )
-
-    before_snapshot = {
-        'nome': etiqueta.nome,
-        'cor': etiqueta.cor,
-        'descricao': etiqueta.descricao,
-    }
-
-    await session.delete(etiqueta)
-
-    await log_user_action(
-        session=session,
-        user_id=current_user.id,
-        action='delete',
-        resource=RESOURCE_ETIQUETA,
-        resource_id=id,
-        before=before_snapshot,
-        after=None,
-    )
-
-    await session.commit()
-    return success_response(message='Etiqueta removida com sucesso')
