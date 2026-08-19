@@ -6,7 +6,7 @@ Requer autenticação.
 Suporta atualizações parciais (campos podem ser None).
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 
 import pytest
@@ -239,16 +239,16 @@ async def test_update_indisp_date_fields(client, session, indisp, token):
     assert indisp.date_end.isoformat() == new_date_end
 
 
-async def test_update_indisp_with_explicit_none_value(
-    client, session, indisp, token
-):
-    """Testa que campo explicitamente None é ignorado no update."""
-    original_obs = indisp.obs
+async def test_update_indisp_obs_none_limpa(client, session, indisp, token):
+    """`obs: None` limpa a observação — é a única coluna anulável.
 
-    # Envia obs explicitamente como None (diferente de não enviar)
+    Antes o handler ignorava todo valor None, então não havia como apagar
+    uma observação: o formulário mandava o campo em branco e a antiga
+    continuava lá.
+    """
     update_data = {
         'obs': None,
-        'mtv': 'svc',  # Altera apenas mtv
+        'mtv': 'svc',
     }
 
     response = await client.put(
@@ -260,7 +260,89 @@ async def test_update_indisp_with_explicit_none_value(
     assert response.status_code == HTTPStatus.OK
 
     await session.refresh(indisp)
-    # obs não deve mudar porque foi enviado como None
-    assert indisp.obs == original_obs
-    # mtv deve ter mudado
+    assert indisp.obs is None
     assert indisp.mtv == 'svc'
+
+
+async def test_update_indisp_datas_none_sao_ignoradas(
+    client, session, indisp, token
+):
+    """None nas colunas não-anuláveis segue significando 'não enviado'."""
+    original_start = indisp.date_start
+    original_end = indisp.date_end
+
+    response = await client.put(
+        f'/indisp/{indisp.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'date_start': None, 'date_end': None, 'mtv': None},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    await session.refresh(indisp)
+    assert indisp.date_start == original_start
+    assert indisp.date_end == original_end
+
+
+async def test_update_indisp_date_end_before_start_fails(
+    client, session, indisp, token
+):
+    """Período invertido é recusado — o POST já recusava, o PUT não.
+
+    Com payload parcial (só uma das pontas) dava para gravar fim antes do
+    início, e o registro invertido sumia da grade da escala.
+    """
+    response = await client.put(
+        f'/indisp/{indisp.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'date_end': (indisp.date_start - timedelta(days=1)).isoformat()},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert 'maior ou igual' in response.json()['message']
+
+
+async def test_update_indisp_excluida_nao_e_duplicata(
+    client, session, users, token
+):
+    """Registro apagado não bloqueia a edição de outro igual a ele.
+
+    O POST já ignorava os apagados; o PUT não, então quem apagava e
+    recriava (a rota de fuga de quem não conseguia editar) levava um
+    "Indisponibilidade já registrada" fantasma na próxima edição.
+    """
+    user, other_user = users
+
+    apagada = IndispFactory(
+        user_id=other_user.id,
+        created_by=user.id,
+        date_start=date.today() + timedelta(days=20),
+        date_end=date.today() + timedelta(days=21),
+        mtv='fer',
+        obs='mesma coisa',
+    )
+    apagada.deleted_at = datetime.now(timezone.utc)
+    session.add(apagada)
+
+    viva = IndispFactory(
+        user_id=other_user.id,
+        created_by=user.id,
+        date_start=date.today() + timedelta(days=30),
+        date_end=date.today() + timedelta(days=31),
+        mtv='fer',
+        obs='mesma coisa',
+    )
+    session.add(viva)
+    await session.commit()
+
+    # Move a viva para exatamente o período da apagada.
+    response = await client.put(
+        f'/indisp/{viva.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'date_start': apagada.date_start.isoformat(),
+            'date_end': apagada.date_end.isoformat(),
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK

@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_
@@ -31,6 +32,7 @@ from fcontrol_api.security import (
     ActiveOrg,
     ensure_org_permission_or_owner,
     get_current_user,
+    has_org_permission,
 )
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
@@ -39,6 +41,58 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/indisp', tags=['indisp'])
+
+# Prazo mínimo que o próprio tripulante tem de respeitar para lançar,
+# alterar ou remover a sua indisponibilidade: a escala já foi montada em
+# cima dela. Quem tem a permissão 'indisp_trips' (escalante, pelo client)
+# passa por cima — a trava é do token de tripulante.
+PRAZO_MINIMO_DIAS = 2
+
+# O fuso é explícito de propósito: o container roda em UTC, então
+# `date.today()` viraria o dia seguinte às 21h de Brasília e endureceria a
+# janela em um dia inteiro para quem lança à noite.
+FUSO_LOCAL = ZoneInfo('America/Sao_Paulo')
+
+
+def data_minima_tripulante() -> date:
+    """Primeira data que o tripulante ainda pode mexer por conta própria."""
+    return datetime.now(FUSO_LOCAL).date() + timedelta(days=PRAZO_MINIMO_DIAS)
+
+
+async def ensure_prazo_tripulante(
+    user: User,
+    session: AsyncSession,
+    active_org: str | None,
+    action: str,
+    owner_id: int,
+    datas: list[date],
+) -> None:
+    """Aplica o prazo mínimo a quem age como dono, sem gestão da escala.
+
+    `datas` traz os inícios envolvidos na operação: o que está salvo (a
+    indisponibilidade não pode estar dentro da janela) e o que se pretende
+    gravar (não pode ser movida para dentro dela).
+    """
+    if user.id != owner_id:
+        return
+
+    if await has_org_permission(
+        user, session, active_org, 'indisp_trips', action
+    ):
+        return
+
+    minima = data_minima_tripulante()
+    if all(d >= minima for d in datas):
+        return
+
+    raise HTTPException(
+        status_code=HTTPStatus.BAD_REQUEST,
+        detail=(
+            f'Fora do prazo: você só altera indisponibilidades que comecem '
+            f'a partir de {minima.strftime("%d/%m/%Y")}. '
+            f'Para mudanças mais próximas, procure o escalante.'
+        ),
+    )
 
 
 @router.get('/', response_model=ApiResponse[list[IndispCrewEntry]])
@@ -210,6 +264,15 @@ async def create_indisp(
             detail='Data Fim deve ser maior ou igual a data início',
         )
 
+    await ensure_prazo_tripulante(
+        user,
+        session,
+        active_org,
+        'create',
+        indisp.user_id,
+        [indisp.date_start],
+    )
+
     db_indisp = await session.scalar(
         select(Indisp).where(
             (Indisp.user_id == indisp.user_id),
@@ -313,6 +376,15 @@ async def delete_indisp(
         user, session, active_org, 'indisp_trips', 'delete', indisp.user_id
     )
 
+    await ensure_prazo_tripulante(
+        user,
+        session,
+        active_org,
+        'delete',
+        indisp.user_id,
+        [indisp.date_start],
+    )
+
     # Soft delete - setar deleted_at
     indisp.deleted_at = datetime.now(timezone.utc)
 
@@ -362,18 +434,40 @@ async def update_indisp(
             detail='Impossível atualizar, indisponibilidade excluída',
         )
 
-    # Usa valores do payload ou mantém os existentes
-    # para verificação de duplicata
-    check_date_start = (
-        indisp.date_start
-        if indisp.date_start is not None
-        else db_indisp.date_start
+    # Só as chaves realmente enviadas entram na atualização. `obs` é a
+    # única coluna anulável: nela um None explícito significa "limpar" e
+    # precisa ser aplicado. Nas demais, None é campo ausente do formulário.
+    campos = indisp.model_dump(exclude_unset=True)
+    for key in ('date_start', 'date_end', 'mtv'):
+        if campos.get(key) is None:
+            campos.pop(key, None)
+
+    # Valores resultantes da alteração — base da validação e da checagem de
+    # duplicata.
+    check_date_start = campos.get('date_start', db_indisp.date_start)
+    check_date_end = campos.get('date_end', db_indisp.date_end)
+    check_mtv = campos.get('mtv', db_indisp.mtv)
+    check_obs = campos.get('obs', db_indisp.obs)
+
+    # Mesma regra do POST: sem ela dava para inverter o período por PUT
+    # (payload parcial com só uma das pontas) e gravar fim antes do início.
+    if check_date_end < check_date_start:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Data Fim deve ser maior ou igual a data início',
+        )
+
+    # O prazo vale para o período salvo E para o pretendido: nem mexer no
+    # que já está dentro da janela, nem puxar a indisponibilidade para
+    # dentro dela.
+    await ensure_prazo_tripulante(
+        user,
+        session,
+        active_org,
+        'update',
+        db_indisp.user_id,
+        [db_indisp.date_start, check_date_start],
     )
-    check_date_end = (
-        indisp.date_end if indisp.date_end is not None else db_indisp.date_end
-    )
-    check_mtv = indisp.mtv if indisp.mtv is not None else db_indisp.mtv
-    check_obs = indisp.obs if indisp.obs is not None else db_indisp.obs
 
     ss_indisp = await session.scalar(
         select(Indisp).where(
@@ -382,6 +476,7 @@ async def update_indisp(
             & (Indisp.date_end == check_date_end)
             & (Indisp.mtv == check_mtv)
             & (Indisp.obs == check_obs)
+            & (Indisp.deleted_at.is_(None))  # excluída não é duplicata
             & (Indisp.id != id)  # Exclui o próprio registro da verificação
         )
     )
@@ -395,9 +490,7 @@ async def update_indisp(
     # Captura os valores antes e depois da alteração
     before = {}
     after = {}
-    for key, value in indisp.model_dump(exclude_unset=True).items():
-        if value is None:  # Ignora campos não enviados
-            continue
+    for key, value in campos.items():
         old_value = getattr(db_indisp, key)
         if old_value != value:
             # Converte date para string para serialização JSON
