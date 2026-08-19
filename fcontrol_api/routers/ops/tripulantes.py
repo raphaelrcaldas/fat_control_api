@@ -9,6 +9,7 @@ from sqlalchemy.future import select
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.shared.aeronaves import ProjetoAnv, TenantProjeto
+from fcontrol_api.models.shared.funcoes import FuncaoUae
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -66,6 +67,21 @@ async def create_trip(
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail='Tripulante já registrado',
+        )
+
+    # `tripulantes.func` é FK para `funcoes.cod`, mas o conjunto válido é o
+    # que a unidade opera (funcoes_uae) — mesmo racional do `proj`.
+    func_autorizada = await session.scalar(
+        select(FuncaoUae.id).where(
+            FuncaoUae.uae == active_org,
+            FuncaoUae.func_cod == trip.func,
+            FuncaoUae.active.is_(True),
+        )
+    )
+    if not func_autorizada:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Função não operada pela organização',
         )
 
     # `tripulantes.proj` é FK para `projetos_anvs.modelo` e a org só opera
@@ -321,6 +337,19 @@ async def update_trip(
             detail='Trigrama já registrado',
         )
 
+    func_autorizada = await session.scalar(
+        select(FuncaoUae.id).where(
+            FuncaoUae.uae == active_org,
+            FuncaoUae.func_cod == trip.func,
+            FuncaoUae.active.is_(True),
+        )
+    )
+    if not func_autorizada:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Função não operada pela organização',
+        )
+
     proj_autorizado = await session.scalar(
         select(ProjetoAnv.modelo)
         .join(TenantProjeto, TenantProjeto.projeto == ProjetoAnv.id_projeto)
@@ -427,6 +456,20 @@ async def patch_trip(
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail='Trigrama já registrado',
+            )
+
+    if 'func' in patch:
+        func_autorizada = await session.scalar(
+            select(FuncaoUae.id).where(
+                FuncaoUae.uae == active_org,
+                FuncaoUae.func_cod == patch['func'],
+                FuncaoUae.active.is_(True),
+            )
+        )
+        if not func_autorizada:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail='Função não operada pela organização',
             )
 
     if 'proj' in patch:

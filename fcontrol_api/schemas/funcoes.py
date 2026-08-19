@@ -2,73 +2,25 @@ from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # =============================================================================
 # TIPOS BASE
 # =============================================================================
 
+# Operacionalidade continua Literal: 'ba/op/in/al' é doutrina, igual em
+# qualquer unidade. Já a FUNÇÃO virou dado (tabelas `funcoes` e
+# `funcoes_uae`) — o conjunto válido depende da org, então não há Literal
+# de função aqui; a checagem é feita na rota contra as funções operadas
+# pela org ativa, mesmo padrão de `proj`/`tenant_projetos`.
 opers = Literal['ba', 'op', 'in', 'al']
-funcs = Literal['pil', 'mc', 'lm', 'oe', 'os', 'tf', 'ml', 'md']
-
-# =============================================================================
-# POSIÇÕES A BORDO
-# =============================================================================
-
-# Posições por função
-PosicoesPiloto = Literal['1P', '2P', 'IN', 'AL']
-PosicoesMecanico = Literal['MC', 'IC', 'AC']
-PosicoesLoadmaster = Literal['LM', 'IG', 'AG']
-PosicoesOE = Literal['O3', 'I3', 'A3']
-PosicoesOS = Literal['OS', 'IS', 'AS']
-PosicoesComissario = Literal['TF', 'IF', 'AF']
-
-# Todas as posições válidas (para validação genérica)
-FuncBordo = Literal[
-    '1P',
-    '2P',
-    'IN',
-    'AL',  # pil
-    'MC',
-    'IC',
-    'AC',  # mc
-    'LM',
-    'IG',
-    'AG',  # lm
-    'O3',
-    'I3',
-    'A3',  # oe
-    'OS',
-    'IS',
-    'AS',  # os
-    'TF',
-    'IF',
-    'AF',  # tf
-]
-
-# Mapeamento função → posições válidas (para validação condicional)
-POSICOES_POR_FUNC: dict[str, tuple[str, ...]] = {
-    'pil': ('1P', '2P', 'IN', 'AL'),
-    'mc': ('MC', 'IC', 'AC'),
-    'lm': ('LM', 'IG', 'AG'),
-    'oe': ('O3', 'I3', 'A3'),
-    'os': ('OS', 'IS', 'AS'),
-    'tf': ('TF', 'IF', 'AF'),
-    'ml': (),  # Função esporádica, sem controle
-    'md': (),  # Função esporádica, sem controle
-}
-
-
-def is_posicao_valida(func: str, posicao: str) -> bool:
-    """Verifica se uma posição é válida para uma função."""
-    posicoes = POSICOES_POR_FUNC.get(func, ())
-    return posicao in posicoes
 
 
 class BaseFunc(BaseModel):
     """Campos de função do tripulante (colunas de `tripulantes`)."""
 
-    func: funcs
+    # FK para `funcoes.cod`, validada na rota contra `funcoes_uae`.
+    func: str = Field(min_length=2, max_length=3)
     oper: opers
     # FK para `projetos_anvs.modelo`: o catálogo é dinâmico e o conjunto
     # válido depende da org (tenant_projetos), então a checagem é feita na
@@ -76,3 +28,80 @@ class BaseFunc(BaseModel):
     proj: str
     data_op: Annotated[date | None, Body()] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# =============================================================================
+# CATÁLOGO (tabelas `funcoes` / `funcoes_posicoes`)
+# =============================================================================
+
+
+class FuncaoPosicaoBase(BaseModel):
+    cod: str = Field(min_length=1, max_length=2)
+    nome: str = Field(min_length=1, max_length=40)
+    descricao: str | None = Field(default=None, max_length=80)
+    tipo: Literal['titular', 'instrutor', 'aluno'] = 'titular'
+    ordem: int = Field(ge=0, le=99)
+
+
+class FuncaoPosicaoOut(FuncaoPosicaoBase):
+    id: int
+    func_cod: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FuncaoBase(BaseModel):
+    nome: str = Field(min_length=1, max_length=40)
+    nome_curto: str = Field(min_length=1, max_length=20)
+    cor: str = Field(min_length=1, max_length=16)
+    ordem: int = Field(ge=0, le=99)
+    esporadica: bool = False
+    active: bool = True
+
+
+class FuncaoCreate(FuncaoBase):
+    cod: str = Field(min_length=2, max_length=3)
+
+
+class FuncaoUpdate(FuncaoBase):
+    """Update total do catálogo — o código é imutável (é a PK e a FK)."""
+
+
+class FuncaoOut(FuncaoBase):
+    cod: str
+    posicoes: list[FuncaoPosicaoOut] = Field(default_factory=list)
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FuncaoPosicoesSet(BaseModel):
+    """Conjunto completo de posições de uma função (substitui as atuais)."""
+
+    posicoes: list[FuncaoPosicaoBase]
+
+
+# =============================================================================
+# ESCOPO POR UNIDADE (tabela `funcoes_uae`)
+# =============================================================================
+
+
+class FuncaoOrgItem(BaseModel):
+    cod: str = Field(min_length=2, max_length=3)
+    nome_custom: str | None = Field(default=None, max_length=40)
+    ordem: int | None = Field(default=None, ge=0, le=99)
+
+
+class FuncoesOrgSet(BaseModel):
+    """Conjunto de funções operadas pela org (substitui o atual)."""
+
+    funcoes: list[FuncaoOrgItem]
+
+
+class FuncaoOrgOut(BaseModel):
+    """Função como a org a enxerga: rótulo efetivo e ordem efetiva."""
+
+    cod: str
+    nome: str
+    nome_curto: str
+    cor: str
+    ordem: int
+    esporadica: bool
+    posicoes: list[FuncaoPosicaoOut] = Field(default_factory=list)

@@ -5,7 +5,6 @@ from fastapi import Body
 from pydantic import BaseModel, ConfigDict, Field
 
 from fcontrol_api.schemas.funcoes import BaseFunc
-from fcontrol_api.schemas.funcoes import funcs as FuncLiteral
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -97,12 +96,12 @@ class QuadsTypeOut(BaseModel):
 class QuadsFuncsSet(BaseModel):
     """Define o conjunto de funções que concorrem a um tipo.
 
-    Substitui a associação inteira (operação declarativa). Qualquer função
-    do enum é aceita — funções esporádicas (ml/md) simplesmente não são
-    cadastradas na prática.
+    Substitui a associação inteira (operação declarativa). As funções são
+    validadas na rota contra as que a org opera (`funcoes_uae`) — funções
+    esporádicas (ml/md) simplesmente não são cadastradas na prática.
     """
 
-    funcs: list[FuncLiteral] = Field(default_factory=list)
+    funcs: list[str] = Field(default_factory=list)
 
 
 class TripQuadInfo(BaseFunc):

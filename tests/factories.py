@@ -30,8 +30,9 @@ from fcontrol_api.models.shared.posto_grad import Soldo
 from fcontrol_api.models.shared.quads import Quad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import funcs, opers
+from fcontrol_api.schemas.funcoes import opers
 from fcontrol_api.utils.validators import calcular_dv_saram
+from tests.seed.funcoes import CODIGOS as FUNC_CODIGOS
 
 
 def gerar_cpf_valido(n: int) -> str:
@@ -135,8 +136,10 @@ class TripFactory(factory.Factory):
     # UAE agora é string livre (sigla da org, via JWT) após a tenantização;
     # default no sigla canônico dos testes. Casos cross-org passam outro valor.
     uae = '11gt'
-    # Função única (1:1) agora vive no próprio tripulante.
-    func = factory.fuzzy.FuzzyChoice(typing.get_args(funcs))
+    # Função única (1:1) agora vive no próprio tripulante. É FK para
+    # `funcoes.cod` e o conjunto válido por org vem de `funcoes_uae` — as
+    # orgs de teste operam todas as funções do catálogo (tests/seed/funcoes).
+    func = factory.fuzzy.FuzzyChoice(FUNC_CODIGOS)
     oper = factory.fuzzy.FuzzyChoice(typing.get_args(opers))
     # FK para `projetos_anvs.modelo`: o catálogo é dinâmico (não há mais
     # Literal). Default no projeto que a org canônica dos testes opera

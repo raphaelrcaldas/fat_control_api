@@ -317,13 +317,14 @@ async def test_get_crew_indisp_filters_by_funcao(
     await session.commit()
     await session.refresh(trip_pil)
 
-    # Tripulante com função 'nav'
-    trip_nav = TripFactory(
-        user_id=other_user.id, uae='11gt', active=True, func='nav'
+    # Tripulante de outra função ('mc'): 'func' virou FK para `funcoes.cod`,
+    # entao o contraste tem de usar uma funcao do catalogo.
+    trip_mc = TripFactory(
+        user_id=other_user.id, uae='11gt', active=True, func='mc'
     )
-    session.add(trip_nav)
+    session.add(trip_mc)
     await session.commit()
-    await session.refresh(trip_nav)
+    await session.refresh(trip_mc)
 
     # Busca apenas pilotos
     response = await client.get(

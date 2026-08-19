@@ -24,7 +24,6 @@ from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import funcs
 from fcontrol_api.schemas.ops.escala import (
     EscalaFuncSection,
     EscalaIndispInfo,
@@ -52,7 +51,7 @@ async def get_escala_disponiveis(
     date_start: Annotated[date, Query()],
     date_end: Annotated[date, Query()],
     tipo_quad_id: Annotated[int, Query()],
-    funcs_param: Annotated[list[funcs], Query(alias='funcs', min_length=1)],
+    funcs_param: Annotated[list[str], Query(alias='funcs', min_length=1)],
     sort: Annotated[Literal['horas_voo', 'quads_asc'], Query()],
     active_org: ActiveOrg,
     proj_param: Annotated[str | None, Query(alias='proj')] = None,

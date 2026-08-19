@@ -9,6 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.shared.funcoes import FuncaoUae
 from fcontrol_api.models.shared.quads import (
     Quad,
     QuadsFunc,
@@ -17,7 +18,6 @@ from fcontrol_api.models.shared.quads import (
 )
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.funcoes import funcs
 from fcontrol_api.schemas.ops.quads import (
     QuadBatchDelete,
     QuadOrfaoTripInfo,
@@ -152,7 +152,7 @@ async def list_quads(
     session: Session,
     active_org: ActiveOrg,
     tipo_quad: int = 1,  # sobr preto
-    funcao: funcs = 'mc',
+    funcao: str = 'mc',
     proj: str | None = None,
 ):
     # 1. CTE para obter os IDs dos tripulantes que correspondem aos filtros
@@ -662,7 +662,28 @@ async def set_quads_type_funcs(
     type_db = await _get_type_scoped(type_id, session, active_org)
 
     # Dedup preservando a ordem informada.
-    novas_funcs = list(dict.fromkeys(body.funcs))
+    novas_funcs = list(dict.fromkeys(f.lower() for f in body.funcs))
+
+    # Só concorre ao quadrinho função que a unidade opera (funcoes_uae).
+    if novas_funcs:
+        operadas = set(
+            await session.scalars(
+                select(FuncaoUae.func_cod).where(
+                    FuncaoUae.uae == active_org,
+                    FuncaoUae.func_cod.in_(novas_funcs),
+                    FuncaoUae.active.is_(True),
+                )
+            )
+        )
+        invalidas = [f for f in novas_funcs if f not in operadas]
+        if invalidas:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=(
+                    'Função não operada pela organização: '
+                    f'{", ".join(invalidas)}'
+                ),
+            )
 
     await session.execute(
         delete(QuadsFunc).where(QuadsFunc.type_id == type_id)

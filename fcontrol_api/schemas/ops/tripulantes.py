@@ -11,7 +11,7 @@ from pydantic import (
 )
 
 from fcontrol_api.enums.posto_grad import PostoGradEnum
-from fcontrol_api.schemas.funcoes import BaseFunc, funcs, opers
+from fcontrol_api.schemas.funcoes import BaseFunc, opers
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -66,7 +66,7 @@ class TripUpdate(BaseModel):
 
     trig: Trigrama | None = None
     active: bool | None = None
-    func: funcs | None = None
+    func: str | None = Field(default=None, min_length=2, max_length=3)
     oper: opers | None = None
     proj: str | None = None
     data_op: Annotated[date | None, Body()] = None

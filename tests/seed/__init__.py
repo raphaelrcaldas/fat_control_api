@@ -6,6 +6,7 @@ Os objetos sao agrupados por ordem de dependencia de FK.
 
 from tests.seed.diarias import DIARIAS_VALOR, GRUPOS_CIDADE, GRUPOS_PG
 from tests.seed.estados_cidades import CIDADES, ESTADOS
+from tests.seed.funcoes import FUNCOES_UAE
 from tests.seed.posto_grad import POSTOS_GRAD
 from tests.seed.quads import QUADS_FUNCS, QUADS_GROUPS, QUADS_TYPES
 from tests.seed.roles import ROLES
@@ -25,8 +26,9 @@ SEED_GROUPS = [
     # Grupo 0.1: tenants (data-plane), dependem de organizacoes; quads_group
     # e tripulantes referenciam tenants.organizacao_id via `uae`
     [*TENANTS],
-    # Grupo 1: Tabelas base sem dependencias
-    [*ESTADOS, *POSTOS_GRAD, *ROLES, *QUADS_GROUPS, *PROJETOS],
+    # Grupo 1: Tabelas base sem dependencias. `funcoes_uae` depende de
+    # tenants e do catalogo `funcoes`, que vem da migration.
+    [*ESTADOS, *POSTOS_GRAD, *ROLES, *QUADS_GROUPS, *PROJETOS, *FUNCOES_UAE],
     # Grupo 2: Dependem do Grupo 1
     [*CIDADES, *SOLDOS, *QUADS_TYPES, *TENANT_PROJETOS],
     # Grupo 3: Dependem do Grupo 2

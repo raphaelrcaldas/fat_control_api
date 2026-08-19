@@ -34,7 +34,6 @@ from fcontrol_api.schemas.estatistica.etapa import (
     EtapaUpdate,
     MissaoComEtapasOut,
 )
-from fcontrol_api.schemas.funcoes import funcs
 from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
@@ -102,7 +101,7 @@ async def list_etapas(
     reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
     tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
-    funcao: Annotated[funcs | None, Query()] = None,
+    funcao: Annotated[str | None, Query(max_length=3)] = None,
     is_simulador: Annotated[bool, Query()] = False,
     flat: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,

@@ -61,4 +61,8 @@ class QuadsFunc(Base):
         Identity(), init=False, primary_key=True, nullable=False
     )
     type_id: Mapped[int] = mapped_column(ForeignKey('quads_type.id'))
-    func: Mapped[str]
+    func: Mapped[str] = mapped_column(
+        ForeignKey(
+            'funcoes.cod', onupdate='CASCADE', name='fk_quads_func_func'
+        )
+    )

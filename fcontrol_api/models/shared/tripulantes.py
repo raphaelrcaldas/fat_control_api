@@ -24,7 +24,14 @@ class Tripulante(Base):
             onupdate='CASCADE',
         )
     )
-    func: Mapped[str] = mapped_column(String(3))
+    func: Mapped[str] = mapped_column(
+        String(3),
+        ForeignKey(
+            'funcoes.cod',
+            onupdate='CASCADE',
+            name='fk_tripulantes_func',
+        ),
+    )
     oper: Mapped[str] = mapped_column(String(2))
     proj: Mapped[str] = mapped_column(
         ForeignKey(
