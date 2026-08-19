@@ -154,7 +154,7 @@ async def test_sem_org_ativa_400(client, token_sistema):
 
 
 async def test_sem_permissao_403(client, token_sem_perm):
-    """Gate `etapas/view` — ao contrário dos vizinhos, este nasce fechado."""
+    """Gate `estatistica.indicadores/view` — este nasce fechado."""
     resp = await client.get(
         URL, params={'ano_ref': ANO}, headers=_auth(token_sem_perm)
     )

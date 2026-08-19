@@ -35,7 +35,9 @@ from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 AnoRef = Annotated[int, Query(ge=2020)]
-ViewEtapas = Depends(permission_checker('etapas', 'view'))
+ViewIndicadores = Depends(
+    permission_checker('estatistica.indicadores', 'view')
+)
 
 router = APIRouter(prefix='/indicadores', tags=['estatistica'])
 
@@ -49,7 +51,7 @@ async def get_indicadores(
     session: Session,
     active_org: ActiveOrg,
     ano_ref: AnoRef,
-    _: Annotated[User, ViewEtapas],
+    _: Annotated[User, ViewIndicadores],
     projeto: Annotated[str | None, Query(max_length=2)] = None,
 ):
     """Painel anual de indicadores das etapas voadas da org ativa.
