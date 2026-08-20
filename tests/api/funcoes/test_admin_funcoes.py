@@ -9,7 +9,13 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy import select
 
-from fcontrol_api.models.shared.funcoes import Funcao, FuncaoPosicao
+from fcontrol_api.models.instrucao.subprogramas import Subprograma
+from fcontrol_api.models.shared.funcoes import (
+    Funcao,
+    FuncaoPosicao,
+    FuncaoUae,
+)
+from fcontrol_api.models.shared.quads import QuadsFunc
 from tests.factories import TripFactory, UserFactory
 
 pytestmark = pytest.mark.anyio
@@ -161,6 +167,36 @@ async def test_admin_recusa_excluir_funcao_em_uso(
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert 'tripulante' in response.json()['message'].lower()
+
+
+async def test_admin_recusa_excluir_funcao_de_subprograma(
+    client, session, token_sistema
+):
+    """Sem este guard a FK do subprograma estouraria como 500 no commit."""
+    # Zera os guards anteriores: o que tem de barrar aqui é o subprograma.
+    await session.execute(
+        FuncaoUae.__table__.delete().where(FuncaoUae.func_cod == 'tf')
+    )
+    await session.execute(
+        QuadsFunc.__table__.delete().where(QuadsFunc.func == 'tf')
+    )
+    session.add(
+        Subprograma(
+            uae='11gt',
+            codigo='SPFO-09',
+            descricao='Formação de tripulante técnico',
+            tipo='Formação',
+            func='tf',
+        )
+    )
+    await session.commit()
+
+    response = await client.delete(
+        '/admin/funcoes/tf', headers=_auth(token_sistema)
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert 'subprograma' in response.json()['message'].lower()
 
 
 async def test_admin_de_unidade_nao_gerencia_catalogo(client, token):

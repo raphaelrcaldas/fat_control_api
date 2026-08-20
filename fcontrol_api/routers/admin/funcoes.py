@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.instrucao.subprogramas import Subprograma
 from fcontrol_api.models.shared.funcoes import (
     Funcao,
     FuncaoPosicao,
@@ -142,6 +143,18 @@ async def delete_funcao(cod: str, session: Session):
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
             detail='Função ainda associada a tipos de quadrinho',
+        )
+
+    subprogramas = await session.scalar(
+        select(func.count())
+        .select_from(Subprograma)
+        .where(Subprograma.func == cod)
+    )
+    if subprogramas:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=f'{subprogramas} subprograma(s) de instrução usam esta '
+            'função',
         )
 
     await session.delete(funcao)
