@@ -193,3 +193,6 @@ database.db
 
 # Grafo de conhecimento gerado (graphify) — artefato, nao versionar
 graphify-out/
+
+# Concessoes de RBAC exportadas do banco (relatorio) - dado por ambiente.
+.grants.json

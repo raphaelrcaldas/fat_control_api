@@ -96,6 +96,12 @@ cleanup = 'python -m scripts.run_cleanup'
 # nos dois lados — `test_catalogo_rbac.py` reprova se esquecer.
 "rbac:export" = 'python -m scripts.rbac_catalog'
 
+# Concessoes (role -> permissoes) do banco APONTADO, para o relatorio
+# `npm run rbac:matriz` do client. READ-ONLY; artefato nao versionado
+# porque concessao e dado por ambiente. Para ver PROD, prefixar com
+# DATABASE_URL="<prod>" em vez de mexer no .env.
+"rbac:grants" = 'python -m scripts.rbac_grants'
+
 # `ruff check` NAO ve formatacao: um arquivo pode passar em "All checks
 # passed" e ainda estar por formatar, acumulando drift ate alguem rodar
 # `task format` — e aí a reformatacao cai no commit de quem passou por ali.
