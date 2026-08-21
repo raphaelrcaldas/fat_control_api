@@ -91,13 +91,9 @@ async def test_sem_org_ativa_retorna_400(client, token_sistema):
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
-async def test_org_ve_so_frota_e_horas_da_propria_org(
-    client, cenario, token_sem_perm
-):
+async def test_org_ve_so_frota_e_horas_da_propria_org(client, cenario, token):
     """'11gt' vê só a '2850' (C8) e só as horas da própria missão (60)."""
-    resp = await client.get(
-        URL, params={'ano_ref': ANO}, headers=_auth(token_sem_perm)
-    )
+    resp = await client.get(URL, params={'ano_ref': ANO}, headers=_auth(token))
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()['data']
 

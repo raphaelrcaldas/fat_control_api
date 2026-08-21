@@ -57,14 +57,14 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
 
 # Guardas reutilizáveis. `om_etiquetas.py` repete estes mesmos guardas: as
 # etiquetas herdam a permissão da OM (mesmo recurso `ordem_missao`).
-CreateOM = Depends(permission_checker('ordem_missao', 'create'))
-UpdateOM = Depends(permission_checker('ordem_missao', 'update'))
-DeleteOM = Depends(permission_checker('ordem_missao', 'delete'))
+CreateOM = Depends(permission_checker('ops.ordem_missao', 'create'))
+UpdateOM = Depends(permission_checker('ops.ordem_missao', 'update'))
+DeleteOM = Depends(permission_checker('ops.ordem_missao', 'delete'))
 
 # Auditoria. `RESOURCE` repete a string dos `permission_checker` acima de
 # propósito: unifica os logs de ação com os `access_denied` que o
 # security.py já grava sob o mesmo recurso.
-RESOURCE = 'ordem_missao'
+RESOURCE = 'ops.ordem_missao'
 
 
 @router.get(
@@ -477,7 +477,7 @@ async def update_ordem(
             current_user,
             session,
             active_org,
-            'ordem_missao.status',
+            'ops.ordem_missao.status',
             'update',
         )
     ):

@@ -58,12 +58,12 @@ router = APIRouter(prefix='/missoes', tags=['CEGEP'])
 
 RESOURCE = 'missao'
 
-# Gating RBAC pelo recurso `missoes_cegep` (apoio_avancado). O escopo por
+# Gating RBAC pelo recurso `cegep.missoes` (apoio_avancado). O escopo por
 # org já é feito via active_org. `missao_etiquetas.py` repete estes guardas:
 # as etiquetas herdam o mesmo recurso.
-ViewMis = Depends(permission_checker('missoes_cegep', 'view'))
-CreateMis = Depends(permission_checker('missoes_cegep', 'create'))
-DeleteMis = Depends(permission_checker('missoes_cegep', 'delete'))
+ViewMis = Depends(permission_checker('cegep.missoes', 'view'))
+CreateMis = Depends(permission_checker('cegep.missoes', 'create'))
+DeleteMis = Depends(permission_checker('cegep.missoes', 'delete'))
 
 
 @router.get(

@@ -35,8 +35,8 @@ router = APIRouter(prefix='/cartoes', tags=['Instrucao'])
 
 # Cartão de instrução (idiomas/CVI) é qualificação do piloto: leitura
 # exige 'view' e cada escrita a sua ação. Admin da org ativa tem bypass.
-ViewCartao = Depends(permission_checker('instrucao-cartoes', 'view'))
-DeleteCartao = Depends(permission_checker('instrucao-cartoes', 'delete'))
+ViewCartao = Depends(permission_checker('instrucao.cartoes', 'view'))
+DeleteCartao = Depends(permission_checker('instrucao.cartoes', 'delete'))
 
 
 @router.get(
@@ -221,7 +221,7 @@ async def upsert_cartao(
         user,
         session,
         active_org,
-        'instrucao-cartoes',
+        'instrucao.cartoes',
         'update' if cartao else 'create',
         owner_id=None,
     )

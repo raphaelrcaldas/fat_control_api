@@ -46,9 +46,9 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/quads', tags=['quads'])
 
-ManageQuads = Depends(permission_checker('quad_ops', 'create'))
-UpdateQuads = Depends(permission_checker('quad_ops', 'update'))
-DeleteQuads = Depends(permission_checker('quad_ops', 'delete'))
+ManageQuads = Depends(permission_checker('ops.quadrinhos', 'create'))
+UpdateQuads = Depends(permission_checker('ops.quadrinhos', 'update'))
+DeleteQuads = Depends(permission_checker('ops.quadrinhos', 'delete'))
 
 
 @router.post(
@@ -440,7 +440,7 @@ async def get_quads_type(session: Session, active_org: ActiveOrg):
 # ===========================================================================
 # Gerenciamento da estrutura de quadrinhos (Group -> Type -> Func)
 #
-# Escopo: usuário com permissão `quad_ops.create`, restrito à organização
+# Escopo: usuário com permissão `ops.quadrinhos.create`, restrito à organização
 # ativa (QuadsGroup.uae). Deleções bloqueiam quando há dependências (409),
 # sem cascade. A associação de funções é declarativa (substitui o conjunto).
 # ===========================================================================

@@ -32,10 +32,10 @@ async def _grant_user_permission(session, user, action: str):
     role = await session.scalar(select(Roles).where(Roles.name == 'user'))
 
     resource = await session.scalar(
-        select(Resources).where(Resources.name == 'user')
+        select(Resources).where(Resources.name == 'users')
     )
     if not resource:
-        resource = Resources(name='user', description='User resource')
+        resource = Resources(name='users', description='User resource')
         session.add(resource)
         await session.flush()
 

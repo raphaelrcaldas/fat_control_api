@@ -1,0 +1,130 @@
+{
+  "_comentario": "Gerado por `uv run task rbac:export`. Não editar à mão — a fonte são os call sites de guard em fcontrol_api/. Copiar para os fronts ao adicionar recurso.",
+  "recursos": {
+    "aeromedica.cartoes": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "cegep.comiss": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "cegep.comiss.propostas": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "cegep.dados_bancarios": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "cegep.missoes": [
+      "create",
+      "delete",
+      "view"
+    ],
+    "cegep.orcamento": [
+      "create",
+      "update",
+      "view"
+    ],
+    "estatistica.esf_aer": [
+      "update",
+      "view"
+    ],
+    "estatistica.etapas": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "estatistica.indicadores": [
+      "view"
+    ],
+    "instrucao.cartoes": [
+      "delete",
+      "view"
+    ],
+    "instrucao.paop": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "instrucao.subprogramas": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
+    "inteligencia.passaportes": [
+      "delete",
+      "view"
+    ],
+    "inteligencia.passaportes.imagem": [
+      "delete",
+      "view"
+    ],
+    "ops.aeronaves": [
+      "create",
+      "update"
+    ],
+    "ops.indisp": [
+      "create",
+      "delete",
+      "update"
+    ],
+    "ops.operacoes": [
+      "create",
+      "delete",
+      "view"
+    ],
+    "ops.operacoes.etapas": [
+      "create",
+      "delete"
+    ],
+    "ops.operacoes.militar": [
+      "create",
+      "delete"
+    ],
+    "ops.ordem_missao": [
+      "create",
+      "delete",
+      "update"
+    ],
+    "ops.ordem_missao.status": [
+      "update"
+    ],
+    "ops.quadrinhos": [
+      "create",
+      "delete",
+      "update"
+    ],
+    "ops.tripulantes": [
+      "create",
+      "update"
+    ],
+    "seg_voo.crm": [
+      "delete",
+      "view"
+    ],
+    "users": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ]
+  },
+  "sem_gate_backend": {
+    "estatistica.sebo": "O FatBird consome /estatistica/sebo com token de tripulante, que não tem role — gatear tranca o portal. Escopo por ActiveOrg.",
+    "instrucao.simulador": "/cegep/missoes/simular é calculadora pura sobre tabelas de referência (não lê dado de org) e também roda no FatBird.",
+    "ops.quadro": "Tela de leitura composta, sem endpoint próprio: os dados vêm de /ops/om, já gateado por ops.ordem_missao."
+  }
+}

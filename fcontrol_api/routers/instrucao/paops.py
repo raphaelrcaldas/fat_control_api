@@ -37,10 +37,10 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/paops', tags=['Instrucao'])
 
-ViewPaop = Depends(permission_checker('instrucao-paop', 'view'))
-CreatePaop = Depends(permission_checker('instrucao-paop', 'create'))
-UpdatePaop = Depends(permission_checker('instrucao-paop', 'update'))
-DeletePaop = Depends(permission_checker('instrucao-paop', 'delete'))
+ViewPaop = Depends(permission_checker('instrucao.paop', 'view'))
+CreatePaop = Depends(permission_checker('instrucao.paop', 'create'))
+UpdatePaop = Depends(permission_checker('instrucao.paop', 'update'))
+DeletePaop = Depends(permission_checker('instrucao.paop', 'delete'))
 
 
 @router.get(

@@ -108,7 +108,7 @@ async def change_pwd(
         session=session,
         user_id=current_user.id,
         action='change-pwd',
-        resource='user',
+        resource='users',
         resource_id=current_user.id,
         before=None,
         after=None,
@@ -146,7 +146,7 @@ async def reset_pwd(
         session=session,
         user_id=current_user.id,
         action='reset-pwd',
-        resource='user',
+        resource='users',
         resource_id=user_id,
         before=None,
         after=None,
@@ -166,7 +166,7 @@ async def create_user(
     payload: UserSchema,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(permission_checker('user', 'create'))],
+    user: Annotated[User, Depends(permission_checker('users', 'create'))],
 ):
     # Verifica conflitos de unicidade
     await check_user_conflicts(
@@ -210,7 +210,7 @@ async def create_user(
         session=session,
         user_id=user.id,
         action='create',
-        resource='user',
+        resource='users',
         resource_id=db_user.id,
         before=None,
         after=None,
@@ -228,7 +228,7 @@ async def create_user(
 async def read_users(
     session: Session,
     active_org: ActiveOrgOptional,
-    _: Annotated[User, Depends(permission_checker('user', 'view'))],
+    _: Annotated[User, Depends(permission_checker('users', 'view'))],
     search: str | None = None,
     p_g: str | None = None,
     quadro: QuadroEnum | None = None,
@@ -332,7 +332,7 @@ async def get_user(
     _ensure_user_in_active_org(db_user, active_org, user)
 
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'user', 'view', db_user.id
+        user, session, active_org, 'users', 'view', db_user.id
     )
 
     return success_response(data=UserFull.model_validate(db_user))
@@ -356,7 +356,7 @@ async def update_user(
     _ensure_user_in_active_org(db_user, active_org, user)
 
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'user', 'update', db_user.id
+        user, session, active_org, 'users', 'update', db_user.id
     )
 
     patch = user_patch.model_dump(exclude_unset=True)
@@ -413,7 +413,7 @@ async def update_user(
         session=session,
         user_id=user.id,
         action='patch',
-        resource='user',
+        resource='users',
         resource_id=user_id,
         before=before_patch,
         after=after_patch,
@@ -433,7 +433,7 @@ async def delete_user(
     user_id: int,
     session: Session,
     active_org: ActiveOrgOptional,
-    user: Annotated[User, Depends(permission_checker('user', 'delete'))],
+    user: Annotated[User, Depends(permission_checker('users', 'delete'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
 
@@ -454,7 +454,7 @@ async def delete_user(
         session=session,
         user_id=user.id,
         action='delete',
-        resource='user',
+        resource='users',
         resource_id=db_user.id,
     )
 
@@ -493,7 +493,7 @@ async def list_user_promos(
     _ensure_user_in_active_org(db_user, active_org, user)
 
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'user', 'view', user_id
+        user, session, active_org, 'users', 'view', user_id
     )
 
     promos = await session.scalars(
@@ -517,7 +517,7 @@ async def create_user_promo(
     payload: UserPromoCreate,
     session: Session,
     active_org: ActiveOrgOptional,
-    user: Annotated[User, Depends(permission_checker('user', 'update'))],
+    user: Annotated[User, Depends(permission_checker('users', 'update'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
@@ -571,7 +571,7 @@ async def delete_user_promo(
     promo_id: int,
     session: Session,
     active_org: ActiveOrgOptional,
-    user: Annotated[User, Depends(permission_checker('user', 'update'))],
+    user: Annotated[User, Depends(permission_checker('users', 'update'))],
 ):
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:

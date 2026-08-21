@@ -8,7 +8,7 @@ Cobre as validacoes adicionadas nos endpoints:
 - filtro is_simulador cobrindo o modo flat (nao so o agrupado) e o
   is_simulador exposto no output agrupado.
 
-Convencao: `token_sem_perm` traz active_org='11gt' (org canonica dos seeds).
+Convencao: `token` traz active_org='11gt' (org canonica dos seeds).
 As aeronaves e tripulantes sao semeados por fixture; missoes/etapas de
 apoio ("ja existentes no banco") sao criadas direto via session, no mesmo
 padrao do test_esfaer_resumo.
@@ -180,7 +180,7 @@ async def _mk_etapa(
 
 
 async def test_with_etapas_colisao_trip_interna_rejeita(
-    client, token_sem_perm, anvs, trips
+    client, token, anvs, trips
 ):
     """Duas etapas do payload, mesma data e horarios sobrepostos, com o
     mesmo tripulante (aeronaves distintas p/ isolar do guard de anv)."""
@@ -195,14 +195,14 @@ async def test_with_etapas_colisao_trip_interna_rejeita(
         ],
     }
     resp = await client.post(
-        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token_sem_perm)
+        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token)
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'conflito de hor' in resp.json()['message'].lower()
 
 
 async def test_with_etapas_colisao_trip_externa_rejeita(
-    client, session, token_sem_perm, anvs, trips
+    client, session, token, anvs, trips
 ):
     """Etapa nova colide com etapa ja persistida (outra missao) que usa o
     mesmo tripulante em horario sobreposto."""
@@ -225,14 +225,14 @@ async def test_with_etapas_colisao_trip_externa_rejeita(
         'etapas': [_pl_etapa('2851', '10:30:00', '11:30:00', trips=[t1])],
     }
     resp = await client.post(
-        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token_sem_perm)
+        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token)
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'ja escalado' in resp.json()['message'].lower()
 
 
 async def test_with_etapas_trip_sem_sobreposicao_ok(
-    client, token_sem_perm, anvs, trips
+    client, token, anvs, trips
 ):
     """Mesmo tripulante em etapas que apenas se tocam (11:00) nao colide."""
     t1, _ = trips
@@ -246,13 +246,13 @@ async def test_with_etapas_trip_sem_sobreposicao_ok(
         ],
     }
     resp = await client.post(
-        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token_sem_perm)
+        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token)
     )
     assert resp.status_code == HTTPStatus.CREATED
 
 
 async def test_update_with_etapas_colisao_trip_externa_rejeita(
-    client, session, token_sem_perm, anvs, trips
+    client, session, token, anvs, trips
 ):
     """PUT que adiciona etapa colidindo com etapa de OUTRA missao (mesmo
     trip, horario sobreposto) e barrado."""
@@ -279,14 +279,14 @@ async def test_update_with_etapas_colisao_trip_externa_rejeita(
     resp = await client.put(
         f'{MISSAO_URL}{missao_b.id}/with-etapas',
         json=body,
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'ja escalado' in resp.json()['message'].lower()
 
 
 async def test_update_with_etapas_nao_colide_consigo_mesma(
-    client, session, token_sem_perm, anvs, trips
+    client, session, token, anvs, trips
 ):
     """Atualizar a propria etapa (mesmo trip/slot) nao dispara colisao — a
     etapa sob edicao entra em exclude_ids."""
@@ -317,7 +317,7 @@ async def test_update_with_etapas_nao_colide_consigo_mesma(
     resp = await client.put(
         f'{MISSAO_URL}{missao.id}/with-etapas',
         json=body,
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 
@@ -326,7 +326,7 @@ async def test_update_with_etapas_nao_colide_consigo_mesma(
 
 
 async def test_put_etapa_ois_divergem_ao_mudar_horario_rejeita(
-    client, session, token_sem_perm, anvs, oi_refs
+    client, session, token, anvs, oi_refs
 ):
     """Mudar dep/arr (novo tvoo) sem reenviar as OIs: a soma antiga deixa
     de bater com o tvoo novo e o update e barrado."""
@@ -349,15 +349,13 @@ async def test_put_etapa_ois_divergem_ao_mudar_horario_rejeita(
     resp = await client.put(
         f'{ETAPAS_URL}{etapa.id}',
         json={'arr': '11:30:00'},  # novo tvoo=90, OIs somam 60
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'soma das ois' in resp.json()['message'].lower()
 
 
-async def test_put_etapa_atravessa_dia_rejeita(
-    client, session, token_sem_perm, anvs
-):
+async def test_put_etapa_atravessa_dia_rejeita(client, session, token, anvs):
     """arr <= dep (sem ser 00:00) atravessa o dia e e barrado."""
     missao = await _mk_missao(session)
     etapa = await _mk_etapa(
@@ -368,14 +366,14 @@ async def test_put_etapa_atravessa_dia_rejeita(
     resp = await client.put(
         f'{ETAPAS_URL}{etapa.id}',
         json={'dep': '10:00:00', 'arr': '09:00:00'},
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'atravessar o dia' in resp.json()['message'].lower()
 
 
 async def test_put_etapa_muda_horario_e_ois_coerentes_ok(
-    client, session, token_sem_perm, anvs, oi_refs
+    client, session, token, anvs, oi_refs
 ):
     """Mudar o horario reenviando OIs que somam o novo tvoo e aceito."""
     esf_id, tipo_id = oi_refs
@@ -407,7 +405,7 @@ async def test_put_etapa_muda_horario_e_ois_coerentes_ok(
                 }
             ],
         },
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
 
@@ -416,7 +414,7 @@ async def test_put_etapa_muda_horario_e_ois_coerentes_ok(
 
 
 async def test_lista_flat_exclui_simulador_por_padrao(
-    client, session, token_sem_perm, anvs
+    client, session, token, anvs
 ):
     """O modo flat deve honrar is_simulador (default False): so etapas de
     missao normal aparecem; com is_simulador=true, so as de simulador."""
@@ -433,7 +431,7 @@ async def test_lista_flat_exclui_simulador_por_padrao(
     resp = await client.get(
         ETAPAS_URL,
         params={'flat': 'true', 'data_ini': '2025-03-01'},
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     body = resp.json()
@@ -448,16 +446,14 @@ async def test_lista_flat_exclui_simulador_por_padrao(
             'is_simulador': 'true',
             'data_ini': '2025-03-01',
         },
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     body_sim = resp_sim.json()
     missao_ids_sim = {e['missao_id'] for e in body_sim['data']}
     assert missao_ids_sim == {sim.id}
 
 
-async def test_lista_grouped_expoe_is_simulador(
-    client, session, token_sem_perm, anvs
-):
+async def test_lista_grouped_expoe_is_simulador(client, session, token, anvs):
     """O output agrupado carrega o is_simulador real da missao."""
     normal = await _mk_missao(session, is_simulador=False)
     await _mk_etapa(
@@ -468,7 +464,7 @@ async def test_lista_grouped_expoe_is_simulador(
     resp = await client.get(
         ETAPAS_URL,
         params={'data_ini': '2025-03-01'},
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     missoes = {m['id']: m for m in resp.json()['data']}
@@ -476,7 +472,7 @@ async def test_lista_grouped_expoe_is_simulador(
 
 
 async def test_with_etapas_anv_simulador_incoerente_rejeita(
-    client, token_sem_perm, anvs, trips
+    client, token, anvs, trips
 ):
     """Missao normal com aeronave de simulador e barrada (guard de
     consistencia anv x tipo de missao, pre-existente mas exercitado aqui
@@ -488,14 +484,14 @@ async def test_with_etapas_anv_simulador_incoerente_rejeita(
         'etapas': [_pl_etapa('9990', '10:00:00', '11:00:00')],
     }
     resp = await client.post(
-        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token_sem_perm)
+        f'{MISSAO_URL}with-etapas', json=body, headers=_auth(token)
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'simulador' in resp.json()['message'].lower()
 
 
 async def test_seed_etapa_persistida_visivel_no_flat(
-    client, session, token_sem_perm, anvs
+    client, session, token, anvs
 ):
     """Sanidade: etapa criada e visivel no flat (garante o caminho feliz
     da paginacao plana)."""
@@ -508,7 +504,7 @@ async def test_seed_etapa_persistida_visivel_no_flat(
     resp = await client.get(
         ETAPAS_URL,
         params={'flat': 'true', 'data_ini': '2025-03-01'},
-        headers=_auth(token_sem_perm),
+        headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
     ids = {e['id'] for e in resp.json()['data']}

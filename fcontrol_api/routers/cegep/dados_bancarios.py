@@ -38,10 +38,10 @@ router = APIRouter(prefix='/dados-bancarios', tags=['CEGEP'])
 
 # Dados bancários são PII financeira: leitura (inclusive consulta ao Portal
 # da Transparência) e escrita restritas ao recurso `dados_bancarios`.
-ViewBanco = Depends(permission_checker('dados_bancarios', 'view'))
-CreateBanco = Depends(permission_checker('dados_bancarios', 'create'))
-UpdateBanco = Depends(permission_checker('dados_bancarios', 'update'))
-DeleteBanco = Depends(permission_checker('dados_bancarios', 'delete'))
+ViewBanco = Depends(permission_checker('cegep.dados_bancarios', 'view'))
+CreateBanco = Depends(permission_checker('cegep.dados_bancarios', 'create'))
+UpdateBanco = Depends(permission_checker('cegep.dados_bancarios', 'update'))
+DeleteBanco = Depends(permission_checker('cegep.dados_bancarios', 'delete'))
 
 
 class SyncRemuneracaoRequest(BaseModel):
@@ -200,11 +200,11 @@ async def get_dados_bancarios_by_user(
     """Busca dados bancários por ID do usuário.
 
     O próprio militar vê os seus dados (self-service do FatBird) sem a
-    permissão; terceiros exigem 'dados_bancarios.view' na org ativa. Gate
+    permissão; terceiros exigem 'cegep.dados_bancarios.view' na org ativa. Gate
     no handler (não como dependência) para permitir o dono.
     """
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'dados_bancarios', 'view', user_id
+        user, session, active_org, 'cegep.dados_bancarios', 'view', user_id
     )
 
     dados = await session.scalar(
@@ -247,7 +247,7 @@ async def get_remuneracao_by_user(
     digitando o valor. Mesmo gate do irmão — remuneração é PII.
     """
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'dados_bancarios', 'view', user_id
+        user, session, active_org, 'cegep.dados_bancarios', 'view', user_id
     )
 
     # Projeção de duas colunas, não a entidade: `select(DadosBancarios)`

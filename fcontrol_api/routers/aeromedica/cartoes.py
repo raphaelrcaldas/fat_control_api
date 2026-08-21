@@ -49,10 +49,10 @@ BUCKET = 'aeromedica'
 
 # Dados de saúde são sensíveis: toda leitura exige 'view' e cada escrita a
 # sua ação. Admin da org ativa tem bypass (ver permission_checker).
-ViewCartao = Depends(permission_checker('cartoes-saude', 'view'))
-CreateCartao = Depends(permission_checker('cartoes-saude', 'create'))
-UpdateCartao = Depends(permission_checker('cartoes-saude', 'update'))
-DeleteCartao = Depends(permission_checker('cartoes-saude', 'delete'))
+ViewCartao = Depends(permission_checker('aeromedica.cartoes', 'view'))
+CreateCartao = Depends(permission_checker('aeromedica.cartoes', 'create'))
+UpdateCartao = Depends(permission_checker('aeromedica.cartoes', 'update'))
+DeleteCartao = Depends(permission_checker('aeromedica.cartoes', 'delete'))
 
 
 @router.get(
@@ -337,7 +337,7 @@ async def get_cartao_saude_by_user(
     """Busca cartao de saude por ID do usuario.
 
     O próprio militar vê o seu cartão (self-service do FatBird) sem a
-    permissão; terceiros exigem 'cartoes-saude.view' no vínculo da org
+    permissão; terceiros exigem 'aeromedica.cartoes.view' no vínculo da org
     ativa. Gate no handler (não como dependência) para permitir o owner.
 
     O gate autoriza a AÇÃO, não o ALVO: quem tem a permissão na sua unidade
@@ -345,7 +345,7 @@ async def get_cartao_saude_by_user(
     de militares da org ativa (`User.unidade`), como no resto do módulo.
     """
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'cartoes-saude', 'view', user_id
+        user, session, active_org, 'aeromedica.cartoes', 'view', user_id
     )
 
     cartao = await session.scalar(

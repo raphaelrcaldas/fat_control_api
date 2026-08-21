@@ -26,7 +26,7 @@ from fcontrol_api.schemas.estatistica.esf_aer import (
     HistTotal,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -34,6 +34,10 @@ AnoRef = Annotated[int, Query(ge=2020)]
 Simulador = Annotated[bool, Query()]
 
 router = APIRouter(prefix='/esfaer', tags=['estatistica'])
+
+# Esforço aéreo só tem leitura e ajuste de alocação — não há create.
+ViewEsfAer = Depends(permission_checker('estatistica.esf_aer', 'view'))
+UpdateEsfAer = Depends(permission_checker('estatistica.esf_aer', 'update'))
 
 
 def _meses_kwargs(meses: list[int]) -> dict[str, int]:
@@ -45,6 +49,7 @@ def _meses_kwargs(meses: list[int]) -> dict[str, int]:
     '/list',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[list[EsfAerItem]],
+    dependencies=[ViewEsfAer],
 )
 async def list_esf_aer_items(session: Session):
     """Lista todos os itens de Esforco Aereo para selects."""
@@ -63,6 +68,7 @@ async def list_esf_aer_items(session: Session):
     '/',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[EsfAerResumoResponse],
+    dependencies=[ViewEsfAer],
 )
 async def get_esf_aer_resumo(
     session: Session,
@@ -242,6 +248,7 @@ def _to_hist_points(
     '/historico',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[EsfAerHistorico],
+    dependencies=[ViewEsfAer],
 )
 async def get_esf_aer_historico(
     session: Session,
@@ -364,6 +371,7 @@ def _esf_aer_key(
     '/',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[EsfAerImportResponse],
+    dependencies=[UpdateEsfAer],
 )
 async def update_esf_aer(
     session: Session,

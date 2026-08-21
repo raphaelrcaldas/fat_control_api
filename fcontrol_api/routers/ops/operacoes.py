@@ -57,11 +57,22 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/operacoes', tags=['operacoes'])
 
-ViewOper = Depends(permission_checker('operacoes', 'view'))
-# Todas as escritas do módulo (criar/editar/associar/pessoal) exigem
-# `operacoes.create`, espelhando o gating do frontend (PermBased).
-CreateOper = Depends(permission_checker('operacoes', 'create'))
-DeleteOper = Depends(permission_checker('operacoes', 'delete'))
+ViewOper = Depends(permission_checker('ops.operacoes', 'view'))
+CreateOper = Depends(permission_checker('ops.operacoes', 'create'))
+DeleteOper = Depends(permission_checker('ops.operacoes', 'delete'))
+
+# Compor a operação (pendurar etapa, lotar militar) é permissão à parte de
+# criar a operação: quem monta o efetivo não necessariamente abre operação.
+# O front já separava esses botões; o backend cobrava só `ops.operacoes` e
+# ficava mais grosso que a UI que ele deveria sustentar.
+CreateEtapaOper = Depends(permission_checker('ops.operacoes.etapas', 'create'))
+DeleteEtapaOper = Depends(permission_checker('ops.operacoes.etapas', 'delete'))
+CreateMilitarOper = Depends(
+    permission_checker('ops.operacoes.militar', 'create')
+)
+DeleteMilitarOper = Depends(
+    permission_checker('ops.operacoes.militar', 'delete')
+)
 
 
 def _dias(inicio, fim) -> int:
@@ -275,7 +286,7 @@ async def create_operacao(
         session=session,
         user_id=user.id,
         action='create',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
     )
     await session.commit()
@@ -480,7 +491,7 @@ async def update_operacao(
         session=session,
         user_id=user.id,
         action='patch',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
         before=before,
         after=after,
@@ -504,7 +515,7 @@ async def delete_operacao(
         session=session,
         user_id=user.id,
         action='delete',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
     )
     await session.commit()
@@ -609,7 +620,7 @@ async def associar_etapas(
     payload: AssociarEtapas,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, CreateOper],
+    user: Annotated[User, CreateEtapaOper],
 ):
     op = await _get_op(session, op_id, active_org)
 
@@ -659,7 +670,7 @@ async def associar_etapas(
         session=session,
         user_id=user.id,
         action='patch',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
         after={'associadas': associadas, 'bloqueadas': bloqueadas},
     )
@@ -688,7 +699,7 @@ async def desassociar_etapa(
     etapa_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, CreateOper],
+    user: Annotated[User, DeleteEtapaOper],
 ):
     op = await _get_op(session, op_id, active_org)
     result = await session.execute(
@@ -706,7 +717,7 @@ async def desassociar_etapa(
         session=session,
         user_id=user.id,
         action='patch',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
         before={'etapa_desassociada': etapa_id},
     )
@@ -762,7 +773,7 @@ async def add_pessoal(
     payload: OperacaoPessoalIn,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, CreateOper],
+    user: Annotated[User, CreateMilitarOper],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = OperacaoPessoal(
@@ -784,7 +795,7 @@ async def add_pessoal(
         session=session,
         user_id=user.id,
         action='create',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
         after={'pessoal_add': payload.user_id},
     )
@@ -801,7 +812,7 @@ async def update_pessoal(
     payload: OperacaoPessoalIn,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, CreateOper],
+    user: Annotated[User, CreateMilitarOper],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = await session.scalar(
@@ -824,7 +835,7 @@ async def update_pessoal(
         session=session,
         user_id=user.id,
         action='patch',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
         after={'pessoal_update': pessoal_id},
     )
@@ -844,7 +855,7 @@ async def remove_pessoal(
     pessoal_id: int,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, CreateOper],
+    user: Annotated[User, DeleteMilitarOper],
 ):
     op = await _get_op(session, op_id, active_org)
     pessoa = await session.scalar(
@@ -863,7 +874,7 @@ async def remove_pessoal(
         session=session,
         user_id=user.id,
         action='delete',
-        resource='operacoes',
+        resource='ops.operacoes',
         resource_id=op.id,
         before={'pessoal_remove': pessoal_id},
     )

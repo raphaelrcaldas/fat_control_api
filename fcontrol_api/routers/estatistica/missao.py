@@ -30,7 +30,7 @@ from fcontrol_api.schemas.estatistica.etapa import (
     MissaoUpdate,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.etapas import (
     add_especificos,
     assert_anv_simulador_consistency,
@@ -51,11 +51,19 @@ MissaoId = Annotated[int, Path()]
 
 router = APIRouter(prefix='/missao', tags=['estatistica'])
 
+# Missão de estatística é o agrupador das etapas e divide o mesmo
+# recurso: quem lança etapa lança a missão que as carrega.
+ViewMissaoEtp = Depends(permission_checker('estatistica.etapas', 'view'))
+CreateMissaoEtp = Depends(permission_checker('estatistica.etapas', 'create'))
+UpdateMissaoEtp = Depends(permission_checker('estatistica.etapas', 'update'))
+DeleteMissaoEtp = Depends(permission_checker('estatistica.etapas', 'delete'))
+
 
 @router.get(
     '/{missao_id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[MissaoComEtapasDetailOut],
+    dependencies=[ViewMissaoEtp],
 )
 async def get_missao(
     missao_id: MissaoId,
@@ -112,6 +120,7 @@ async def get_missao(
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[MissaoPublic],
+    dependencies=[CreateMissaoEtp],
 )
 async def create_missao(
     missao: MissaoCreate,
@@ -138,6 +147,7 @@ async def create_missao(
     '/with-etapas',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[MissaoPublic],
+    dependencies=[CreateMissaoEtp],
 )
 async def create_missao_with_etapas(
     data: MissaoComEtapasCreate,
@@ -291,6 +301,7 @@ async def create_missao_with_etapas(
     '/{missao_id}/with-etapas',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[MissaoComEtapasDetailOut],
+    dependencies=[UpdateMissaoEtp],
 )
 async def update_missao_with_etapas(
     missao_id: MissaoId,
@@ -653,6 +664,7 @@ async def update_missao_with_etapas(
     '/{missao_id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[MissaoPublic],
+    dependencies=[UpdateMissaoEtp],
 )
 async def update_missao(
     missao_id: MissaoId,
@@ -687,6 +699,7 @@ async def update_missao(
     '/{missao_id}/com-etapas',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
+    dependencies=[DeleteMissaoEtp],
 )
 async def delete_missao_com_etapas(
     missao_id: MissaoId,
@@ -738,6 +751,7 @@ async def delete_missao_com_etapas(
     '/{missao_id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
+    dependencies=[DeleteMissaoEtp],
 )
 async def delete_missao(
     missao_id: MissaoId,

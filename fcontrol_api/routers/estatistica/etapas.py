@@ -38,7 +38,7 @@ from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
 )
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.etapas import (
     add_especificos,
     assert_anv_simulador_consistency,
@@ -60,6 +60,13 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 EtapaId = Annotated[int, Path()]
 
 router = APIRouter(prefix='/etapas', tags=['estatistica'])
+
+# Lançamento de etapa é escrita de estatística: sem gate, qualquer
+# token alcançava o CRUD inteiro.
+ViewEtapa = Depends(permission_checker('estatistica.etapas', 'view'))
+CreateEtapa = Depends(permission_checker('estatistica.etapas', 'create'))
+UpdateEtapa = Depends(permission_checker('estatistica.etapas', 'update'))
+DeleteEtapa = Depends(permission_checker('estatistica.etapas', 'delete'))
 
 _ETAPA_UPDATE_FIELDS = frozenset({
     'data',
@@ -88,6 +95,7 @@ _ETAPA_UPDATE_FIELDS = frozenset({
         ApiResponse[list[MissaoComEtapasOut]]
         | ApiPaginatedResponse[EtapaFlatOut]
     ),
+    dependencies=[ViewEtapa],
 )
 async def list_etapas(
     session: Session,
@@ -273,6 +281,7 @@ async def list_etapas(
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[EtapaDetailOut],
+    dependencies=[ViewEtapa],
 )
 async def get_etapa_detail(
     id: EtapaId, session: Session, active_org: ActiveOrg
@@ -312,6 +321,7 @@ async def get_etapa_detail(
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[EtapaPublic],
+    dependencies=[CreateEtapa],
 )
 async def create_etapa(
     data: EtapaCreate, session: Session, active_org: ActiveOrg
@@ -435,6 +445,7 @@ async def create_etapa(
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[EtapaPublic],
+    dependencies=[UpdateEtapa],
 )
 async def update_etapa(
     id: EtapaId, data: EtapaUpdate, session: Session, active_org: ActiveOrg
@@ -622,6 +633,7 @@ async def update_etapa(
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
+    dependencies=[DeleteEtapa],
 )
 async def delete_etapa(
     id: EtapaId, session: Session, active_org: ActiveOrg
@@ -651,7 +663,7 @@ async def delete_etapa(
     )
 
 
-@router.post('/export')
+@router.post('/export', dependencies=[ViewEtapa])
 async def export_etapas(
     data: EtapaExportRequest,
     session: Session,

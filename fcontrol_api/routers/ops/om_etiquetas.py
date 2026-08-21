@@ -31,9 +31,9 @@ router = APIRouter(prefix='/om/etiquetas', tags=['ordens-missao'])
 
 # Etiqueta herda a permissão da OM: mesmo recurso `ordem_missao` dos
 # guardas de `om.py` — quem edita a ordem administra as etiquetas dela.
-CreateOM = Depends(permission_checker('ordem_missao', 'create'))
-UpdateOM = Depends(permission_checker('ordem_missao', 'update'))
-DeleteOM = Depends(permission_checker('ordem_missao', 'delete'))
+CreateOM = Depends(permission_checker('ops.ordem_missao', 'create'))
+UpdateOM = Depends(permission_checker('ops.ordem_missao', 'update'))
+DeleteOM = Depends(permission_checker('ops.ordem_missao', 'delete'))
 
 # Auditoria. Etiqueta de OM tem recurso próprio: 'etiqueta' já é do CEGEP,
 # cuja Etiqueta é outra tabela, com sequência de id independente — filtrar

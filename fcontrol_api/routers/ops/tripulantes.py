@@ -34,6 +34,9 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
 
+CreateTrip = Depends(permission_checker('ops.tripulantes', 'create'))
+UpdateTrip = Depends(permission_checker('ops.tripulantes', 'update'))
+
 
 @router.post(
     '/', status_code=HTTPStatus.CREATED, response_model=ApiResponse[TripSchema]
@@ -42,7 +45,7 @@ async def create_trip(
     trip: TripCreate,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(permission_checker('trips', 'create'))],
+    user: Annotated[User, CreateTrip],
 ):
     db_trig = await session.scalar(
         select(Tripulante).where(
@@ -118,7 +121,7 @@ async def create_trip(
         session=session,
         user_id=user.id,
         action='create',
-        resource='trips',
+        resource='ops.tripulantes',
         resource_id=tripulante.id,
         after={
             'user_id': tripulante.user_id,
@@ -309,7 +312,7 @@ async def update_trip(
     trip: BaseTrip,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(permission_checker('trips', 'update'))],
+    user: Annotated[User, UpdateTrip],
 ):
     query = select(Tripulante).where(
         Tripulante.id == id, Tripulante.uae == active_org
@@ -385,7 +388,7 @@ async def update_trip(
             session=session,
             user_id=user.id,
             action='patch',
-            resource='trips',
+            resource='ops.tripulantes',
             resource_id=trip_search.id,
             before=before_patch,
             after=after_patch,
@@ -415,7 +418,7 @@ async def patch_trip(
     trip: TripUpdate,
     session: Session,
     active_org: ActiveOrg,
-    user: Annotated[User, Depends(permission_checker('trips', 'update'))],
+    user: Annotated[User, UpdateTrip],
 ):
     query = select(Tripulante).where(
         Tripulante.id == id, Tripulante.uae == active_org
@@ -510,7 +513,7 @@ async def patch_trip(
             session=session,
             user_id=user.id,
             action='patch',
-            resource='trips',
+            resource='ops.tripulantes',
             resource_id=trip_search.id,
             before=before_patch,
             after=after_patch,

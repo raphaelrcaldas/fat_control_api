@@ -52,15 +52,20 @@ router = APIRouter(prefix='/passaportes', tags=['Inteligencia'])
 
 # Guardas reutilizáveis do recurso `passaportes`. O upsert (PUT) resolve
 # create-vs-update no handler, então não tem alias (ver has_org_permission).
-ViewPassaportes = Depends(permission_checker('passaportes', 'view'))
-DeletePassaportes = Depends(permission_checker('passaportes', 'delete'))
+ViewPassaportes = Depends(
+    permission_checker('inteligencia.passaportes', 'view')
+)
+DeletePassaportes = Depends(
+    permission_checker('inteligencia.passaportes', 'delete')
+)
 
-# As imagens (passaporte/visto) são um recurso próprio `passaporte.image`,
-# com suas 4 ações granulares — desacopladas dos dados textuais do
+# As imagens (passaporte/visto) são um recurso próprio
+# `inteligencia.passaportes.imagem`, com suas 4 ações granulares —
+# desacopladas dos dados textuais do
 # passaporte. `view` é checado inline nos GETs (inclui as URLs só para quem
 # pode ver a imagem); `delete` tem alias; o upload resolve create-vs-update
 # no handler (ver has_org_permission).
-IMG_RESOURCE = 'passaporte.image'
+IMG_RESOURCE = 'inteligencia.passaportes.imagem'
 DeleteImgPassaporte = Depends(permission_checker(IMG_RESOURCE, 'delete'))
 
 # Bucket do domínio inteligência. O nome do bucket é constante de código
@@ -92,9 +97,10 @@ def _to_public(
 ) -> PassaportePublic:
     """PassaportePublic; com `with_urls=False` omite as signed URLs.
 
-    As URLs só são expostas a quem tem `passaporte.image.view` (os GETs
-    passam o resultado da checagem; os endpoints de escrita, sendo o próprio
-    ator da operação, sempre as incluem).
+    As URLs só são expostas a quem tem
+    `inteligencia.passaportes.imagem.view` (os GETs passam o resultado da
+    checagem; os endpoints de escrita, sendo o próprio ator da operação,
+    sempre as incluem).
     """
     data = PassaportePublic.model_validate(passaporte)
     if with_urls:
@@ -235,7 +241,7 @@ async def get_passaporte_by_user(
     # tripulantes da org ativa (`Tripulante.uae`), como no resto do módulo.
     is_owner = user.id == user_id
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'passaportes', 'view', user_id
+        user, session, active_org, 'inteligencia.passaportes', 'view', user_id
     )
 
     passaporte = await session.scalar(
@@ -250,7 +256,7 @@ async def get_passaporte_by_user(
         return success_response(data=None)
 
     # A imagem do próprio documento é sempre visível ao dono; terceiros só
-    # com `passaporte.image.view`.
+    # com `inteligencia.passaportes.imagem.view`.
     can_view_img = is_owner or await has_org_permission(
         user, session, active_org, IMG_RESOURCE, 'view'
     )
@@ -291,7 +297,7 @@ async def upsert_passaporte(
     # 'create'. A ação é decidida pela existência do passaporte.
     action = 'update' if passaporte else 'create'
     if not await has_org_permission(
-        user, session, active_org, 'passaportes', action
+        user, session, active_org, 'inteligencia.passaportes', action
     ):
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN,

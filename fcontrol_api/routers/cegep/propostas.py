@@ -28,7 +28,7 @@ router = APIRouter(prefix='/propostas', tags=['CEGEP'])
 # `ordem_missao.status`): planejar é simulação, não registra nada, e por isso
 # não tem de custar a mesma permissão que lançar comissionamento de verdade —
 # quem planeja pode não lançar, e quem lança pode não planejar.
-PROPOSTA = 'comiss.propostas'
+PROPOSTA = 'cegep.comiss.propostas'
 
 ViewProposta = Depends(permission_checker(PROPOSTA, 'view'))
 CreateProposta = Depends(permission_checker(PROPOSTA, 'create'))

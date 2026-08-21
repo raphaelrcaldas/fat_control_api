@@ -36,8 +36,8 @@ router = APIRouter(prefix='/crm', tags=['Seguranca de Voo'])
 # CRM é qualificação da tripulação: leitura exige 'view' e cada escrita a
 # sua ação. Admin da org ativa tem bypass (ver permission_checker). O
 # self-service do FatBird (get por user) usa owner-OR-permission.
-ViewCrm = Depends(permission_checker('crm', 'view'))
-DeleteCrm = Depends(permission_checker('crm', 'delete'))
+ViewCrm = Depends(permission_checker('seg_voo.crm', 'view'))
+DeleteCrm = Depends(permission_checker('seg_voo.crm', 'delete'))
 
 
 @router.get(
@@ -126,9 +126,9 @@ async def get_crm_by_user(
     user: CurrentUser,
 ):
     # O próprio militar vê o seu CRM (self-service do FatBird) sem a
-    # permissão; terceiros exigem 'crm.view' no vínculo da org ativa.
+    # permissão; terceiros exigem 'seg_voo.crm.view' no vínculo da org ativa.
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'crm', 'view', user_id
+        user, session, active_org, 'seg_voo.crm', 'view', user_id
     )
 
     # Só retorna o CRM se o usuário for tripulante da org ativa.
@@ -248,7 +248,7 @@ async def upsert_crm(
         user,
         session,
         active_org,
-        'crm',
+        'seg_voo.crm',
         'update' if crm else 'create',
         owner_id=None,
     )

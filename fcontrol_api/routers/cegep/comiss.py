@@ -56,10 +56,10 @@ RESOURCE_MISSAO = 'missao'
 
 # Gating RBAC pelo recurso `comiss` (apoio_avancado tem CRUD; a leitura é
 # concedida também a dout/ops). O escopo por org já é feito via active_org.
-ViewComiss = Depends(permission_checker('comiss', 'view'))
-CreateComiss = Depends(permission_checker('comiss', 'create'))
-UpdateComiss = Depends(permission_checker('comiss', 'update'))
-DeleteComiss = Depends(permission_checker('comiss', 'delete'))
+ViewComiss = Depends(permission_checker('cegep.comiss', 'view'))
+CreateComiss = Depends(permission_checker('cegep.comiss', 'create'))
+UpdateComiss = Depends(permission_checker('cegep.comiss', 'update'))
+DeleteComiss = Depends(permission_checker('cegep.comiss', 'delete'))
 
 
 def _comiss_to_dict(c: Comissionamento) -> dict:
@@ -102,7 +102,7 @@ async def get_cmtos(
     # Qualquer consulta mais ampla (outro user_id, ou sem filtro → owner_id
     # None) exige a permissão de role na org ativa.
     await ensure_org_permission_or_owner(
-        current_user, session, active_org, 'comiss', 'view', user_id
+        current_user, session, active_org, 'cegep.comiss', 'view', user_id
     )
 
     query = (
@@ -318,7 +318,12 @@ async def get_cmto_by_id(
     # Self-service: o dono vê o próprio comissionamento (portal FatBird)
     # sem `comiss.view`; terceiros exigem a permissão de role na org ativa.
     await ensure_org_permission_or_owner(
-        current_user, session, active_org, 'comiss', 'view', comiss.user_id
+        current_user,
+        session,
+        active_org,
+        'cegep.comiss',
+        'view',
+        comiss.user_id,
     )
 
     cache = comiss.cache_calc or {}

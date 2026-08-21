@@ -35,9 +35,9 @@ RESOURCE = 'orcamento_anual'
 
 # Orçamento anual: leitura/escrita restritas ao recurso RBAC `orcamento`
 # (apoio_avancado). `orcamento.update` foi criado para o PUT.
-ViewOrc = Depends(permission_checker('orcamento', 'view'))
-CreateOrc = Depends(permission_checker('orcamento', 'create'))
-UpdateOrc = Depends(permission_checker('orcamento', 'update'))
+ViewOrc = Depends(permission_checker('cegep.orcamento', 'view'))
+CreateOrc = Depends(permission_checker('cegep.orcamento', 'create'))
+UpdateOrc = Depends(permission_checker('cegep.orcamento', 'update'))
 
 
 def _orcamento_to_dict(orc: OrcamentoAnual) -> dict:

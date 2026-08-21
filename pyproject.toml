@@ -91,11 +91,16 @@ post_test = 'coverage html'
 
 cleanup = 'python -m scripts.run_cleanup'
 
+# Catalogo de recursos RBAC: contrato entre `api` e os fronts, que sao
+# repos independentes. Regerar ao adicionar/renomear gate e commitar o JSON
+# nos dois lados — `test_catalogo_rbac.py` reprova se esquecer.
+"rbac:export" = 'python -m scripts.rbac_catalog'
+
 # `ruff check` NAO ve formatacao: um arquivo pode passar em "All checks
 # passed" e ainda estar por formatar, acumulando drift ate alguem rodar
 # `task format` — e aí a reformatacao cai no commit de quem passou por ali.
 # `ruff format --check` fecha esse buraco: drift vira falha de lint.
-lint = 'ruff check . && ruff format --check .'
+lint = 'ruff check . && ruff format --check . && python -m scripts.rbac_catalog --check'
 format = 'ruff check . --fix && ruff format .'
 
 [build-system]

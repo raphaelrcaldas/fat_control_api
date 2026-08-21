@@ -67,16 +67,28 @@ def make_perm_token(users, session, make_org_token):
 
 @pytest.fixture
 async def oper_viewer_token(make_perm_token):
-    """Só lê operações (operacoes.view), sem criar/excluir."""
+    """Só lê operações (ops.operacoes.view), sem criar/excluir."""
     return await make_perm_token(
-        [('operacoes', 'view')], role_name='oper_viewer'
+        [('ops.operacoes', 'view')], role_name='oper_viewer'
     )
 
 
 @pytest.fixture
 async def oper_writer_token(make_perm_token):
-    """Lê e escreve (view + create), mas NÃO exclui (sem operacoes.delete)."""
+    """Lê e escreve, mas NÃO exclui a operação.
+
+    Compor a operação (etapa, militar) é recurso à parte de criá-la, então
+    o token de escrita precisa dos três — sem `ops.operacoes.delete`, que é
+    o que os testes de proibição cobram.
+    """
     return await make_perm_token(
-        [('operacoes', 'view'), ('operacoes', 'create')],
+        [
+            ('ops.operacoes', 'view'),
+            ('ops.operacoes', 'create'),
+            ('ops.operacoes.etapas', 'create'),
+            ('ops.operacoes.etapas', 'delete'),
+            ('ops.operacoes.militar', 'create'),
+            ('ops.operacoes.militar', 'delete'),
+        ],
         role_name='oper_writer',
     )

@@ -54,6 +54,11 @@ def _rotas(uid: int, trip_id: int, func: str):
         ('quads-trip', f'ops/quads/trip/{trip_id}', {'type_id': 1}),
         # sebo.ts
         ('sebo', 'estatistica/sebo/', {'func': func}),
+        # funcoes.ts — catálogo de funções da org (rótulo/cor/posições).
+        # Sem ele o portal não sabe rotular nem 'pil'.
+        ('funcoes', 'config/funcoes', None),
+        # cities.ts — busca de cidade do simulador de pernoite.
+        ('cities', 'cities', {'search': 'rio'}),
     ]
 
 

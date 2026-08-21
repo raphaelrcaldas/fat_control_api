@@ -42,15 +42,17 @@ async def om_editor_token(users, session, make_org_token):
     """Token de editor de OM: pode criar/editar, mas não transitar status.
 
     Monta uma role não-admin vinculada à '11gt' com os grants
-    `ordem_missao.create` e `ordem_missao.update`, deliberadamente sem
-    `ordem_missao.status.update`. Serve para provar que `update_ordem`
+    `ops.ordem_missao.create` e `ops.ordem_missao.update`, deliberadamente sem
+    `ops.ordem_missao.status.update`. Serve para provar que `update_ordem`
     aplica o gate granular de status (aprovar/cancelar) além do
-    `ordem_missao.update` herdado pelo `Depends`.
+    `ops.ordem_missao.update` herdado pelo `Depends`.
     """
     user, _ = users
 
-    res_om = Resources(name='ordem_missao', description='OM')
-    res_status = Resources(name='ordem_missao.status', description='OM status')
+    res_om = Resources(name='ops.ordem_missao', description='OM')
+    res_status = Resources(
+        name='ops.ordem_missao.status', description='OM status'
+    )
     session.add_all([res_om, res_status])
     await session.flush()
 

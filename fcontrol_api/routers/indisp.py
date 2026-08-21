@@ -44,7 +44,7 @@ router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 # Prazo mínimo que o próprio tripulante tem de respeitar para lançar,
 # alterar ou remover a sua indisponibilidade: a escala já foi montada em
-# cima dela. Quem tem a permissão 'indisp_trips' (escalante, pelo client)
+# cima dela. Quem tem a permissão 'ops.indisp' (escalante, pelo client)
 # passa por cima — a trava é do token de tripulante.
 PRAZO_MINIMO_DIAS = 2
 
@@ -77,7 +77,7 @@ async def ensure_prazo_tripulante(
         return
 
     if await has_org_permission(
-        user, session, active_org, 'indisp_trips', action
+        user, session, active_org, 'ops.indisp', action
     ):
         return
 
@@ -239,9 +239,9 @@ async def create_indisp(
     user: CurrentUser,
 ):
     # O tripulante lança a PRÓPRIA indisponibilidade pelo FatBird (sem
-    # role); lançar para outro militar exige 'indisp_trips.create'.
+    # role); lançar para outro militar exige 'ops.indisp.create'.
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'indisp_trips', 'create', indisp.user_id
+        user, session, active_org, 'ops.indisp', 'create', indisp.user_id
     )
 
     # O alvo tem de ser tripulante da org ativa — barra cross-org mesmo
@@ -371,9 +371,9 @@ async def delete_indisp(
         )
 
     # O dono remove a própria (FatBird); remover a de outro exige
-    # 'indisp_trips.delete' na org ativa.
+    # 'ops.indisp.delete' na org ativa.
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'indisp_trips', 'delete', indisp.user_id
+        user, session, active_org, 'ops.indisp', 'delete', indisp.user_id
     )
 
     await ensure_prazo_tripulante(
@@ -393,7 +393,7 @@ async def delete_indisp(
         session=session,
         user_id=user.id,
         action='delete',
-        resource='indisp',
+        resource='ops.indisp',
         resource_id=indisp.id,
     )
 
@@ -423,9 +423,9 @@ async def update_indisp(
         )
 
     # O dono edita a própria (FatBird); editar a de outro exige
-    # 'indisp_trips.update' na org ativa.
+    # 'ops.indisp.update' na org ativa.
     await ensure_org_permission_or_owner(
-        user, session, active_org, 'indisp_trips', 'update', db_indisp.user_id
+        user, session, active_org, 'ops.indisp', 'update', db_indisp.user_id
     )
 
     if db_indisp.deleted_at is not None:
@@ -506,7 +506,7 @@ async def update_indisp(
         session=session,
         user_id=user.id,
         action='patch',
-        resource='indisp',
+        resource='ops.indisp',
         resource_id=db_indisp.id,
         before=before,
         after=after,

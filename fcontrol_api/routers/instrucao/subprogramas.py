@@ -25,15 +25,15 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/subprogramas', tags=['Instrucao'])
 
-ViewSubprograma = Depends(permission_checker('instrucao-subprogramas', 'view'))
+ViewSubprograma = Depends(permission_checker('instrucao.subprogramas', 'view'))
 CreateSubprograma = Depends(
-    permission_checker('instrucao-subprogramas', 'create')
+    permission_checker('instrucao.subprogramas', 'create')
 )
 UpdateSubprograma = Depends(
-    permission_checker('instrucao-subprogramas', 'update')
+    permission_checker('instrucao.subprogramas', 'update')
 )
 DeleteSubprograma = Depends(
-    permission_checker('instrucao-subprogramas', 'delete')
+    permission_checker('instrucao.subprogramas', 'delete')
 )
 
 

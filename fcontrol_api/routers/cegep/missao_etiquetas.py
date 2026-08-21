@@ -28,9 +28,9 @@ router = APIRouter(prefix='/missoes/etiquetas', tags=['CEGEP'])
 RESOURCE_ETIQUETA = 'etiqueta'
 
 # Etiqueta herda o recurso da missão: mesmos guardas de `missao.py`.
-ViewMis = Depends(permission_checker('missoes_cegep', 'view'))
-CreateMis = Depends(permission_checker('missoes_cegep', 'create'))
-DeleteMis = Depends(permission_checker('missoes_cegep', 'delete'))
+ViewMis = Depends(permission_checker('cegep.missoes', 'view'))
+CreateMis = Depends(permission_checker('cegep.missoes', 'create'))
+DeleteMis = Depends(permission_checker('cegep.missoes', 'delete'))
 
 
 @router.get(

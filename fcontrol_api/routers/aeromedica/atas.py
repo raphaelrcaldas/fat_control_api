@@ -176,10 +176,10 @@ router = APIRouter(prefix='/atas', tags=['Atas de Inspeção'])
 
 # Atas seguem o mesmo recurso RBAC dos cartões de saúde (dado sensível de
 # saúde). Leitura exige 'view'; anexar/extrair é 'create'; remover é 'delete'.
-ViewCartao = Depends(permission_checker('cartoes-saude', 'view'))
-CreateCartao = Depends(permission_checker('cartoes-saude', 'create'))
-UpdateCartao = Depends(permission_checker('cartoes-saude', 'update'))
-DeleteCartao = Depends(permission_checker('cartoes-saude', 'delete'))
+ViewCartao = Depends(permission_checker('aeromedica.cartoes', 'view'))
+CreateCartao = Depends(permission_checker('aeromedica.cartoes', 'create'))
+UpdateCartao = Depends(permission_checker('aeromedica.cartoes', 'update'))
+DeleteCartao = Depends(permission_checker('aeromedica.cartoes', 'delete'))
 
 
 @router.post(

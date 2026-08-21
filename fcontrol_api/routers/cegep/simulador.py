@@ -144,7 +144,7 @@ async def simular_custo_missao(payload: SimulacaoInput, session: Session):
     **Sem gate de permissão de propósito**, mas com identidade validada: a
     rota é uma calculadora pura sobre tabelas de referência públicas — não
     lê nem escreve dado de organização nenhuma, não recebe identificador de
-    recurso e não persiste, então `missoes_cegep.view` só servia para
+    recurso e não persiste, então `cegep.missoes.view` só servia para
     quebrar o simulador self-service do FatBird, cujo tripulante não tem
     role. O `get_current_user` continua: o middleware global só confere a
     assinatura do JWT, e é essa dependency que carrega o usuário do banco,

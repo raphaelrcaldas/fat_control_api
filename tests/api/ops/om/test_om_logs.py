@@ -2,7 +2,7 @@
 Testes de auditoria (UserActionLog) das rotas de Ordem de Missao.
 
 Cobrem o que o snapshot rico (`ordem_snapshot`) promete: create/update/
-delete de OM sob o recurso `ordem_missao`, o CRUD de etiqueta sob o
+delete de OM sob o recurso `ops.ordem_missao`, o CRUD de etiqueta sob o
 recurso proprio `om_etiqueta` e o silencio do update que nao muda nada.
 
 O foco aqui e o *conteudo* do before/after — as listas (etapas,
@@ -25,7 +25,7 @@ pytestmark = pytest.mark.anyio
 BASE_URL = '/ops/om/'
 ETIQUETAS_URL = '/ops/om/etiquetas/'
 
-RESOURCE = 'ordem_missao'
+RESOURCE = 'ops.ordem_missao'
 RESOURCE_ETIQUETA = 'om_etiqueta'
 
 

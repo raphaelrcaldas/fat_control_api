@@ -48,7 +48,7 @@ async def create_aeronave(
     aeronave: AeronaveCreate,
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('aeronaves', 'create'))],
+    _: Annotated[User, Depends(permission_checker('ops.aeronaves', 'create'))],
 ):
     db_aeronave = await session.scalar(
         select(Aeronave).where(Aeronave.matricula == aeronave.matricula)
@@ -201,7 +201,7 @@ async def update_aeronave(
     aeronave: AeronaveUpdate,
     session: Session,
     active_org: ActiveOrg,
-    _: Annotated[User, Depends(permission_checker('aeronaves', 'update'))],
+    _: Annotated[User, Depends(permission_checker('ops.aeronaves', 'update'))],
 ):
     db_aeronave = await session.scalar(
         select(Aeronave).where(

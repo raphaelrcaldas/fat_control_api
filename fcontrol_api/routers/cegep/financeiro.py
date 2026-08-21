@@ -50,9 +50,9 @@ async def get_pgto(
 ):
     # Leitura financeira de missões CEGEP. O próprio militar vê seus
     # pagamentos (user_id == ele) sem a permissão — usado pelo portal
-    # FatBird. Qualquer consulta mais ampla exige 'missoes_cegep.view'.
+    # FatBird. Qualquer consulta mais ampla exige 'cegep.missoes.view'.
     await ensure_org_permission_or_owner(
-        current_user, session, active_org, 'missoes_cegep', 'view', user_id
+        current_user, session, active_org, 'cegep.missoes', 'view', user_id
     )
 
     # Query base com joins (missões da org ativa)
