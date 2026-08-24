@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import CheckConstraint, ForeignKey, Identity, String
+from sqlalchemy import CheckConstraint, ForeignKey, Identity, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fcontrol_api.models.shared.users import User
@@ -34,6 +34,14 @@ class Passaporte(Base):
     visa: Mapped[str | None] = mapped_column(String(20))
     data_expedicao_visa: Mapped[date | None]
     validade_visa: Mapped[date | None]
+    # Custódia do passaporte físico (LocalPassaporteEnum). String livre no
+    # banco; a validação contra a lista fechada mora no schema Pydantic
+    # (mesmo contrato de `tema`/`cargo` em models/shared/tenant.py).
+    # NOT NULL com default 'secao': o caderno arquivado é o estado de
+    # repouso — registro sem informação é registro na seção.
+    local_passaporte: Mapped[str] = mapped_column(
+        String(20), default='secao', server_default=text("'secao'")
+    )
     # KEY do objeto JPG no bucket `inteligencia` (sem o nome do bucket).
     # TEXT (sem limite fixo): a key carrega prefixo/user_id/timestamp/nome.
     passaporte_file_path: Mapped[str | None] = mapped_column(default=None)

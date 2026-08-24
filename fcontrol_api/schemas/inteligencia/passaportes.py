@@ -8,6 +8,8 @@ from pydantic import (
     model_validator,
 )
 
+from fcontrol_api.enums.local_passaporte import LocalPassaporteEnum
+
 
 class PassaporteBase(BaseModel):
     passaporte: str | None = None
@@ -16,11 +18,23 @@ class PassaporteBase(BaseModel):
     visa: str | None = None
     data_expedicao_visa: date | None = None
     validade_visa: date | None = None
+    # Coluna NOT NULL no model: sempre viaja preenchida, e o default
+    # espelha o `server_default` (registro sem informação = na seção).
+    local_passaporte: LocalPassaporteEnum = LocalPassaporteEnum.SECAO
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class PassaporteUpdate(PassaporteBase):
+    # `use_enum_values`: valida contra a lista fechada mas guarda a string
+    # crua, que é o que a coluna String(20) espera (tanto no `setattr` do
+    # update quanto no construtor do create). `validate_default` é o que
+    # estende isso ao payload que omite a chave — sem ele o default herdado
+    # entra como membro do Enum e vai para a coluna como objeto.
+    model_config = ConfigDict(
+        from_attributes=True, use_enum_values=True, validate_default=True
+    )
+
     @field_validator('passaporte', 'visa', mode='before')
     @classmethod
     def normalizar_documento(cls, v: str | None) -> str | None:
