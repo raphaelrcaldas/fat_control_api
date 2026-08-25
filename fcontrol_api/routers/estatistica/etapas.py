@@ -4,9 +4,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import Integer, select
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func as sql_func
-from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -31,8 +32,10 @@ from fcontrol_api.schemas.estatistica.etapa import (
     EtapaFlatOut,
     EtapaOut,
     EtapaPublic,
+    EtapasPendentesOut,
     EtapaUpdate,
     MissaoComEtapasOut,
+    MissaoPendenteOut,
 )
 from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
@@ -275,6 +278,85 @@ async def list_etapas(
     ]
 
     return success_response(data=items)
+
+
+@router.get(
+    '/pendentes',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[EtapasPendentesOut],
+    dependencies=[ViewEtapa],
+)
+async def list_etapas_pendentes(
+    session: Session,
+    active_org: ActiveOrg,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> ApiResponse[EtapasPendentesOut]:
+    """Etapas sem SAGEM e/ou sem Parte 1, agrupadas por missao.
+
+    A varredura e deliberadamente **sem filtro de data**: o alerta que
+    consome esta rota existe justamente para pescar a missao antiga que
+    ficou fora da janela do filtro da tela. Precisa vir declarada antes de
+    `/{id}`, senao o path casa com a rota de detalhe e reprova em 422.
+
+    Missao de simulador fica de fora: nao vira relatorio de voo, entao nao
+    tem SAGEM nem Parte 1 a cobrar.
+
+    `primeira_data`/`ultima_data` sao o intervalo das etapas **pendentes**
+    da missao (nao de todas), o que deixa a tela decidir sozinha se a
+    pendencia caiu fora da janela que o usuario esta vendo.
+
+    Uma unica query: o `array_agg` ordenado entrega a etapa pendente mais
+    antiga de cada missao junto com a agregacao. `limit` corta so a lista
+    detalhada — os totais continuam globais.
+    """
+    pendente = Etapa.sagem.is_(False) | Etapa.parte1.is_(False)
+
+    grupos = (
+        await session.execute(
+            select(
+                Etapa.missao_id,
+                Missao.titulo,
+                sql_func.count().label('total'),
+                # [1] = primeiro elemento (array do PG e 1-based): a etapa
+                # pendente mais antiga, que ancora o link da tela.
+                sql_func.array_agg(
+                    aggregate_order_by(
+                        Etapa.id, Etapa.data, Etapa.dep, Etapa.id
+                    ),
+                    type_=ARRAY(Integer),
+                )[1].label('etapa_id'),
+                sql_func.min(Etapa.data).label('primeira_data'),
+                sql_func.max(Etapa.data).label('ultima_data'),
+            )
+            .join(Missao, Missao.id == Etapa.missao_id)
+            .where(
+                Missao.uae == active_org,
+                Missao.is_simulador.is_(False),
+                pendente,
+            )
+            .group_by(Etapa.missao_id, Missao.titulo)
+            # Mais antiga primeiro: e a que corre risco de passar batido.
+            .order_by(sql_func.min(Etapa.data), Etapa.missao_id)
+        )
+    ).all()
+
+    return success_response(
+        data=EtapasPendentesOut(
+            total=sum(g.total for g in grupos),
+            total_missoes=len(grupos),
+            missoes=[
+                MissaoPendenteOut(
+                    missao_id=g.missao_id,
+                    titulo=g.titulo,
+                    etapa_id=g.etapa_id,
+                    primeira_data=g.primeira_data,
+                    ultima_data=g.ultima_data,
+                    total=g.total,
+                )
+                for g in grupos[:limit]
+            ],
+        )
+    )
 
 
 @router.get(

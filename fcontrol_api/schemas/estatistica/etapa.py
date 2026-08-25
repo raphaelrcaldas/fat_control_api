@@ -104,6 +104,30 @@ class MissaoComEtapasOut(BaseModel):
     etapas: list[EtapaOut]
 
 
+class MissaoPendenteOut(BaseModel):
+    """Missao com etapas pendentes de verificacao (SAGEM / Parte 1)."""
+
+    missao_id: int
+    titulo: str | None
+    # Etapa pendente mais antiga da missao: e nela que o alerta da tela
+    # abre o editor.
+    etapa_id: int
+    # Intervalo das etapas PENDENTES (nao de todas as da missao) — deixa a
+    # tela decidir se a pendencia caiu fora da janela que ela exibe.
+    primeira_data: date
+    ultima_data: date
+    total: int
+
+
+class EtapasPendentesOut(BaseModel):
+    """Resumo de pendencias da org ativa, independente do filtro da tela."""
+
+    total: int
+    total_missoes: int
+    # Truncada em `limit`; `total_missoes` diz quantas existem ao todo.
+    missoes: list[MissaoPendenteOut]
+
+
 class TripEtapaOut(BaseModel):
     """Tripulante vinculado a uma etapa."""
 
