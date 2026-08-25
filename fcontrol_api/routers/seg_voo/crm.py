@@ -61,6 +61,8 @@ async def list_crm(
             User.nome_completo,
             User.saram,
             User.telefone,
+            Tripulante.trig,
+            Tripulante.func,
             CrmCertificado.id.label('crm_id'),
             CrmCertificado.data_realizacao,
             CrmCertificado.data_validade,
@@ -103,6 +105,8 @@ async def list_crm(
             nome_completo=r.nome_completo,
             saram=r.saram,
             telefone=r.telefone,
+            trig=r.trig,
+            func=r.func,
             crm=CrmPublic(
                 id=r.crm_id,
                 user_id=r.user_id,

@@ -37,6 +37,8 @@ class TripCrmOut(BaseModel):
     nome_completo: str | None
     saram: str | None
     telefone: str | None
+    trig: str
+    func: str
     crm: CrmPublic | None = None
 
     model_config = ConfigDict(from_attributes=True)
