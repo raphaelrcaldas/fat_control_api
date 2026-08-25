@@ -8,7 +8,7 @@ from pydantic import (
     model_validator,
 )
 
-from fcontrol_api.enums.local_passaporte import LocalPassaporteEnum
+from fcontrol_api.enums.status_passaporte import StatusPassaporteEnum
 
 
 class PassaporteBase(BaseModel):
@@ -19,8 +19,8 @@ class PassaporteBase(BaseModel):
     data_expedicao_visa: date | None = None
     validade_visa: date | None = None
     # Coluna NOT NULL no model: sempre viaja preenchida, e o default
-    # espelha o `server_default` (registro sem informação = na seção).
-    local_passaporte: LocalPassaporteEnum = LocalPassaporteEnum.SECAO
+    # espelha o `server_default` (registro sem informação = disponível).
+    status_passaporte: StatusPassaporteEnum = StatusPassaporteEnum.DISPONIVEL
 
     model_config = ConfigDict(from_attributes=True)
 

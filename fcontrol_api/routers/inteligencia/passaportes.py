@@ -153,7 +153,7 @@ async def list_passaportes(
             Passaporte.visa.label('visa_num'),
             Passaporte.data_expedicao_visa,
             Passaporte.validade_visa,
-            Passaporte.local_passaporte,
+            Passaporte.status_passaporte,
             Passaporte.passaporte_file_path,
             Passaporte.visa_file_path,
         )
@@ -207,7 +207,7 @@ async def list_passaportes(
                 visa=r.visa_num,
                 data_expedicao_visa=r.data_expedicao_visa,
                 validade_visa=r.validade_visa,
-                local_passaporte=r.local_passaporte,
+                status_passaporte=r.status_passaporte,
                 passaporte_url=_signed_url_opt(r.passaporte_file_path)
                 if can_view_img
                 else None,
@@ -319,7 +319,7 @@ async def upsert_passaporte(
             visa=dados.visa,
             data_expedicao_visa=dados.data_expedicao_visa,
             validade_visa=dados.validade_visa,
-            local_passaporte=dados.local_passaporte,
+            status_passaporte=dados.status_passaporte,
         )
         session.add(passaporte)
         message = 'Passaporte cadastrado com sucesso'

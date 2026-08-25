@@ -34,13 +34,13 @@ class Passaporte(Base):
     visa: Mapped[str | None] = mapped_column(String(20))
     data_expedicao_visa: Mapped[date | None]
     validade_visa: Mapped[date | None]
-    # Custódia do passaporte físico (LocalPassaporteEnum). String livre no
+    # Situação do passaporte físico (StatusPassaporteEnum). String livre no
     # banco; a validação contra a lista fechada mora no schema Pydantic
     # (mesmo contrato de `tema`/`cargo` em models/shared/tenant.py).
-    # NOT NULL com default 'secao': o caderno arquivado é o estado de
-    # repouso — registro sem informação é registro na seção.
-    local_passaporte: Mapped[str] = mapped_column(
-        String(20), default='secao', server_default=text("'secao'")
+    # NOT NULL com default 'disponivel': o caderno arquivado na seção é o
+    # estado de repouso — registro sem informação é registro disponível.
+    status_passaporte: Mapped[str] = mapped_column(
+        String(20), default='disponivel', server_default=text("'disponivel'")
     )
     # KEY do objeto JPG no bucket `inteligencia` (sem o nome do bucket).
     # TEXT (sem limite fixo): a key carrega prefixo/user_id/timestamp/nome.
