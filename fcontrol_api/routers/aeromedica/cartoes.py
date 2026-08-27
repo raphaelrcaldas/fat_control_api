@@ -1,10 +1,11 @@
 import asyncio
 import logging
+from datetime import date
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import and_, exists, func, or_
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, delete, exists, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -12,6 +13,7 @@ from sqlalchemy.future import select
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.atas import AtaInspecao
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
+from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
@@ -26,6 +28,7 @@ from fcontrol_api.schemas.aeromedica.cartoes import (
     OrfaosAeromedicaResumo,
     UserCartaoSaude,
 )
+from fcontrol_api.schemas.logs import UserActionLogOut
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     ActiveOrg,
@@ -33,6 +36,7 @@ from fcontrol_api.security import (
     get_current_user,
     permission_checker,
 )
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.storage import delete_file
 from fcontrol_api.utils.responses import success_response
 
@@ -46,6 +50,16 @@ router = APIRouter(prefix='/cartoes-saude', tags=['Aeromedica'])
 # Bucket do domínio aeromédica (mesma constante do router de atas) — a
 # limpeza de órfãos remove os PDFs das atas junto com os registros.
 BUCKET = 'aeromedica'
+
+# Namespace do log de auditoria — espelha o recurso RBAC do domínio. As atas
+# gravam sob o MESMO namespace (compartilham o gate e a linha do tempo do
+# militar): anexar uma ata mexe no CEMAL do cartão, e em trilhas separadas
+# essa alteração apareceria sem causa.
+#
+# `resource_id` é o **user_id**, nunca o id do cartão: o cartão é 1:1 com o
+# militar e seu id não sobrevive a um delete+recadastro — a linha do tempo
+# ficaria partida em duas.
+LOG_RESOURCE = 'aeromedica.cartoes'
 
 # Dados de saúde são sensíveis: toda leitura exige 'view' e cada escrita a
 # sua ação. Admin da org ativa tem bypass (ver permission_checker).
@@ -288,6 +302,19 @@ async def delete_orfaos_aeromedica(
     for cartao in cartoes:
         await session.delete(cartao)
 
+    # A trilha de auditoria destes militares sai junto com os documentos —
+    # inclusive o evento desta limpeza. O `before`/`after` guarda as datas de
+    # inspeção e o nome dos PDFs: mantê-lo deixaria o dado de saúde no banco
+    # justamente depois de o documento ter sido apagado, que é o oposto do
+    # propósito desta tela. Mesmo tratamento que comiss e old_unavailability
+    # dão às suas trilhas ao remover o recurso.
+    await session.execute(
+        delete(UserActionLog).where(
+            UserActionLog.resource == LOG_RESOURCE,
+            UserActionLog.resource_id.in_(users_validos),
+        )
+    )
+
     await session.commit()
 
     return success_response(
@@ -360,6 +387,55 @@ async def get_cartao_saude_by_user(
     return success_response(data=cartao)
 
 
+@router.get(
+    '/user/{user_id}/historico',
+    response_model=ApiResponse[list[UserActionLogOut]],
+    dependencies=[ViewCartao],
+)
+async def get_historico_cartao_saude(
+    user_id: int,
+    session: Session,
+    active_org: ActiveOrg,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+):
+    """Trilha de auditoria do cartão de saúde e das atas de um militar.
+
+    Endpoint do domínio, e não o genérico `/logs/user-actions`: `before` e
+    `after` carregam data de inspeção de saúde, então a leitura tem que
+    passar pelo mesmo gate do cartão ('aeromedica.cartoes.view') — o
+    genérico atende qualquer token válido.
+
+    O gate autoriza a AÇÃO, não o ALVO: o militar é escopado à org ativa
+    (`User.unidade`), como no resto do módulo.
+    """
+    alvo = await session.scalar(
+        select(User.id).where(
+            User.id == user_id,
+            User.unidade == active_org,
+        )
+    )
+    if not alvo:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Usuario nao encontrado',
+        )
+
+    logs = await session.scalars(
+        select(UserActionLog)
+        .where(
+            UserActionLog.resource == LOG_RESOURCE,
+            UserActionLog.resource_id == user_id,
+        )
+        .order_by(
+            UserActionLog.timestamp.desc(),
+            UserActionLog.id.desc(),
+        )
+        .limit(limit)
+    )
+
+    return success_response(data=list(logs.all()))
+
+
 @router.post(
     '/',
     status_code=HTTPStatus.CREATED,
@@ -369,6 +445,7 @@ async def get_cartao_saude_by_user(
 async def create_cartao_saude(
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
     dados: CartaoSaudeCreate,
 ):
     """Cria novo cartao de saude para um usuario"""
@@ -398,6 +475,23 @@ async def create_cartao_saude(
     new_cartao = CartaoSaude(**dados_dict)
 
     session.add(new_cartao)
+
+    # Antes do commit de propósito: se o insert bater no unique de user_id, o
+    # rollback leva o log junto e a trilha não ganha um evento que não houve.
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='create',
+        resource=LOG_RESOURCE,
+        resource_id=dados.user_id,
+        after={
+            'prontuario': dados.prontuario,
+            'cemal': dados.cemal.isoformat() if dados.cemal else None,
+            'tovn': dados.tovn.isoformat() if dados.tovn else None,
+            'imae': dados.imae.isoformat() if dados.imae else None,
+        },
+    )
+
     # Fecha a janela entre o check acima e o insert: duas requisições
     # concorrentes passam pelo check, mas o unique de user_id garante que
     # só uma persiste — a outra vira 400 em vez de 500.
@@ -426,6 +520,7 @@ async def update_cartao_saude(
     cartao_id: int,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
     dados: CartaoSaudeUpdate,
 ):
     """Atualiza cartao de saude existente"""
@@ -445,8 +540,31 @@ async def update_cartao_saude(
             detail='Cartao de saude nao encontrado',
         )
 
+    before_patch: dict = {}
+    after_patch: dict = {}
     for key, value in dados.model_dump(exclude_unset=True).items():
+        atual = getattr(db_cartao, key)
+        if atual != value:
+            before_patch[key] = (
+                atual.isoformat() if isinstance(atual, date) else atual
+            )
+            after_patch[key] = (
+                value.isoformat() if isinstance(value, date) else value
+            )
         setattr(db_cartao, key, value)
+
+    # PUT com payload idêntico ao persistido não é alteração: sem esta guarda
+    # o histórico ganharia uma entrada de diff vazio a cada "Atualizar".
+    if after_patch:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='update',
+            resource=LOG_RESOURCE,
+            resource_id=db_cartao.user_id,
+            before=before_patch,
+            after=after_patch,
+        )
 
     await session.commit()
     await session.refresh(db_cartao)
@@ -463,6 +581,7 @@ async def delete_cartao_saude(
     cartao_id: int,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
 ):
     """Deleta cartao de saude"""
     db_cartao = await session.scalar(
@@ -480,6 +599,20 @@ async def delete_cartao_saude(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Cartao de saude nao encontrado',
         )
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='delete',
+        resource=LOG_RESOURCE,
+        resource_id=db_cartao.user_id,
+        before={
+            'prontuario': db_cartao.prontuario,
+            'cemal': db_cartao.cemal.isoformat() if db_cartao.cemal else None,
+            'tovn': db_cartao.tovn.isoformat() if db_cartao.tovn else None,
+            'imae': db_cartao.imae.isoformat() if db_cartao.imae else None,
+        },
+    )
 
     await session.delete(db_cartao)
     await session.commit()

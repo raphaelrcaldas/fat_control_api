@@ -3,7 +3,7 @@ import logging
 import unicodedata
 from datetime import UTC, date, datetime
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import and_
@@ -14,6 +14,7 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.atas import AtaInspecao
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.shared.users import User
+from fcontrol_api.routers.aeromedica.cartoes import LOG_RESOURCE
 from fcontrol_api.schemas.aeromedica.atas import (
     AtaExtrairResponse,
     AtaInspecaoPublic,
@@ -26,10 +27,15 @@ from fcontrol_api.schemas.response import (
     ApiResponse,
     ResponseStatus,
 )
-from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.aeromedica_extracao import (
     extrair_dados_ata_bytes,
 )
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.pdf import comprimir_pdf
 from fcontrol_api.services.storage import (
     delete_file,
@@ -41,6 +47,7 @@ from fcontrol_api.utils.responses import success_response
 logger = logging.getLogger(__name__)
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -140,16 +147,20 @@ async def _upsert_cemal(
     session: AsyncSession,
     user_id: int,
     validade: date | None,
-) -> bool:
+) -> Literal['created', 'updated'] | None:
     """Atualiza o CEMAL do cartão apenas se a validade for mais recente.
 
-    Retorna True se o CEMAL foi criado ou atualizado. Impede que uma ata
-    retroativa faça o CEMAL regredir: só uma validade maior que a atual (ou
-    o primeiro cartão) atualiza o campo — coerente com "a ata mais recente é
-    que vale" exibido no frontend.
+    Devolve o que aconteceu com o cartão — `'created'` (a ata fez nascer o
+    cartão), `'updated'` (só o CEMAL avançou) ou `None` (nada mudou). Um
+    booleano não bastava: quem chama precisa registrar na auditoria *qual*
+    dos dois foi, senão o cartão aparece no histórico sem evento de criação.
+
+    Impede que uma ata retroativa faça o CEMAL regredir: só uma validade
+    maior que a atual (ou o primeiro cartão) atualiza o campo — coerente com
+    "a ata mais recente é que vale" exibido no frontend.
     """
     if validade is None:
-        return False
+        return None
 
     cartao = await session.scalar(
         select(CartaoSaude).where(CartaoSaude.user_id == user_id)
@@ -163,13 +174,13 @@ async def _upsert_cemal(
                 imae=None,
             )
         )
-        return True
+        return 'created'
 
     if cartao.cemal is None or validade > cartao.cemal:
         cartao.cemal = validade
-        return True
+        return 'updated'
 
-    return False
+    return None
 
 
 router = APIRouter(prefix='/atas', tags=['Atas de Inspeção'])
@@ -244,6 +255,7 @@ async def extrair_ata(
 async def upload_ata(
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
     user_id: int,
     file: UploadFile,
     dados_confirmados: bool = False,
@@ -332,8 +344,43 @@ async def upload_ata(
 
         # Atualiza o cemal do cartão apenas se esta validade for a mais
         # recente (não regride com ata retroativa). Ver _upsert_cemal.
-        cemal_atualizado = await _upsert_cemal(
+        efeito_cartao = await _upsert_cemal(
             session, user_id, dados['validade_inspsau']
+        )
+        cemal_atualizado = efeito_cartao is not None
+
+        # Mesma trilha do cartão (ver LOG_RESOURCE). O que o anexo fez com o
+        # cartão entra aqui: o `_upsert_cemal` escreve (e às vezes cria) o
+        # cartão sem evento próprio, então sem isto o CEMAL mudaria no
+        # histórico sem causa visível — ou o cartão nasceria sem 'create'.
+        validade = dados['validade_inspsau']
+        realizacao = dados['data_realizacao']
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='ata_create',
+            resource=LOG_RESOURCE,
+            resource_id=user_id,
+            after={
+                'file_name': file_name,
+                'letra_finalidade': dados['letra_finalidade'],
+                'data_realizacao': (
+                    realizacao.isoformat() if realizacao else None
+                ),
+                'validade_inspsau': (
+                    validade.isoformat() if validade else None
+                ),
+                **(
+                    {'cemal': validade.isoformat()}
+                    if cemal_atualizado and validade
+                    else {}
+                ),
+                **(
+                    {'cartao_criado': True}
+                    if efeito_cartao == 'created'
+                    else {}
+                ),
+            },
         )
 
         await session.commit()
@@ -418,6 +465,7 @@ async def update_ata(
     body: AtaUpdate,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
 ):
     """Atualiza dados de uma ata (preenchimento manual)."""
     ata = await session.scalar(
@@ -447,12 +495,56 @@ async def update_ata(
             exclude_id=ata.id,
         )
 
-    ata.letra_finalidade = body.letra_finalidade
-    ata.data_realizacao = body.data_realizacao
-    ata.validade_inspsau = body.validade_inspsau
+    campos = {
+        'letra_finalidade': body.letra_finalidade,
+        'data_realizacao': body.data_realizacao,
+        'validade_inspsau': body.validade_inspsau,
+    }
+    before_patch: dict = {}
+    after_patch: dict = {}
+    for campo, novo in campos.items():
+        atual = getattr(ata, campo)
+        if atual != novo:
+            before_patch[campo] = (
+                atual.isoformat() if isinstance(atual, date) else atual
+            )
+            after_patch[campo] = (
+                novo.isoformat() if isinstance(novo, date) else novo
+            )
+        setattr(ata, campo, novo)
 
     # Atualiza o cemal apenas se esta validade for a mais recente.
-    await _upsert_cemal(session, ata.user_id, body.validade_inspsau)
+    efeito_cartao = await _upsert_cemal(
+        session, ata.user_id, body.validade_inspsau
+    )
+
+    # Correção que não mudou nada não vira evento — mas o `_upsert_cemal`
+    # escreve no cartão por fora do delta da ata: um PATCH com os mesmos
+    # valores já persistidos ainda pode empurrar o CEMAL para frente. Sem o
+    # `or efeito_cartao`, essa escrita ficaria fora da trilha e o histórico
+    # passaria a contradizer a tela.
+    if after_patch or efeito_cartao:
+        await log_user_action(
+            session=session,
+            user_id=current_user.id,
+            action='ata_update',
+            resource=LOG_RESOURCE,
+            resource_id=ata.user_id,
+            before=before_patch,
+            after={
+                **after_patch,
+                **(
+                    {'cemal': body.validade_inspsau.isoformat()}
+                    if efeito_cartao and body.validade_inspsau
+                    else {}
+                ),
+                **(
+                    {'cartao_criado': True}
+                    if efeito_cartao == 'created'
+                    else {}
+                ),
+            },
+        )
 
     await session.commit()
     await session.refresh(ata)
@@ -472,6 +564,7 @@ async def delete_ata(
     ata_id: int,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
 ):
     """Remove ata do bucket e do banco."""
     ata = await session.scalar(
@@ -487,6 +580,28 @@ async def delete_ata(
         )
 
     file_path = ata.file_path
+
+    await log_user_action(
+        session=session,
+        user_id=current_user.id,
+        action='ata_delete',
+        resource=LOG_RESOURCE,
+        resource_id=ata.user_id,
+        before={
+            'file_name': ata.file_name,
+            'letra_finalidade': ata.letra_finalidade,
+            'data_realizacao': (
+                ata.data_realizacao.isoformat()
+                if ata.data_realizacao
+                else None
+            ),
+            'validade_inspsau': (
+                ata.validade_inspsau.isoformat()
+                if ata.validade_inspsau
+                else None
+            ),
+        },
+    )
 
     # Remove primeiro do banco (fonte da verdade) e só então do storage,
     # tolerando falha física — evita apagar o arquivo e o commit falhar
