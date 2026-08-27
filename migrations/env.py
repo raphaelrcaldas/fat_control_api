@@ -11,7 +11,6 @@ import fcontrol_api.models.cegep
 import fcontrol_api.models.estatistica
 import fcontrol_api.models.instrucao
 import fcontrol_api.models.inteligencia
-import fcontrol_api.models.nav
 import fcontrol_api.models.shared
 import fcontrol_api.models.shared.operacao  # fora do __init__ (ver módulo)
 import fcontrol_api.models.security
@@ -21,7 +20,6 @@ from fcontrol_api.models.cegep.base import Base as BaseCegep
 from fcontrol_api.models.estatistica.base import Base as BaseStats
 from fcontrol_api.models.instrucao.base import Base as BaseInstrucao
 from fcontrol_api.models.inteligencia.base import Base as BaseInteligencia
-from fcontrol_api.models.nav.base import Base as BaseNav
 from fcontrol_api.models.shared.base import Base as BasePublic
 from fcontrol_api.models.security.base import Base as BaseSecurity
 from fcontrol_api.models.seg_voo.base import Base as BaseSegVoo
@@ -40,7 +38,6 @@ for m in [
     BasePublic.metadata,
     BaseSecurity.metadata,
     BaseCegep.metadata,
-    BaseNav.metadata,
     BaseStats.metadata,
     BaseAeromedica.metadata,
     BaseSegVoo.metadata,

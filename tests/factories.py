@@ -20,7 +20,6 @@ from fcontrol_api.models.cegep.missoes import (
     UserFrag,
 )
 from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
-from fcontrol_api.models.nav.aerodromos import Aerodromo
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.indisp import Indisp
@@ -453,35 +452,6 @@ class DiariaValorFactory(factory.Factory):
     valor = factory.fuzzy.FuzzyFloat(100.0, 500.0)
     data_inicio = factory.LazyFunction(datetime.date.today)
     data_fim = None
-
-
-class AerodromoFactory(factory.Factory):
-    """
-    Factory para criar aerodromos de teste.
-
-    Uso:
-        aerodromo = AerodromoFactory()
-        aerodromo_customizado = AerodromoFactory(
-            nome='Aeroporto de Guarulhos',
-            codigo_icao='SBGR',
-            codigo_iata='GRU'
-        )
-    """
-
-    class Meta:
-        model = Aerodromo
-
-    nome = factory.Sequence(lambda n: f'Aeroporto Teste {n}')
-    codigo_icao = factory.Sequence(lambda n: f'SB{n:02d}')
-    codigo_iata = None
-    latitude = factory.fuzzy.FuzzyFloat(-33.0, 5.0)
-    longitude = factory.fuzzy.FuzzyFloat(-73.0, -35.0)
-    elevacao = factory.fuzzy.FuzzyFloat(0.0, 1500.0)
-    pais = 'BR'
-    utc = -3
-    base_aerea = None
-    codigo_cidade = None
-    cidade_manual = None
 
 
 class ComissFactory(factory.Factory):
