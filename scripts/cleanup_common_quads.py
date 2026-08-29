@@ -35,11 +35,11 @@ import asyncio
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from fcontrol_api.models.shared.funcoes import Funcao
 from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
+from fcontrol_api.models.shared.funcoes import Funcao
 from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
 from fcontrol_api.models.shared.tripulantes import Tripulante
 
