@@ -1,6 +1,7 @@
 from . import (
     aeronaves,
     estados_cidades,
+    feedback,
     funcoes,
     indisp,
     om,

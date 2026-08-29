@@ -9,6 +9,7 @@ from fcontrol_api.routers import (
     cities,
     config,
     estatistica,
+    feedbacks,
     funcoes,
     indisp,
     instrucao,
@@ -34,6 +35,7 @@ router.include_router(cegep.router)
 router.include_router(cities.router)
 router.include_router(config.router)
 router.include_router(estatistica.router)
+router.include_router(feedbacks.router)
 router.include_router(funcoes.router)
 router.include_router(indisp.router)
 router.include_router(instrucao.router)
