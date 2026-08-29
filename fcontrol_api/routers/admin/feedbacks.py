@@ -80,6 +80,22 @@ async def list_feedbacks(
     )
 
 
+@router.delete('/{feedback_id}', response_model=ApiResponse[None])
+async def delete_feedback(feedback_id: int, session: Session):
+    """Apaga o registro de vez.
+
+    Sem soft delete: o feedback não é dado operacional que se audite depois
+    — é mensagem. O que sobra de errado (duplicata, teste, desabafo já
+    resolvido) só polui a caixa de quem tria.
+    """
+    feedback = await _get_feedback(session, feedback_id)
+
+    await session.delete(feedback)
+    await session.commit()
+
+    return success_response(message='Feedback excluído')
+
+
 @router.patch('/{feedback_id}', response_model=ApiResponse[FeedbackOut])
 async def update_feedback(
     feedback_id: int,

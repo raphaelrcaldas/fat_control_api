@@ -8,6 +8,7 @@ class FeedbackTipoEnum(str, Enum):
     SUGESTAO = 'sugestao'
     DUVIDA = 'duvida'
     ELOGIO = 'elogio'
+    DESABAFO = 'desabafo'
 
 
 class FeedbackStatusEnum(str, Enum):
