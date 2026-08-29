@@ -48,10 +48,6 @@
     "estatistica.indicadores": [
       "view"
     ],
-    "feedbacks": [
-      "update",
-      "view"
-    ],
     "instrucao.cartoes": [
       "delete",
       "view"

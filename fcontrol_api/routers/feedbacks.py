@@ -1,67 +1,38 @@
 """Feedbacks e sugestões enviados pelo portal (FatBird).
 
-Envio é aberto a qualquer usuário autenticado com org ativa — o canal só
-existe se a tropa puder usá-lo, e tripulante não tem role no backend (ver
-o FatBird, que reusa endpoints administrativos). O que é gateado é o
-TRATAMENTO: ler a caixa da unidade exige `feedbacks.view` e responder,
-`feedbacks.update`.
+Este router é o lado do AUTOR: enviar e acompanhar o que enviou. Ambos os
+endpoints são abertos a qualquer usuário autenticado — o canal só existe se
+a tropa puder usá-lo, e tripulante não tem role no backend (ver o FatBird,
+que reusa endpoints administrativos).
 
-Escopo: `uae` é congelado no envio a partir da org ativa de quem enviou, e
-toda leitura administrativa filtra por ele. O gate autoriza a ação; o
-alvo é escopado aqui na query.
+O TRATAMENTO (ler a caixa, responder, mover status) mora em
+`routers/admin/feedbacks.py`: é control-plane de sistema, gateado pelo
+`require_system_admin` do grupo `/admin`.
+
+Escopo: `uae` é congelado no envio a partir da org ativa de quem enviou —
+o feedback fica com a unidade que o recebeu mesmo se o autor for
+movimentado depois.
 """
 
-from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
-from fcontrol_api.enums.feedback import FeedbackStatusEnum, FeedbackTipoEnum
 from fcontrol_api.models.shared.feedback import Feedback
 from fcontrol_api.models.shared.users import User
-from fcontrol_api.schemas.feedback import (
-    FeedbackCreate,
-    FeedbackOut,
-    FeedbackUpdate,
-)
+from fcontrol_api.schemas.feedback import FeedbackCreate, FeedbackOut
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import (
-    ActiveOrg,
-    get_current_user,
-    permission_checker,
-)
+from fcontrol_api.security import ActiveOrg, get_current_user
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/feedbacks', tags=['Feedbacks'])
-
-FEEDBACKS = 'feedbacks'
-ViewFeedbacks = Depends(permission_checker(FEEDBACKS, 'view'))
-UpdateFeedbacks = Depends(permission_checker(FEEDBACKS, 'update'))
-
-
-async def _get_feedback(session: AsyncSession, feedback_id: int, uae: str):
-    """Feedback pelo id, restrito à org ativa (404 fora do escopo)."""
-    feedback = await session.scalar(
-        select(Feedback).where(
-            Feedback.id == feedback_id,
-            Feedback.uae == uae,
-        )
-    )
-
-    if not feedback:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Feedback não encontrado',
-        )
-
-    return feedback
 
 
 @router.post(
@@ -90,7 +61,15 @@ async def create_feedback(
 
     # Recarrega pela query (e não `refresh`) para trazer o relacionamento
     # `autor` que o schema de saída exige.
-    criado = await _get_feedback(session, feedback.id, active_org)
+    criado = await session.scalar(
+        select(Feedback).where(Feedback.id == feedback.id)
+    )
+
+    if not criado:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Feedback não encontrado',
+        )
 
     return success_response(
         data=FeedbackOut.model_validate(criado),
@@ -116,72 +95,4 @@ async def list_meus_feedbacks(session: Session, user: CurrentUser):
 
     return success_response(
         data=[FeedbackOut.model_validate(f) for f in feedbacks]
-    )
-
-
-@router.get(
-    '/',
-    response_model=ApiResponse[list[FeedbackOut]],
-    dependencies=[ViewFeedbacks],
-)
-async def list_feedbacks(
-    session: Session,
-    active_org: ActiveOrg,
-    status: Annotated[FeedbackStatusEnum | None, Query()] = None,
-    tipo: Annotated[FeedbackTipoEnum | None, Query()] = None,
-):
-    """Caixa de entrada da unidade (org ativa)."""
-    query = select(Feedback).where(Feedback.uae == active_org)
-
-    if status:
-        query = query.where(Feedback.status == status.value)
-
-    if tipo:
-        query = query.where(Feedback.tipo == tipo.value)
-
-    feedbacks = (
-        await session.scalars(query.order_by(Feedback.created_at.desc()))
-    ).all()
-
-    return success_response(
-        data=[FeedbackOut.model_validate(f) for f in feedbacks]
-    )
-
-
-@router.patch(
-    '/{feedback_id}',
-    response_model=ApiResponse[FeedbackOut],
-    dependencies=[UpdateFeedbacks],
-)
-async def update_feedback(
-    feedback_id: int,
-    payload: FeedbackUpdate,
-    session: Session,
-    active_org: ActiveOrg,
-    user: CurrentUser,
-):
-    """Move o status e/ou responde ao autor."""
-    feedback = await _get_feedback(session, feedback_id, active_org)
-
-    if payload.status is not None:
-        feedback.status = payload.status.value
-
-    if payload.resposta is not None:
-        # String vazia limpa a resposta (e a autoria junto): o formulário
-        # do painel manda o campo inteiro, então apagar o texto é o gesto
-        # natural de "retirar o que respondi".
-        resposta = payload.resposta.strip()
-        feedback.resposta = resposta or None
-        feedback.respondido_por = user.id if resposta else None
-        feedback.respondido_em = (
-            datetime.now(timezone.utc) if resposta else None
-        )
-
-    await session.commit()
-
-    atualizado = await _get_feedback(session, feedback_id, active_org)
-
-    return success_response(
-        data=FeedbackOut.model_validate(atualizado),
-        message='Feedback atualizado',
     )
