@@ -15,6 +15,7 @@ from fcontrol_api.routers import (
     instrucao,
     inteligencia,
     logs,
+    notificacoes,
     ops,
     organizacoes,
     postos,
@@ -41,6 +42,7 @@ router.include_router(indisp.router)
 router.include_router(instrucao.router)
 router.include_router(inteligencia.router)
 router.include_router(logs.router)
+router.include_router(notificacoes.router)
 router.include_router(ops.router)
 router.include_router(organizacoes.router)
 router.include_router(postos.router)

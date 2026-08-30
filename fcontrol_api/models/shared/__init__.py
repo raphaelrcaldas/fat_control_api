@@ -4,6 +4,7 @@ from . import (
     feedback,
     funcoes,
     indisp,
+    notificacao,
     om,
     organizacao,
     posto_grad,

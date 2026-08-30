@@ -4,12 +4,15 @@ Quads penduram num tripulante (escopo `Tripulante.uae`). A limpeza de
 órfãos só remove quads de tripulantes inativos DA org ativa.
 """
 
+from datetime import date
 from http import HTTPStatus
 
 import pytest
+from sqlalchemy import select
 
 from fcontrol_api.models.security.resources import UserRole
-from fcontrol_api.models.shared.quads import Quad
+from fcontrol_api.models.shared.notificacao import Notificacao
+from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
 from tests.factories import QuadFactory, TripFactory, UserFactory
 
 pytestmark = pytest.mark.anyio
@@ -80,3 +83,45 @@ async def test_orfaos_delete_da_propria_org_remove(
     session.expire_all()
     gone = await session.get(Quad, quad.id)
     assert gone is None
+
+
+async def test_create_recusa_tipo_de_outra_org(client, session, trip, token):
+    """`type_id` também é multi-tenant: `quads_type` pende de `quads_group`.
+
+    Sem esta amarra o gestor da '11gt' gravava quadrinho com tipo da
+    '1gt' — e, desde as notificações, o RÓTULO desse tipo passava a ser
+    persistido no payload entregue ao tripulante.
+    """
+    grupo_1gt = QuadsGroup(short='alheio', long='grupo da 1gt', uae='1gt')
+    session.add(grupo_1gt)
+    await session.flush()
+    tipo_1gt = QuadsType(group_id=grupo_1gt.id, short='alh', long='alheio')
+    session.add(tipo_1gt)
+    await session.commit()
+    await session.refresh(tipo_1gt)
+
+    response = await client.post(
+        '/ops/quads/',
+        json=[
+            {
+                'value': date.today().isoformat(),
+                'type_id': tipo_1gt.id,
+                'description': 'tipo de outra org',
+                'trip_id': trip.id,
+            }
+        ],
+        headers=_auth(token),
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json()['message'] == 'Tipo de quadrinho não encontrado'
+
+    gravado = await session.scalar(
+        select(Quad).where(Quad.type_id == tipo_1gt.id)
+    )
+    assert gravado is None
+
+    notificado = await session.scalar(
+        select(Notificacao).where(Notificacao.recurso == 'ops.quadro')
+    )
+    assert notificado is None
