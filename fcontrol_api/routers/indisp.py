@@ -12,6 +12,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
+from fcontrol_api.enums.notificacao import NotifAudiencia, NotifTipo
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
@@ -35,6 +36,7 @@ from fcontrol_api.security import (
     has_org_permission,
 )
 from fcontrol_api.services.logs import log_user_action
+from fcontrol_api.services.notificacoes import notificar_usuarios
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -300,6 +302,40 @@ async def create_indisp(
 
     session.add(new_indisp)
 
+    # Flush (não commit) só para materializar o id: ele é o `recurso_id`
+    # que leva o deep-link do sino à página da indisponibilidade.
+    await session.flush()
+
+    # Audiência 'tripulante': o sino só existe no FatBird — emitir para
+    # gestor mandaria o aviso a um consumidor que não existe no client.
+    await notificar_usuarios(
+        session,
+        user_ids=[new_indisp.user_id],
+        uae=active_org,
+        audiencia=NotifAudiencia.TRIPULANTE.value,
+        tipo=NotifTipo.INDISP_CRIADA.value,
+        titulo='Nova indisponibilidade lançada para você',
+        descricao=(
+            f'Período de {indisp.date_start.strftime("%d/%m/%Y")} a '
+            f'{indisp.date_end.strftime("%d/%m/%Y")}.'
+        ),
+        recurso='ops.indisp',
+        recurso_id=new_indisp.id,
+        # Dado CRU: o motivo vai como código ('sde', 'fer'…) porque o mapa
+        # de rótulos e a rota são decisão do front. Datas em ISO: o payload
+        # é JSONB e `date` não serializa sozinho.
+        payload={
+            'mtv': indisp.mtv.value,
+            'date_start': indisp.date_start.isoformat(),
+            'date_end': indisp.date_end.isoformat(),
+        },
+        # O serviço já pula alvo == created_by: quem lança a própria
+        # indisponibilidade pelo FatBird não se autonotifica.
+        created_by=user.id,
+    )
+
+    # Commit ÚNICO para a indisponibilidade + a notificação: rollback leva
+    # as duas juntas (contrato de `services/notificacoes.py`).
     await session.commit()
 
     return success_response(
@@ -351,6 +387,38 @@ async def get_indisp_user(
     return success_response(data=list(indisps))
 
 
+@router.get('/{id}', response_model=ApiResponse[IndispOut])
+async def get_indisp(
+    id: int,
+    session: Session,
+    active_org: ActiveOrg,
+):
+    # Sem gate de permissão, mesmo racional do `/user/{id}` acima: a lista
+    # de tripulação já expõe a indisponibilidade de todos e o tripulante do
+    # FatBird não tem role — gatear trancaria o portal.
+    #
+    # O escopo, então, tem de vir da QUERY (mesmo join do PUT/DELETE): o id
+    # é sequencial e sem o `Tripulante.uae == active_org` qualquer token
+    # válido leria a indisponibilidade de qualquer militar do sistema.
+    indisp = await session.scalar(
+        select(Indisp)
+        .join(Tripulante, Tripulante.user_id == Indisp.user_id)
+        .where(Indisp.id == id, Tripulante.uae == active_org)
+    )
+
+    # `deleted_at` NÃO entra no filtro de propósito: o deep-link do sino
+    # sobrevive à remoção, e a página precisa da linha excluída para dizer
+    # que a indisponibilidade foi removida (`IndispOut` expõe o campo).
+    if not indisp:
+        # Rota de ITEM: fora do escopo é 404, não lista vazia.
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Indisponibilidade não encontrada',
+        )
+
+    return success_response(data=indisp)
+
+
 @router.delete('/{id}', response_model=ApiResponse[None])
 async def delete_indisp(
     id: int,
@@ -388,15 +456,49 @@ async def delete_indisp(
     # Soft delete - setar deleted_at
     indisp.deleted_at = datetime.now(timezone.utc)
 
-    # Log de deleção
+    # Log de deleção COM o estado apagado em `before`: o soft delete tira a
+    # linha da tela, e sem isto o histórico registrava só "fulano removeu
+    # em tal hora", sem dizer o quê. `after` fica vazio de propósito — é o
+    # que distingue uma remoção de uma alteração para quem lê o log.
+    # Datas viram string para serializar em JSONB, igual ao `patch` acima.
     await log_user_action(
         session=session,
         user_id=user.id,
         action='delete',
         resource='ops.indisp',
         resource_id=indisp.id,
+        before={
+            'date_start': str(indisp.date_start),
+            'date_end': str(indisp.date_end),
+            'mtv': indisp.mtv,
+            'obs': indisp.obs,
+        },
     )
 
+    # Valores ainda em memória: o soft delete não apaga a linha, então o
+    # payload leva o período que deixou de valer.
+    await notificar_usuarios(
+        session,
+        user_ids=[indisp.user_id],
+        uae=active_org,
+        audiencia=NotifAudiencia.TRIPULANTE.value,
+        tipo=NotifTipo.INDISP_REMOVIDA.value,
+        titulo='Sua indisponibilidade foi removida',
+        descricao=(
+            f'Período de {indisp.date_start.strftime("%d/%m/%Y")} a '
+            f'{indisp.date_end.strftime("%d/%m/%Y")}.'
+        ),
+        recurso='ops.indisp',
+        recurso_id=indisp.id,
+        payload={
+            'mtv': indisp.mtv,
+            'date_start': indisp.date_start.isoformat(),
+            'date_end': indisp.date_end.isoformat(),
+        },
+        created_by=user.id,
+    )
+
+    # Commit ÚNICO: se a remoção falhar, o aviso não sobrevive sozinho.
     await session.commit()
 
     return success_response(message='Indisponibilidade deletada')
@@ -512,6 +614,36 @@ async def update_indisp(
         after=after,
     )
 
+    # Só notifica se houve diff real: PUT idempotente (payload igual ao que
+    # já estava salvo) não é evento — avisar aí seria ruído no sino.
+    if after:
+        await notificar_usuarios(
+            session,
+            user_ids=[db_indisp.user_id],
+            uae=active_org,
+            audiencia=NotifAudiencia.TRIPULANTE.value,
+            tipo=NotifTipo.INDISP_ALTERADA.value,
+            titulo='Sua indisponibilidade foi alterada',
+            # Valores JÁ atualizados (o `setattr` roda no laço do diff): o
+            # aviso descreve como a indisponibilidade ficou.
+            descricao=(
+                f'Novo período: {db_indisp.date_start.strftime("%d/%m/%Y")}'
+                f' a {db_indisp.date_end.strftime("%d/%m/%Y")}.'
+            ),
+            recurso='ops.indisp',
+            recurso_id=db_indisp.id,
+            payload={
+                # `mtv` pode chegar aqui como membro do Enum (veio do dump
+                # do schema) ou como str (não foi tocado). `str()` num
+                # `str, Enum` devolveria 'IndispEnum.saude', não 'sde'.
+                'mtv': getattr(db_indisp.mtv, 'value', db_indisp.mtv),
+                'date_start': db_indisp.date_start.isoformat(),
+                'date_end': db_indisp.date_end.isoformat(),
+            },
+            created_by=user.id,
+        )
+
+    # Commit ÚNICO: a notificação entra na mesma transação da alteração.
     await session.commit()
 
     return success_response(

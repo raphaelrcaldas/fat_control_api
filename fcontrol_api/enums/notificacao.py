@@ -37,3 +37,6 @@ class NotifTipo(StrEnum):
 
     QUADRO_RECEBIDO = 'quadro.recebido'
     QUADRO_REMOVIDO = 'quadro.removido'
+    INDISP_CRIADA = 'indisp.criada'
+    INDISP_ALTERADA = 'indisp.alterada'
+    INDISP_REMOVIDA = 'indisp.removida'
