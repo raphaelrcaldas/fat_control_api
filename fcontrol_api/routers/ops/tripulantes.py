@@ -34,6 +34,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
 
+ViewTrip = Depends(permission_checker('ops.tripulantes', 'view'))
 CreateTrip = Depends(permission_checker('ops.tripulantes', 'create'))
 UpdateTrip = Depends(permission_checker('ops.tripulantes', 'update'))
 
@@ -155,6 +156,13 @@ async def get_my_trip(
 ):
     """
     Retorna o tripulante do usuário autenticado.
+
+    SEM gate de permissão de propósito: é a rota que o FatBird consome
+    (`services/api/routes/trip.ts`), e lá o tripulante entra sem role
+    nenhuma — exigir `ops.tripulantes.view` trancaria o portal inteiro.
+    A rota já se escopa sozinha: só devolve o vínculo do próprio
+    `current_user` na org ativa. As demais rotas de leitura deste router
+    (listagem, detalhe, user-ids) são gateadas.
     """
     trip = await session.scalar(
         select(Tripulante).where(
@@ -176,6 +184,7 @@ async def get_my_trip(
     '/user-ids',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[list[int]],
+    dependencies=[ViewTrip],
 )
 async def get_trip_user_ids(session: Session, active_org: ActiveOrg):
     """Retorna os user_ids de todos os tripulantes da UAE."""
@@ -189,6 +198,7 @@ async def get_trip_user_ids(session: Session, active_org: ActiveOrg):
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[TripWithFunc],
+    dependencies=[ViewTrip],
 )
 async def get_trip(
     id: int,
@@ -214,6 +224,7 @@ async def get_trip(
     '/',
     status_code=HTTPStatus.OK,
     response_model=ApiPaginatedResponse[TripWithFunc],
+    dependencies=[ViewTrip],
 )
 async def list_trips(
     session: Session,
