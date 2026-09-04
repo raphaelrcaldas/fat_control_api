@@ -119,6 +119,7 @@
     "users": [
       "create",
       "delete",
+      "export",
       "update",
       "view"
     ]

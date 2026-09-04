@@ -216,6 +216,50 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+EXPORT_MAX_IDS = 1000
+
+
+class UserExportRequest(BaseModel):
+    """Ids selecionados no carrinho do exportador.
+
+    O teto existe porque a seleção é manual e o endpoint devolve o cadastro
+    inteiro de cada militar: sem `max_length`, um id repetido em laço viraria
+    dump do efetivo com CPF e e-mail numa requisição só.
+    """
+
+    ids: list[int] = Field(min_length=1, max_length=EXPORT_MAX_IDS)
+
+
+class UserExport(BaseModel):
+    """Identidade completa de um militar, para a planilha do exportador.
+
+    É o `UserFull` sem o que não vira coluna (`posto`, `active`,
+    `campos_pendentes`) e com os campos que o `UserPublic` da listagem não
+    carrega — `nasc`, `data_praca`, `cpf` e os e-mails. Eles só trafegam
+    aqui, sob `users.export`, e não em toda carga de página de toda tela.
+    """
+
+    id: int
+    p_g: PostoGradEnum
+    quadro: QuadroEnum | None = None
+    esp: EspecialidadeEnum | None = None
+    nome_guerra: str
+    nome_completo: str | None = None
+    saram: str
+    id_fab: str | None = None
+    unidade: str
+    cpf: str | None = None
+    telefone: str | None = None
+    email_fab: str | None = None
+    email_pess: str | None = None
+    nasc: date | None = None
+    data_praca: date | None = None
+    ult_promo: date | None = None
+    ant_rel: int | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PwdSchema(BaseModel):
     new_pwd: str = Field(min_length=8, max_length=128)
 

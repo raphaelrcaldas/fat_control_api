@@ -17,6 +17,8 @@ from fcontrol_api.models.shared.users import User, UserPromo
 from fcontrol_api.schemas.response import ApiPaginatedResponse, ApiResponse
 from fcontrol_api.schemas.users import (
     PwdSchema,
+    UserExport,
+    UserExportRequest,
     UserFull,
     UserProfile,
     UserPromoCreate,
@@ -311,6 +313,63 @@ async def read_users(
         total=total,
         page=page,
         per_page=per_page,
+    )
+
+
+@router.post('/export', response_model=ApiResponse[list[UserExport]])
+async def export_users(
+    payload: UserExportRequest,
+    session: Session,
+    active_org: ActiveOrgOptional,
+    user: Annotated[User, Depends(permission_checker('users', 'export'))],
+):
+    """Hidrata a identidade completa dos militares escolhidos no carrinho.
+
+    O exportador monta a planilha no cliente — ordem das colunas, rótulos e
+    formatação são apresentação e ficam lá. Este endpoint só entrega o dado
+    que a listagem não carrega, e serve as telas de todos os domínios: toda
+    linha de todo domínio tem `user_id`.
+
+    Gate é `users.export`, NUNCA `users.view`: quem trabalha em cartões de
+    saúde ou passaportes não tem a listagem de usuários, e exigi-la quebraria
+    a exportação justamente nas telas de domínio. O privilégio aqui é "tirar
+    PII de identidade do sistema", que não depende da tela de origem.
+    """
+    # Dedup preservando a ordem do carrinho: id repetido não pode inflar a
+    # planilha nem consumir o teto do payload.
+    ids = list(dict.fromkeys(payload.ids))
+
+    query = select(User).where(User.id.in_(ids))
+
+    # Escopo por org ativa, igual à listagem. Id de outra unidade é
+    # silenciosamente descartado, e não 404: o carrinho é do cliente e um id
+    # obsoleto (militar transferido entre a seleção e a exportação) não deve
+    # derrubar a planilha inteira. O descarte fica registrado na auditoria.
+    if active_org is not None:
+        query = query.where(User.unidade == active_org)
+
+    encontrados = {u.id: u for u in (await session.scalars(query)).all()}
+    ordenados = [encontrados[i] for i in ids if i in encontrados]
+
+    # A requisição É o evento de auditoria: exportar tira dado pessoal do
+    # sistema, e a geração no cliente não deixaria rastro nenhum.
+    await log_user_action(
+        session=session,
+        user_id=user.id,
+        action='export',
+        resource='users',
+        resource_id=None,
+        before=None,
+        after={
+            'solicitados': len(ids),
+            'retornados': len(ordenados),
+            'org': active_org,
+        },
+    )
+    await session.commit()
+
+    return success_response(
+        data=[UserExport.model_validate(u) for u in ordenados]
     )
 
 
