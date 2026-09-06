@@ -1,5 +1,9 @@
 # FATCONTROL API — instruções locais
 
+Ao executar comandos, não dependa apenas do diretório de trabalho informado à
+ferramenta: ele pode ser ignorado. Use primeiro `cd "<caminho absoluto>" ||
+exit 1`, mantendo caminhos com espaços entre aspas duplas.
+
 Leia `../docs/ai/WORKFLOW.md` e `../docs/ai/PROJECT_CONTEXT.md`, mais as regras
 aplicáveis:
 

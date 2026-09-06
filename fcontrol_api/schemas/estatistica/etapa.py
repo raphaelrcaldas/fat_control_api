@@ -440,27 +440,40 @@ class EtapaUpdate(BaseModel):
         return self
 
 
+class EtapaBulkFields(BaseModel):
+    """Campos booleanos aceitos na atualizacao em lote."""
+
+    sagem: bool | None = None
+    parte1: bool | None = None
+
+    @model_validator(mode='after')
+    def validate_fields(self) -> Self:
+        if self.sagem is None and self.parte1 is None:
+            msg = 'Informe ao menos um campo para atualizar'
+            raise ValueError(msg)
+        return self
+
+
+class EtapaBulkUpdate(BaseModel):
+    """Atualiza flags de varias etapas numa unica transacao."""
+
+    ids: list[int] = Field(min_length=1)
+    data: EtapaBulkFields
+
+    @model_validator(mode='after')
+    def validate_ids(self) -> Self:
+        if len(self.ids) != len(set(self.ids)):
+            msg = 'IDs de etapas não podem se repetir'
+            raise ValueError(msg)
+        return self
+
+
 class EtapaPublic(BaseModel):
     """Schema de resposta apos criar/atualizar."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-
-
-class EtapaExportRequest(BaseModel):
-    """Requisicao de exportacao de etapas para Excel."""
-
-    ids: list[int] = Field(min_length=1)
-    pousos: bool = False
-    nivel: bool = False
-    tow: bool = False
-    pax: bool = False
-    carga: bool = False
-    comb: bool = False
-    lub: bool = False
-    esforco_aereo: bool = False
-    tripulantes: bool = False
 
 
 class MissaoCreate(BaseModel):

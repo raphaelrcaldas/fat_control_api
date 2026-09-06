@@ -1,9 +1,8 @@
-from datetime import date, datetime
+from datetime import date
 from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from fastapi.responses import StreamingResponse
 from sqlalchemy import Integer, select
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func as sql_func
@@ -22,13 +21,12 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
-from fcontrol_api.models.shared.organizacao import Organizacao
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
+    EtapaBulkUpdate,
     EtapaCreate,
     EtapaDetailOut,
-    EtapaExportRequest,
     EtapaFlatOut,
     EtapaOut,
     EtapaPublic,
@@ -55,7 +53,6 @@ from fcontrol_api.services.etapas import (
     like_safe,
     list_etapas_flat,
 )
-from fcontrol_api.services.excel_etapas import generate_etapas_xlsx
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -523,6 +520,52 @@ async def create_etapa(
     )
 
 
+@router.patch(
+    '/bulk',
+    status_code=HTTPStatus.OK,
+    response_model=ApiResponse[None],
+    dependencies=[UpdateEtapa],
+)
+async def bulk_update_etapas(
+    data: EtapaBulkUpdate,
+    session: Session,
+    active_org: ActiveOrg,
+) -> ApiResponse[None]:
+    """Atualiza SAGEM/Parte 1 em lote, com escopo e commit atomicos."""
+    etapas = list(
+        (
+            await session.scalars(
+                select(Etapa)
+                .join(Missao, Missao.id == Etapa.missao_id)
+                .where(
+                    Etapa.id.in_(data.ids),
+                    Missao.uae == active_org,
+                )
+                .with_for_update(of=Etapa)
+            )
+        ).all()
+    )
+
+    # Nao revela se o id ausente pertence a outra organizacao e, sobretudo,
+    # nao aplica um lote parcial quando uma etapa saiu do escopo ou foi
+    # removida desde a selecao.
+    if len(etapas) != len(data.ids):
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Uma ou mais etapas não foram encontradas',
+        )
+
+    updates = data.data.model_dump(exclude_none=True)
+    for etapa in etapas:
+        for field, value in updates.items():
+            setattr(etapa, field, value)
+
+    await session.commit()
+    return success_response(
+        message=f'{len(etapas)} etapa(s) atualizada(s) com sucesso',
+    )
+
+
 @router.put(
     '/{id}',
     status_code=HTTPStatus.OK,
@@ -742,83 +785,4 @@ async def delete_etapa(
     await session.commit()
     return success_response(
         message='Etapa excluida com sucesso',
-    )
-
-
-@router.post('/export', dependencies=[ViewEtapa])
-async def export_etapas(
-    data: EtapaExportRequest,
-    session: Session,
-    active_org: ActiveOrg,
-) -> StreamingResponse:
-    """Exporta etapas selecionadas para Excel (escopadas pela org ativa)."""
-    etapas_result = await session.scalars(
-        select(Etapa)
-        .join(Missao, Missao.id == Etapa.missao_id)
-        .where(Etapa.id.in_(data.ids), Missao.uae == active_org)
-        .order_by(Etapa.data, Etapa.dep, Etapa.id)
-    )
-    etapas = list(etapas_result.all())
-
-    if not etapas:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Nenhuma etapa encontrada',
-        )
-
-    etapa_ids = [e.id for e in etapas]
-
-    oi_data = None
-    if data.esforco_aereo:
-        oi_data = await fetch_oi_detail_data(
-            session,
-            etapa_ids,
-        )
-
-    trip_data = None
-    if data.tripulantes:
-        trip_data = await fetch_trip_data(
-            session,
-            etapa_ids,
-        )
-
-    columns = {
-        'pousos': data.pousos,
-        'nivel': data.nivel,
-        'tow': data.tow,
-        'pax': data.pax,
-        'carga': data.carga,
-        'comb': data.comb,
-        'lub': data.lub,
-        'esforco_aereo': data.esforco_aereo,
-        'tripulantes': data.tripulantes,
-    }
-
-    # Label institucional da org ativa (multi-tenant): usa o alias/nome
-    # cadastrado; cai para a sigla quando ausente.
-    org = await session.scalar(
-        select(Organizacao).where(Organizacao.sigla == active_org)
-    )
-    org_label = (org.alias or org.nome) if org else active_org
-
-    buffer = generate_etapas_xlsx(
-        etapas=etapas,
-        oi_data=oi_data,
-        trip_data=trip_data,
-        columns=columns,
-        org_label=org_label,
-    )
-
-    now = datetime.now()
-    slug = ''.join(c for c in active_org if c.isalnum()).upper() or 'ORG'
-    filename = f'etapas_{slug}_{now:%d%m%Y}.xlsx'
-
-    return StreamingResponse(
-        content=buffer,
-        media_type=(
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        ),
-        headers={
-            'Content-Disposition': (f'attachment; filename="{filename}"'),
-        },
     )

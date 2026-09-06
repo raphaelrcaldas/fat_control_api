@@ -28,7 +28,7 @@ Versões exatas em [`pyproject.toml`](pyproject.toml).
 | asyncpg             | Driver assíncrono                              |
 | PyJWT + pwdlib      | JWT e hash de senha (Argon2)                   |
 | boto3               | Storage S3 (MinIO local / Supabase em produção)|
-| openpyxl / pdfplumber / pillow | Exportações e extração de documentos |
+| pdfplumber / pillow | Extração de documentos |
 | uv                  | Gerenciador de dependências e execução         |
 | Ruff                | Lint e formatação                              |
 | Pytest + Testcontainers | Testes com Postgres efêmero                |
