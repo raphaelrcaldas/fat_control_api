@@ -19,13 +19,20 @@ ALLOWED_TASKS = {
 
 async def run_all_tasks(
     session: AsyncSession,
+    task_name: str | None = None,
 ) -> list[CleanupTaskResult]:
-    """Descobre e executa todas as cleanup tasks permitidas."""
+    """Executa as tasks permitidas, opcionalmente apenas a selecionada."""
+    if task_name is not None and task_name not in ALLOWED_TASKS:
+        raise ValueError('Tarefa de limpeza inválida')
+
     results: list[CleanupTaskResult] = []
 
     for module_info in pkgutil.iter_modules(tasks_package.__path__):
         if module_info.name not in ALLOWED_TASKS:
             logger.warning('Modulo inesperado ignorado: %s', module_info.name)
+            continue
+
+        if task_name is not None and module_info.name != task_name:
             continue
 
         module = importlib.import_module(

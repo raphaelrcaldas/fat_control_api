@@ -1,9 +1,13 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fcontrol_api.cleanup.runner import preview_all_tasks, run_all_tasks
+from fcontrol_api.cleanup.runner import (
+    ALLOWED_TASKS,
+    preview_all_tasks,
+    run_all_tasks,
+)
 from fcontrol_api.database import get_session
 from fcontrol_api.schemas.cleanup import (
     CleanupPreviewResponse,
@@ -41,9 +45,14 @@ async def preview_cleanup(
 @router.post('/run', response_model=ApiResponse[CleanupRunResponse])
 async def run_cleanup(
     session: AsyncSession = Depends(get_session),
+    task_name: str | None = None,
 ) -> ApiResponse[CleanupRunResponse]:
-    """Executa todas as cleanup tasks e retorna o relatório completo."""
-    results = await run_all_tasks(session)
+    """Executa todas as tarefas ou apenas a indicada por task_name."""
+    if task_name is not None and task_name not in ALLOWED_TASKS:
+        raise HTTPException(
+            status_code=422, detail='Tarefa de limpeza inválida'
+        )
+    results = await run_all_tasks(session, task_name=task_name)
     tasks_out = [
         CleanupTaskResultOut(
             task_name=r.task_name,
