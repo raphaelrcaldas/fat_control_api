@@ -19,6 +19,7 @@ from http import HTTPStatus
 
 import pytest
 
+from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
 from fcontrol_api.models.estatistica.etapa import Etapa, Missao, TripEtapa
 from fcontrol_api.models.shared.aeronaves import Aeronave
 from tests.factories import TripFactory, UserFactory
@@ -496,3 +497,58 @@ async def test_ult_voo_de_ano_anterior_vale_mas_nao_soma_horas(
     trip_resp = _trips_por_func(resp.json()['data'])['pil'][0]
     assert trip_resp['data_ult_voo'] == f'{ANO - 1}-11-05'
     assert trip_resp['tvoo_year'] == 0
+
+
+async def test_restricoes_usam_datas_reais_mesmo_depois_de_date_end(
+    client, session, users, token_sem_perm
+):
+    """A janela da escala não recorta o início das restrições derivadas."""
+    user, _ = users
+    await _mk_frota(session)
+    missao = await _mk_missao(session)
+    trip = await _mk_trip(session, user.id)
+
+    cemal = date(ANO, 7, 10)
+    ultimo_voo = date(ANO, 6, 20)
+    session.add(
+        CartaoSaude(
+            user_id=user.id,
+            cemal=cemal,
+            tovn=None,
+            imae=None,
+            prontuario=None,
+        )
+    )
+    await _voo(
+        session,
+        missao.id,
+        trip,
+        tvoo_min=60,
+        func='pil',
+        func_bordo='1P',
+        data=ultimo_voo,
+    )
+    await session.commit()
+
+    resp = await client.get(
+        URL, params=_params(), headers=_auth(token_sem_perm)
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    trip_resp = _trips_por_func(resp.json()['data'])['pil'][0]
+    assert trip_resp['restricoes_derivadas'] == [
+        {
+            'origem': 'cemal',
+            'codigo': 'cemal_vencido',
+            'inicio': '2025-07-11',
+            'fim': None,
+            'efeito': 'bloqueio',
+        },
+        {
+            'origem': 'recencia_voo',
+            'codigo': 'desadaptacao',
+            'inicio': '2025-08-04',
+            'fim': None,
+            'efeito': 'aviso',
+        },
+    ]

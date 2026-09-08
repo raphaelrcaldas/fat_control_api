@@ -32,6 +32,10 @@ from fcontrol_api.schemas.ops.escala import (
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg
+from fcontrol_api.services.restricoes import (
+    calcular_restricoes_derivadas,
+    elegivel_desadaptacao,
+)
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -266,6 +270,16 @@ async def get_escala_disponiveis(
                 data_ult_voo=row.data_ult_voo,
                 cemal_date=row.cemal,
                 indisps=indisps_by_user.get(row.user_id, []),
+                elegivel_desadaptacao=elegivel_desadaptacao(
+                    funcao=row.func,
+                    operacionalidade=row.oper,
+                ),
+                restricoes_derivadas=calcular_restricoes_derivadas(
+                    cemal=row.cemal,
+                    ultimo_voo=row.data_ult_voo,
+                    funcao=row.func,
+                    operacionalidade=row.oper,
+                ),
             )
         )
 

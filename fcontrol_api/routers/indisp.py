@@ -37,6 +37,10 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.notificacoes import notificar_usuarios
+from fcontrol_api.services.restricoes import (
+    calcular_restricoes_derivadas,
+    elegivel_desadaptacao,
+)
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -224,7 +228,22 @@ async def get_crew_indisp(
             data_ult_voo=trip_extra.get('data_ult_voo'),
         )
 
-        response.append(IndispCrewEntry(trip=trip_info, indisps=user_indisps))
+        response.append(
+            IndispCrewEntry(
+                trip=trip_info,
+                indisps=user_indisps,
+                elegivel_desadaptacao=elegivel_desadaptacao(
+                    funcao=trip.func,
+                    operacionalidade=trip.oper,
+                ),
+                restricoes_derivadas=calcular_restricoes_derivadas(
+                    cemal=trip_info.cemal,
+                    ultimo_voo=trip_info.data_ult_voo,
+                    funcao=trip.func,
+                    operacionalidade=trip.oper,
+                ),
+            )
+        )
 
     return success_response(data=response)
 

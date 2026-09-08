@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.enums.indisp import IndispEnum
+from fcontrol_api.schemas.restricoes import RestricaoDerivada
 
 
 class EscalaIndispInfo(BaseModel):
@@ -27,6 +28,8 @@ class EscalaTripEntry(BaseModel):
     data_ult_voo: date | None
     cemal_date: date | None
     indisps: list[EscalaIndispInfo]
+    elegivel_desadaptacao: bool
+    restricoes_derivadas: list[RestricaoDerivada]
 
 
 class EscalaFuncSection(BaseModel):

@@ -83,6 +83,16 @@ async def test_returns_eligible_trip(client, session, users, token_sem_perm):
     data = resp.json()['data']
     assert [s['func'] for s in data['sections']] == ['pil']
     assert trip.id in _all_trip_ids(data)
+    assert data['sections'][0]['trips'][0]['elegivel_desadaptacao'] is True
+    assert data['sections'][0]['trips'][0]['restricoes_derivadas'] == [
+        {
+            'origem': 'cemal',
+            'codigo': 'cemal_ausente',
+            'inicio': None,
+            'fim': None,
+            'efeito': 'bloqueio',
+        }
+    ]
 
 
 async def test_ineligible_quad_group_400(

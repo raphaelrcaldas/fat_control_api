@@ -76,6 +76,16 @@ async def test_get_crew_indisp_response_structure(
     item = data[0]
     assert 'trip' in item
     assert 'indisps' in item
+    assert item['elegivel_desadaptacao'] is True
+    assert item['restricoes_derivadas'] == [
+        {
+            'origem': 'cemal',
+            'codigo': 'cemal_ausente',
+            'inicio': None,
+            'fim': None,
+            'efeito': 'bloqueio',
+        }
+    ]
 
     # Estrutura do trip
     trip_data = item['trip']

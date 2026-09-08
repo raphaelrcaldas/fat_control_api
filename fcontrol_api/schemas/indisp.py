@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.schemas.funcoes import BaseFunc
+from fcontrol_api.schemas.restricoes import RestricaoDerivada
 from fcontrol_api.schemas.users import UserPublic
 
 
@@ -50,3 +51,5 @@ class IndispTripInfo(BaseFunc):
 class IndispCrewEntry(BaseModel):
     trip: IndispTripInfo
     indisps: list[IndispOut]
+    elegivel_desadaptacao: bool
+    restricoes_derivadas: list[RestricaoDerivada]
