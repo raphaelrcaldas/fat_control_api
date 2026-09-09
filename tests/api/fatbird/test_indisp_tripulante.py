@@ -4,7 +4,7 @@
 indisponibilidade **sem ter role**. Antes, os handlers de escrita
 buscavam a indisp só pelo `id` e não checavam nada — qualquer tripulante
 podia editar/apagar a de qualquer militar, de qualquer organização (IDOR).
-Agora vale owner-OR-permission ('indisp_trips') + escopo por
+Agora vale owner-OR-permission ('ops.indisp') + escopo por
 `Tripulante.uae`.
 
 A leitura segue aberta dentro da org (a lista de tripulação já mostra as
@@ -16,6 +16,7 @@ from http import HTTPStatus
 
 import pytest
 
+from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.models.shared.indisp import Indisp
 from tests.api.fatbird.conftest import auth
 
@@ -159,10 +160,79 @@ async def test_nao_remove_dentro_do_prazo(
     assert db.deleted_at is None
 
 
+async def test_pelo_client_edita_a_propria_dentro_do_prazo(
+    client, session, trip_user, trip_token_client
+):
+    """O prazo é do FatBird: pelo client, o próprio dono edita à vontade.
+
+    Mesmo militar e mesma indisponibilidade de
+    `test_nao_edita_dentro_do_prazo`, que dá 400 — aqui só o portal muda.
+    Enquanto o discriminador foi permissão, este caminho barrava o gestor
+    ao mexer no registro DELE, com a mensagem "procure o escalante".
+    """
+    user, _ = trip_user
+    indisp = await _mk_indisp(
+        session, user.id, created_by=user.id, inicio=DENTRO_DO_PRAZO
+    )
+
+    resp = await client.put(
+        f'{URL}{indisp.id}',
+        json={'obs': 'correção pelo portal de gestão'},
+        headers=auth(trip_token_client),
+    )
+    assert resp.status_code == HTTPStatus.OK
+
+
+async def test_pelo_client_remove_a_propria_dentro_do_prazo(
+    client, session, trip_user, trip_token_client
+):
+    """Idem no DELETE — era o caminho sem a ação no catálogo da role."""
+    user, _ = trip_user
+    indisp = await _mk_indisp(
+        session, user.id, created_by=user.id, inicio=DENTRO_DO_PRAZO
+    )
+    indisp_id = indisp.id
+
+    resp = await client.delete(
+        f'{URL}{indisp_id}', headers=auth(trip_token_client)
+    )
+    assert resp.status_code == HTTPStatus.OK
+
+    session.expire_all()
+    db = await session.get(Indisp, indisp_id)
+    assert db.deleted_at is not None
+
+
+async def test_role_nao_fura_o_prazo_pelo_fatbird(
+    client, session, trip_user, trip_token
+):
+    """Ter role não libera o prazo: no FatBird ele vale para todos.
+
+    Enquanto o guard olhava permissão, o tripulante que também fosse
+    escalante passava por cima da trava pelo próprio portal do
+    tripulante — a escala já montada não estava protegida justamente de
+    quem sabe mexer nela.
+    """
+    user, _ = trip_user
+    session.add(UserRole(user_id=user.id, role_id=1))  # admin: bypass total
+    await session.commit()
+
+    indisp = await _mk_indisp(
+        session, user.id, created_by=user.id, inicio=DENTRO_DO_PRAZO
+    )
+
+    resp = await client.put(
+        f'{URL}{indisp.id}',
+        json={'obs': 'tentativa de última hora'},
+        headers=auth(trip_token),
+    )
+    assert resp.status_code == HTTPStatus.BAD_REQUEST
+
+
 async def test_gestor_edita_dentro_do_prazo(
     client, session, users, token, trip_user
 ):
-    """Quem tem 'indisp_trips' (escalante, pelo client) passa por cima."""
+    """Escalante pelo client, na indisp de OUTRO: prazo não se aplica."""
     user, _ = users
     trip, _ = trip_user
     indisp = await _mk_indisp(
@@ -181,7 +251,7 @@ async def test_gestor_edita_dentro_do_prazo(
 
 
 async def test_nao_cria_para_outro(client, trip_token, outro_trip):
-    """Sem 'indisp_trips.create', não lança indisp em nome de outro."""
+    """Sem 'ops.indisp.create', não lança indisp em nome de outro."""
     outro, _ = outro_trip
     resp = await client.post(
         URL, json=_payload(outro.id), headers=auth(trip_token)
@@ -190,7 +260,7 @@ async def test_nao_cria_para_outro(client, trip_token, outro_trip):
 
 
 async def test_nao_edita_a_de_outro(client, session, trip_token, outro_trip):
-    """Sem 'indisp_trips.update', não edita a indisp de outro militar."""
+    """Sem 'ops.indisp.update', não edita a indisp de outro militar."""
     outro, _ = outro_trip
     indisp = await _mk_indisp(session, outro.id, created_by=outro.id)
 
@@ -203,7 +273,7 @@ async def test_nao_edita_a_de_outro(client, session, trip_token, outro_trip):
 
 
 async def test_nao_remove_a_de_outro(client, session, trip_token, outro_trip):
-    """Sem 'indisp_trips.delete', não remove a indisp de outro militar."""
+    """Sem 'ops.indisp.delete', não remove a indisp de outro militar."""
     outro, _ = outro_trip
     indisp = await _mk_indisp(session, outro.id, created_by=outro.id)
     indisp_id = indisp.id

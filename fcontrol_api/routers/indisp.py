@@ -4,7 +4,7 @@ from http import HTTPStatus
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import and_
 from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +33,8 @@ from fcontrol_api.security import (
     ActiveOrg,
     ensure_org_permission_or_owner,
     get_current_user,
-    has_org_permission,
 )
+from fcontrol_api.services.auth import FATBIRD_CLIENT
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.notificacoes import notificar_usuarios
 from fcontrol_api.services.restricoes import (
@@ -46,12 +46,27 @@ from fcontrol_api.utils.responses import success_response
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
+
+async def get_app_client(request: Request) -> str | None:
+    """Cliente OAuth do token (populado pelo middleware de autenticação)."""
+    return getattr(request.state, 'app_client', None)
+
+
+AppClient = Annotated[str | None, Depends(get_app_client)]
+
 router = APIRouter(prefix='/indisp', tags=['indisp'])
 
 # Prazo mínimo que o próprio tripulante tem de respeitar para lançar,
 # alterar ou remover a sua indisponibilidade: a escala já foi montada em
-# cima dela. Quem tem a permissão 'ops.indisp' (escalante, pelo client)
-# passa por cima — a trava é do token de tripulante.
+# cima dela.
+#
+# A trava é do FATBIRD, o portal do tripulante — não de quem é o usuário. O
+# discriminador já foi permissão ('ops.indisp'), e errava dos dois lados: o
+# escalante sem a ação 'delete' era barrado ao apagar a PRÓPRIA
+# indisponibilidade pelo client, com a mensagem "procure o escalante"; e o
+# tripulante que também tem role de escalante furava o prazo pelo FatBird,
+# porque a permissão não sabe de qual app veio a requisição. O client é o
+# portal de gestão: ali o prazo não se aplica a ninguém.
 PRAZO_MINIMO_DIAS = 2
 
 # O fuso é explícito de propósito: o container roda em UTC, então
@@ -67,24 +82,20 @@ def data_minima_tripulante() -> date:
 
 async def ensure_prazo_tripulante(
     user: User,
-    session: AsyncSession,
-    active_org: str | None,
-    action: str,
+    app_client: str | None,
     owner_id: int,
     datas: list[date],
 ) -> None:
-    """Aplica o prazo mínimo a quem age como dono, sem gestão da escala.
+    """Aplica o prazo mínimo a quem age sobre a própria indisp pelo FatBird.
 
     `datas` traz os inícios envolvidos na operação: o que está salvo (a
     indisponibilidade não pode estar dentro da janela) e o que se pretende
     gravar (não pode ser movida para dentro dela).
     """
-    if user.id != owner_id:
+    if app_client != FATBIRD_CLIENT:
         return
 
-    if await has_org_permission(
-        user, session, active_org, 'ops.indisp', action
-    ):
+    if user.id != owner_id:
         return
 
     minima = data_minima_tripulante()
@@ -258,6 +269,7 @@ async def create_indisp(
     session: Session,
     active_org: ActiveOrg,
     user: CurrentUser,
+    app_client: AppClient,
 ):
     # O tripulante lança a PRÓPRIA indisponibilidade pelo FatBird (sem
     # role); lançar para outro militar exige 'ops.indisp.create'.
@@ -287,9 +299,7 @@ async def create_indisp(
 
     await ensure_prazo_tripulante(
         user,
-        session,
-        active_org,
-        'create',
+        app_client,
         indisp.user_id,
         [indisp.date_start],
     )
@@ -444,6 +454,7 @@ async def delete_indisp(
     session: Session,
     active_org: ActiveOrg,
     user: CurrentUser,
+    app_client: AppClient,
 ):
     indisp = await session.scalar(
         select(Indisp)
@@ -465,9 +476,7 @@ async def delete_indisp(
 
     await ensure_prazo_tripulante(
         user,
-        session,
-        active_org,
-        'delete',
+        app_client,
         indisp.user_id,
         [indisp.date_start],
     )
@@ -530,6 +539,7 @@ async def update_indisp(
     session: Session,
     active_org: ActiveOrg,
     user: CurrentUser,
+    app_client: AppClient,
 ):
     db_indisp = await session.scalar(
         select(Indisp)
@@ -583,9 +593,7 @@ async def update_indisp(
     # dentro dela.
     await ensure_prazo_tripulante(
         user,
-        session,
-        active_org,
-        'update',
+        app_client,
         db_indisp.user_id,
         [db_indisp.date_start, check_date_start],
     )

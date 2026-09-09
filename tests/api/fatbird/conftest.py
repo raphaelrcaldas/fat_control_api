@@ -44,16 +44,21 @@ async def _mk_tripulante(session, *, unidade=ORG):
     return db_user, trip
 
 
-def _fatbird_token(user, active_org=ORG):
-    """Token como o portal emite: app_client 'fatbird' e org da lotação."""
+def _token(user, app_client, active_org=ORG):
+    """Token de um portal para este militar — só o `app_client` varia."""
     return create_access_token(
         data={
             'sub': f'{user.posto.short} {user.nome_guerra}',
             'user_id': user.id,
-            'app_client': 'fatbird',
+            'app_client': app_client,
             'active_org': active_org,
         }
     )
+
+
+def _fatbird_token(user, active_org=ORG):
+    """Token como o portal emite: app_client 'fatbird' e org da lotação."""
+    return _token(user, 'fatbird', active_org)
 
 
 @pytest.fixture
@@ -68,6 +73,19 @@ async def trip_token(trip_user):
     """Token FatBird do próprio tripulante (sem role, sem permissões)."""
     user, _ = trip_user
     return _fatbird_token(user)
+
+
+@pytest.fixture
+async def trip_token_client(trip_user):
+    """MESMO militar, MESMO vínculo — só o portal muda, para o `client`.
+
+    Existe para isolar o prazo mínimo numa variável só: o par
+    `trip_token`/`trip_token_client` difere apenas no `app_client`, então
+    um teste que passe num e falhe no outro só pode estar reagindo ao
+    portal, e não a role, org ou dono.
+    """
+    user, _ = trip_user
+    return _token(user, 'client')
 
 
 @pytest.fixture
