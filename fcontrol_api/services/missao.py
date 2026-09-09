@@ -81,7 +81,20 @@ def validar_regras_missao(payload: FragMisSchema) -> None:
         )
 
 
-async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
+async def verificar_conflitos(
+    payload: FragMisSchema, session: AsyncSession, active_org: str
+):
+    """Barra o cadastro se algum militar ja esta escalado no periodo.
+
+    A busca NAO e escopada por organizacao de proposito: o militar e
+    universal, e estar em missao de outra unidade no mesmo periodo e um
+    conflito real, que quem cadastra precisa saber.
+
+    O que nao pode vazar e QUAL missao da outra unidade: `tipo_doc` e
+    `n_doc` so entram na mensagem quando a missao conflitante e da org
+    ativa. Fora dela, a mensagem identifica apenas a organizacao — o
+    bastante para quem cadastra saber a quem recorrer.
+    """
     user_ids = [u.user_id for u in payload.users]
     if not user_ids:
         return
@@ -158,8 +171,15 @@ async def verificar_conflitos(payload: FragMisSchema, session: AsyncSession):
     for item in conflitos.values():
         uf, fm = item['uf'], item['fm']
         motivo_txt = ' / '.join(sorted(item['motivos']))
+        # Missao de outra unidade: identifica a organizacao, nunca o
+        # documento dela.
+        origem = (
+            f'{fm.tipo_doc} {fm.n_doc}'
+            if fm.uae == active_org
+            else f'missão da {fm.uae}'
+        )
         row = (
-            f'\n - {fm.tipo_doc} {fm.n_doc} '
+            f'\n - {origem} '
             f'{uf.user.p_g} {uf.user.nome_guerra} -> {motivo_txt}'
         ).upper()
         msg += row

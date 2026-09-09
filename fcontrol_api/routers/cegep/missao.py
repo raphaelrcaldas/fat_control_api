@@ -385,7 +385,7 @@ async def create_or_update_missao(
 
     missao = await adicionar_missao(payload, session, active_org)
 
-    await verificar_conflitos(payload, session)
+    await verificar_conflitos(payload, session, active_org)
 
     await verificar_usrs_comiss(
         [u for u in payload.users if u.sit == 'c'],

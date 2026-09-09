@@ -1062,3 +1062,122 @@ async def test_comiss_completude_by_valor_when_no_dias_cumprir(
     assert comiss.cache_calc is not None
     assert 'completude' in comiss.cache_calc
     assert comiss.cache_calc['completude'] >= 0
+
+
+async def test_conflito_com_outra_org_nao_revela_documento(
+    client, token, missao_outra_org, users
+):
+    """Conflito cross-org e detectado, mas sem vazar o documento alheio.
+
+    O militar e universal: uma missao de outra unidade no mesmo periodo
+    tem de barrar o cadastro. O que a mensagem NAO pode conter e o
+    tipo_doc/n_doc da outra unidade — apenas a sigla da organizacao, para
+    quem esta cadastrando saber a quem recorrer.
+    """
+    user, _ = users
+    today = date.today()
+
+    payload = {
+        'n_doc': 8002,
+        'tipo_doc': 'om',
+        'indenizavel': True,
+        'acrec_desloc': False,
+        'afast': datetime.combine(
+            today + timedelta(days=12), time(8, 0)
+        ).isoformat(),
+        'regres': datetime.combine(
+            today + timedelta(days=18), time(18, 0)
+        ).isoformat(),
+        'desc': 'Missao que colide com a outra unidade',
+        'obs': '',
+        'tipo': 'adm',
+        'pernoites': [
+            {
+                'acrec_desloc': False,
+                'data_ini': (today + timedelta(days=12)).isoformat(),
+                'data_fim': (today + timedelta(days=18)).isoformat(),
+                'meia_diaria': False,
+                'obs': '',
+                'cidade_id': 3550308,
+                'cidade': {
+                    'codigo': 3550308,
+                    'nome': 'Sao Paulo',
+                    'uf': 'SP',
+                },
+            }
+        ],
+        'users': [_build_user_payload(user, 'd')],
+        'etiquetas': [],
+    }
+
+    response = await client.post(
+        '/cegep/missoes/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=payload,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    msg = response.json()['message']
+
+    # o conflito e detectado
+    assert 'sobreposição' in msg.lower()
+    # ...mas o documento da outra unidade nao aparece
+    assert '7777' not in msg
+    # ...e a organizacao responsavel e identificada
+    assert '1GT' in msg.upper()
+
+
+async def test_conflito_na_propria_org_mantem_o_documento(
+    client, token, missao_existente, users
+):
+    """Na mesma unidade nao ha o que esconder: o documento continua.
+
+    Contraponto do teste acima — a protecao cross-org nao pode custar a
+    informacao util no caso normal, que e o do dia a dia.
+    """
+    user, _ = users
+    today = date.today()
+
+    payload = {
+        'n_doc': 8003,
+        'tipo_doc': 'om',
+        'indenizavel': True,
+        'acrec_desloc': False,
+        'afast': datetime.combine(
+            today + timedelta(days=12), time(8, 0)
+        ).isoformat(),
+        'regres': datetime.combine(
+            today + timedelta(days=18), time(18, 0)
+        ).isoformat(),
+        'desc': 'Missao que colide na propria unidade',
+        'obs': '',
+        'tipo': 'adm',
+        'pernoites': [
+            {
+                'acrec_desloc': False,
+                'data_ini': (today + timedelta(days=12)).isoformat(),
+                'data_fim': (today + timedelta(days=18)).isoformat(),
+                'meia_diaria': False,
+                'obs': '',
+                'cidade_id': 3550308,
+                'cidade': {
+                    'codigo': 3550308,
+                    'nome': 'Sao Paulo',
+                    'uf': 'SP',
+                },
+            }
+        ],
+        'users': [_build_user_payload(user, 'd')],
+        'etiquetas': [],
+    }
+
+    response = await client.post(
+        '/cegep/missoes/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=payload,
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    msg = response.json()['message']
+    assert 'sobreposição' in msg.lower()
+    assert '1001' in msg

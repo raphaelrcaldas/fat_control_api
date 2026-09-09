@@ -366,3 +366,55 @@ def missao_payload_comiss(user_with_comiss):
         ],
         'etiquetas': [],
     }
+
+
+@pytest.fixture
+async def missao_outra_org(session, users):
+    """Missao de OUTRA organizacao ('1gt'), com o mesmo militar.
+
+    O militar e universal: ele pode ser escalado por qualquer unidade, e
+    por isso o conflito de datas precisa ser detectado entre organizacoes.
+    O que a mensagem de conflito nao pode revelar e QUAL documento da
+    outra unidade — dai o n_doc distinto e verificavel aqui.
+    """
+    user, _ = users
+    today = date.today()
+
+    missao = FragMisFactory(
+        tipo_doc='os',
+        n_doc='7777',
+        desc='Missao da outra unidade',
+        tipo='adm',
+        afast=datetime.combine(today + timedelta(days=10), time(8, 0)),
+        regres=datetime.combine(today + timedelta(days=15), time(18, 0)),
+        acrec_desloc=False,
+        obs='',
+        indenizavel=True,
+        uae='1gt',
+    )
+    session.add(missao)
+    await session.flush()
+
+    session.add(
+        PernoiteFragFactory(
+            frag_id=missao.id,
+            cidade_id=3550308,
+            data_ini=today + timedelta(days=10),
+            data_fim=today + timedelta(days=15),
+            acrec_desloc=False,
+            meia_diaria=False,
+            obs='',
+        )
+    )
+    session.add(
+        UserFragFactory(
+            frag_id=missao.id,
+            user_id=user.id,
+            sit='d',
+            p_g=user.p_g,
+        )
+    )
+
+    await session.commit()
+    await session.refresh(missao)
+    return missao
