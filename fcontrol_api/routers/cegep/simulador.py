@@ -238,7 +238,12 @@ async def simular_custo_missao(payload: SimulacaoInput, session: Session):
         soldos_cache,
     )
 
-    # 4. Totais por combinação: valor_unitario já inclui o R$95 global 1×
+    # 4. Totais por combinação: `valor_unitario` já traz o R$ 95 global
+    #    somado 1x — exceto em sit='g', que não recebe acréscimo de
+    #    deslocamento (ver `custos/calculo.py`). Por isso
+    #    `acrec_desloc_missao` e o `ac_desloc` de cada pernoite continuam
+    #    saindo crus abaixo: aqui eles descrevem a missão simulada, que
+    #    pode ter várias combinações, e não o bolso de um militar.
     totais_pg_sit: dict = custos.get('totais_pg_sit', {})
     total_geral = Decimal('0')
     combinacoes_out: list[SimulacaoCombinacaoOut] = []

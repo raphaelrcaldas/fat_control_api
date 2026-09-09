@@ -260,11 +260,20 @@ def calcular_custos_frag_mis(
         total_dias_missao += dias_pernoite
         total_diarias_missao += diarias_pernoite
 
-    # 5. Somar acréscimo de deslocamento da missão aos totais
+    # 5. Somar acréscimo de deslocamento da missão aos totais.
+    #    Gratificação de representação (2% do soldo, SEM diária) não
+    #    recebe acréscimo de deslocamento — é a mesma regra que
+    #    `_custo_pernoite` já aplica ao acréscimo por pernoite. O valor
+    #    segue gravado em `acrec_desloc_missao` porque é propriedade da
+    #    missão, não do militar; quem lê decide a quem ele se aplica.
     acrec_desloc_missao = 95 if frag_mis.acrec_desloc else 0
     if acrec_desloc_missao:
-        for totais in totais_pg_sit.values():
-            totais['total_valor'] += acrec_desloc_missao
+        for p_g, sit in combinacoes_pg_sit:
+            if sit == 'g':
+                continue
+            chave = chave_pg_sit(p_g, sit)
+            if chave in totais_pg_sit:
+                totais_pg_sit[chave]['total_valor'] += acrec_desloc_missao
 
     # 6. Adicionar totais ao JSONB (float só aqui, no limite de escrita)
     custos_jsonb['totais_pg_sit'] = {

@@ -17,6 +17,7 @@ from fcontrol_api.models.cegep.missoes import (
     PernoiteFrag,
     UserFrag,
 )
+from fcontrol_api.services.custos.integridade import chave_pg_sit
 from tests.factories import (
     ComissFactory,
     EtiquetaFactory,
@@ -1181,3 +1182,107 @@ async def test_conflito_na_propria_org_mantem_o_documento(
     msg = response.json()['message']
     assert 'sobreposição' in msg.lower()
     assert '1001' in msg
+
+
+def _payload_desloc(user, sit, n_doc, today):
+    """Missao de 5 dias, com acrescimo na missao e no pernoite."""
+    return {
+        'n_doc': n_doc,
+        'tipo_doc': 'om',
+        'indenizavel': True,
+        'acrec_desloc': True,
+        'afast': datetime.combine(
+            today + timedelta(days=80), time(8, 0)
+        ).isoformat(),
+        'regres': datetime.combine(
+            today + timedelta(days=85), time(18, 0)
+        ).isoformat(),
+        'desc': f'Missao desloc sit {sit}',
+        'obs': '',
+        'tipo': 'adm',
+        'pernoites': [
+            {
+                'acrec_desloc': True,
+                'data_ini': (today + timedelta(days=80)).isoformat(),
+                'data_fim': (today + timedelta(days=85)).isoformat(),
+                'meia_diaria': False,
+                'obs': '',
+                'cidade_id': 3550308,
+                'cidade': {
+                    'codigo': 3550308,
+                    'nome': 'Sao Paulo',
+                    'uf': 'SP',
+                },
+            }
+        ],
+        'users': [_build_user_payload(user, sit)],
+        'etiquetas': [],
+    }
+
+
+async def test_grat_rep_nao_recebe_acrescimo_de_deslocamento(
+    client, session, token, users
+):
+    """Grat. representacao (2% do soldo, sem diaria) nao leva os R$ 95.
+
+    O acrescimo POR PERNOITE ja era pulado para sit='g' no calculo; o
+    acrescimo DA MISSAO era somado a todas as combinacoes, inclusive 'g'.
+    As duas pontas agora concordam: 'g' nao recebe nenhum dos dois.
+    """
+    user, _ = users
+    today = date.today()
+
+    response = await client.post(
+        '/cegep/missoes/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=_payload_desloc(user, 'g', 9101, today),
+    )
+    assert response.status_code == HTTPStatus.OK
+
+    db_missao = await session.scalar(
+        select(FragMis).where(FragMis.n_doc == '9101')
+    )
+    custos = db_missao.custos
+    chave = chave_pg_sit(user.p_g, 'g')
+
+    total_g = custos['totais_pg_sit'][chave]['total_valor']
+    soma_pernoites = sum(
+        bloco[chave]['subtotal']
+        for nome, bloco in custos.items()
+        if nome.startswith('pernoite_')
+    )
+
+    # o total do militar em 'g' e exatamente a soma dos pernoites:
+    # nenhum acrescimo de deslocamento entrou por cima
+    assert total_g == pytest.approx(soma_pernoites)
+
+
+async def test_diaria_continua_recebendo_o_acrescimo_da_missao(
+    client, session, token, users
+):
+    """Contraponto: em 'd' os R$ 95 da missao continuam somados uma vez."""
+    user, _ = users
+    today = date.today()
+
+    response = await client.post(
+        '/cegep/missoes/',
+        headers={'Authorization': f'Bearer {token}'},
+        json=_payload_desloc(user, 'd', 9102, today),
+    )
+    assert response.status_code == HTTPStatus.OK
+
+    db_missao = await session.scalar(
+        select(FragMis).where(FragMis.n_doc == '9102')
+    )
+    custos = db_missao.custos
+    chave = chave_pg_sit(user.p_g, 'd')
+
+    total_d = custos['totais_pg_sit'][chave]['total_valor']
+    soma_pernoites = sum(
+        bloco[chave]['subtotal']
+        for nome, bloco in custos.items()
+        if nome.startswith('pernoite_')
+    )
+
+    assert custos['acrec_desloc_missao'] == 95
+    assert total_d == pytest.approx(soma_pernoites + 95)

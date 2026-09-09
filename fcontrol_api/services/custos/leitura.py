@@ -52,7 +52,12 @@ def custo_totais(
             return {**zerado, 'custo_inconsistente': True}
         return {**zerado, 'custo_inconsistente': False}
 
-    acrec_desloc = custos_jsonb.get('acrec_desloc_missao', 0)
+    # Grat. representação não recebe acréscimo de deslocamento (ver
+    # `calculo.calcular_custos_frag_mis`): o valor existe na missão, mas
+    # não se aplica a este militar, então nem entra na contagem.
+    acrec_desloc = (
+        0 if sit == 'g' else custos_jsonb.get('acrec_desloc_missao', 0)
+    )
     totais_pg_sit = custos_jsonb.get('totais_pg_sit', {})
 
     inconsistente = chave not in totais_pg_sit
@@ -115,16 +120,24 @@ def custo_missao(p_g: str, sit: str, mis: dict) -> dict:
         # Custos específicos para este pg+sit
         pg_sit_custos = pernoite_custos.get(chave, {})
 
+        # O acréscimo do pernoite é gravado por pernoite, não por
+        # militar: para grat. representação ele não entra no subtotal
+        # (ver `calculo._custo_pernoite`), então também não é exibido
+        # nem contado aqui.
+        ac_desloc_pnt = (
+            0 if sit == 'g' else pernoite_custos.get('ac_desloc', 0)
+        )
+
         # Montar estrutura de custo compatível
         pnt['custo'] = {
             'subtotal': pg_sit_custos.get('subtotal', 0),
-            'ac_desloc': pernoite_custos.get('ac_desloc', 0),
+            'ac_desloc': ac_desloc_pnt,
             'vals': pg_sit_custos.get('vals', []),
             'dias': pernoite_custos.get('dias', 0),
         }
 
         # Contar acréscimos de deslocamento
-        if pernoite_custos.get('ac_desloc', 0) > 0:
+        if ac_desloc_pnt > 0:
             mis['qtd_ac'] += 1
 
     return mis
