@@ -26,7 +26,10 @@ from scripts.rbac_catalog import (
     extrai_recursos,
 )
 
-ACOES_VALIDAS = {'view', 'create', 'update', 'delete'}
+# `export` não é CRUD e não é typo: o privilégio de POST /users/export
+# é tirar PII de identidade do sistema, independente da tela de origem,
+# e por isso tem gate próprio em vez de reusar `users.view`.
+ACOES_VALIDAS = {'view', 'create', 'update', 'delete', 'export'}
 
 
 def _catalogo() -> dict:
