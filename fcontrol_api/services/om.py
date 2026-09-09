@@ -6,11 +6,16 @@ from http import HTTPStatus
 from typing import Protocol
 
 from fastapi import HTTPException
+from sqlalchemy import Integer, cast, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from fcontrol_api.models.shared.om import OrdemTripulacao
+from fcontrol_api.models.shared.om import (
+    OrdemEtapa,
+    OrdemMissao,
+    OrdemTripulacao,
+)
 from fcontrol_api.models.shared.tripulantes import Tripulante
 
 
@@ -155,3 +160,102 @@ async def criar_tripulacao_batch(
             criadas.append(trip_ordem)
 
     return criadas
+
+
+def montar_etapa(ordem_id: int, dados: EtapaLike) -> OrdemEtapa:
+    """Monta uma OrdemEtapa a partir do payload de entrada.
+
+    `tvoo_etp` nao vem do cliente: e derivado de dt_arr - dt_dep em
+    minutos. Criacao e atualizacao da OM montam a etapa do mesmo jeito,
+    entao a derivacao mora aqui e nao em cada handler.
+    """
+    tvoo_etp = int((dados.dt_arr - dados.dt_dep).total_seconds() / 60)
+    return OrdemEtapa(
+        ordem_id=ordem_id,
+        dt_dep=dados.dt_dep,
+        origem=dados.origem,
+        dest=dados.dest,
+        dt_arr=dados.dt_arr,
+        alternativa=dados.alternativa,
+        tvoo_etp=tvoo_etp,
+        tvoo_alt=dados.tvoo_alt,
+        qtd_comb=dados.qtd_comb,
+        esf_aer=dados.esf_aer,
+    )
+
+
+async def assert_numero_om_livre(
+    session: AsyncSession,
+    *,
+    numero: str,
+    uae: str,
+    ano: int,
+    excluir_id: int,
+    rotulo: str | None = None,
+) -> None:
+    """Garante que o numero nao esta em uso na mesma UAE e ano.
+
+    `excluir_id` tira a propria ordem da busca. `rotulo` entra na
+    mensagem quando o numero foi digitado pelo usuario; omitido, a
+    mensagem fala de "este numero" (numero recem-emitido).
+    """
+    existing = await session.scalar(
+        select(OrdemMissao).where(
+            OrdemMissao.numero == numero,
+            OrdemMissao.id != excluir_id,
+            OrdemMissao.deleted_at.is_(None),
+            extract('year', OrdemMissao.data_saida) == ano,
+            OrdemMissao.uae == uae,
+        )
+    )
+    if existing:
+        alvo = f'o número {rotulo}' if rotulo else 'este número'
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=(
+                f'Já existe uma ordem com {alvo} no ano {ano} para a UAE {uae}'
+            ),
+        )
+
+
+async def emitir_numero_om(
+    session: AsyncSession, *, uae: str, ano: int, excluir_id: int
+) -> str:
+    """Emite o proximo numero sequencial da OM na UAE e ano.
+
+    Usa MAX(numero)+1 (e nao COUNT+1) para que a numeracao seja
+    permanente: um numero emitido nunca e reusado, mesmo que a OM seja
+    cancelada. O filtro regex '^[0-9]+$' descarta 'auto' (rascunhos) e
+    numeros editados a mao que nao sejam numericos, e deleted_at IS NULL
+    ignora OMs excluidas.
+
+    O advisory lock transacional serializa a emissao por (UAE, ano): sem
+    ele, duas aprovacoes simultaneas leriam o mesmo MAX e emitiriam
+    numeros duplicados. E liberado no commit.
+    """
+    await session.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f'om_numero:{uae}:{ano}', 0)
+            )
+        )
+    )
+
+    max_seq = await session.scalar(
+        select(func.max(cast(OrdemMissao.numero, Integer))).where(
+            OrdemMissao.numero.op('~')('^[0-9]+$'),
+            OrdemMissao.deleted_at.is_(None),
+            extract('year', OrdemMissao.data_saida) == ano,
+            OrdemMissao.uae == uae,
+        )
+    )
+
+    numero = f'{(max_seq or 0) + 1:03d}'
+
+    # Pos-condicao defensiva: sob o lock, MAX+1 ja e unico por
+    # construcao. A checagem cobre o caso de um numero manual ter
+    # ocupado a faixa por outro caminho.
+    await assert_numero_om_livre(
+        session, numero=numero, uae=uae, ano=ano, excluir_id=excluir_id
+    )
+    return numero

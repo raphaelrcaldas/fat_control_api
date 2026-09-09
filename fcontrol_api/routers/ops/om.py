@@ -5,7 +5,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Date, Integer, cast, extract, func
+from sqlalchemy import Date, cast, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -36,7 +36,10 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.logs import log_user_action, ordem_snapshot
 from fcontrol_api.services.om import (
+    assert_numero_om_livre,
     criar_tripulacao_batch,
+    emitir_numero_om,
+    montar_etapa,
     validar_integridade_etapas,
 )
 from fcontrol_api.utils.responses import paginated_response, success_response
@@ -360,23 +363,7 @@ async def create_ordem(
 
     # Criar etapas
     for etapa_data in ordem_data.etapas:
-        # Calcular tempo de voo: dt_arr - dt_dep em minutos
-        tvoo_etp = int(
-            (etapa_data.dt_arr - etapa_data.dt_dep).total_seconds() / 60
-        )
-        etapa = OrdemEtapa(
-            ordem_id=ordem.id,
-            dt_dep=etapa_data.dt_dep,
-            origem=etapa_data.origem,
-            dest=etapa_data.dest,
-            dt_arr=etapa_data.dt_arr,
-            alternativa=etapa_data.alternativa,
-            tvoo_etp=tvoo_etp,
-            tvoo_alt=etapa_data.tvoo_alt,
-            qtd_comb=etapa_data.qtd_comb,
-            esf_aer=etapa_data.esf_aer,
-        )
-        session.add(etapa)
+        session.add(montar_etapa(ordem.id, etapa_data))
 
     # Criar tripulação (batch query para evitar N+1)
     tripulacao_criada: list[OrdemTripulacao] = []
@@ -578,65 +565,15 @@ async def update_ordem(
                 detail='A ordem deve ter pelo menos uma etapa',
             )
 
-        # 2. Buscar o maior número já atribuído no ano/UAE.
-        # Usamos MAX(numero)+1 (e não COUNT+1) para que a numeração seja
-        # permanente: um número emitido nunca é reusado, mesmo que a OM
-        # seja cancelada. O filtro regex '^[0-9]+$' descarta 'auto'
-        # (rascunhos) e números editados manualmente que não sejam
-        # numéricos, e deleted_at IS NULL ignora OMs excluídas.
-        year = ordem.data_saida.year
-        target_uae = ordem.uae
-
-        # Serializa a numeração por (UAE, ano): sem o lock, duas
-        # aprovações simultâneas leriam o mesmo MAX e emitiriam números
-        # duplicados. O advisory lock transacional é liberado no commit.
-        await session.execute(
-            select(
-                func.pg_advisory_xact_lock(
-                    func.hashtextextended(f'om_numero:{target_uae}:{year}', 0)
-                )
-            )
+        # A numeração (advisory lock + MAX+1) e a checagem de unicidade
+        # vivem no serviço. `data_saida` acabou de ser derivada das
+        # etapas, então o ano dela é o mesmo das etapas do payload.
+        ordem.numero = await emitir_numero_om(
+            session,
+            uae=ordem.uae,
+            ano=ordem.data_saida.year,
+            excluir_id=id,
         )
-
-        max_seq = await session.scalar(
-            select(func.max(cast(OrdemMissao.numero, Integer))).where(
-                OrdemMissao.numero.op('~')('^[0-9]+$'),
-                OrdemMissao.deleted_at.is_(None),
-                extract('year', OrdemMissao.data_saida) == year,
-                OrdemMissao.uae == target_uae,
-            )
-        )
-
-        # 3. Atribuir número sequencial
-        seq = (max_seq or 0) + 1
-        ordem.numero = f'{seq:03d}'
-
-        # Garantir que temos o target_year e target_uae
-        target_year = None
-        target_uae = ordem.uae
-        if ordem_data.etapas:
-            target_year = min(e.dt_dep for e in ordem_data.etapas).year
-        elif ordem.data_saida:
-            target_year = ordem.data_saida.year
-
-        if target_year and target_uae:
-            existing = await session.scalar(
-                select(OrdemMissao).where(
-                    OrdemMissao.numero == ordem.numero,
-                    OrdemMissao.id != id,
-                    OrdemMissao.deleted_at.is_(None),
-                    extract('year', OrdemMissao.data_saida) == target_year,
-                    OrdemMissao.uae == target_uae,
-                )
-            )
-            if existing:
-                raise HTTPException(
-                    status_code=HTTPStatus.BAD_REQUEST,
-                    detail=(
-                        f'Já existe uma ordem com este número '
-                        f'no ano {target_year} para a UAE {target_uae}'
-                    ),
-                )
 
     # Atualizar campos simples
     update_data = ordem_data.model_dump(exclude_unset=True)
@@ -673,33 +610,23 @@ async def update_ordem(
                 ),
             )
 
-        # Validar unicidade do novo número (ano + UAE)
+        # Validar unicidade do novo número (ano + UAE). `uae` é NOT NULL
+        # no model, então só o ano pode faltar aqui.
         target_year = None
-        target_uae = ordem.uae
         if ordem_data.etapas:
             target_year = min(e.dt_dep for e in ordem_data.etapas).year
         elif ordem.data_saida:
             target_year = ordem.data_saida.year
 
-        if target_year and target_uae:
-            existing = await session.scalar(
-                select(OrdemMissao).where(
-                    OrdemMissao.numero == ordem_data.numero,
-                    OrdemMissao.id != id,
-                    OrdemMissao.deleted_at.is_(None),
-                    extract('year', OrdemMissao.data_saida) == target_year,
-                    OrdemMissao.uae == target_uae,
-                )
+        if target_year:
+            await assert_numero_om_livre(
+                session,
+                numero=ordem_data.numero,
+                uae=ordem.uae,
+                ano=target_year,
+                excluir_id=id,
+                rotulo=ordem_data.numero,
             )
-            if existing:
-                raise HTTPException(
-                    status_code=HTTPStatus.BAD_REQUEST,
-                    detail=(
-                        f'Já existe uma ordem com o número '
-                        f'{ordem_data.numero} no ano {target_year} '
-                        f'para a UAE {target_uae}'
-                    ),
-                )
 
     # Tratar campos especiais
     if 'campos_especiais' in update_data:
@@ -724,23 +651,7 @@ async def update_ordem(
 
         # Criar novas etapas
         for etapa_data in ordem_data.etapas or []:
-            # Calcular tempo de voo: dt_arr - dt_dep em minutos
-            tvoo_etp = int(
-                (etapa_data.dt_arr - etapa_data.dt_dep).total_seconds() / 60
-            )
-            etapa = OrdemEtapa(
-                ordem_id=ordem.id,
-                dt_dep=etapa_data.dt_dep,
-                origem=etapa_data.origem,
-                dest=etapa_data.dest,
-                dt_arr=etapa_data.dt_arr,
-                alternativa=etapa_data.alternativa,
-                tvoo_etp=tvoo_etp,
-                tvoo_alt=etapa_data.tvoo_alt,
-                qtd_comb=etapa_data.qtd_comb,
-                esf_aer=etapa_data.esf_aer,
-            )
-            session.add(etapa)
+            session.add(montar_etapa(ordem.id, etapa_data))
 
         del update_data['etapas']
 
