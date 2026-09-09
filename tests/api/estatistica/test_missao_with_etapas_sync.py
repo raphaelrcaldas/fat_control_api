@@ -421,3 +421,37 @@ async def test_update_substitui_ois_em_vez_de_acumular(
         select(TripEtapa).where(TripEtapa.etapa_id == etapa_id)
     )
     assert trip_etapa.trip_id == t2
+
+
+# ── DELETE missao/{id}/com-etapas ──────────────────────────────────
+
+
+async def test_delete_missao_com_etapas_remove_missao_e_filhos(
+    client, session, token, anvs, trips, oi_refs
+):
+    """DELETE com-etapas apaga a missao, as etapas e as linhas filhas."""
+    esf_id, tipo_id = oi_refs
+    t1, _ = trips
+    missao = await _mk_missao(session)
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2860',
+        dep=time(10, 0),
+        arr=time(11, 0),
+        trip_ids=[t1],
+        ois=[(esf_id, tipo_id, 60)],
+    )
+    await session.commit()
+    missao_id, etapa_id = missao.id, etapa.id
+
+    resp = await client.delete(
+        f'{MISSAO_URL}{missao_id}/com-etapas', headers=_auth(token)
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    session.expire_all()
+    assert await session.get(Missao, missao_id) is None
+    assert await session.get(Etapa, etapa_id) is None
+    assert await _contar(session, OIEtapa, etapa_id) == 0
+    assert await _contar(session, TripEtapa, etapa_id) == 0

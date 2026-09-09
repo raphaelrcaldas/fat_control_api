@@ -1,10 +1,11 @@
 """Funcoes de consulta de etapas, OIs e tripulantes."""
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date, time
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,11 +28,13 @@ from fcontrol_api.schemas.estatistica.etapa import (
     EtapaFlatOut,
     HeavyCdsEtapaIn,
     HeavyCdsEtapaOut,
+    OIEtapaIn,
     OIEtapaOut,
     PqdEtapaIn,
     PqdEtapaOut,
     RevoEtapaIn,
     RevoEtapaOut,
+    TripEtapaIn,
     TripEtapaOut,
 )
 from fcontrol_api.schemas.response import ApiPaginatedResponse
@@ -483,6 +486,64 @@ def add_especificos(
                 radial=h.radial,
             )
         )
+
+
+async def limpar_filhos_de_etapas(
+    session: AsyncSession, etapa_ids: Sequence[int]
+) -> None:
+    """Apaga em lote as linhas filhas das etapas informadas.
+
+    Cobre as cinco tabelas dependentes de `etapas` (OIs, tripulantes,
+    PQD, REVO e Heavy/CDS). Nao apaga a propria etapa: quem precisa
+    remover a linha-mae faz o `DELETE` dela depois, e quem so esta
+    reescrevendo os filhos (update em lote) chama apenas isto.
+
+    Sem flush: o chamador controla o momento, mantendo a atomicidade
+    da transacao.
+    """
+    if not etapa_ids:
+        return
+    ids = list(etapa_ids)
+    for model in (OIEtapa, TripEtapa, PqdEtapa, REVOEtapa, HeavyCDS):
+        await session.execute(sa_delete(model).where(model.etapa_id.in_(ids)))
+
+
+def add_filhos_etapa(
+    session: AsyncSession,
+    etapa_id: int,
+    *,
+    tripulantes: Iterable[TripEtapaIn],
+    oi_etapas: Iterable[OIEtapaIn],
+    pqd: list[PqdEtapaIn],
+    revo: list[RevoEtapaIn],
+    heavy_cds: list[HeavyCdsEtapaIn],
+) -> None:
+    """Adiciona tripulantes, OIs e especificos de uma etapa.
+
+    Criar uma etapa e reescrever uma etapa existente montam as mesmas
+    linhas filhas; a unica diferenca e o `etapa_id`. Apenas faz
+    `session.add` — flush/commit ficam com o chamador.
+    """
+    for t in tripulantes:
+        session.add(
+            TripEtapa(
+                etapa_id=etapa_id,
+                func=t.func,
+                func_bordo=t.func_bordo,
+                trip_id=t.trip_id,
+            )
+        )
+    for oi in oi_etapas:
+        session.add(
+            OIEtapa(
+                etapa_id=etapa_id,
+                esf_aer_id=oi.esf_aer_id,
+                tipo_missao_id=oi.tipo_missao_id,
+                reg=oi.reg,
+                tvoo=oi.tvoo,
+            )
+        )
+    add_especificos(session, etapa_id, pqd=pqd, revo=revo, heavy_cds=heavy_cds)
 
 
 async def fetch_especificos_data(

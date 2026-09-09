@@ -9,15 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.estatistica.etapa import (
-    Etapa,
-    HeavyCDS,
-    Missao,
-    OIEtapa,
-    PqdEtapa,
-    REVOEtapa,
-    TripEtapa,
-)
+from fcontrol_api.models.estatistica.etapa import Etapa, Missao
 from fcontrol_api.schemas.estatistica.etapa import (
     EtapaCreateNested,
     EtapaDetailOut,
@@ -32,7 +24,7 @@ from fcontrol_api.schemas.estatistica.etapa import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.etapas import (
-    add_especificos,
+    add_filhos_etapa,
     assert_anv_simulador_consistency,
     assert_no_anv_collision,
     assert_no_internal_anv_collision,
@@ -43,6 +35,7 @@ from fcontrol_api.services.etapas import (
     fetch_oi_detail_data,
     fetch_trip_data,
     find_collision,
+    limpar_filhos_de_etapas,
 )
 from fcontrol_api.utils.responses import success_response
 
@@ -259,30 +252,11 @@ async def create_missao_with_etapas(
         session.add(etapa)
         await session.flush()
 
-        for trip in etapa_in.tripulantes:
-            session.add(
-                TripEtapa(
-                    etapa_id=etapa.id,
-                    func=trip.func,
-                    func_bordo=trip.func_bordo,
-                    trip_id=trip.trip_id,
-                )
-            )
-
-        for oi in etapa_in.oi_etapas:
-            session.add(
-                OIEtapa(
-                    etapa_id=etapa.id,
-                    esf_aer_id=oi.esf_aer_id,
-                    tipo_missao_id=oi.tipo_missao_id,
-                    reg=oi.reg,
-                    tvoo=oi.tvoo,
-                )
-            )
-
-        add_especificos(
+        add_filhos_etapa(
             session,
             etapa.id,
+            tripulantes=etapa_in.tripulantes,
+            oi_etapas=etapa_in.oi_etapas,
             pqd=etapa_in.pqd,
             revo=etapa_in.revo,
             heavy_cds=etapa_in.heavy_cds,
@@ -469,31 +443,9 @@ async def update_missao_with_etapas(
     missao.titulo = payload.titulo
     missao.obs = payload.obs
 
-    # 5. Delete em lote (3 statements + flush).
+    # 5. Delete em lote: filhos primeiro, depois as proprias etapas.
     if payload.delete_ids:
-        await session.execute(
-            sa_delete(OIEtapa).where(OIEtapa.etapa_id.in_(payload.delete_ids))
-        )
-        await session.execute(
-            sa_delete(TripEtapa).where(
-                TripEtapa.etapa_id.in_(payload.delete_ids)
-            )
-        )
-        await session.execute(
-            sa_delete(PqdEtapa).where(
-                PqdEtapa.etapa_id.in_(payload.delete_ids)
-            )
-        )
-        await session.execute(
-            sa_delete(REVOEtapa).where(
-                REVOEtapa.etapa_id.in_(payload.delete_ids)
-            )
-        )
-        await session.execute(
-            sa_delete(HeavyCDS).where(
-                HeavyCDS.etapa_id.in_(payload.delete_ids)
-            )
-        )
+        await limpar_filhos_de_etapas(session, payload.delete_ids)
         await session.execute(
             sa_delete(Etapa).where(Etapa.id.in_(payload.delete_ids))
         )
@@ -502,22 +454,7 @@ async def update_missao_with_etapas(
     # 6. Update em lote: delete bulk de OIs/Trips das etapas
     #    atualizadas, depois patch dos campos e re-insercao.
     if payload.update:
-        all_update_ids = list(update_ids)
-        await session.execute(
-            sa_delete(OIEtapa).where(OIEtapa.etapa_id.in_(all_update_ids))
-        )
-        await session.execute(
-            sa_delete(TripEtapa).where(TripEtapa.etapa_id.in_(all_update_ids))
-        )
-        await session.execute(
-            sa_delete(PqdEtapa).where(PqdEtapa.etapa_id.in_(all_update_ids))
-        )
-        await session.execute(
-            sa_delete(REVOEtapa).where(REVOEtapa.etapa_id.in_(all_update_ids))
-        )
-        await session.execute(
-            sa_delete(HeavyCDS).where(HeavyCDS.etapa_id.in_(all_update_ids))
-        )
+        await limpar_filhos_de_etapas(session, list(update_ids))
         await session.flush()
         for e in payload.update:
             etapa = update_etapas_by_id[e.id]
@@ -537,28 +474,11 @@ async def update_missao_with_etapas(
             etapa.sagem = e.sagem
             etapa.parte1 = e.parte1
             etapa.obs = e.obs
-            for t in e.tripulantes:
-                session.add(
-                    TripEtapa(
-                        etapa_id=e.id,
-                        func=t.func,
-                        func_bordo=t.func_bordo,
-                        trip_id=t.trip_id,
-                    )
-                )
-            for oi in e.oi_etapas:
-                session.add(
-                    OIEtapa(
-                        etapa_id=e.id,
-                        esf_aer_id=oi.esf_aer_id,
-                        tipo_missao_id=oi.tipo_missao_id,
-                        reg=oi.reg,
-                        tvoo=oi.tvoo,
-                    )
-                )
-            add_especificos(
+            add_filhos_etapa(
                 session,
                 e.id,
+                tripulantes=e.tripulantes,
+                oi_etapas=e.oi_etapas,
                 pqd=e.pqd,
                 revo=e.revo,
                 heavy_cds=e.heavy_cds,
@@ -587,28 +507,11 @@ async def update_missao_with_etapas(
         )
         session.add(new_etapa)
         await session.flush()
-        for t in e.tripulantes:
-            session.add(
-                TripEtapa(
-                    etapa_id=new_etapa.id,
-                    func=t.func,
-                    func_bordo=t.func_bordo,
-                    trip_id=t.trip_id,
-                )
-            )
-        for oi in e.oi_etapas:
-            session.add(
-                OIEtapa(
-                    etapa_id=new_etapa.id,
-                    esf_aer_id=oi.esf_aer_id,
-                    tipo_missao_id=oi.tipo_missao_id,
-                    reg=oi.reg,
-                    tvoo=oi.tvoo,
-                )
-            )
-        add_especificos(
+        add_filhos_etapa(
             session,
             new_etapa.id,
+            tripulantes=e.tripulantes,
+            oi_etapas=e.oi_etapas,
             pqd=e.pqd,
             revo=e.revo,
             heavy_cds=e.heavy_cds,
@@ -722,21 +625,7 @@ async def delete_missao_com_etapas(
     )
 
     if etapa_ids:
-        await session.execute(
-            sa_delete(OIEtapa).where(OIEtapa.etapa_id.in_(etapa_ids))
-        )
-        await session.execute(
-            sa_delete(TripEtapa).where(TripEtapa.etapa_id.in_(etapa_ids))
-        )
-        await session.execute(
-            sa_delete(PqdEtapa).where(PqdEtapa.etapa_id.in_(etapa_ids))
-        )
-        await session.execute(
-            sa_delete(REVOEtapa).where(REVOEtapa.etapa_id.in_(etapa_ids))
-        )
-        await session.execute(
-            sa_delete(HeavyCDS).where(HeavyCDS.etapa_id.in_(etapa_ids))
-        )
+        await limpar_filhos_de_etapas(session, etapa_ids)
         await session.execute(sa_delete(Etapa).where(Etapa.id.in_(etapa_ids)))
 
     await session.delete(missao)
