@@ -288,7 +288,7 @@ async def upsert_passaporte(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     passaporte = await session.scalar(
@@ -352,7 +352,7 @@ async def upload_imagem_passaporte(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     militar = await session.scalar(
@@ -496,7 +496,7 @@ async def delete_imagem_passaporte(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     passaporte = await session.scalar(
@@ -505,7 +505,7 @@ async def delete_imagem_passaporte(
     if not passaporte:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Passaporte nao encontrado',
+            detail='Passaporte não encontrado',
         )
 
     key = (
@@ -663,7 +663,7 @@ async def delete_passaporte(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     passaporte = await session.scalar(
@@ -672,7 +672,7 @@ async def delete_passaporte(
     if not passaporte:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Passaporte nao encontrado',
+            detail='Passaporte não encontrado',
         )
 
     # Keys das imagens do registro, p/ limpar o bucket após remover a linha

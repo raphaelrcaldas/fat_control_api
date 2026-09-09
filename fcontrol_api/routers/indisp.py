@@ -288,7 +288,7 @@ async def create_indisp(
     if not alvo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     if indisp.date_end < indisp.date_start:

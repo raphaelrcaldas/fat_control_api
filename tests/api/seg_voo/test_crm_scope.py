@@ -69,7 +69,7 @@ async def test_delete_cross_org_404(client, trip_crm_1gt, token):
     resp = await client.delete(f'{URL}{trip.id}', headers=_auth(token))
     assert resp.status_code == HTTPStatus.NOT_FOUND
     # Escopo (tripulante fora da org), não rota inexistente ('Not Found').
-    assert resp.json()['message'] == 'Tripulante nao encontrado'
+    assert resp.json()['message'] == 'Tripulante não encontrado'
 
 
 async def test_orfaos_escopado_por_org(client, session, token):

@@ -190,7 +190,7 @@ async def test_update_soldo_invalid_posto(client, token_sistema, soldos):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Posto/Graduacao invalido' in response.json()['message']
+    assert 'Posto/Graduação inválido' in response.json()['message']
 
 
 async def test_update_soldo_data_fim_before_data_inicio(
@@ -247,7 +247,7 @@ async def test_update_soldo_not_found(client, token_sistema):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['message']
+    assert 'Soldo não encontrado' in response.json()['message']
 
 
 async def test_update_soldo_without_token(client, soldos):

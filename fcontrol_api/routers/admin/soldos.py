@@ -163,7 +163,7 @@ async def get_soldo(soldo_id: int, session: Session):
     if not soldo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Soldo nao encontrado',
+            detail='Soldo não encontrado',
         )
 
     return success_response(data=soldo)
@@ -189,7 +189,7 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
     if not posto:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Posto/Graduacao invalido',
+            detail='Posto/Graduação inválido',
         )
 
     # Auto-fechar periodo anterior ativo (mesmo pg)
@@ -208,8 +208,8 @@ async def create_soldo(soldo: SoldoCreate, session: Session):
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail=(
-                    'Novo soldo comeca antes do soldo vigente '
-                    f'(inicio: {anterior.data_inicio})'
+                    'Novo soldo começa antes do soldo vigente '
+                    f'(início: {anterior.data_inicio})'
                 ),
             )
         anterior.data_fim = nova_data_fim
@@ -259,7 +259,7 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
     if not db_soldo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Soldo nao encontrado',
+            detail='Soldo não encontrado',
         )
 
     update_data = soldo.model_dump(exclude_unset=True)
@@ -285,7 +285,7 @@ async def update_soldo(soldo_id: int, soldo: SoldoUpdate, session: Session):
         if not posto:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail='Posto/Graduacao invalido',
+                detail='Posto/Graduação inválido',
             )
 
     # So checamos sobreposicao quando a faixa (chave ou datas) muda; uma
@@ -330,7 +330,7 @@ async def delete_soldo(soldo_id: int, session: Session):
     if not db_soldo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Soldo nao encontrado',
+            detail='Soldo não encontrado',
         )
 
     # Verificar se ha missoes com UserFrag sit='g' no periodo

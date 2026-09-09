@@ -237,7 +237,7 @@ async def upsert_crm(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     crm = await session.scalar(
@@ -296,7 +296,7 @@ async def delete_crm(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     crm = await session.scalar(
@@ -307,7 +307,7 @@ async def delete_crm(
     if not crm:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Certificado CRM nao encontrado',
+            detail='Certificado CRM não encontrado',
         )
 
     await session.delete(crm)

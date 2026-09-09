@@ -147,7 +147,7 @@ async def test_get_soldo_by_id_not_found(client, token_sistema):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['message']
+    assert 'Soldo não encontrado' in response.json()['message']
 
 
 async def test_get_soldo_by_id_without_token(client, soldos):

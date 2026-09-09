@@ -80,7 +80,7 @@ async def test_get_user_not_found(client, token):
     assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
-    assert 'nao encontrado' in resp['message'].lower()
+    assert 'não encontrado' in resp['message'].lower()
 
 
 async def test_get_user_with_different_users(

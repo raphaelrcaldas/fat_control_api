@@ -208,7 +208,7 @@ async def upsert_cartao(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     cartao = await session.scalar(
@@ -271,7 +271,7 @@ async def delete_cartao(
     if not tripulante:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tripulante nao encontrado',
+            detail='Tripulante não encontrado',
         )
 
     cartao = await session.scalar(
@@ -280,10 +280,10 @@ async def delete_cartao(
     if not cartao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Cartao nao encontrado',
+            detail='Cartão não encontrado',
         )
 
     await session.delete(cartao)
     await session.commit()
 
-    return success_response(message='Cartao removido com sucesso')
+    return success_response(message='Cartão removido com sucesso')

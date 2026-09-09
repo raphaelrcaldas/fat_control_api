@@ -116,13 +116,13 @@ async def buscar_remuneracao(cpf: str, mes_ano: date) -> RemuneracaoPortal:
     if not settings.PORTAL_API_KEY:
         raise HTTPException(
             status_code=HTTPStatus.SERVICE_UNAVAILABLE,
-            detail='Chave do Portal da Transparencia nao configurada',
+            detail='Chave do Portal da Transparência não configurada',
         )
 
     if not cpf or len(cpf) != 11:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='CPF invalido para consulta ao Portal',
+            detail='CPF inválido para consulta ao Portal',
         )
 
     mes_ano_int = mes_ano.year * 100 + mes_ano.month

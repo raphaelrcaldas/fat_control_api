@@ -64,7 +64,7 @@ def _ensure_user_in_active_org(
         return
     if active_org is not None and db_user.unidade != active_org:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
 
@@ -134,7 +134,7 @@ async def reset_pwd(
         # — mesmo status do guard abaixo, sem oráculo de enumeração.
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Usuario nao encontrado',
+            detail='Usuário não encontrado',
         )
 
     # Admin de unidade só reseta senha de usuário da própria org ativa.
@@ -222,7 +222,7 @@ async def create_user(
 
     return success_response(
         data=UserPublic.model_validate(db_user),
-        message='Usuario adicionado com sucesso',
+        message='Usuário adicionado com sucesso',
     )
 
 
@@ -385,7 +385,7 @@ async def get_user(
 
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
     _ensure_user_in_active_org(db_user, active_org, user)
@@ -409,7 +409,7 @@ async def update_user(
 
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
     _ensure_user_in_active_org(db_user, active_org, user)
@@ -483,7 +483,7 @@ async def update_user(
 
     return success_response(
         data=UserFull.model_validate(db_user),
-        message='Usuario atualizado com sucesso',
+        message='Usuário atualizado com sucesso',
     )
 
 
@@ -498,7 +498,7 @@ async def delete_user(
 
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
     _ensure_user_in_active_org(db_user, active_org, user)
@@ -506,7 +506,7 @@ async def delete_user(
     if db_user.id == user.id:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Não é possivel deletar o próprio usuario',
+            detail='Não é possível deletar o próprio usuário',
         )
 
     await log_user_action(
@@ -530,7 +530,7 @@ async def delete_user(
             ),
         )
 
-    return success_response(message='Usuario deletado com sucesso')
+    return success_response(message='Usuário deletado com sucesso')
 
 
 @router.get(
@@ -546,7 +546,7 @@ async def list_user_promos(
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
     _ensure_user_in_active_org(db_user, active_org, user)
@@ -581,7 +581,7 @@ async def create_user_promo(
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
     _ensure_user_in_active_org(db_user, active_org, user)
@@ -635,7 +635,7 @@ async def delete_user_promo(
     db_user = await session.scalar(select(User).where(User.id == user_id))
     if not db_user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Usuario nao encontrado'
+            status_code=HTTPStatus.NOT_FOUND, detail='Usuário não encontrado'
         )
 
     _ensure_user_in_active_org(db_user, active_org, user)

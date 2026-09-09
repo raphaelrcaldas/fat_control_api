@@ -46,7 +46,7 @@ async def create_tipo_missao(tipo_missao: TipoMissaoCreate, session: Session):
     if existing:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail=f'Tipo de missao com cod "{tipo_missao.cod}" ja cadastrado',
+            detail=f'Tipo de missão com cod "{tipo_missao.cod}" já cadastrado',
         )
 
     new_tipo = TipoMissao(
@@ -59,7 +59,7 @@ async def create_tipo_missao(tipo_missao: TipoMissaoCreate, session: Session):
 
     return success_response(
         data=TipoMissaoPublic.model_validate(new_tipo),
-        message='Tipo de missao criado com sucesso',
+        message='Tipo de missão criado com sucesso',
     )
 
 
@@ -77,7 +77,7 @@ async def update_tipo_missao(
     if not tipo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tipo de missao nao encontrado',
+            detail='Tipo de missão não encontrado',
         )
 
     updates = data.model_dump(exclude_unset=True)
@@ -92,7 +92,7 @@ async def update_tipo_missao(
             raise HTTPException(
                 status_code=HTTPStatus.CONFLICT,
                 detail=(
-                    f'Tipo de missao com cod "{updates["cod"]}" ja cadastrado'
+                    f'Tipo de missão com cod "{updates["cod"]}" já cadastrado'
                 ),
             )
 
@@ -103,7 +103,7 @@ async def update_tipo_missao(
     await session.refresh(tipo)
     return success_response(
         data=TipoMissaoPublic.model_validate(tipo),
-        message='Tipo de missao atualizado',
+        message='Tipo de missão atualizado',
     )
 
 
@@ -120,7 +120,7 @@ async def delete_tipo_missao(
     if not tipo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Tipo de missao nao encontrado',
+            detail='Tipo de missão não encontrado',
         )
 
     in_use = await session.scalar(
@@ -129,11 +129,11 @@ async def delete_tipo_missao(
     if in_use:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail=('Tipo de missao em uso por etapas, nao pode ser removido'),
+            detail=('Tipo de missão em uso por etapas, não pode ser removido'),
         )
 
     await session.delete(tipo)
     await session.commit()
     return success_response(
-        message='Tipo de missao removido',
+        message='Tipo de missão removido',
     )

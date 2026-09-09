@@ -63,7 +63,7 @@ async def validate_token(request: Request, call_next):
         return JSONResponse(
             status_code=401,
             content=ApiErrorResponse(
-                message='Token nao fornecido',
+                message='Token não fornecido',
                 path=str(request.url.path),
             ).model_dump(),
         )
@@ -93,7 +93,7 @@ async def validate_token(request: Request, call_next):
         return JSONResponse(
             status_code=401,
             content=ApiErrorResponse(
-                message='Token invalido ou expirado',
+                message='Token inválido ou expirado',
                 path=str(request.url.path),
             ).model_dump(),
         )

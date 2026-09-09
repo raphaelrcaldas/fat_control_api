@@ -141,7 +141,7 @@ async def test_token_without_user_id_fails(client, users):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     resp = response.json()
     assert resp['status'] == 'error'
-    assert 'invalido' in resp['message'].lower()
+    assert 'inválido' in resp['message'].lower()
 
 
 async def test_token_without_app_client_fails(client, users):
@@ -169,4 +169,4 @@ async def test_token_without_app_client_fails(client, users):
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     resp = response.json()
     assert resp['status'] == 'error'
-    assert 'invalido' in resp['message'].lower()
+    assert 'inválido' in resp['message'].lower()

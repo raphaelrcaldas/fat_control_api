@@ -85,7 +85,7 @@ async def test_delete_user_not_found(
     assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
-    assert 'nao encontrado' in resp['message'].lower()
+    assert 'não encontrado' in resp['message'].lower()
 
 
 async def test_delete_user_without_token_fails(client, users):

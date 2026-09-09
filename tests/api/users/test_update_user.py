@@ -36,7 +36,7 @@ async def test_update_user_success(
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert resp['status'] == 'success'
-    assert resp['message'] == 'Usuario atualizado com sucesso'
+    assert resp['message'] == 'Usuário atualizado com sucesso'
     assert resp['data'] is not None
 
     # Verifica que os dados foram atualizados no banco
@@ -144,7 +144,7 @@ async def test_update_user_not_found(
     assert response.status_code == HTTPStatus.NOT_FOUND
     resp = response.json()
     assert resp['status'] == 'error'
-    assert 'nao encontrado' in resp['message'].lower()
+    assert 'não encontrado' in resp['message'].lower()
 
 
 async def test_update_user_duplicate_saram_fails(
@@ -339,7 +339,7 @@ async def test_update_user_with_date_field(
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
     assert resp['status'] == 'success'
-    assert resp['message'] == 'Usuario atualizado com sucesso'
+    assert resp['message'] == 'Usuário atualizado com sucesso'
 
     # Verifica que a data foi atualizada no banco
     await session.refresh(other_user)

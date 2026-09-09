@@ -85,7 +85,7 @@ async def test_create_soldo_invalid_posto(client, token_sistema):
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert 'Posto/Graduacao invalido' in response.json()['message']
+    assert 'Posto/Graduação inválido' in response.json()['message']
 
 
 async def test_create_soldo_data_fim_before_data_inicio(client, token_sistema):

@@ -48,7 +48,7 @@ async def test_delete_soldo_not_found(client, token_sistema):
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert 'Soldo nao encontrado' in response.json()['message']
+    assert 'Soldo não encontrado' in response.json()['message']
 
 
 async def test_delete_soldo_without_token(client, soldos):

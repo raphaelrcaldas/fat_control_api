@@ -373,7 +373,7 @@ async def get_etapa_detail(
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Etapa nao encontrada',
+            detail='Etapa não encontrada',
         )
 
     oi_etapas = await fetch_oi_etapas(session, id)
@@ -431,7 +431,7 @@ async def create_etapa(
                 status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
                 detail=(
                     f'Soma dos tvoo das OIs ({soma_oi}) '
-                    f'nao confere com tvoo da etapa '
+                    f'não confere com tvoo da etapa '
                     f'({data.tvoo})'
                 ),
             )
@@ -591,7 +591,7 @@ async def update_etapa(
     if not row:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Etapa nao encontrada',
+            detail='Etapa não encontrada',
         )
     etapa, is_simulador = row
 
@@ -772,7 +772,7 @@ async def delete_etapa(
     if not etapa:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Etapa nao encontrada',
+            detail='Etapa não encontrada',
         )
 
     await session.execute(sa_delete(TripEtapa).where(TripEtapa.etapa_id == id))
@@ -784,5 +784,5 @@ async def delete_etapa(
     await session.delete(etapa)
     await session.commit()
     return success_response(
-        message='Etapa excluida com sucesso',
+        message='Etapa excluída com sucesso',
     )

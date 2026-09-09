@@ -345,7 +345,7 @@ async def get_cartao_saude_by_id(
     if not cartao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Cartao de saude nao encontrado',
+            detail='Cartão de saúde não encontrado',
         )
 
     return success_response(data=cartao)
@@ -417,7 +417,7 @@ async def get_historico_cartao_saude(
     if not alvo:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Usuario nao encontrado',
+            detail='Usuário não encontrado',
         )
 
     logs = await session.scalars(
@@ -459,7 +459,7 @@ async def create_cartao_saude(
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Usuario nao encontrado',
+            detail='Usuário não encontrado',
         )
 
     cartao_existente = await session.scalar(
@@ -468,7 +468,7 @@ async def create_cartao_saude(
     if cartao_existente:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail=('Ja existe cartao de saude cadastrado para este usuario'),
+            detail=('Já existe cartão de saúde cadastrado para este usuário'),
         )
 
     dados_dict = dados.model_dump()
@@ -501,13 +501,13 @@ async def create_cartao_saude(
         await session.rollback()
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail='Ja existe cartao de saude cadastrado para este usuario',
+            detail='Já existe cartão de saúde cadastrado para este usuário',
         ) from exc
     await session.refresh(new_cartao)
 
     return success_response(
         data=CartaoSaudePublic.model_validate(new_cartao),
-        message='Cartao de saude criado com sucesso',
+        message='Cartão de saúde criado com sucesso',
     )
 
 
@@ -537,7 +537,7 @@ async def update_cartao_saude(
     if not db_cartao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Cartao de saude nao encontrado',
+            detail='Cartão de saúde não encontrado',
         )
 
     before_patch: dict = {}
@@ -569,7 +569,7 @@ async def update_cartao_saude(
     await session.commit()
     await session.refresh(db_cartao)
 
-    return success_response(message='Cartao de saude atualizado com sucesso')
+    return success_response(message='Cartão de saúde atualizado com sucesso')
 
 
 @router.delete(
@@ -597,7 +597,7 @@ async def delete_cartao_saude(
     if not db_cartao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Cartao de saude nao encontrado',
+            detail='Cartão de saúde não encontrado',
         )
 
     await log_user_action(
@@ -617,4 +617,4 @@ async def delete_cartao_saude(
     await session.delete(db_cartao)
     await session.commit()
 
-    return success_response(message='Cartao de saude deletado com sucesso')
+    return success_response(message='Cartão de saúde deletado com sucesso')

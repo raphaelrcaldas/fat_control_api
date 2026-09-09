@@ -76,7 +76,7 @@ async def get_missao(
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Missao nao encontrada',
+            detail='Missão não encontrada',
         )
 
     etapas = list(
@@ -139,7 +139,7 @@ async def create_missao(
 
     return success_response(
         data=MissaoPublic.model_validate(new_missao),
-        message='Missao criada com sucesso',
+        message='Missão criada com sucesso',
     )
 
 
@@ -293,7 +293,7 @@ async def create_missao_with_etapas(
 
     return success_response(
         data=MissaoPublic.model_validate(new_missao),
-        message='Missao criada com sucesso',
+        message='Missão criada com sucesso',
     )
 
 
@@ -321,7 +321,7 @@ async def update_missao_with_etapas(
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Missao nao encontrada',
+            detail='Missão não encontrada',
         )
 
     # 1. Ownership: ids referenciados em delete_ids/update pertencem
@@ -345,7 +345,7 @@ async def update_missao_with_etapas(
             raise HTTPException(
                 status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
                 detail=(
-                    f'Etapa(s) nao pertencem a missao '
+                    f'Etapa(s) não pertencem à missão '
                     f'#{missao_id}: {sorted(orphan)}'
                 ),
             )
@@ -656,7 +656,7 @@ async def update_missao_with_etapas(
                 for e in etapas
             ],
         ),
-        message='Missao atualizada com sucesso',
+        message='Missão atualizada com sucesso',
     )
 
 
@@ -678,7 +678,7 @@ async def update_missao(
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Missao nao encontrada',
+            detail='Missão não encontrada',
         )
 
     if missao_data.titulo is not None:
@@ -691,7 +691,7 @@ async def update_missao(
 
     return success_response(
         data=MissaoPublic.model_validate(missao),
-        message='Missao atualizada com sucesso',
+        message='Missão atualizada com sucesso',
     )
 
 
@@ -712,7 +712,7 @@ async def delete_missao_com_etapas(
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Missao nao encontrada',
+            detail='Missão não encontrada',
         )
 
     etapa_ids = list(
@@ -743,7 +743,7 @@ async def delete_missao_com_etapas(
     await session.commit()
 
     return success_response(
-        message='Missao e etapas excluidas com sucesso',
+        message='Missão e etapas excluídas com sucesso',
     )
 
 
@@ -764,7 +764,7 @@ async def delete_missao(
     if not missao:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Missao nao encontrada',
+            detail='Missão não encontrada',
         )
 
     has_etapas = await session.scalar(
@@ -773,12 +773,12 @@ async def delete_missao(
     if has_etapas:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail='Nao e possivel excluir missao com etapas vinculadas',
+            detail='Não é possível excluir missão com etapas vinculadas',
         )
 
     await session.delete(missao)
     await session.commit()
 
     return success_response(
-        message='Missao excluida com sucesso',
+        message='Missão excluída com sucesso',
     )

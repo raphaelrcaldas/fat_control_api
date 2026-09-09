@@ -50,7 +50,7 @@ async def test_create_user_success(
     assert response.status_code == HTTPStatus.CREATED
     resp = response.json()
     assert resp['status'] == 'success'
-    assert resp['message'] == 'Usuario adicionado com sucesso'
+    assert resp['message'] == 'Usuário adicionado com sucesso'
     assert resp['data'] is not None
     assert resp['data']['saram'] == user_data['saram']
 
