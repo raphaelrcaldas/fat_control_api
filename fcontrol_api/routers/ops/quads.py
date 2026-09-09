@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from fcontrol_api.database import get_session
-from fcontrol_api.enums.notificacao import NotifAudiencia, NotifTipo
+from fcontrol_api.enums.notificacao import NotifTipo
 from fcontrol_api.models.shared.funcoes import FuncaoUae
 from fcontrol_api.models.shared.quads import (
     Quad,
@@ -41,7 +41,7 @@ from fcontrol_api.schemas.ops.quads import (
 )
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg, permission_checker
-from fcontrol_api.services.notificacoes import notificar_usuarios
+from fcontrol_api.services.quads import notificar_quadro, rotulos_de_tipos
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -85,24 +85,10 @@ async def create_quad(
         )
 
     # Mesmo escopo para o TIPO: `quads_type` pende de um `quads_group`, que
-    # é da org — sem esta amarra um gestor gravaria quadrinho de tipo de
-    # outra unidade e o rótulo dela viajaria dentro do payload da
-    # notificação entregue ao tripulante. A MESMA query devolve o `long`
-    # usado no payload adiante: uma consulta só para o lote inteiro.
+    # é da org (a amarra vive em `rotulos_de_tipos`). A MESMA consulta
+    # devolve o `long` usado no payload da notificação adiante.
     type_ids = {quad.type_id for quad in quads}
-    tipos_rotulo = {
-        tid: (nome, grupo)
-        for tid, nome, grupo in (
-            await session.execute(
-                select(QuadsType.id, QuadsType.long, QuadsGroup.long)
-                .join(QuadsGroup, QuadsType.group_id == QuadsGroup.id)
-                .where(
-                    QuadsType.id.in_(type_ids),
-                    QuadsGroup.uae == active_org,
-                )
-            )
-        ).all()
-    }
+    tipos_rotulo = await rotulos_de_tipos(session, type_ids, active_org)
     if type_ids - set(tipos_rotulo):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -157,31 +143,17 @@ async def create_quad(
         alvo_user_id, alvo_func = trip_info[trip_id]
         nome_tipo, nome_grupo = tipos_rotulo[type_id]
         qtd = len(itens)
-        await notificar_usuarios(
+        await notificar_quadro(
             session,
-            user_ids=[alvo_user_id],
-            uae=active_org,
-            audiencia=NotifAudiencia.TRIPULANTE.value,
-            tipo=NotifTipo.QUADRO_RECEBIDO.value,
+            alvo_user_id=alvo_user_id,
+            active_org=active_org,
+            tipo=NotifTipo.QUADRO_RECEBIDO,
             titulo=f'Você recebeu {qtd} quadrinho(s)',
-            recurso='ops.quadro',
-            # `tipo` (id + nome + grupo) e `func` alimentam o deep-link do
-            # FatBird (/ops/quads?tipo=&func=) e o rótulo do item no sino.
-            # A ROTA e o TEXTO são montados pelo front: aqui vai o dado
-            # CRU (nome como está no catálogo, minúsculo), porque caixa
-            # alta é decisão de exibição — a tela de quadrinhos exibe o
-            # mesmo rótulo em maiúsculas por classe CSS, não por dado.
-            payload={
-                'quantidade': qtd,
-                'tipo': {
-                    'id': type_id,
-                    'nome': nome_tipo,
-                    'grupo': nome_grupo,
-                },
-                'func': alvo_func,
-            },
-            # `notificar_usuarios` pula o alvo == created_by: quem lançou o
-            # próprio quadrinho não recebe "você recebeu".
+            type_id=type_id,
+            nome_tipo=nome_tipo,
+            nome_grupo=nome_grupo,
+            func=alvo_func,
+            qtd=qtd,
             created_by=user.id,
         )
 
@@ -444,21 +416,10 @@ async def delete_quads(
         delete(Quad).where(Quad.id.in_([row.id for row in alvos]))
     )
 
-    # Rótulo dos tipos removidos, numa consulta só. O join em
-    # `quads_group` mantém o mesmo escopo de org do lançamento.
-    tipos_rotulo = {
-        tid: (nome, grupo)
-        for tid, nome, grupo in (
-            await session.execute(
-                select(QuadsType.id, QuadsType.long, QuadsGroup.long)
-                .join(QuadsGroup, QuadsType.group_id == QuadsGroup.id)
-                .where(
-                    QuadsType.id.in_({row.type_id for row in alvos}),
-                    QuadsGroup.uae == active_org,
-                )
-            )
-        ).all()
-    }
+    # Rótulo dos tipos removidos, no mesmo escopo de org do lançamento.
+    tipos_rotulo = await rotulos_de_tipos(
+        session, {row.type_id for row in alvos}, active_org
+    )
 
     # Mesmo agrupamento do lançamento — (tripulante, tipo) —, para o item
     # do sino dizer QUAL quadrinho saiu e levar ao lugar certo.
@@ -471,23 +432,17 @@ async def delete_quads(
     for (trip_id, type_id), qtd in removidos.items():
         nome_tipo, nome_grupo = tipos_rotulo[type_id]
         alvo_user_id, alvo_func = info_alvo[trip_id]
-        await notificar_usuarios(
+        await notificar_quadro(
             session,
-            user_ids=[alvo_user_id],
-            uae=active_org,
-            audiencia=NotifAudiencia.TRIPULANTE.value,
-            tipo=NotifTipo.QUADRO_REMOVIDO.value,
+            alvo_user_id=alvo_user_id,
+            active_org=active_org,
+            tipo=NotifTipo.QUADRO_REMOVIDO,
             titulo=f'Foram removidos {qtd} quadrinho(s)',
-            recurso='ops.quadro',
-            payload={
-                'quantidade': qtd,
-                'tipo': {
-                    'id': type_id,
-                    'nome': nome_tipo,
-                    'grupo': nome_grupo,
-                },
-                'func': alvo_func,
-            },
+            type_id=type_id,
+            nome_tipo=nome_tipo,
+            nome_grupo=nome_grupo,
+            func=alvo_func,
+            qtd=qtd,
             created_by=user.id,
         )
 

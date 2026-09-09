@@ -100,8 +100,12 @@ class CidadeMini(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class OperacaoListItem(BaseModel):
-    """Linha-card da lista de operações (com agregados de voo)."""
+class OperacaoResumo(BaseModel):
+    """Identificação e período de uma operação.
+
+    Base comum da linha-card e do detalhe: os dois expõem estes mesmos
+    campos, na mesma ordem, e divergem só no que acrescentam depois.
+    """
 
     id: int
     numero: int
@@ -113,6 +117,11 @@ class OperacaoListItem(BaseModel):
     data_inicio: date
     data_fim: date
     dias: int
+
+
+class OperacaoListItem(OperacaoResumo):
+    """Linha-card da lista de operações (com agregados de voo)."""
+
     horas: int  # Σ tvoo em minutos (frontend formata HH:MM)
     etapas: int
     anv: int
@@ -163,17 +172,7 @@ class SeboRow(BaseModel):
     horas: int  # Σ tvoo (min)
 
 
-class OperacaoDetail(BaseModel):
-    id: int
-    numero: int
-    nome: str
-    tipo: str
-    status: str
-    documento_referencia: str | None
-    cidade: CidadeMini | None
-    data_inicio: date
-    data_fim: date
-    dias: int
+class OperacaoDetail(OperacaoResumo):
     obs: str | None
     created_at: datetime
     kpis: OperacaoKpis
