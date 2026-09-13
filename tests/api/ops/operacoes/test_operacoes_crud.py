@@ -5,11 +5,20 @@ com escopo multi-tenant por org ativa, RBAC (view/create/delete) e
 validações de período/unicidade.
 """
 
-from datetime import date
+from datetime import date, time
 from http import HTTPStatus
 
 import pytest
 
+from fcontrol_api.models.estatistica.etapa import (
+    Etapa,
+    HeavyCDS,
+    Missao,
+    PqdEtapa,
+    REVOEtapa,
+)
+from fcontrol_api.models.shared.aeronaves import Aeronave
+from fcontrol_api.models.shared.operacao import OperacaoEtapa
 from tests.factories import OperacaoFactory
 
 pytestmark = pytest.mark.anyio
@@ -258,6 +267,85 @@ async def test_get_detail_success(client, session, users, token):
     assert data['kpis']['horas'] == 0
     assert data['kpis']['etapas'] == 0
     assert data['sebo'] == []
+
+
+async def test_get_detail_sums_specific_mission_metrics_once(
+    client, session, users, token
+):
+    """Específicos são agregados sem fan-out entre tabelas filhas."""
+    user, _ = users
+    op = OperacaoFactory(
+        created_by=user.id,
+        data_inicio=date(2025, 6, 1),
+        data_fim=date(2025, 6, 10),
+    )
+    session.add_all([
+        op,
+        Aeronave(matricula='2850', active=True, sit='DI', obs=None),
+    ])
+    await session.flush()
+
+    missao = Missao(titulo=None, obs=None, uae='11gt')
+    session.add(missao)
+    await session.flush()
+    etapa = Etapa(
+        missao_id=missao.id,
+        obs=None,
+        data=date(2025, 6, 5),
+        origem='SBGL',
+        destino='SBBR',
+        dep=time(10, 0),
+        arr=time(11, 30),
+        anv='2850',
+        pousos=1,
+        tow=None,
+        pax=None,
+        carga=None,
+        comb=None,
+        lub=None,
+        nivel=None,
+        sagem=True,
+        parte1=True,
+    )
+    session.add(etapa)
+    await session.flush()
+    session.add_all([
+        OperacaoEtapa(etapa_id=etapa.id, operacao_id=op.id),
+        PqdEtapa(etapa_id=etapa.id, tipo='LV', qtd=30),
+        PqdEtapa(etapa_id=etapa.id, tipo='VTC', qtd=12),
+        REVOEtapa(etapa_id=etapa.id, comb_transf=800),
+        HeavyCDS(
+            etapa_id=etapa.id,
+            tipo='heavy',
+            peso=2000,
+            dist=10,
+            radial=90,
+        ),
+        HeavyCDS(
+            etapa_id=etapa.id,
+            tipo='cds',
+            peso=300,
+            dist=5,
+            radial=180,
+        ),
+        HeavyCDS(
+            etapa_id=etapa.id,
+            tipo='cds',
+            peso=0,
+            dist=0,
+            radial=0,
+        ),
+    ])
+    await session.commit()
+
+    resp = await client.get(f'{BASE}{op.id}', headers=_auth(token))
+    assert resp.status_code == HTTPStatus.OK
+    kpis = resp.json()['data']['kpis']
+    assert kpis['pqd'] == 42
+    assert kpis['comb_transf'] == 800
+    assert kpis['heavy_qtd'] == 1
+    assert kpis['cds_qtd'] == 1
+    assert kpis['peso_lancado'] == 2300
 
 
 async def test_get_detail_not_found(client, token):

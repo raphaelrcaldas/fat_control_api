@@ -16,8 +16,11 @@ from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
+    HeavyCDS,
     Missao,
     OIEtapa,
+    PqdEtapa,
+    REVOEtapa,
     TripEtapa,
 )
 from fcontrol_api.models.shared.aeronaves import Aeronave, ProjetoAnv
@@ -334,6 +337,43 @@ async def get_operacao(op_id: int, session: Session, active_org: ActiveOrg):
         )
     ) or 0
 
+    # As métricas específicas vivem em três tabelas filhas 1:N distintas.
+    # Cada uma é agregada em consulta própria: juntá-las multiplicaria os
+    # resultados quando uma etapa tiver, por exemplo, PQD e lançamentos.
+    pqd = await session.scalar(
+        select(sql_func.coalesce(sql_func.sum(PqdEtapa.qtd), 0)).where(
+            PqdEtapa.etapa_id.in_(etapa_ids)
+        )
+    )
+    comb_transf = await session.scalar(
+        select(
+            sql_func.coalesce(sql_func.sum(REVOEtapa.comb_transf), 0)
+        ).where(REVOEtapa.etapa_id.in_(etapa_ids))
+    )
+    lancamentos = (
+        await session.execute(
+            select(
+                sql_func
+                .count()
+                .filter(
+                    HeavyCDS.tipo == 'heavy',
+                    HeavyCDS.peso > 0,
+                )
+                .label('heavy_qtd'),
+                sql_func
+                .count()
+                .filter(
+                    HeavyCDS.tipo == 'cds',
+                    HeavyCDS.peso > 0,
+                )
+                .label('cds_qtd'),
+                sql_func.coalesce(sql_func.sum(HeavyCDS.peso), 0).label(
+                    'peso_lancado'
+                ),
+            ).where(HeavyCDS.etapa_id.in_(etapa_ids))
+        )
+    ).one()
+
     kpis = OperacaoKpis(
         horas=kpi[0],
         etapas=kpi[1],
@@ -343,6 +383,11 @@ async def get_operacao(op_id: int, session: Session, active_org: ActiveOrg):
         comb=kpi[5],
         missoes=kpi[6],
         modelos=modelos,
+        pqd=pqd or 0,
+        comb_transf=comb_transf or 0,
+        heavy_qtd=lancamentos.heavy_qtd,
+        cds_qtd=lancamentos.cds_qtd,
+        peso_lancado=lancamentos.peso_lancado,
     )
 
     # Esforço aéreo
