@@ -103,8 +103,11 @@ async def change_pwd(
     session: Session,
     current_user: CurrentUser,
 ):
+    first_login_before = current_user.first_login
     current_user.first_login = False
     current_user.password = get_password_hash(pwd_schema.new_pwd)
+
+    first_login_changed = first_login_before is not False
 
     await log_user_action(
         session=session,
@@ -112,8 +115,12 @@ async def change_pwd(
         action='change-pwd',
         resource='users',
         resource_id=current_user.id,
-        before=None,
-        after=None,
+        before=(
+            {'first_login': first_login_before}
+            if first_login_changed
+            else None
+        ),
+        after={'first_login': False} if first_login_changed else None,
     )
 
     await session.commit()
@@ -140,9 +147,12 @@ async def reset_pwd(
     # Admin de unidade só reseta senha de usuário da própria org ativa.
     _ensure_user_in_active_org(db_user, active_org, current_user)
 
-    hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)  # type: ignore
+    first_login_before = db_user.first_login
+    hashed_password = get_password_hash(Settings().DEFAULT_USER_PASSWORD)
     db_user.first_login = True
     db_user.password = hashed_password
+
+    first_login_changed = first_login_before is not True
 
     await log_user_action(
         session=session,
@@ -150,8 +160,12 @@ async def reset_pwd(
         action='reset-pwd',
         resource='users',
         resource_id=user_id,
-        before=None,
-        after=None,
+        before=(
+            {'first_login': first_login_before}
+            if first_login_changed
+            else None
+        ),
+        after={'first_login': True} if first_login_changed else None,
     )
 
     await session.commit()

@@ -4,11 +4,13 @@ Testes para o endpoint POST /users/change-pwd.
 Este endpoint permite que um usuário autenticado mude sua própria senha.
 """
 
+import json
 from http import HTTPStatus
 
 import pytest
 from sqlalchemy.future import select
 
+from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.security import verify_password
 
@@ -62,6 +64,58 @@ async def test_change_pwd_updates_first_login_flag(
     # Verifica que first_login foi atualizado
     await session.refresh(user)
     assert user.first_login is False
+
+    log = await session.scalar(
+        select(UserActionLog)
+        .where(
+            UserActionLog.resource == 'users',
+            UserActionLog.resource_id == user.id,
+            UserActionLog.action == 'change-pwd',
+        )
+        .order_by(UserActionLog.id.desc())
+    )
+
+    assert log is not None
+    assert json.loads(log.before) == {'first_login': True}
+    assert json.loads(log.after) == {'first_login': False}
+    assert 'password' not in log.before
+    assert 'password' not in log.after
+
+
+async def test_change_pwd_already_false_no_change_log(
+    client, token, users, session
+):
+    """Trocar a senha com first_login já False não é uma transição.
+
+    O handler só considera "mudança" quando `first_login_before is not
+    False`; sem transição, o log 'change-pwd' é gravado com before e after
+    None — em vez de repetir {'first_login': False} nos dois lados.
+    """
+    user, _ = users
+    user.first_login = False
+    await session.commit()
+
+    response = await client.post(
+        '/users/change-pwd',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'new_pwd': 'NewPass123!'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+    log = await session.scalar(
+        select(UserActionLog)
+        .where(
+            UserActionLog.resource == 'users',
+            UserActionLog.resource_id == user.id,
+            UserActionLog.action == 'change-pwd',
+        )
+        .order_by(UserActionLog.id.desc())
+    )
+
+    assert log is not None
+    assert log.before is None
+    assert log.after is None
 
 
 async def test_change_pwd_without_token_fails(client):

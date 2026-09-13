@@ -5,12 +5,14 @@ Este endpoint permite atualizar dados de um usuário.
 Requer permissão 'user:update'.
 """
 
+import json
 from datetime import date
 from http import HTTPStatus
 
 import pytest
 from sqlalchemy.future import select
 
+from fcontrol_api.models.security.logs import UserActionLog
 from fcontrol_api.models.shared.users import User
 
 pytestmark = pytest.mark.anyio
@@ -75,6 +77,38 @@ async def test_update_user_partial_update(
     # Verifica que apenas o campo atualizado mudou
     assert other_user.telefone == update_data['telefone']
     assert other_user.nome_guerra == original_nome_guerra
+
+
+async def test_update_user_active_logs_before_and_after(
+    client, session, users, user_with_update_permission, make_org_token
+):
+    """A mudança de status fica auditada nos dois sentidos."""
+    token = await make_org_token(user_with_update_permission)
+    _, other_user = users
+    target_id = other_user.id
+
+    for active_before, active_after in ((True, False), (False, True)):
+        response = await client.put(
+            f'/users/{target_id}',
+            headers={'Authorization': f'Bearer {token}'},
+            json={'active': active_after},
+        )
+
+        assert response.status_code == HTTPStatus.OK
+
+        log = await session.scalar(
+            select(UserActionLog)
+            .where(
+                UserActionLog.resource == 'users',
+                UserActionLog.resource_id == target_id,
+                UserActionLog.action == 'patch',
+            )
+            .order_by(UserActionLog.id.desc())
+        )
+
+        assert log is not None
+        assert json.loads(log.before) == {'active': active_before}
+        assert json.loads(log.after) == {'active': active_after}
 
 
 async def test_update_user_nao_move_de_unidade(
