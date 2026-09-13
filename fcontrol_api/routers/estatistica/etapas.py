@@ -27,7 +27,6 @@ from fcontrol_api.schemas.estatistica.etapa import (
     EtapaBulkUpdate,
     EtapaCreate,
     EtapaDetailOut,
-    EtapaFlatOut,
     EtapaOut,
     EtapaPublic,
     EtapasPendentesOut,
@@ -35,10 +34,7 @@ from fcontrol_api.schemas.estatistica.etapa import (
     MissaoComEtapasOut,
     MissaoPendenteOut,
 )
-from fcontrol_api.schemas.response import (
-    ApiPaginatedResponse,
-    ApiResponse,
-)
+from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.services.etapas import (
     add_especificos,
@@ -51,7 +47,6 @@ from fcontrol_api.services.etapas import (
     fetch_oi_etapas,
     fetch_trip_data,
     like_safe,
-    list_etapas_flat,
 )
 from fcontrol_api.utils.responses import success_response
 
@@ -91,10 +86,7 @@ _ETAPA_UPDATE_FIELDS = frozenset({
 @router.get(
     '/',
     status_code=HTTPStatus.OK,
-    response_model=(
-        ApiResponse[list[MissaoComEtapasOut]]
-        | ApiPaginatedResponse[EtapaFlatOut]
-    ),
+    response_model=ApiResponse[list[MissaoComEtapasOut]],
     dependencies=[ViewEtapa],
 )
 async def list_etapas(
@@ -111,13 +103,10 @@ async def list_etapas(
     trip_search: Annotated[str | None, Query()] = None,
     funcao: Annotated[str | None, Query(max_length=3)] = None,
     is_simulador: Annotated[bool, Query()] = False,
-    flat: Annotated[bool, Query()] = False,
-    page: Annotated[int, Query(ge=1)] = 1,
-    per_page: Annotated[int, Query(ge=1, le=400)] = 20,
-) -> (
-    ApiResponse[list[MissaoComEtapasOut]] | ApiPaginatedResponse[EtapaFlatOut]
-):
-    """Lista etapas paginadas com filtros opcionais.
+) -> ApiResponse[list[MissaoComEtapasOut]]:
+    """Lista missoes com suas etapas, com filtros opcionais.
+
+    Sem paginacao: a janela de datas do filtro e o que limita o volume.
 
     `funcao` filtra etapas onde existe um TripEtapa cuja func
     casa com o codigo informado. Quando combinado com
@@ -125,7 +114,7 @@ async def list_etapas(
     pelo MESMO TripEtapa (AND na mesma linha do JOIN).
     """
     # Passo 1: subquery de etapa_ids validos, escopada pela org ativa
-    # via missao-pai (cobre tambem o modo flat, que parte deste filtro).
+    # via missao-pai.
     etapa_filter = (
         select(Etapa.id)
         .join(Missao, Missao.id == Etapa.missao_id)
@@ -197,15 +186,6 @@ async def list_etapas(
         etapa_filter = etapa_filter.distinct()
 
     valid_etapa_ids = etapa_filter.subquery()
-
-    # Modo flat: paginacao por etapa individual
-    if flat:
-        return await list_etapas_flat(
-            session,
-            valid_etapa_ids,
-            page,
-            per_page,
-        )
 
     # Window function: min(data) por missao para ordenacao no SQL
     first_date_col = (

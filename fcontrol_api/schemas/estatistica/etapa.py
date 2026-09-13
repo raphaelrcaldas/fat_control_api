@@ -87,13 +87,6 @@ class EtapaOut(BaseModel):
     heavy_cds: list['HeavyCdsEtapaOut'] = []
 
 
-class EtapaFlatOut(EtapaOut):
-    """Schema de saida para listagem flat."""
-
-    missao_id: int
-    missao_titulo: str | None = None
-
-
 class MissaoComEtapasOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

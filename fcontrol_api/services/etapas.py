@@ -6,14 +6,12 @@ from datetime import date, time
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
     HeavyCDS,
-    Missao,
     OIEtapa,
     PqdEtapa,
     REVOEtapa,
@@ -25,7 +23,6 @@ from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
-    EtapaFlatOut,
     HeavyCdsEtapaIn,
     HeavyCdsEtapaOut,
     OIEtapaIn,
@@ -37,8 +34,6 @@ from fcontrol_api.schemas.estatistica.etapa import (
     TripEtapaIn,
     TripEtapaOut,
 )
-from fcontrol_api.schemas.response import ApiPaginatedResponse
-from fcontrol_api.utils.responses import paginated_response
 
 
 def like_safe(val: str) -> str:
@@ -597,88 +592,3 @@ async def fetch_especificos_data(
         )
 
     return pqd, revo, heavy_cds
-
-
-async def list_etapas_flat(
-    session: AsyncSession,
-    valid_etapa_ids,
-    page: int,
-    per_page: int,
-) -> ApiPaginatedResponse[EtapaFlatOut]:
-    """Retorna etapas individuais paginadas (modo flat)."""
-    valid_ids = select(valid_etapa_ids.c.id)
-
-    total = (
-        await session.scalar(
-            select(sql_func.count()).select_from(valid_etapa_ids)
-        )
-    ) or 0
-
-    offset = (page - 1) * per_page
-
-    etapas_result = await session.scalars(
-        select(Etapa)
-        .where(Etapa.id.in_(valid_ids))
-        .order_by(
-            Etapa.data.desc(),
-            Etapa.dep.desc(),
-            Etapa.id.desc(),
-        )
-        .offset(offset)
-        .limit(per_page)
-    )
-    etapas_page = etapas_result.all()
-
-    if not etapas_page:
-        return paginated_response(
-            items=[],
-            total=total,
-            page=page,
-            per_page=per_page,
-        )
-
-    page_etapa_ids = [e.id for e in etapas_page]
-
-    oi_detail_data = await fetch_oi_detail_data(
-        session,
-        page_etapa_ids,
-    )
-    trip_data = await fetch_trip_data(session, page_etapa_ids)
-    pqd_data, revo_data, heavy_data = await fetch_especificos_data(
-        session, page_etapa_ids
-    )
-
-    missao_ids = list({e.missao_id for e in etapas_page})
-    missoes_result = await session.scalars(
-        select(Missao).where(Missao.id.in_(missao_ids))
-    )
-    missoes = {m.id: m for m in missoes_result.all()}
-
-    items = [
-        EtapaFlatOut.model_validate(e).model_copy(
-            update={
-                'oi_etapas': oi_detail_data.get(
-                    e.id,
-                    [],
-                ),
-                'tripulantes': trip_data.get(e.id, []),
-                'pqd': pqd_data.get(e.id, []),
-                'revo': revo_data.get(e.id, []),
-                'heavy_cds': heavy_data.get(e.id, []),
-                'missao_id': e.missao_id,
-                'missao_titulo': (
-                    missoes[e.missao_id].titulo
-                    if e.missao_id in missoes
-                    else None
-                ),
-            }
-        )
-        for e in etapas_page
-    ]
-
-    return paginated_response(
-        items=items,
-        total=total,
-        page=page,
-        per_page=per_page,
-    )

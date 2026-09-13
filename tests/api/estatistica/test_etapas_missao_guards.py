@@ -5,8 +5,7 @@ Cobre as validacoes adicionadas nos endpoints:
   tanto interna ao payload quanto contra o banco;
 - consistencia tvoo x soma de OIs em PUT /etapas/{id} ao mudar o horario,
   e a rejeicao de etapa que atravessa o dia;
-- filtro is_simulador cobrindo o modo flat (nao so o agrupado) e o
-  is_simulador exposto no output agrupado.
+- filtro is_simulador na listagem e o is_simulador exposto no output.
 
 Convencao: `token` traz active_org='11gt' (org canonica dos seeds).
 As aeronaves e tripulantes sao semeados por fixture; missoes/etapas de
@@ -410,14 +409,12 @@ async def test_put_etapa_muda_horario_e_ois_coerentes_ok(
     assert resp.status_code == HTTPStatus.OK
 
 
-# ── Fix 1 / Fix 3: is_simulador no flat e no grouped ───────────────
+# ── Fix 1 / Fix 3: is_simulador na listagem ────────────────────────
 
 
-async def test_lista_flat_exclui_simulador_por_padrao(
-    client, session, token, anvs
-):
-    """O modo flat deve honrar is_simulador (default False): so etapas de
-    missao normal aparecem; com is_simulador=true, so as de simulador."""
+async def test_lista_exclui_simulador_por_padrao(client, session, token, anvs):
+    """A listagem deve honrar is_simulador (default False): so missao
+    normal aparece; com is_simulador=true, so as de simulador."""
     normal = await _mk_missao(session, is_simulador=False)
     sim = await _mk_missao(session, is_simulador=True)
     await _mk_etapa(
@@ -430,26 +427,20 @@ async def test_lista_flat_exclui_simulador_por_padrao(
 
     resp = await client.get(
         ETAPAS_URL,
-        params={'flat': 'true', 'data_ini': '2025-03-01'},
+        params={'data_ini': '2025-03-01'},
         headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
-    body = resp.json()
-    missao_ids = {e['missao_id'] for e in body['data']}
+    missao_ids = {m['id'] for m in resp.json()['data']}
     assert normal.id in missao_ids
     assert sim.id not in missao_ids
 
     resp_sim = await client.get(
         ETAPAS_URL,
-        params={
-            'flat': 'true',
-            'is_simulador': 'true',
-            'data_ini': '2025-03-01',
-        },
+        params={'is_simulador': 'true', 'data_ini': '2025-03-01'},
         headers=_auth(token),
     )
-    body_sim = resp_sim.json()
-    missao_ids_sim = {e['missao_id'] for e in body_sim['data']}
+    missao_ids_sim = {m['id'] for m in resp_sim.json()['data']}
     assert missao_ids_sim == {sim.id}
 
 
@@ -490,11 +481,10 @@ async def test_with_etapas_anv_simulador_incoerente_rejeita(
     assert 'simulador' in resp.json()['message'].lower()
 
 
-async def test_seed_etapa_persistida_visivel_no_flat(
+async def test_seed_etapa_persistida_visivel_na_listagem(
     client, session, token, anvs
 ):
-    """Sanidade: etapa criada e visivel no flat (garante o caminho feliz
-    da paginacao plana)."""
+    """Sanidade: etapa criada e visivel na listagem (caminho feliz)."""
     missao = await _mk_missao(session)
     etapa = await _mk_etapa(
         session, missao.id, anv='2850', dep=time(10, 0), arr=time(11, 0)
@@ -503,11 +493,11 @@ async def test_seed_etapa_persistida_visivel_no_flat(
 
     resp = await client.get(
         ETAPAS_URL,
-        params={'flat': 'true', 'data_ini': '2025-03-01'},
+        params={'data_ini': '2025-03-01'},
         headers=_auth(token),
     )
     assert resp.status_code == HTTPStatus.OK
-    ids = {e['id'] for e in resp.json()['data']}
+    ids = {e['id'] for m in resp.json()['data'] for e in m['etapas']}
     assert etapa.id in ids
 
     # E o registro realmente existe no banco (sanidade da sessao de teste)
