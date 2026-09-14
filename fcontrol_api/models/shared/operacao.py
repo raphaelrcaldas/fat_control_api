@@ -117,7 +117,15 @@ class OperacaoEtapa(Base):
 
 
 class OperacaoPessoal(Base):
-    """Pessoal envolvido (lista única: tripulante de voo ou apoio)."""
+    """Pessoal envolvido (lista única: tripulante de voo ou apoio).
+
+    Um mesmo militar pode ter mais de um período na mesma operação (sai no
+    meio e volta depois) — por isso não há unique key em
+    (operacao_id, user_id). Função e situação pertencem ao período, não ao
+    militar: quem foi Tripulante numa fase pode voltar como Apoio, ou trocar
+    de diária para gratificação de representação. A ausência de sobreposição
+    entre períodos do mesmo militar é validada no endpoint, não no banco.
+    """
 
     __tablename__ = 'operacao_pessoal'
     __table_args__ = (
@@ -132,11 +140,6 @@ class OperacaoPessoal(Base):
         CheckConstraint(
             "sit IN ('d', 'g', 'c')",
             name='ck_operacao_pessoal_sit',
-        ),
-        UniqueConstraint(
-            'operacao_id',
-            'user_id',
-            name='uq_operacao_pessoal_user',
         ),
     )
 

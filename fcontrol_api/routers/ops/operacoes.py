@@ -792,11 +792,6 @@ async def list_pessoal(op_id: int, session: Session, active_org: ActiveOrg):
 
 def _erro_pessoal(exc: IntegrityError) -> HTTPException:
     msg = str(exc.orig)
-    if 'uq_operacao_pessoal_user' in msg:
-        return HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail='Militar já associado a esta operação',
-        )
     if 'user_id' in msg:
         return HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
@@ -821,6 +816,23 @@ async def add_pessoal(
     user: Annotated[User, CreateMilitarOper],
 ):
     op = await _get_op(session, op_id, active_org)
+    conflito = await session.scalar(
+        select(OperacaoPessoal).where(
+            OperacaoPessoal.operacao_id == op.id,
+            OperacaoPessoal.user_id == payload.user_id,
+            OperacaoPessoal.data_ingresso <= payload.data_regresso,
+            payload.data_ingresso <= OperacaoPessoal.data_regresso,
+        )
+    )
+    if conflito:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'O militar já tem um período nesta operação entre '
+                f'{conflito.data_ingresso:%d/%m/%Y} e '
+                f'{conflito.data_regresso:%d/%m/%Y}'
+            ),
+        )
     pessoa = OperacaoPessoal(
         operacao_id=op.id,
         user_id=payload.user_id,
@@ -870,6 +882,24 @@ async def update_pessoal(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Pessoa não encontrada nesta operação',
+        )
+    conflito = await session.scalar(
+        select(OperacaoPessoal).where(
+            OperacaoPessoal.operacao_id == op.id,
+            OperacaoPessoal.user_id == payload.user_id,
+            OperacaoPessoal.id != pessoa.id,
+            OperacaoPessoal.data_ingresso <= payload.data_regresso,
+            payload.data_ingresso <= OperacaoPessoal.data_regresso,
+        )
+    )
+    if conflito:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'O militar já tem um período nesta operação entre '
+                f'{conflito.data_ingresso:%d/%m/%Y} e '
+                f'{conflito.data_regresso:%d/%m/%Y}'
+            ),
         )
     pessoa.user_id = payload.user_id
     pessoa.func = payload.func
