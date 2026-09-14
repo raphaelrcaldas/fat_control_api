@@ -322,6 +322,7 @@ async def get_operacao(op_id: int, session: Session, active_org: ActiveOrg):
                 sql_func.coalesce(sql_func.sum(Etapa.pax), 0),
                 sql_func.coalesce(sql_func.sum(Etapa.carga), 0),
                 sql_func.coalesce(sql_func.sum(Etapa.comb), 0),
+                sql_func.coalesce(sql_func.sum(Etapa.lub), 0),
                 sql_func.count(distinct(Etapa.missao_id)),
             ).where(in_op)
         )
@@ -381,7 +382,11 @@ async def get_operacao(op_id: int, session: Session, active_org: ActiveOrg):
         pax=kpi[3],
         carga=kpi[4],
         comb=kpi[5],
-        missoes=kpi[6],
+        # `lub` é Numeric(5,1), então o driver devolve Decimal. O Pydantic
+        # coage sozinho num campo `float`; o cast explícito é para o valor
+        # entrar no schema já como float, sem depender dessa coerção.
+        lub=float(kpi[6]),
+        missoes=kpi[7],
         modelos=modelos,
         pqd=pqd or 0,
         comb_transf=comb_transf or 0,
@@ -610,6 +615,10 @@ async def list_etapas(op_id: int, session: Session, active_org: ActiveOrg):
             tvoo=e.tvoo,
             dep=e.dep,
             arr=e.arr,
+            pax=e.pax,
+            carga=e.carga,
+            comb=e.comb,
+            lub=float(e.lub) if e.lub is not None else None,
         )
         for e in etapas
     ]

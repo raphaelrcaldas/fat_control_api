@@ -143,9 +143,9 @@ class OperacaoListResponse(BaseModel):
 class OperacaoKpis(BaseModel):
     """Indicadores consolidados das etapas vinculadas à operação.
 
-    Unidades: horas em minutos; carga e peso lançado em kg; combustível e
-    combustível transferido em litros. Lançamentos de carga em branco
-    (``peso = 0``) não entram nas quantidades de heavy/CDS.
+    Unidades: horas em minutos; carga e peso lançado em kg; combustível,
+    combustível transferido e lubrificante em litros. Lançamentos de carga
+    em branco (``peso = 0``) não entram nas quantidades de heavy/CDS.
     """
 
     horas: int  # Σ tvoo (min)
@@ -154,6 +154,7 @@ class OperacaoKpis(BaseModel):
     pax: int
     carga: int  # carga transportada (kg)
     comb: int  # combustível consumido (L)
+    lub: float  # lubrificante consumido (L) — decimal de uma casa na origem
     missoes: int  # missões distintas
     modelos: int  # modelos de aeronave distintos
     pqd: int  # paraquedistas lançados
@@ -204,6 +205,12 @@ class OperacaoEtapaRow(BaseModel):
     tvoo: int
     dep: time
     arr: time
+    # Opcionais na origem: a etapa pode ter sido lançada sem eles, e nulo
+    # aqui é "não informado", não zero — o front distingue os dois.
+    pax: int | None
+    carga: int | None  # kg
+    comb: int | None  # L
+    lub: float | None  # L
 
 
 class EtapaCandidata(BaseModel):
