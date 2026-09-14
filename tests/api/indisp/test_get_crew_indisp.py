@@ -11,7 +11,8 @@ from http import HTTPStatus
 
 import pytest
 
-from tests.factories import IndispFactory, TripFactory
+from fcontrol_api.models.shared.operacao import Operacao, OperacaoPessoal
+from tests.factories import IndispFactory, OperacaoFactory, TripFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -84,6 +85,8 @@ async def test_get_crew_indisp_response_structure(
             'inicio': None,
             'fim': None,
             'efeito': 'bloqueio',
+            'rotulo': None,
+            'operacao_id': None,
         }
     ]
 
@@ -422,3 +425,174 @@ async def test_get_crew_indisp_without_token_fails(client):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def _operacao_com_militar(
+    session,
+    *,
+    user_id: int,
+    criador_id: int,
+    ingresso: date,
+    regresso: date,
+    status: str = 'andamento',
+    uae: str = '11gt',
+    nome: str | None = None,
+) -> Operacao:
+    """Cria uma operação com um militar no efetivo, para a faixa derivada."""
+    op = OperacaoFactory(created_by=criador_id, status=status, uae=uae)
+    if nome is not None:
+        op.nome = nome
+    session.add(op)
+    await session.commit()
+    await session.refresh(op)
+
+    session.add(
+        OperacaoPessoal(
+            operacao_id=op.id,
+            user_id=user_id,
+            func='Tripulante',
+            sit='d',
+            data_ingresso=ingresso,
+            data_regresso=regresso,
+        )
+    )
+    await session.commit()
+    return op
+
+
+def _restricoes_de_operacao(payload: dict) -> list[dict]:
+    item = payload['data'][0]
+    return [
+        r for r in item['restricoes_derivadas'] if r['origem'] == 'operacao'
+    ]
+
+
+async def test_militar_em_operacao_vira_faixa_derivada(
+    client, session, users, trip_with_func, token_sem_perm
+):
+    """A operação do efetivo vira restrição derivada, sem virar indisp."""
+    user, _ = users
+    trip, func = trip_with_func
+
+    op = await _operacao_com_militar(
+        session,
+        user_id=user.id,
+        criador_id=user.id,
+        ingresso=date(2025, 6, 2),
+        regresso=date(2025, 6, 8),
+        nome='SLOP TESTE',
+    )
+
+    response = await client.get(
+        '/indisp/',
+        params={
+            'funcao': func.func,
+            'date_from': '2025-06-01',
+            'date_to': '2025-06-30',
+        },
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    (restricao,) = _restricoes_de_operacao(response.json())
+    assert restricao['codigo'] == 'operacao'
+    assert restricao['efeito'] == 'bloqueio'
+    assert restricao['inicio'] == '2025-06-02'
+    assert restricao['fim'] == '2025-06-08'
+    assert restricao['rotulo'] == 'SLOP TESTE'
+    assert restricao['operacao_id'] == op.id
+
+
+async def test_operacao_cancelada_nao_gera_faixa(
+    client, session, users, trip_with_func, token_sem_perm
+):
+    """Cancelada não tira ninguém da unidade."""
+    user, _ = users
+    trip, func = trip_with_func
+
+    await _operacao_com_militar(
+        session,
+        user_id=user.id,
+        criador_id=user.id,
+        ingresso=date(2025, 6, 2),
+        regresso=date(2025, 6, 8),
+        status='cancelada',
+    )
+
+    response = await client.get(
+        '/indisp/',
+        params={
+            'funcao': func.func,
+            'date_from': '2025-06-01',
+            'date_to': '2025-06-30',
+        },
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert _restricoes_de_operacao(response.json()) == []
+
+
+async def test_periodo_fora_da_janela_nao_gera_faixa(
+    client, session, users, trip_with_func, token_sem_perm
+):
+    """A janela pedida recorta: operação de julho não aparece em junho."""
+    user, _ = users
+    trip, func = trip_with_func
+
+    await _operacao_com_militar(
+        session,
+        user_id=user.id,
+        criador_id=user.id,
+        ingresso=date(2025, 7, 10),
+        regresso=date(2025, 7, 20),
+    )
+
+    response = await client.get(
+        '/indisp/',
+        params={
+            'funcao': func.func,
+            'date_from': '2025-06-01',
+            'date_to': '2025-06-30',
+        },
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert _restricoes_de_operacao(response.json()) == []
+
+
+async def test_operacao_de_outra_unidade_nao_vaza(
+    client, session, users, trip_with_func, token_sem_perm
+):
+    """Operação de outra `uae` não entra na grade desta unidade.
+
+    O filtro de org dos chamadores é no TRIPULANTE, e o `user_id` que sai dali
+    é global — sem o escopo por `uae` na query, o nome de uma operação alheia
+    apareceria aqui, com deeplink que cai no 404 de `_get_op`.
+    """
+    user, _ = users
+    trip, func = trip_with_func
+
+    await _operacao_com_militar(
+        session,
+        user_id=user.id,
+        criador_id=user.id,
+        ingresso=date(2025, 6, 2),
+        regresso=date(2025, 6, 8),
+        uae='1gt',
+        nome='OPERACAO ALHEIA',
+    )
+
+    response = await client.get(
+        '/indisp/',
+        params={
+            'funcao': func.func,
+            'date_from': '2025-06-01',
+            'date_to': '2025-06-30',
+        },
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert _restricoes_de_operacao(response.json()) == []

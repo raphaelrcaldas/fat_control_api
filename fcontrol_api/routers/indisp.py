@@ -38,8 +38,10 @@ from fcontrol_api.services.auth import FATBIRD_CLIENT
 from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.services.notificacoes import notificar_usuarios
 from fcontrol_api.services.restricoes import (
+    buscar_periodos_operacao,
     calcular_restricoes_derivadas,
     elegivel_desadaptacao,
+    restricoes_de_operacao,
 )
 from fcontrol_api.utils.responses import success_response
 
@@ -209,6 +211,13 @@ async def get_crew_indisp(
     )
     indisps_result = await session.scalars(indisp_query)
 
+    # 4b. Períodos de operação que cruzam a janela. Não são registros de
+    # indisponibilidade: saem de `operacao_pessoal` e viram faixa derivada,
+    # como CEMAL e desadaptação.
+    periodos_op = await buscar_periodos_operacao(
+        session, user_ids, date_from, date_to, active_org
+    )
+
     # 5. Agrupa as indisponibilidades por user_id em um dicionário para
     # acesso rápido
     indisps_by_user = defaultdict(list)
@@ -247,12 +256,15 @@ async def get_crew_indisp(
                     funcao=trip.func,
                     operacionalidade=trip.oper,
                 ),
-                restricoes_derivadas=calcular_restricoes_derivadas(
-                    cemal=trip_info.cemal,
-                    ultimo_voo=trip_info.data_ult_voo,
-                    funcao=trip.func,
-                    operacionalidade=trip.oper,
-                ),
+                restricoes_derivadas=[
+                    *calcular_restricoes_derivadas(
+                        cemal=trip_info.cemal,
+                        ultimo_voo=trip_info.data_ult_voo,
+                        funcao=trip.func,
+                        operacionalidade=trip.oper,
+                    ),
+                    *restricoes_de_operacao(periodos_op.get(trip.user_id, [])),
+                ],
             )
         )
 

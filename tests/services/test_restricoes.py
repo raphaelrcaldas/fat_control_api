@@ -3,8 +3,10 @@ from datetime import date
 import pytest
 
 from fcontrol_api.services.restricoes import (
+    PeriodoOperacao,
     calcular_restricoes_derivadas,
     elegivel_desadaptacao,
+    restricoes_de_operacao,
 )
 
 
@@ -85,3 +87,55 @@ def test_datas_sem_inicio_representavel_nao_extrapolam_date_max():
     )
 
     assert restricoes == []
+
+
+def _periodo(
+    *,
+    operacao_id=1,
+    nome='SLOP',
+    status='andamento',
+    ingresso=date(2026, 5, 1),
+    regresso=date(2026, 5, 10),
+):
+    return PeriodoOperacao(
+        operacao_id=operacao_id,
+        nome=nome,
+        status=status,
+        data_ingresso=ingresso,
+        data_regresso=regresso,
+    )
+
+
+def test_operacao_vira_bloqueio_com_as_datas_do_periodo():
+    (restricao,) = restricoes_de_operacao([_periodo()])
+
+    assert restricao.origem == 'operacao'
+    assert restricao.codigo == 'operacao'
+    assert restricao.efeito == 'bloqueio'
+    assert restricao.inicio == date(2026, 5, 1)
+    assert restricao.fim == date(2026, 5, 10)
+    assert restricao.rotulo == 'SLOP'
+    assert restricao.operacao_id == 1
+
+
+def test_dois_periodos_do_mesmo_militar_nao_viram_um_intervalo_so():
+    """Fundir os dois afirmaria que ele esteve fora nos dias em que voltou."""
+    restricoes = restricoes_de_operacao([
+        _periodo(ingresso=date(2026, 5, 1), regresso=date(2026, 5, 5)),
+        _periodo(ingresso=date(2026, 5, 20), regresso=date(2026, 5, 25)),
+    ])
+
+    assert [(r.inicio, r.fim) for r in restricoes] == [
+        (date(2026, 5, 1), date(2026, 5, 5)),
+        (date(2026, 5, 20), date(2026, 5, 25)),
+    ]
+
+
+@pytest.mark.parametrize('status', ['planejada', 'andamento', 'encerrada'])
+def test_operacao_ativa_indisponibiliza(status):
+    assert restricoes_de_operacao([_periodo(status=status)])
+
+
+def test_operacao_cancelada_nao_indisponibiliza():
+    """Cancelada não tira ninguém da unidade."""
+    assert restricoes_de_operacao([_periodo(status='cancelada')]) == []

@@ -133,7 +133,13 @@ async def trip_with_func(session, users):
     """
     user, _ = users
 
-    trip = TripFactory(user_id=user.id, uae='11gt', active=True, func='pil')
+    # `oper` fixo: a factory sorteia entre todas as operacionalidades, e 'al'
+    # (aluno) isenta da regra de recência — o teste de estrutura afirma
+    # `elegivel_desadaptacao is True` e falhava quando o sorteio calhava em
+    # aluno. Ver `elegivel_desadaptacao` em services/restricoes.py.
+    trip = TripFactory(
+        user_id=user.id, uae='11gt', active=True, func='pil', oper='op'
+    )
     session.add(trip)
     await session.commit()
     await session.refresh(trip)

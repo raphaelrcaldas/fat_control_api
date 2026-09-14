@@ -33,8 +33,10 @@ from fcontrol_api.schemas.ops.escala import (
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import ActiveOrg
 from fcontrol_api.services.restricoes import (
+    buscar_periodos_operacao,
     calcular_restricoes_derivadas,
     elegivel_desadaptacao,
+    restricoes_de_operacao,
 )
 from fcontrol_api.utils.responses import success_response
 
@@ -249,6 +251,12 @@ async def get_escala_disponiveis(
                 EscalaIndispInfo.model_validate(indisp)
             )
 
+    # 5b. Períodos de operação que cruzam a janela — faixa derivada, como
+    # CEMAL e desadaptação (ver `restricoes_de_operacao`).
+    periodos_op = await buscar_periodos_operacao(
+        session, user_ids, date_start, date_end, active_org
+    )
+
     # 6. Agrupar por função (preservando ordem da query)
     sections_map: dict[str, list[EscalaTripEntry]] = {
         f: [] for f in funcs_param
@@ -274,12 +282,15 @@ async def get_escala_disponiveis(
                     funcao=row.func,
                     operacionalidade=row.oper,
                 ),
-                restricoes_derivadas=calcular_restricoes_derivadas(
-                    cemal=row.cemal,
-                    ultimo_voo=row.data_ult_voo,
-                    funcao=row.func,
-                    operacionalidade=row.oper,
-                ),
+                restricoes_derivadas=[
+                    *calcular_restricoes_derivadas(
+                        cemal=row.cemal,
+                        ultimo_voo=row.data_ult_voo,
+                        funcao=row.func,
+                        operacionalidade=row.oper,
+                    ),
+                    *restricoes_de_operacao(periodos_op.get(row.user_id, [])),
+                ],
             )
         )
 

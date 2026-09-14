@@ -91,6 +91,8 @@ async def test_returns_eligible_trip(client, session, users, token_sem_perm):
             'inicio': None,
             'fim': None,
             'efeito': 'bloqueio',
+            'rotulo': None,
+            'operacao_id': None,
         }
     ]
 

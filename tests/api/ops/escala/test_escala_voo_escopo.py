@@ -543,6 +543,8 @@ async def test_restricoes_usam_datas_reais_mesmo_depois_de_date_end(
             'inicio': '2025-07-11',
             'fim': None,
             'efeito': 'bloqueio',
+            'rotulo': None,
+            'operacao_id': None,
         },
         {
             'origem': 'recencia_voo',
@@ -550,5 +552,7 @@ async def test_restricoes_usam_datas_reais_mesmo_depois_de_date_end(
             'inicio': '2025-08-04',
             'fim': None,
             'efeito': 'aviso',
+            'rotulo': None,
+            'operacao_id': None,
         },
     ]
