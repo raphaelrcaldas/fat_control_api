@@ -365,3 +365,122 @@ async def test_list_ordens_requires_auth(client):
     """Endpoint requer autenticacao."""
     response = await client.get(BASE_URL)
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def test_list_ordens_filtro_data_usa_dia_utc(
+    client, session, users, token
+):
+    """Filtro de data recorta pelo dia UTC da decolagem.
+
+    Etapas perto da meia-noite sao o caso que denuncia conversao de fuso:
+    23:30Z e 01:00Z do dia seguinte pertencem a dias UTC diferentes. Como o
+    horario da OM e Zulu ponta a ponta (o quadro desenha a etapa no dia que
+    vem na string ISO), o recorte tem de concordar com esse dia
+    independentemente do TimeZone do servidor Postgres.
+    """
+    user, _ = users
+    dia = date(2026, 3, 11)
+
+    ordem_23h30 = OrdemMissaoFactory(created_by=user.id, data_saida=dia)
+    ordem_01h = OrdemMissaoFactory(created_by=user.id, data_saida=dia)
+    session.add_all([ordem_23h30, ordem_01h])
+    await session.commit()
+    await session.refresh(ordem_23h30)
+    await session.refresh(ordem_01h)
+
+    session.add_all([
+        OrdemEtapaFactory(
+            ordem_id=ordem_23h30.id,
+            dt_dep=datetime(2026, 3, 11, 23, 30, tzinfo=timezone.utc),
+        ),
+        OrdemEtapaFactory(
+            ordem_id=ordem_01h.id,
+            dt_dep=datetime(2026, 3, 12, 1, 0, tzinfo=timezone.utc),
+        ),
+    ])
+    await session.commit()
+
+    # Janela de um unico dia UTC: so a etapa das 23:30Z entra.
+    response = await client.get(
+        BASE_URL,
+        params={'data_inicio': '2026-03-11', 'data_fim': '2026-03-11'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    resp = response.json()
+    assert resp['total'] == 1
+    assert resp['data'][0]['id'] == ordem_23h30.id
+
+    # O dia seguinte pega a outra, confirmando que a borda separa as duas.
+    response = await client.get(
+        BASE_URL,
+        params={'data_inicio': '2026-03-12', 'data_fim': '2026-03-12'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    resp = response.json()
+    assert resp['total'] == 1
+    assert resp['data'][0]['id'] == ordem_01h.id
+
+
+async def test_list_ordens_com_filtro_data_ordena_por_decolagem(
+    client, session, users, token
+):
+    """Com filtro de data, a janela sai em ordem cronologica.
+
+    Sem isso a ordem seria a de cadastro, e o corte do `per_page` guardaria
+    as OMs cadastradas por ultimo em vez das do inicio da janela — missao
+    dentro do periodo sumiria do quadro de operacoes.
+    """
+    user, _ = users
+    dia = date(2026, 4, 6)
+
+    # Cadastradas na ordem inversa da cronologica de propósito.
+    ordem_tarde = OrdemMissaoFactory(created_by=user.id, data_saida=dia)
+    session.add(ordem_tarde)
+    await session.commit()
+    await session.refresh(ordem_tarde)
+
+    ordem_cedo = OrdemMissaoFactory(created_by=user.id, data_saida=dia)
+    session.add(ordem_cedo)
+    await session.commit()
+    await session.refresh(ordem_cedo)
+
+    session.add_all([
+        OrdemEtapaFactory(
+            ordem_id=ordem_tarde.id,
+            dt_dep=datetime(2026, 4, 6, 18, 0, tzinfo=timezone.utc),
+        ),
+        OrdemEtapaFactory(
+            ordem_id=ordem_cedo.id,
+            dt_dep=datetime(2026, 4, 6, 6, 0, tzinfo=timezone.utc),
+        ),
+    ])
+    await session.commit()
+
+    response = await client.get(
+        BASE_URL,
+        params={'data_inicio': '2026-04-06', 'data_fim': '2026-04-06'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    ids = [item['id'] for item in response.json()['data']]
+    assert ids == [ordem_cedo.id, ordem_tarde.id]
+
+
+async def test_list_ordens_per_page_tem_teto(client, session, users, token):
+    """`per_page` acima do teto e limitado, nao varre a tabela inteira."""
+    user, _ = users
+    session.add(OrdemMissaoFactory(created_by=user.id))
+    await session.commit()
+
+    response = await client.get(
+        BASE_URL,
+        params={'per_page': 5000},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['per_page'] == 100

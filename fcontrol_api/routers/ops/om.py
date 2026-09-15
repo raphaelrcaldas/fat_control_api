@@ -69,6 +69,24 @@ DeleteOM = Depends(permission_checker('ops.ordem_missao', 'delete'))
 # security.py já grava sob o mesmo recurso.
 RESOURCE = 'ops.ordem_missao'
 
+# Teto de paginação, igual ao de `list_aeronaves` e `list_missoes`.
+MAX_PER_PAGE = 100
+
+
+def _dt_dep_date_utc():
+    """Dia UTC da decolagem, para comparar com um filtro date-only.
+
+    `cast(timestamptz AS date)` converte pelo **TimeZone da sessão** do
+    Postgres, não por UTC. Como o horário de uma OM é Zulu de ponta a
+    ponta (o frontend grava `...Z` e lê a data com um split da string),
+    herdar o fuso da sessão faria o filtro discordar da célula em que o
+    quadro desenha a etapa assim que o servidor não estivesse em UTC —
+    uma etapa às 01:00Z cairia no dia anterior e sumiria da janela.
+    `timezone('UTC', ...)` crava a conversão e torna o resultado
+    independente do ambiente.
+    """
+    return cast(func.timezone('UTC', OrdemEtapa.dt_dep), Date)
+
 
 @router.get(
     '/',
@@ -95,6 +113,11 @@ async def list_ordens(
     - **data_inicio/data_fim**: Filtro por data de decolagem da primeira etapa
     - **busca**: Busca por número, localidade, tipo ou nome de guerra
     """
+    # Mesmo teto de `list_aeronaves` e `list_missoes`: sem ele um
+    # `per_page` arbitrário varre a tabela inteira numa requisição.
+    per_page = min(per_page, MAX_PER_PAGE)
+    page = max(page, 1)
+
     # Query base: ordens da org ativa, não deletadas
     query = select(OrdemMissao).where(
         OrdemMissao.uae == active_org,
@@ -148,11 +171,11 @@ async def list_ordens(
         etapas_date_sub = select(OrdemEtapa.ordem_id).distinct()
         if data_inicio:
             etapas_date_sub = etapas_date_sub.where(
-                cast(OrdemEtapa.dt_dep, Date) >= data_inicio
+                _dt_dep_date_utc() >= data_inicio
             )
         if data_fim:
             etapas_date_sub = etapas_date_sub.where(
-                cast(OrdemEtapa.dt_dep, Date) <= data_fim
+                _dt_dep_date_utc() <= data_fim
             )
         query = query.where(OrdemMissao.id.in_(etapas_date_sub))
 
@@ -166,11 +189,27 @@ async def list_ordens(
     count_query = select(func.count()).select_from(query.subquery())
     total = await session.scalar(count_query) or 0
 
-    # Paginação e ordenação com eager load de etapas
-    # (id como tiebreaker garante paginação determinística)
+    # Ordenação. Com filtro de data a consulta é uma *janela* (o quadro de
+    # operações pede uma semana), e ordenar por `created_at` faria o corte
+    # do `per_page` guardar as OMs cadastradas mais recentemente em vez das
+    # do início da janela — missão dentro do período sumiria do quadro. Aí
+    # a ordem é a da primeira decolagem; sem filtro, segue a de cadastro.
+    # (id como tiebreaker garante paginação determinística nos dois casos)
+    if data_inicio or data_fim:
+        primeira_dep = (
+            select(func.min(OrdemEtapa.dt_dep))
+            .where(OrdemEtapa.ordem_id == OrdemMissao.id)
+            .scalar_subquery()
+        )
+        query = query.order_by(primeira_dep.asc(), OrdemMissao.id.asc())
+    else:
+        query = query.order_by(
+            OrdemMissao.created_at.desc(), OrdemMissao.id.desc()
+        )
+
+    # Paginação com eager load de etapas
     query = (
         query
-        .order_by(OrdemMissao.created_at.desc(), OrdemMissao.id.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .options(
