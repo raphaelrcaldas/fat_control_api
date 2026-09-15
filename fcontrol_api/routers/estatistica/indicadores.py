@@ -64,6 +64,11 @@ async def get_indicadores(
     Etapas de simulador ficam sempre de fora (o painel e de producao
     real). As flags `sagem`/`parte1` nao filtram nada: o painel soma
     tudo que foi registrado.
+
+    **Etapa sem OI nao entra.** O painel mede a producao imputada ao
+    esforco aereo da unidade; sem OI nao ha o que imputar. Isso alinha
+    o painel ao resumo de esforco aereo, que ja partia de `OIEtapa` —
+    antes o mesmo voo somava horas aqui e sumia la.
     """
     # CTE de escopo: uma linha por etapa, nunca mais. Toda agregacao
     # abaixo parte daqui e toca no maximo UMA tabela filha 1:N por vez —
@@ -94,6 +99,10 @@ async def get_indicadores(
                 date(ano_ref, 1, 1),
                 date(ano_ref, 12, 31),
             ),
+            # EXISTS, nao JOIN: a etapa tem N OIs, e juntar aqui
+            # multiplicaria a linha da etapa por elas — o mesmo fan-out
+            # que esta CTE existe para evitar.
+            select(OIEtapa.id).where(OIEtapa.etapa_id == Etapa.id).exists(),
         )
     )
 

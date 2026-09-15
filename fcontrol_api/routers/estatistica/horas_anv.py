@@ -6,9 +6,6 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.estatistica.esf_aer import (
-    EsforcoAereo,
-)
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
     Missao,
@@ -40,42 +37,49 @@ async def get_horas_anv(
     active_org: ActiveOrg,
     ano_ref: AnoRef,
 ):
+    """Horas e pousos por aeronave, por mes, no ano de referencia.
+
+    **Etapa sem OI nao soma.** O quadro mede a producao imputada ao
+    esforco aereo da unidade — nao o horimetro da celula. Voo lancado
+    sem OI fica fora ate alguem imputa-lo.
+
+    Mesma regra de OI que `/indicadores`, mas **nao ha paridade plena**
+    com ele: aqui o recorte de simulador e por `Aeronave.is_sim` (a
+    aeronave e um simulador), la e por `Missao.is_simulador` (o voo foi
+    lancado como simulador). Aeronave real em missao de simulador soma
+    aqui e nao soma la.
+    """
     # Escopo por org: só a frota dos projetos operados pela org ativa.
     projetos_org = select(TenantProjeto.projeto).where(
         TenantProjeto.uae == active_org
     )
 
-    # ANVs com voo nao-GTT no ano, nas missoes DESTA org
-    not_gtt_anvs = (
+    # "Tem esforco aereo imputado" — a regra que define o que soma.
+    com_oi = select(OIEtapa.id).where(OIEtapa.etapa_id == Etapa.id).exists()
+
+    # ANVs que produziram no ano, nas missoes DESTA org. So serve para
+    # decidir se uma aeronave INATIVA ainda merece linha na tabela: a
+    # que voou no ano aparece (senao o ano perderia a producao dela), a
+    # que nao voou fica fora.
+    anvs_com_voo = (
         select(Etapa.anv)
-        .join(
-            Missao,
-            Missao.id == Etapa.missao_id,
-        )
-        .join(
-            OIEtapa,
-            OIEtapa.etapa_id == Etapa.id,
-        )
-        .join(
-            EsforcoAereo,
-            EsforcoAereo.id == OIEtapa.esf_aer_id,
-        )
+        .join(Missao, Missao.id == Etapa.missao_id)
         .where(
             Missao.uae == active_org,
             extract('year', Etapa.data) == ano_ref,
-            ~EsforcoAereo.descricao.contains('GTT'),
+            com_oi,
         )
         .distinct()
         .scalar_subquery()
     )
 
-    # Filtro: frota da org E nao simulador E (ativa OU sem GTT)
+    # Filtro: frota da org E nao simulador E (ativa OU com voo no ano)
     valid_filter = [
         Aeronave.projeto.in_(projetos_org),
         Aeronave.is_sim.is_(False),
         or_(
             Aeronave.active.is_(True),
-            Aeronave.matricula.in_(not_gtt_anvs),
+            Aeronave.matricula.in_(anvs_com_voo),
         ),
     ]
 
@@ -111,6 +115,9 @@ async def get_horas_anv(
             Missao.uae == active_org,
             extract('year', Etapa.data) == ano_ref,
             Etapa.anv.in_(valid_anvs),
+            # EXISTS, nao JOIN: somar `Etapa.tvoo` sobre um JOIN com as
+            # N OIs multiplicaria as horas da etapa por elas.
+            com_oi,
         )
         .group_by(Etapa.anv, mes_col)
     )

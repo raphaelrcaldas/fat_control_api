@@ -38,8 +38,13 @@ def _auth(token):
     return {'Authorization': f'Bearer {token}'}
 
 
-async def _mk_etapa(session, missao_id, *, anv, **campos):
-    """Etapa de 150 min (10:00→12:30); `tvoo` é coluna computada."""
+async def _mk_etapa(session, missao_id, *, anv, oi=None, **campos):
+    """Etapa de 150 min (10:00→12:30); `tvoo` é coluna computada.
+
+    `oi` é o par `(esf_aer_id, tipo_missao_id)` da fixture `refs`, e
+    imputa a etapa inteira a um único OI. Passar `None` cria a etapa
+    SEM esforço aéreo — que o painel ignora.
+    """
     padrao = {
         'obs': None,
         'data': date(ANO, 3, 10),
@@ -61,6 +66,23 @@ async def _mk_etapa(session, missao_id, *, anv, **campos):
     etapa = Etapa(missao_id=missao_id, anv=anv, **padrao)
     session.add(etapa)
     await session.flush()
+
+    if oi is not None:
+        esf_id, tipo_id = oi
+        # `Etapa.tvoo` é coluna computada — só teria valor após um
+        # refresh. Derivar de dep/arr evita o round-trip.
+        dep, arr = padrao['dep'], padrao['arr']
+        minutos = (arr.hour - dep.hour) * 60 + (arr.minute - dep.minute)
+        session.add(
+            OIEtapa(
+                etapa_id=etapa.id,
+                esf_aer_id=esf_id,
+                tvoo=minutos,
+                reg='d',
+                tipo_missao_id=tipo_id,
+            )
+        )
+        await session.flush()
     return etapa
 
 
@@ -240,7 +262,9 @@ async def test_isolamento_cross_org(
     missao_1gt = Missao(titulo=None, obs=None, uae='1gt')
     session.add(missao_1gt)
     await session.flush()
-    await _mk_etapa(session, missao_1gt.id, anv='2860', carga=777, pax=3)
+    await _mk_etapa(
+        session, missao_1gt.id, anv='2860', carga=777, pax=3, oi=refs
+    )
     await session.commit()
 
     token_1gt = await make_org_token(other, active_org='1gt')
@@ -269,8 +293,8 @@ async def test_simulador_fica_de_fora(client, session, token, refs):
     session.add_all([real, sim])
     await session.flush()
 
-    await _mk_etapa(session, real.id, anv='2850', carga=100)
-    await _mk_etapa(session, sim.id, anv='2850', carga=9999)
+    await _mk_etapa(session, real.id, anv='2850', carga=100, oi=refs)
+    await _mk_etapa(session, sim.id, anv='2850', carga=9999, oi=refs)
     await session.commit()
 
     resp = await client.get(URL, params={'ano_ref': ANO}, headers=_auth(token))
@@ -299,8 +323,8 @@ async def test_filtro_por_projeto_discrimina(client, session, token, refs):
     missao = Missao(titulo=None, obs=None, uae='11gt')
     session.add(missao)
     await session.flush()
-    await _mk_etapa(session, missao.id, anv='2850', carga=100)
-    await _mk_etapa(session, missao.id, anv='2860', carga=200)
+    await _mk_etapa(session, missao.id, anv='2850', carga=100, oi=refs)
+    await _mk_etapa(session, missao.id, anv='2860', carga=200, oi=refs)
     await session.commit()
 
     async def _get(**params):
@@ -353,10 +377,20 @@ async def test_etapa_de_outro_ano_nao_entra(client, session, token, refs):
     await session.flush()
 
     await _mk_etapa(
-        session, missao.id, anv='2850', data=date(ANO, 12, 31), carga=50
+        session,
+        missao.id,
+        anv='2850',
+        data=date(ANO, 12, 31),
+        carga=50,
+        oi=refs,
     )
     await _mk_etapa(
-        session, missao.id, anv='2850', data=date(ANO + 1, 1, 1), carga=60
+        session,
+        missao.id,
+        anv='2850',
+        data=date(ANO + 1, 1, 1),
+        carga=60,
+        oi=refs,
     )
     await session.commit()
 
@@ -365,3 +399,54 @@ async def test_etapa_de_outro_ano_nao_entra(client, session, token, refs):
     assert data['totais']['etapas'] == 1
     assert data['totais']['carga'] == 50
     assert data['mensal'][11]['carga'] == 50  # dezembro
+
+
+async def test_etapa_sem_oi_nao_entra(client, session, token, refs):
+    """Etapa sem esforço aéreo imputado fica fora de TODO o painel.
+
+    Outro esquadrão voa a mesma frota, e esse voo não é produção desta
+    unidade. O filtro é da etapa inteira, então também não entram as
+    filhas dela (PQD, REVO, lançamentos) — e a aeronave cujo único voo
+    foi sem OI some de `por_aeronave`.
+    """
+    session.add(Aeronave(matricula='2850', active=True, sit='DI', obs=None))
+    missao = Missao(titulo=None, obs=None, uae='11gt')
+    session.add(missao)
+    await session.flush()
+
+    await _mk_etapa(session, missao.id, anv='2850', carga=100, oi=refs)
+    sem_oi = await _mk_etapa(
+        session, missao.id, anv='2850', carga=999, oi=None
+    )
+    # As filhas da etapa sem OI também não podem vazar para os totais.
+    session.add_all([
+        PqdEtapa(etapa_id=sem_oi.id, tipo='LV', qtd=50),
+        REVOEtapa(etapa_id=sem_oi.id, comb_transf=700),
+        HeavyCDS(etapa_id=sem_oi.id, tipo='cds', peso=600, dist=5, radial=90),
+    ])
+    await session.commit()
+
+    resp = await client.get(URL, params={'ano_ref': ANO}, headers=_auth(token))
+    assert resp.status_code == HTTPStatus.OK
+    data = resp.json()['data']
+    totais = data['totais']
+
+    assert totais['etapas'] == 1
+    assert totais['carga'] == 100  # e não 1099
+    assert totais['tvoo'] == 150
+    # Filhas da etapa sem OI ficam fora junto com ela.
+    assert totais['pqd'] == 0
+    assert totais['comb_transf'] == 0
+    assert totais['peso_lancado'] == 0
+
+    anv = next(a for a in data['por_aeronave'] if a['anv'] == '2850')
+    assert anv['etapas'] == 1
+    assert anv['carga'] == 100
+
+    # As quebras por OI ja partiam de OIEtapa e nunca somariam a etapa
+    # sem OI — mas este teste e o guarda de "a etapa inteira sai", e o
+    # painel so esta fechado se elas tambem forem afirmadas aqui.
+    assert data['por_regime'] == [{'reg': 'd', 'tvoo': 150}]
+    assert len(data['por_tipo_missao']) == 1
+    assert data['por_tipo_missao'][0]['etapas'] == 1
+    assert data['por_tipo_missao'][0]['tvoo'] == 150
