@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
+from fcontrol_api.models.shared.funcoes import FuncaoUae
 from fcontrol_api.models.shared.om import (
     OrdemEtapa,
     OrdemMissao,
@@ -104,7 +105,12 @@ def validar_integridade_etapas(
 
 
 async def criar_tripulacao_batch(
-    session: AsyncSession, ordem_id: int, tripulacao_data
+    session: AsyncSession,
+    ordem_id: int,
+    tripulacao_data,
+    *,
+    uae: str,
+    p_g_preservado: dict[tuple[int, str], str] | None = None,
 ) -> list[OrdemTripulacao]:
     """
     Cria registros de tripulacao usando batch query para evitar N+1.
@@ -113,6 +119,18 @@ async def criar_tripulacao_batch(
         session: Sessao do banco de dados
         ordem_id: ID da ordem de missao
         tripulacao_data: Dados da tripulacao (TripulacaoOM schema)
+        uae: Org ativa da requisicao. Escopa tanto o tripulante quanto a
+            funcao: o gate de permissao autoriza a ACAO, nao o ALVO, e o
+            id do tripulante vem do corpo da requisicao. Sem este filtro,
+            um id de outra unidade entra na OM e o GET seguinte devolve
+            nome, id_fab e posto daquele militar.
+        p_g_preservado: Mapa (tripulante_id, funcao) -> p_g ja gravado.
+            O update da OM apaga e recria a tripulacao; sem este mapa,
+            editar em 2026 uma OM de 2024 recarimbaria o posto ATUAL de
+            todo mundo, destruindo o snapshot historico. Quem estava na
+            ordem mantem o p_g de origem; quem entra agora recebe o
+            posto atual do militar. Na criacao (POST) fica None, e todos
+            recebem o posto atual.
 
     Returns:
         As linhas criadas, com `.tripulante` (e `.tripulante.user`, via
@@ -121,36 +139,61 @@ async def criar_tripulacao_batch(
     """
     # Coletar todos os IDs de tripulantes
     all_trip_ids = []
-    tripulacao_dict = tripulacao_data.model_dump()
+    tripulacao_dict = tripulacao_data.root
     for trip_ids in tripulacao_dict.values():
         all_trip_ids.extend(trip_ids)
 
     if not all_trip_ids:
         return []
 
-    # Uma unica query para buscar todos os tripulantes
+    # A lista de funcoes e dado, nao codigo: valida-se contra o que a
+    # unidade opera. Antes, chaves fora de um conjunto fixo (`md`, `ml`)
+    # eram descartadas em silencio pelo schema — e como o update apaga e
+    # recria a tripulacao, uma edicao inocua apagava esses tripulantes.
+    funcoes_uae = set(
+        await session.scalars(
+            select(FuncaoUae.func_cod).where(FuncaoUae.uae == uae)
+        )
+    )
+    invalidas = sorted(set(tripulacao_dict) - funcoes_uae)
+    if invalidas:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=(
+                f'Função não operada por esta unidade: {", ".join(invalidas)}'
+            ),
+        )
+
+    # Uma unica query para buscar todos os tripulantes, escopada na org
+    # ativa (o id vem do corpo da requisicao, ver `uae` no docstring).
     tripulantes_result = await session.scalars(
         select(Tripulante)
-        .where(Tripulante.id.in_(all_trip_ids))
+        .where(Tripulante.id.in_(all_trip_ids), Tripulante.uae == uae)
         .options(selectinload(Tripulante.user))
     )
     tripulantes_map = {t.id: t for t in tripulantes_result.all()}
 
     # Criar registros de tripulacao usando o map
+    preservado = p_g_preservado or {}
     criadas: list[OrdemTripulacao] = []
     for funcao, trip_ids in tripulacao_dict.items():
         for trip_id in trip_ids:
             tripulante = tripulantes_map.get(trip_id)
             if not tripulante or not tripulante.user:
+                # Mensagem neutra de proposito: nao revela se o id existe
+                # em outra unidade.
                 raise HTTPException(
                     status_code=HTTPStatus.BAD_REQUEST,
                     detail=f'Tripulante {trip_id} não encontrado',
                 )
+            # Preserva o snapshot de quem ja estava na ordem nesta
+            # funcao; so tripulante novo recebe o posto atual.
+            p_g = preservado.get((trip_id, funcao), tripulante.user.p_g)
             trip_ordem = OrdemTripulacao(
                 ordem_id=ordem_id,
                 tripulante_id=trip_id,
                 funcao=funcao,
-                p_g=tripulante.user.p_g,  # Snapshot do p_g atual
+                p_g=p_g,
             )
             # `tripulante` nao e anotado no model (logo nao e campo do
             # dataclass): a atribuicao pos-construcao popula a relacao com

@@ -431,7 +431,7 @@ async def create_ordem(
     tripulacao_criada: list[OrdemTripulacao] = []
     if ordem_data.tripulacao:
         tripulacao_criada = await criar_tripulacao_batch(
-            session, ordem.id, ordem_data.tripulacao
+            session, ordem.id, ordem_data.tripulacao, uae=active_org
         )
 
     # Vincular etiquetas (somente da org ativa)
@@ -719,6 +719,17 @@ async def update_ordem(
 
     # Atualizar tripulação se fornecida (batch query para evitar N+1)
     if 'tripulacao' in update_data:
+        # O p_g da linha é snapshot do posto na criação da OM. Como a
+        # atualização apaga e recria a tripulação, guarde o valor já
+        # gravado ANTES do delete: quem permanece na mesma função
+        # mantém o posto de origem e só quem entra agora é carimbado
+        # com o posto atual. Sem isso, editar a data de uma OM antiga
+        # recarimbaria a tripulação inteira com os postos de hoje.
+        p_g_preservado = {
+            (trip.tripulante_id, trip.funcao): trip.p_g
+            for trip in ordem.tripulacao
+        }
+
         # Remover tripulação existente
         for trip in ordem.tripulacao:
             await session.delete(trip)
@@ -726,7 +737,11 @@ async def update_ordem(
         # Criar nova tripulação
         if ordem_data.tripulacao:
             tripulacao_atualizada = await criar_tripulacao_batch(
-                session, ordem.id, ordem_data.tripulacao
+                session,
+                ordem.id,
+                ordem_data.tripulacao,
+                uae=active_org,
+                p_g_preservado=p_g_preservado,
             )
 
         del update_data['tripulacao']

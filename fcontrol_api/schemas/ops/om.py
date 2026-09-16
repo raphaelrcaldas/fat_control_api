@@ -8,6 +8,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    RootModel,
     field_validator,
     model_validator,
 )
@@ -110,13 +111,18 @@ class TripulacaoOrdemOut(BaseModel):
 
 
 # --- Tripulação agrupada por função (formato do frontend) ---
-class TripulacaoAgrupada(BaseModel):
-    pil: list[int] = []
-    mc: list[int] = []
-    lm: list[int] = []
-    tf: list[int] = []
-    oe: list[int] = []
-    os: list[int] = []
+class TripulacaoAgrupada(RootModel[dict[str, list[int]]]):
+    """Mapa funcao -> ids de tripulante, no formato que o front monta.
+
+    A lista de funções é **dado, não código**: o catálogo é por unidade
+    (`funcoes_uae`), então este schema aceita qualquer chave e quem valida
+    é o serviço, contra o que a org ativa opera. Um conjunto fixo de
+    chaves aqui descartava em silêncio as funções de fora dele (`md`,
+    `ml`) — e, como o update apaga e recria a tripulação, uma edição que
+    só trocava a data apagava esses tripulantes da ordem.
+    """
+
+    root: dict[str, list[int]] = {}
 
 
 # --- Ordem de Missão ---

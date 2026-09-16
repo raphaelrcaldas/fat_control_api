@@ -11,7 +11,7 @@ from http import HTTPStatus
 import pytest
 
 from fcontrol_api.models.shared.om import Etiqueta
-from tests.factories import OrdemMissaoFactory
+from tests.factories import OrdemMissaoFactory, TripFactory, UserFactory
 
 pytestmark = pytest.mark.anyio
 
@@ -506,3 +506,342 @@ async def test_update_ordem_requires_auth(client):
     """Endpoint requer autenticacao."""
     response = await client.put(f'{BASE_URL}/1', json={'tipo': 'transporte'})
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+async def test_update_preserva_p_g_snapshot_da_tripulacao(
+    client, session, users, token
+):
+    """Editar a OM nao recarimba o posto de quem ja estava nela.
+
+    `p_g` e snapshot do posto na criacao da ordem. O update apaga e
+    recria a tripulacao; sem preservar o valor gravado, promover um
+    militar em 2026 reescreveria a OM de 2024 na primeira edicao —
+    mesmo numa edicao que so troca a data.
+    """
+    user, _ = users
+
+    antigo = UserFactory(p_g='cb')
+    novato = UserFactory(p_g='3s')
+    session.add_all([antigo, novato])
+    await session.flush()
+
+    trip_antigo = TripFactory(user_id=antigo.id)
+    trip_novato = TripFactory(user_id=novato.id)
+    session.add_all([trip_antigo, trip_novato])
+    await session.commit()
+    await session.refresh(trip_antigo)
+    await session.refresh(trip_novato)
+
+    create_resp = await client.post(
+        f'{BASE_URL}/',
+        json={
+            'matricula_anv': '2850',
+            'tipo': 'instrucao',
+            'projeto': 'KC-390',
+            'status': 'rascunho',
+            'esf_aer': 90,
+            'campos_especiais': [],
+            'etapas': [_make_etapa()],
+            'tripulacao': {'pil': [trip_antigo.id]},
+            'etiquetas_ids': [],
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+    ordem_id = create_resp.json()['data']['id']
+
+    # A OM nasce com o posto vigente na criacao.
+    criada = create_resp.json()['data']['tripulacao']
+    assert [t['p_g'] for t in criada] == ['cb']
+
+    # Promocao posterior: o militar vira '2s' depois da OM criada.
+    antigo.p_g = '2s'
+    session.add(antigo)
+    await session.commit()
+
+    # Edicao qualquer da OM, reenviando a tripulacao (agora com +1).
+    update_resp = await client.put(
+        f'{BASE_URL}/{ordem_id}',
+        json={'tripulacao': {'pil': [trip_antigo.id, trip_novato.id]}},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert update_resp.status_code == HTTPStatus.OK
+
+    get_resp = await client.get(
+        f'{BASE_URL}/{ordem_id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert get_resp.status_code == HTTPStatus.OK
+    por_trip = {
+        t['tripulante_id']: t['p_g']
+        for t in get_resp.json()['data']['tripulacao']
+    }
+
+    # Quem ja estava mantem o snapshot; o novato entra com o posto atual.
+    assert por_trip[trip_antigo.id] == 'cb'
+    assert por_trip[trip_novato.id] == '3s'
+
+
+async def test_update_remove_e_readiciona_tripulante_usa_posto_atual(
+    client, session, users, token
+):
+    """Tripulante que sai da OM e volta depois entra como novo.
+
+    O mapa preservado vem das linhas vivas da ordem. Quem nao esta mais
+    nela no momento da edicao nao tem snapshot a preservar, e portanto e
+    carimbado com o posto atual — o mesmo que aconteceria ao adiciona-lo
+    pela primeira vez.
+    """
+    user, _ = users
+
+    militar = UserFactory(p_g='cb')
+    session.add(militar)
+    await session.flush()
+
+    trip = TripFactory(user_id=militar.id)
+    session.add(trip)
+    await session.commit()
+    await session.refresh(trip)
+
+    create_resp = await client.post(
+        f'{BASE_URL}/',
+        json={
+            'matricula_anv': '2850',
+            'tipo': 'instrucao',
+            'projeto': 'KC-390',
+            'status': 'rascunho',
+            'esf_aer': 90,
+            'campos_especiais': [],
+            'etapas': [_make_etapa()],
+            'tripulacao': {'pil': [trip.id]},
+            'etiquetas_ids': [],
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+    ordem_id = create_resp.json()['data']['id']
+
+    # Sai da ordem.
+    remove_resp = await client.put(
+        f'{BASE_URL}/{ordem_id}',
+        json={'tripulacao': {'pil': []}},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert remove_resp.status_code == HTTPStatus.OK
+
+    militar.p_g = '2s'
+    session.add(militar)
+    await session.commit()
+
+    # Volta para a ordem ja promovido.
+    volta_resp = await client.put(
+        f'{BASE_URL}/{ordem_id}',
+        json={'tripulacao': {'pil': [trip.id]}},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert volta_resp.status_code == HTTPStatus.OK
+
+    get_resp = await client.get(
+        f'{BASE_URL}/{ordem_id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    tripulacao = get_resp.json()['data']['tripulacao']
+    assert len(tripulacao) == 1
+    assert tripulacao[0]['p_g'] == '2s'
+
+
+async def test_update_troca_de_funcao_usa_posto_atual(
+    client, session, users, token
+):
+    """Trocar a funcao do tripulante recarimba o posto — por contrato.
+
+    A identidade da linha em `om_tripulacao` e o par
+    (tripulante_id, funcao): nao ha outra coluna estavel. Uma linha
+    (fulano, mc) que nunca existiu nao tem snapshot a preservar, e
+    herda-lo de (fulano, pil) seria adivinhacao — erraria no caso
+    legitimo em que a OM ganha um `mc` novo enquanto o `pil` sai.
+    O historico fino da linha antiga continua no `log_user_action`.
+
+    Este teste congela a decisao: se alguem casar so por `tripulante_id`,
+    ele fica vermelho e a discussao reabre com dado.
+    """
+    user, _ = users
+
+    militar = UserFactory(p_g='cb')
+    session.add(militar)
+    await session.flush()
+
+    trip = TripFactory(user_id=militar.id)
+    session.add(trip)
+    await session.commit()
+    await session.refresh(trip)
+
+    create_resp = await client.post(
+        f'{BASE_URL}/',
+        json={
+            'matricula_anv': '2850',
+            'tipo': 'instrucao',
+            'projeto': 'KC-390',
+            'status': 'rascunho',
+            'esf_aer': 90,
+            'campos_especiais': [],
+            'etapas': [_make_etapa()],
+            'tripulacao': {'pil': [trip.id]},
+            'etiquetas_ids': [],
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+    ordem_id = create_resp.json()['data']['id']
+
+    militar.p_g = '2s'
+    session.add(militar)
+    await session.commit()
+
+    # Mesmo militar, funcao diferente: linha nova, sem snapshot.
+    update_resp = await client.put(
+        f'{BASE_URL}/{ordem_id}',
+        json={'tripulacao': {'mc': [trip.id]}},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert update_resp.status_code == HTTPStatus.OK
+
+    get_resp = await client.get(
+        f'{BASE_URL}/{ordem_id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    tripulacao = get_resp.json()['data']['tripulacao']
+    assert len(tripulacao) == 1
+    assert tripulacao[0]['funcao'] == 'mc'
+    assert tripulacao[0]['p_g'] == '2s'
+
+
+async def test_update_sem_tripulacao_no_payload_preserva_snapshot(
+    client, session, users, token
+):
+    """Editar so a data nao toca a tripulacao nem o snapshot.
+
+    Cobre o ramo `tripulacao_no_payload is False`: sem a chave no PUT,
+    as linhas originais nao sao apagadas nem recriadas. E o cenario que
+    originou a correcao — a edicao inocua de uma OM antiga.
+    """
+    user, _ = users
+
+    militar = UserFactory(p_g='cb')
+    session.add(militar)
+    await session.flush()
+
+    trip = TripFactory(user_id=militar.id)
+    session.add(trip)
+    await session.commit()
+    await session.refresh(trip)
+
+    create_resp = await client.post(
+        f'{BASE_URL}/',
+        json={
+            'matricula_anv': '2850',
+            'tipo': 'instrucao',
+            'projeto': 'KC-390',
+            'status': 'rascunho',
+            'esf_aer': 90,
+            'campos_especiais': [],
+            'etapas': [_make_etapa()],
+            'tripulacao': {'pil': [trip.id]},
+            'etiquetas_ids': [],
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+    ordem_id = create_resp.json()['data']['id']
+
+    militar.p_g = '2s'
+    session.add(militar)
+    await session.commit()
+
+    # PUT sem a chave `tripulacao`.
+    update_resp = await client.put(
+        f'{BASE_URL}/{ordem_id}',
+        json={'tipo': 'transporte'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert update_resp.status_code == HTTPStatus.OK
+
+    get_resp = await client.get(
+        f'{BASE_URL}/{ordem_id}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    data = get_resp.json()['data']
+    assert data['tipo'] == 'transporte'
+    assert len(data['tripulacao']) == 1
+    assert data['tripulacao'][0]['p_g'] == 'cb'
+
+
+async def test_update_aceita_funcao_do_catalogo_da_unidade(
+    client, session, users, token
+):
+    """Funcao fora do conjunto fixo antigo (`md`) e gravada, nao descartada.
+
+    A lista de funcoes e dado, nao codigo. Antes, um schema de chaves
+    fixas descartava `md`/`ml` em silencio: o POST respondia 201 e o
+    medico simplesmente nao existia na OM.
+    """
+    user, _ = users
+
+    militar = UserFactory(p_g='cb')
+    session.add(militar)
+    await session.flush()
+
+    trip = TripFactory(user_id=militar.id)
+    session.add(trip)
+    await session.commit()
+    await session.refresh(trip)
+
+    create_resp = await client.post(
+        f'{BASE_URL}/',
+        json={
+            'matricula_anv': '2850',
+            'tipo': 'instrucao',
+            'projeto': 'KC-390',
+            'status': 'rascunho',
+            'esf_aer': 90,
+            'campos_especiais': [],
+            'etapas': [_make_etapa()],
+            'tripulacao': {'md': [trip.id]},
+            'etiquetas_ids': [],
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+
+    tripulacao = create_resp.json()['data']['tripulacao']
+    assert len(tripulacao) == 1
+    assert tripulacao[0]['funcao'] == 'md'
+
+
+async def test_update_funcao_nao_operada_pela_unidade_400(
+    client, session, users, token
+):
+    """Funcao fora do catalogo da unidade falha alto, sem perda silenciosa."""
+    user, _ = users
+
+    militar = UserFactory(p_g='cb')
+    session.add(militar)
+    await session.flush()
+
+    trip = TripFactory(user_id=militar.id)
+    session.add(trip)
+    await session.commit()
+    await session.refresh(trip)
+
+    ordem = OrdemMissaoFactory(created_by=user.id, uae='11gt')
+    session.add(ordem)
+    await session.commit()
+    await session.refresh(ordem)
+
+    resp = await client.put(
+        f'{BASE_URL}/{ordem.id}',
+        json={'tripulacao': {'xx': [trip.id]}},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert resp.status_code == HTTPStatus.BAD_REQUEST
+    assert 'xx' in resp.json()['message']
