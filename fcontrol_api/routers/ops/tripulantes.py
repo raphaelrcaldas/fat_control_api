@@ -2,7 +2,7 @@ from datetime import date
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -33,6 +33,12 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/trips', tags=['trips'])
+
+# Teto de paginação. Cobrado na assinatura (`Query(ge=..., le=...)`), e não
+# com `min`/`max` no corpo: valor fora da faixa devolve 422 em vez de ser
+# corrigido em silêncio, e a faixa aparece no OpenAPI. Sem o piso,
+# `per_page=0` estourava `ZeroDivisionError` (500) em `paginated_response`.
+MAX_PER_PAGE = 100
 
 ViewTrip = Depends(permission_checker('ops.tripulantes', 'view'))
 CreateTrip = Depends(permission_checker('ops.tripulantes', 'create'))
@@ -230,8 +236,8 @@ async def list_trips(
     session: Session,
     active_org: ActiveOrg,
     active: bool = True,
-    page: int = 1,
-    per_page: int = 10,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=MAX_PER_PAGE)] = 10,
     search: str | None = None,
     p_g: str | None = None,
     func: str | None = None,

@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -32,6 +32,12 @@ from fcontrol_api.utils.responses import (
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter(prefix='/aeronaves', tags=['aeronaves'])
+
+# Teto de paginação. Cobrado na assinatura (`Query(ge=..., le=...)`), e não
+# com `min`/`max` no corpo: valor fora da faixa devolve 422 em vez de ser
+# corrigido em silêncio, e a faixa aparece no OpenAPI. Sem o piso,
+# `per_page=0` estourava `ZeroDivisionError` (500) em `paginated_response`.
+MAX_PER_PAGE = 100
 
 
 def _projetos_da_org(active_org: str):
@@ -102,11 +108,9 @@ async def list_aeronaves(
     sit: str | None = None,
     active: bool | None = None,
     is_sim: bool | None = None,
-    page: int = 1,
-    per_page: int = 100,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=MAX_PER_PAGE)] = 100,
 ):
-    per_page = min(per_page, 100)
-    page = max(page, 1)
     offset = (page - 1) * per_page
 
     base_query = select(Aeronave).order_by(Aeronave.matricula)
