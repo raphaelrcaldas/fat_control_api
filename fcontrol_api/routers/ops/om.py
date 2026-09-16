@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Date, cast, func
@@ -69,7 +69,12 @@ DeleteOM = Depends(permission_checker('ops.ordem_missao', 'delete'))
 # security.py já grava sob o mesmo recurso.
 RESOURCE = 'ops.ordem_missao'
 
-# Teto de paginação, igual ao de `list_aeronaves` e `list_missoes`.
+# Teto de paginação, igual ao de `list_aeronaves` e `list_missoes`. Os
+# limites são cobrados na assinatura (`Query(ge=..., le=...)`), e não com
+# um `min`/`max` no corpo: assim um valor fora da faixa devolve 422 em vez
+# de ser silenciosamente corrigido, e a faixa aparece no OpenAPI. Sem o
+# piso, `per_page=0` chegava a `paginated_response` e estourava
+# `ZeroDivisionError` (500) no cálculo de `pages`.
 MAX_PER_PAGE = 100
 
 
@@ -88,6 +93,24 @@ def _dt_dep_date_utc():
     return cast(func.timezone('UTC', OrdemEtapa.dt_dep), Date)
 
 
+def _data_saida_de(etapas) -> date | None:
+    """Dia UTC da primeira decolagem, ou None se não houver etapa.
+
+    `.date()` de um datetime aware devolve o dia **no offset recebido**, não
+    em UTC: o mesmo instante `2026-03-12T01:00Z` chega como
+    `2026-03-11T22:00-03:00` e viraria dia 11. Como `list_ordens` recorta
+    pelo dia UTC (ver `_dt_dep_date_utc`), derivar sem normalizar deixaria
+    `data_saida` discordando do dia pelo qual a própria OM é encontrada —
+    hoje inofensivo porque o frontend sempre envia `Z`, mas é o tipo de
+    acoplamento que quebra em silêncio quando outro cliente aparece.
+    """
+    if not etapas:
+        return None
+    return (
+        min(e.dt_dep for e in etapas).astimezone(timezone.utc).date()
+    )
+
+
 @router.get(
     '/',
     status_code=HTTPStatus.OK,
@@ -96,14 +119,15 @@ def _dt_dep_date_utc():
 async def list_ordens(
     session: Session,
     active_org: ActiveOrg,
-    page: int = 1,
-    per_page: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=MAX_PER_PAGE)] = 20,
     status: Annotated[list[str] | None, Query()] = None,
     status_ne: str | None = None,
     data_inicio: date | None = None,
     data_fim: date | None = None,
     busca: str | None = None,
     etiquetas_ids: Annotated[list[int] | None, Query()] = None,
+    ordem: Annotated[Literal['recente', 'cronologica'], Query()] = 'recente',
 ):
     """
     Lista ordens de missão com filtros e paginação.
@@ -112,12 +136,8 @@ async def list_ordens(
     - **status_ne**: Status para excluir (not equal, ex: rascunho)
     - **data_inicio/data_fim**: Filtro por data de decolagem da primeira etapa
     - **busca**: Busca por número, localidade, tipo ou nome de guerra
+    - **ordem**: `recente` (cadastro, padrão) ou `cronologica` (decolagem)
     """
-    # Mesmo teto de `list_aeronaves` e `list_missoes`: sem ele um
-    # `per_page` arbitrário varre a tabela inteira numa requisição.
-    per_page = min(per_page, MAX_PER_PAGE)
-    page = max(page, 1)
-
     # Query base: ordens da org ativa, não deletadas
     query = select(OrdemMissao).where(
         OrdemMissao.uae == active_org,
@@ -189,13 +209,18 @@ async def list_ordens(
     count_query = select(func.count()).select_from(query.subquery())
     total = await session.scalar(count_query) or 0
 
-    # Ordenação. Com filtro de data a consulta é uma *janela* (o quadro de
-    # operações pede uma semana), e ordenar por `created_at` faria o corte
-    # do `per_page` guardar as OMs cadastradas mais recentemente em vez das
-    # do início da janela — missão dentro do período sumiria do quadro. Aí
-    # a ordem é a da primeira decolagem; sem filtro, segue a de cadastro.
+    # Ordenação. O padrão é o da listagem de OMs: as mais recentes
+    # primeiro, por data de cadastro.
+    #
+    # `cronologica` existe para quem lê o período como uma *janela* — o
+    # quadro de operações pede uma semana e a desenha da esquerda para a
+    # direita. Ali, ordenar por cadastro faria o corte do `per_page` guardar
+    # as OMs cadastradas por último em vez das do início da janela, e uma
+    # missão dentro do período sumiria do quadro. É um parâmetro explícito,
+    # e não uma consequência de haver filtro de data, porque a listagem
+    # também filtra por data e não pode ter a ordem invertida por isso.
     # (id como tiebreaker garante paginação determinística nos dois casos)
-    if data_inicio or data_fim:
+    if ordem == 'cronologica':
         primeira_dep = (
             select(func.min(OrdemEtapa.dt_dep))
             .where(OrdemEtapa.ordem_id == OrdemMissao.id)
@@ -375,10 +400,8 @@ async def create_ordem(
         exigir_continuidade=False,
     )
 
-    # Calcular data_saida (data da primeira etapa)
-    data_saida = None
-    if ordem_data.etapas:
-        data_saida = min(e.dt_dep for e in ordem_data.etapas).date()
+    # Calcular data_saida (dia UTC da primeira etapa)
+    data_saida = _data_saida_de(ordem_data.etapas)
 
     # Criar ordem (sempre como rascunho na criação)
     ordem = OrdemMissao(
@@ -593,10 +616,9 @@ async def update_ordem(
         and (ordem.numero == 'auto' or not ordem.numero)
     ):
         # Garantir que temos a data_saida
-        if ordem_data.etapas:
-            ordem.data_saida = min(e.dt_dep for e in ordem_data.etapas).date()
-        elif ordem.etapas:
-            ordem.data_saida = min(e.dt_dep for e in ordem.etapas).date()
+        ordem.data_saida = _data_saida_de(
+            ordem_data.etapas or ordem.etapas
+        )
 
         if not ordem.data_saida:
             raise HTTPException(
@@ -653,7 +675,11 @@ async def update_ordem(
         # no model, então só o ano pode faltar aqui.
         target_year = None
         if ordem_data.etapas:
-            target_year = min(e.dt_dep for e in ordem_data.etapas).year
+            target_year = (
+                min(e.dt_dep for e in ordem_data.etapas)
+                .astimezone(timezone.utc)
+                .year
+            )
         elif ordem.data_saida:
             target_year = ordem.data_saida.year
 
@@ -679,10 +705,7 @@ async def update_ordem(
     # Atualizar etapas se fornecidas
     if 'etapas' in update_data:
         # Atualizar data_saida
-        if ordem_data.etapas:
-            ordem.data_saida = min(e.dt_dep for e in ordem_data.etapas).date()
-        else:
-            ordem.data_saida = None
+        ordem.data_saida = _data_saida_de(ordem_data.etapas)
 
         # Remover etapas existentes
         for etapa in ordem.etapas:

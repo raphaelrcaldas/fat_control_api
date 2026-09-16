@@ -424,14 +424,14 @@ async def test_list_ordens_filtro_data_usa_dia_utc(
     assert resp['data'][0]['id'] == ordem_01h.id
 
 
-async def test_list_ordens_com_filtro_data_ordena_por_decolagem(
+async def test_list_ordens_ordem_cronologica_por_decolagem(
     client, session, users, token
 ):
-    """Com filtro de data, a janela sai em ordem cronologica.
+    """`ordem=cronologica` devolve a janela por data de decolagem.
 
-    Sem isso a ordem seria a de cadastro, e o corte do `per_page` guardaria
-    as OMs cadastradas por ultimo em vez das do inicio da janela — missao
-    dentro do periodo sumiria do quadro de operacoes.
+    Sem isso o corte do `per_page` guardaria as OMs cadastradas por ultimo
+    em vez das do inicio da janela — missao dentro do periodo sumiria do
+    quadro de operacoes.
     """
     user, _ = users
     dia = date(2026, 4, 6)
@@ -461,7 +461,11 @@ async def test_list_ordens_com_filtro_data_ordena_por_decolagem(
 
     response = await client.get(
         BASE_URL,
-        params={'data_inicio': '2026-04-06', 'data_fim': '2026-04-06'},
+        params={
+            'data_inicio': '2026-04-06',
+            'data_fim': '2026-04-06',
+            'ordem': 'cronologica',
+        },
         headers={'Authorization': f'Bearer {token}'},
     )
 
@@ -469,18 +473,49 @@ async def test_list_ordens_com_filtro_data_ordena_por_decolagem(
     ids = [item['id'] for item in response.json()['data']]
     assert ids == [ordem_cedo.id, ordem_tarde.id]
 
+    # Sem pedir `cronologica`, o filtro de data NÃO pode inverter a ordem
+    # da listagem: as mais recentes por cadastro vêm primeiro. A tela
+    # `/ops/om` filtra por período e quebrou quando isso era implícito.
+    response = await client.get(
+        BASE_URL,
+        params={'data_inicio': '2026-04-06', 'data_fim': '2026-04-06'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
 
-async def test_list_ordens_per_page_tem_teto(client, session, users, token):
-    """`per_page` acima do teto e limitado, nao varre a tabela inteira."""
+    assert response.status_code == HTTPStatus.OK
+    ids = [item['id'] for item in response.json()['data']]
+    # `ordem_cedo` foi cadastrada por último, então vem primeiro — ordem de
+    # cadastro, e não a cronológica das etapas.
+    assert ids == [ordem_cedo.id, ordem_tarde.id]
+
+
+@pytest.mark.parametrize(
+    'params',
+    [
+        {'per_page': 5000},  # acima do teto: varreria a tabela inteira
+        {'per_page': 0},  # sem piso, estourava ZeroDivisionError (500)
+        {'per_page': -5},  # LIMIT negativo no Postgres
+        {'page': 0},
+    ],
+)
+async def test_list_ordens_paginacao_fora_da_faixa_e_422(
+    client, session, users, token, params
+):
+    """Paginação fora da faixa é recusada, não corrigida em silêncio.
+
+    O limite vive na assinatura (`Query(ge=..., le=...)`), então o cliente
+    recebe 422 e descobre o que errou, em vez de um 200 com outro valor.
+    `per_page=0` chegava a `paginated_response` e derrubava o cálculo de
+    `pages` com ZeroDivisionError — um 500.
+    """
     user, _ = users
     session.add(OrdemMissaoFactory(created_by=user.id))
     await session.commit()
 
     response = await client.get(
         BASE_URL,
-        params={'per_page': 5000},
+        params=params,
         headers={'Authorization': f'Bearer {token}'},
     )
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()['per_page'] == 100
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

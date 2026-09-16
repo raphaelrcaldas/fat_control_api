@@ -130,6 +130,32 @@ async def test_create_ordem_with_etapas(client, session, token):
     assert data['data_saida'] == '2025-06-15'
 
 
+async def test_create_ordem_data_saida_usa_dia_utc(client, session, token):
+    """`data_saida` é o dia UTC, qualquer que seja o offset enviado.
+
+    O mesmo instante pode chegar como `2026-03-12T01:00:00Z` ou como
+    `2026-03-11T22:00:00-03:00`. Derivar com `.date()` cru daria dias
+    diferentes para o mesmo voo, e o segundo discordaria do dia pelo qual
+    `list_ordens` recorta a OM — que é sempre o dia UTC.
+    """
+    dias = []
+    for dt_dep, dt_arr in (
+        ('2026-03-12T01:00:00Z', '2026-03-12T02:30:00Z'),
+        ('2026-03-11T22:00:00-03:00', '2026-03-11T23:30:00-03:00'),
+    ):
+        response = await client.post(
+            BASE_URL,
+            json=_make_ordem_payload(
+                etapas=[_make_etapa(dt_dep=dt_dep, dt_arr=dt_arr)]
+            ),
+            headers={'Authorization': f'Bearer {token}'},
+        )
+        assert response.status_code == HTTPStatus.CREATED
+        dias.append(response.json()['data']['data_saida'])
+
+    assert dias == ['2026-03-12', '2026-03-12']
+
+
 async def test_create_ordem_with_etiquetas(client, session, token):
     """Criacao de ordem com etiquetas vincula corretamente."""
     etiqueta = Etiqueta(
