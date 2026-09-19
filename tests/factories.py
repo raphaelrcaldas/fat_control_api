@@ -13,6 +13,7 @@ from fcontrol_api.enums.indisp import IndispEnum
 from fcontrol_api.models.cegep.comiss import Comissionamento
 from fcontrol_api.models.cegep.dados_bancarios import DadosBancarios
 from fcontrol_api.models.cegep.diarias import DiariaValor, GrupoCidade, GrupoPg
+from fcontrol_api.models.cegep.gle import MilitarGle, MissaoGle, TrechoGle
 from fcontrol_api.models.cegep.missoes import (
     Etiqueta,
     FragMis,
@@ -22,6 +23,10 @@ from fcontrol_api.models.cegep.missoes import (
 from fcontrol_api.models.cegep.orcamento import OrcamentoAnual
 from fcontrol_api.models.security.auth import OAuth2Client
 from fcontrol_api.models.security.logs import UserActionLog
+from fcontrol_api.models.shared.estados_cidades import (
+    GrupoLocEsp,
+    LocEspIcao,
+)
 from fcontrol_api.models.shared.indisp import Indisp
 from fcontrol_api.models.shared.om import OrdemEtapa, OrdemMissao
 from fcontrol_api.models.shared.operacao import Operacao
@@ -646,3 +651,82 @@ class EtiquetaFactory(factory.Factory):
     cor = factory.fuzzy.FuzzyChoice(['#FF0000', '#00FF00', '#0000FF'])
     descricao = factory.Sequence(lambda n: f'Descricao etiqueta {n}')
     uae = '11gt'
+
+
+class GrupoLocEspFactory(factory.Factory):
+    """Localidade especial (GLE).
+
+    `grupo` e inteiro: 1 = A (20%), 2 = B (10%). O default aponta para Boa
+    Vista/RR, que e o caso real usado nos testes de valor.
+
+    Uso:
+        loc = GrupoLocEspFactory()                  # Boa Vista, grupo A
+        loc_b = GrupoLocEspFactory(grupo=2, cidade_id=1721000)
+    """
+
+    class Meta:
+        model = GrupoLocEsp
+
+    cidade_id = 1400100  # Boa Vista - RR
+    grupo = 1
+    fuso = -4
+
+
+class LocEspIcaoFactory(factory.Factory):
+    """ICAO que aponta para uma localidade especial.
+
+    Uso:
+        icao = LocEspIcaoFactory(loc_esp_id=loc.id, icao='SBBV')
+    """
+
+    class Meta:
+        model = LocEspIcao
+
+    icao = factory.Sequence(lambda n: f'SB{n:02d}'[:4])
+
+
+class MissaoGleFactory(factory.Factory):
+    """Missao de GLE: o trabalho salvo da apuracao.
+
+    Uso:
+        missao = MissaoGleFactory()
+        outra = MissaoGleFactory(uae='1gt')
+    """
+
+    class Meta:
+        model = MissaoGle
+
+    descricao = factory.Sequence(lambda n: f'OS {100 + n}-BAGL-26042026')
+    obs = None
+    uae = '11gt'
+
+
+class TrechoGleFactory(factory.Factory):
+    """Permanencia numa localidade especial dentro de uma missao.
+
+    O periodo default reproduz o caso real da planilha (33 dias contaveis).
+
+    Uso:
+        trecho = TrechoGleFactory(loc_esp_id=loc.id)
+    """
+
+    class Meta:
+        model = TrechoGle
+
+    chegada = datetime.datetime(2026, 4, 26, 14, 15)
+    afastamento = datetime.datetime(2026, 5, 29, 2, 35)
+
+
+class MilitarGleFactory(factory.Factory):
+    """Militar associado a uma missao de GLE.
+
+    `p_g` e snapshot do posto na data da apuracao, nao o posto atual.
+
+    Uso:
+        militar = MilitarGleFactory(user_id=user.id, p_g='1s')
+    """
+
+    class Meta:
+        model = MilitarGle
+
+    p_g = '1s'

@@ -25,6 +25,12 @@
       "update",
       "view"
     ],
+    "cegep.gle": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
     "cegep.missoes": [
       "create",
       "delete",
