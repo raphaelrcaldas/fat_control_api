@@ -41,6 +41,7 @@ from fcontrol_api.services.etapas import (
     assert_anv_simulador_consistency,
     assert_no_anv_collision,
     assert_no_trip_collision,
+    assert_tripulantes_da_org,
     compute_tvoo_minutes,
     fetch_especificos_data,
     fetch_oi_detail_data,
@@ -417,6 +418,11 @@ async def create_etapa(
             )
 
     try:
+        await assert_tripulantes_da_org(
+            session,
+            trip_ids=[t.trip_id for t in data.tripulantes],
+            uae=active_org,
+        )
         await assert_anv_simulador_consistency(
             session,
             pairs=[(data.anv, missao.is_simulador)],
@@ -427,6 +433,7 @@ async def create_etapa(
             anv=data.anv,
             dep=data.dep,
             arr=data.arr,
+            active_org=active_org,
         )
         await assert_no_trip_collision(
             session,
@@ -434,6 +441,7 @@ async def create_etapa(
             dep=data.dep,
             arr=data.arr,
             trip_ids=[t.trip_id for t in data.tripulantes],
+            active_org=active_org,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -628,6 +636,15 @@ async def update_etapa(
         new_trip_ids = list(existing_trips.all())
 
     try:
+        # Só o que o cliente ENVIOU: quando `data.tripulantes` e None,
+        # `new_trip_ids` vem do banco, e dado legado nao pode travar
+        # uma edicao que nem mexe na tripulacao.
+        if data.tripulantes is not None:
+            await assert_tripulantes_da_org(
+                session,
+                trip_ids=new_trip_ids,
+                uae=active_org,
+            )
         await assert_anv_simulador_consistency(
             session,
             pairs=[(new_anv, is_simulador)],
@@ -638,6 +655,7 @@ async def update_etapa(
             anv=new_anv,
             dep=new_dep,
             arr=new_arr,
+            active_org=active_org,
             exclude_ids=[id],
         )
         await assert_no_trip_collision(
@@ -646,6 +664,7 @@ async def update_etapa(
             dep=new_dep,
             arr=new_arr,
             trip_ids=new_trip_ids,
+            active_org=active_org,
             exclude_ids=[id],
         )
     except ValueError as exc:
@@ -743,7 +762,16 @@ async def update_etapa(
 async def delete_etapa(
     id: EtapaId, session: Session, active_org: ActiveOrg
 ) -> ApiResponse[None]:
-    """Remove uma etapa e seus dados vinculados."""
+    """Remove uma etapa e seus dados vinculados.
+
+    Era a ultima etapa da missao? A missao vai junto. `list_etapas`
+    parte de `select(Etapa, Missao)` com join: missao sem etapa nunca
+    aparece na listagem, ficando invisivel e inalcancavel pela UI —
+    linha morta consumindo id SMALLINT para sempre. A criacao ja paga
+    o preco de adiar a missao ate a 1a etapa justamente para nao gerar
+    orfa (ver `docs/ai/notes/dominio.md`); a invariante tem de valer
+    nos dois sentidos.
+    """
     etapa = await session.scalar(
         select(Etapa)
         .join(Missao, Missao.id == Etapa.missao_id)
@@ -755,6 +783,8 @@ async def delete_etapa(
             detail='Etapa não encontrada',
         )
 
+    missao_id = etapa.missao_id
+
     await session.execute(sa_delete(TripEtapa).where(TripEtapa.etapa_id == id))
     await session.execute(sa_delete(OIEtapa).where(OIEtapa.etapa_id == id))
     await session.execute(sa_delete(PqdEtapa).where(PqdEtapa.etapa_id == id))
@@ -762,7 +792,24 @@ async def delete_etapa(
     await session.execute(sa_delete(HeavyCDS).where(HeavyCDS.etapa_id == id))
 
     await session.delete(etapa)
+    await session.flush()
+
+    restantes = await session.scalar(
+        select(sql_func.count())
+        .select_from(Etapa)
+        .where(Etapa.missao_id == missao_id)
+    )
+    orfa = not restantes
+    if orfa:
+        missao = await session.get(Missao, missao_id)
+        if missao:
+            await session.delete(missao)
+
     await session.commit()
     return success_response(
-        message='Etapa excluída com sucesso',
+        message=(
+            'Etapa e missão excluídas com sucesso'
+            if orfa
+            else 'Etapa excluída com sucesso'
+        ),
     )

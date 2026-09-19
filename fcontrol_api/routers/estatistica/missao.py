@@ -30,6 +30,7 @@ from fcontrol_api.services.etapas import (
     assert_no_internal_anv_collision,
     assert_no_internal_trip_collision,
     assert_no_trip_collision,
+    assert_tripulantes_da_org,
     fetch_collision_candidates,
     fetch_especificos_data,
     fetch_oi_detail_data,
@@ -194,6 +195,21 @@ async def create_missao_with_etapas(
             detail=str(exc),
         ) from exc
 
+    # Escopo do ALVO: o gate autoriza a acao, nao o tripulante cujo id
+    # veio no corpo. Em lote, antes do laco — uma query para todas as
+    # etapas do payload.
+    try:
+        await assert_tripulantes_da_org(
+            session,
+            trip_ids=[t.trip_id for e in data.etapas for t in e.tripulantes],
+            uae=active_org,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
     for idx, etapa_in in enumerate(data.etapas):
         try:
             await assert_anv_simulador_consistency(
@@ -206,6 +222,7 @@ async def create_missao_with_etapas(
                 anv=etapa_in.anv,
                 dep=etapa_in.dep,
                 arr=etapa_in.arr,
+                active_org=active_org,
             )
             await assert_no_trip_collision(
                 session,
@@ -213,6 +230,7 @@ async def create_missao_with_etapas(
                 dep=etapa_in.dep,
                 arr=etapa_in.arr,
                 trip_ids=[t.trip_id for t in etapa_in.tripulantes],
+                active_org=active_org,
             )
         except ValueError as exc:
             raise HTTPException(
@@ -383,6 +401,21 @@ async def update_missao_with_etapas(
         (f'create[{i}]', e) for i, e in enumerate(payload.create)
     ] + [(f'update[{i}](id={e.id})', e) for i, e in enumerate(payload.update)]
 
+    # Escopo do ALVO: ver comentario equivalente no create com-etapas.
+    try:
+        await assert_tripulantes_da_org(
+            session,
+            trip_ids=[
+                t.trip_id for _, e in payload_etapas for t in e.tripulantes
+            ],
+            uae=active_org,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
     # Consistencia anv x tipo da missao (simulador usa aeronave is_sim).
     for label, e in payload_etapas:
         try:
@@ -409,15 +442,25 @@ async def update_missao_with_etapas(
             arr=e.arr,
         )
         if collision is not None:
+            etapa_col, uae_col = collision
+            # Etapa de outra unidade: so a sigla da org, nunca id nem
+            # horario (ver docs/ai/notes/rbac-e-isolamento.md).
+            if uae_col == active_org:
+                detalhe = (
+                    f'{label}: colisao com etapa '
+                    f'#{etapa_col.id} '
+                    f'({etapa_col.dep.strftime("%H:%M")}-'
+                    f'{etapa_col.arr.strftime("%H:%M")}) '
+                    f'em {e.data.isoformat()}.'
+                )
+            else:
+                detalhe = (
+                    f'{label}: aeronave ja em uso por missao da '
+                    f'{uae_col.upper()} em {e.data.isoformat()}.'
+                )
             raise HTTPException(
                 status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-                detail=(
-                    f'{label}: colisao com etapa '
-                    f'#{collision.id} '
-                    f'({collision.dep.strftime("%H:%M")}-'
-                    f'{collision.arr.strftime("%H:%M")}) '
-                    f'em {e.data.isoformat()}.'
-                ),
+                detail=detalhe,
             )
 
     # Colisao de tripulante contra o DB (exclui as etapas do proprio
@@ -430,6 +473,7 @@ async def update_missao_with_etapas(
                 dep=e.dep,
                 arr=e.arr,
                 trip_ids=[t.trip_id for t in e.tripulantes],
+                active_org=active_org,
                 exclude_ids=exclude_ids,
             )
         except ValueError as exc:

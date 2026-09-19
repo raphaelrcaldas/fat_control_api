@@ -12,6 +12,7 @@ from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
     HeavyCDS,
+    Missao,
     OIEtapa,
     PqdEtapa,
     REVOEtapa,
@@ -73,6 +74,7 @@ async def assert_no_trip_collision(
     dep: time,
     arr: time,
     trip_ids: list[int],
+    active_org: str,
     exclude_ids: list[int] | None = None,
 ) -> None:
     """Verifica se algum tripulante ja esta escalado em
@@ -82,6 +84,14 @@ async def assert_no_trip_collision(
     conflito e suas etapas. Intervalos que apenas se tocam
     nao colidem. `exclude_ids` permite ignorar etapas (ex.:
     a propria etapa em edicao).
+
+    A busca NAO filtra por organizacao, e isso e proposital: o
+    militar e universal, estar em duas etapas simultaneas e conflito
+    real venha de onde vier. O que muda e a FRASE — etapa de outra
+    unidade e identificada so pela sigla da org, nunca por id,
+    horario, matricula ou nome. Sem isso, variar data/anv e ler os
+    422 mapeia a agenda de voo alheia. Ver
+    `docs/ai/notes/rbac-e-isolamento.md`.
     """
     if not trip_ids:
         return
@@ -97,9 +107,11 @@ async def assert_no_trip_collision(
             TripEtapa.trip_id,
             Tripulante.trig,
             User.nome_guerra,
+            Missao.uae,
         )
         .select_from(TripEtapa)
         .join(Etapa, Etapa.id == TripEtapa.etapa_id)
+        .join(Missao, Missao.id == Etapa.missao_id)
         .join(Tripulante, Tripulante.id == TripEtapa.trip_id)
         .join(User, User.id == Tripulante.user_id)
         .where(
@@ -115,12 +127,19 @@ async def assert_no_trip_collision(
     for row in rows:
         ex_start, ex_end = _to_interval(row.dep, row.arr)
         if new_start < ex_end and ex_start < new_end:
-            conflitos.append(
-                f'{row.trig} ({row.nome_guerra}) ja escalado '
-                f'na etapa #{row.id} ({row.anv}) '
-                f'{row.dep.strftime("%H:%M")}-'
-                f'{row.arr.strftime("%H:%M")}'
-            )
+            if row.uae == active_org:
+                conflitos.append(
+                    f'{row.trig} ({row.nome_guerra}) ja escalado '
+                    f'na etapa #{row.id} ({row.anv}) '
+                    f'{row.dep.strftime("%H:%M")}-'
+                    f'{row.arr.strftime("%H:%M")}'
+                )
+            else:
+                # Basta saber a quem recorrer; o resto e dado alheio.
+                conflitos.append(
+                    f'{row.trig} ({row.nome_guerra}) ja escalado '
+                    f'em missao da {row.uae.upper()}'
+                )
 
     if conflitos:
         msg = (
@@ -138,6 +157,7 @@ async def assert_no_anv_collision(
     anv: str,
     dep: time,
     arr: time,
+    active_org: str,
     exclude_ids: list[int] | None = None,
 ) -> None:
     """Verifica se a aeronave ja tem etapa em horario sobreposto.
@@ -147,27 +167,44 @@ async def assert_no_anv_collision(
     00:00->01:00) nao colidem. `exclude_ids` permite ignorar
     etapas conhecidas (ex.: a propria etapa em edicao, ou
     etapas que serao removidas/atualizadas na mesma transacao).
+
+    A busca NAO filtra por organizacao, e isso e proposital: uma
+    cauda fisica nao voa em duas unidades ao mesmo tempo. O que muda
+    e a FRASE — etapa de outra unidade e identificada so pela sigla
+    da org. Ver `docs/ai/notes/rbac-e-isolamento.md`.
     """
     new_start, new_end = _to_interval(dep, arr)
 
-    stmt = select(Etapa).where(
-        Etapa.data == data,
-        Etapa.anv == anv,
+    stmt = (
+        select(Etapa, Missao.uae)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(
+            Etapa.data == data,
+            Etapa.anv == anv,
+        )
     )
     if exclude_ids:
         stmt = stmt.where(~Etapa.id.in_(exclude_ids))
 
-    rows = await session.scalars(stmt)
-    for existing in rows.all():
+    rows = (await session.execute(stmt)).all()
+    for existing, uae in rows:
         ex_start, ex_end = _to_interval(existing.dep, existing.arr)
         if new_start < ex_end and ex_start < new_end:
-            msg = (
-                f'Colisao de horario para a aeronave {anv}: '
-                f'etapa #{existing.id} ja ocupa '
-                f'{existing.dep.strftime("%H:%M")}-'
-                f'{existing.arr.strftime("%H:%M")} '
-                f'em {data.isoformat()}.'
-            )
+            if uae == active_org:
+                msg = (
+                    f'Colisao de horario para a aeronave {anv}: '
+                    f'etapa #{existing.id} ja ocupa '
+                    f'{existing.dep.strftime("%H:%M")}-'
+                    f'{existing.arr.strftime("%H:%M")} '
+                    f'em {data.isoformat()}.'
+                )
+            else:
+                # Basta saber a quem recorrer; o resto e dado alheio.
+                msg = (
+                    f'Colisao de horario para a aeronave {anv} '
+                    f'em {data.isoformat()}: ja em uso por missao '
+                    f'da {uae.upper()}.'
+                )
             raise ValueError(msg)
 
 
@@ -277,49 +314,96 @@ async def assert_anv_simulador_consistency(
             raise ValueError(msg)
 
 
+async def assert_tripulantes_da_org(
+    session: AsyncSession,
+    *,
+    trip_ids: Iterable[int],
+    uae: str,
+) -> None:
+    """Valida que todo `trip_id` do payload pertence a org ativa.
+
+    O gate de permissao autoriza a ACAO, nao o ALVO, e o id do
+    tripulante vem do corpo da requisicao. Sem este filtro, um id de
+    outra unidade entra na etapa: a hora de voo e lancada no nome de
+    militar alheio e o GET seguinte devolve trigrama, nome de guerra e
+    posto dele — vazamento por enumeracao de id sequencial.
+
+    Mesma regra ja aplicada no write-path da ordem de missao
+    (`services/om.py::criar_tripulacao_batch`). A mensagem e neutra de
+    proposito: nao revela que o id existe em outra organizacao.
+
+    Uma unica query para todo o lote. Levanta ValueError, como as
+    demais asserts deste modulo.
+    """
+    ids = {int(trip_id) for trip_id in trip_ids}
+    if not ids:
+        return
+
+    validos = set(
+        await session.scalars(
+            select(Tripulante.id).where(
+                Tripulante.id.in_(ids), Tripulante.uae == uae
+            )
+        )
+    )
+    faltando = sorted(ids - validos)
+    if faltando:
+        alvo = ', '.join(str(i) for i in faltando)
+        msg = f'Tripulante(s) nao encontrado(s): {alvo}'
+        raise ValueError(msg)
+
+
 async def fetch_collision_candidates(
     session: AsyncSession,
     pairs: set[tuple[date, str]],
     *,
     exclude_ids: list[int] | None = None,
-) -> dict[tuple[date, str], list[Etapa]]:
+) -> dict[tuple[date, str], list[tuple[Etapa, str]]]:
     """Busca em lote etapas candidatas a colisao.
 
-    Para cada (data, anv) em `pairs`, retorna todas as etapas
-    no DB com aquela combinacao, excluindo `exclude_ids`.
-    Resultado agrupado por (data, anv) para checagem O(1)
-    por etapa do payload — substitui N round-trips por 1.
+    Para cada (data, anv) em `pairs`, retorna (etapa, uae da missao)
+    para todas as etapas no DB com aquela combinacao, excluindo
+    `exclude_ids`. Resultado agrupado por (data, anv) para checagem
+    O(1) por etapa do payload — substitui N round-trips por 1.
+
+    A `uae` vem junto para o chamador decidir o que a mensagem de erro
+    pode nomear: etapa de outra unidade nao pode ter id nem horario
+    divulgados. Ver `docs/ai/notes/rbac-e-isolamento.md`.
     """
     if not pairs:
         return {}
     conditions = [and_(Etapa.data == d, Etapa.anv == a) for d, a in pairs]
-    stmt = select(Etapa).where(or_(*conditions))
+    stmt = (
+        select(Etapa, Missao.uae)
+        .join(Missao, Missao.id == Etapa.missao_id)
+        .where(or_(*conditions))
+    )
     if exclude_ids:
         stmt = stmt.where(~Etapa.id.in_(exclude_ids))
-    rows = await session.scalars(stmt)
-    result: dict[tuple[date, str], list[Etapa]] = defaultdict(list)
-    for c in rows.all():
-        result[(c.data, c.anv)].append(c)
+    rows = (await session.execute(stmt)).all()
+    result: dict[tuple[date, str], list[tuple[Etapa, str]]] = defaultdict(list)
+    for c, uae in rows:
+        result[(c.data, c.anv)].append((c, uae))
     return result
 
 
 def find_collision(
-    candidates: Iterable[Etapa],
+    candidates: Iterable[tuple[Etapa, str]],
     *,
     dep: time,
     arr: time,
-) -> Etapa | None:
-    """Retorna a primeira etapa em `candidates` que colide com
-    o intervalo (dep, arr), ou None.
+) -> tuple[Etapa, str] | None:
+    """Retorna o primeiro (etapa, uae) em `candidates` que colide
+    com o intervalo (dep, arr), ou None.
 
     Assume que todas as `candidates` ja foram filtradas por
     mesma data/anv. Intervalos que apenas se tocam nao colidem.
     """
     new_start, new_end = _to_interval(dep, arr)
-    for ex in candidates:
+    for ex, uae in candidates:
         ex_start, ex_end = _to_interval(ex.dep, ex.arr)
         if new_start < ex_end and ex_start < new_end:
-            return ex
+            return ex, uae
     return None
 
 

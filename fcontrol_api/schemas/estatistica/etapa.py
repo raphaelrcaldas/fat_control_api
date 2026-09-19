@@ -2,7 +2,38 @@ from datetime import date, time
 from typing import Annotated, Literal, Self
 
 from fastapi import Body
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+
+# Janela plausivel para a data de uma etapa. O piso acompanha o resto da
+# estatistica, que ja trata 2020 como inicio (`AnoRef = Query(ge=2020)` em
+# indicadores e esf_aer; `ck_alocado_anoref_min` no banco). O teto deixa
+# folga de um ano para planejamento lancar sessao futura.
+#
+# Sem isto o backend aceitava qualquer ano de 4 digitos. Um erro de
+# digitacao gravou uma etapa no ano 0006: ela some dos paineis (o
+# `ge=2020` impede consultar o ano) mas continua existindo e entrando na
+# listagem por janela de data — dado fantasma que ninguem audita. O
+# `min`/`max` do `<input type="date">` fecha so a porta do navegador.
+ETAPA_ANO_MIN = 2020
+ETAPA_ANO_TETO_FOLGA = 1
+
+
+def validar_ano_etapa(valor: date) -> date:
+    """Rejeita data fora da janela plausivel de operacao."""
+    ano_max = date.today().year + ETAPA_ANO_TETO_FOLGA
+    if valor.year < ETAPA_ANO_MIN or valor.year > ano_max:
+        msg = (
+            f'Data fora do intervalo esperado: o ano deve estar entre '
+            f'{ETAPA_ANO_MIN} e {ano_max} (recebido {valor.year}).'
+        )
+        raise ValueError(msg)
+    return valor
 
 
 class EtapaBase(BaseModel):
@@ -25,6 +56,11 @@ class EtapaBase(BaseModel):
     sagem: bool
     parte1: bool
     obs: str | None
+
+    @field_validator('data')
+    @classmethod
+    def validate_data(cls, v: date) -> date:
+        return validar_ano_etapa(v)
 
     @model_validator(mode='after')
     def validate_tvoo(self) -> Self:
@@ -401,7 +437,12 @@ class MissaoComEtapasUpdate(BaseModel):
 
 
 class EtapaUpdate(BaseModel):
-    """Schema de atualizacao (campos opcionais)."""
+    """Schema de atualizacao (campos opcionais).
+
+    NAO herda de `EtapaBase`: os validadores de la nao valem aqui e
+    precisam ser repetidos — mesma pegadinha ja documentada para o tvoo,
+    que o router recalcula a mao.
+    """
 
     data: date | None = None
     origem: str | None = Field(None, min_length=4, max_length=4)
@@ -422,6 +463,12 @@ class EtapaUpdate(BaseModel):
     obs: str | None = None
     tripulantes: list[TripEtapaIn] | None = None
     oi_etapas: list[OIEtapaIn] | None = None
+
+    @field_validator('data')
+    @classmethod
+    def validate_data(cls, v: date | None) -> date | None:
+        return v if v is None else validar_ano_etapa(v)
+
     pqd: list[PqdEtapaIn] | None = None
     revo: list[RevoEtapaIn] | None = None
     heavy_cds: list[HeavyCdsEtapaIn] | None = None

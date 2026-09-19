@@ -503,3 +503,368 @@ async def test_seed_etapa_persistida_visivel_na_listagem(
     # E o registro realmente existe no banco (sanidade da sessao de teste)
     exists = await session.scalar(select(Etapa.id).where(Etapa.id == etapa.id))
     assert exists == etapa.id
+
+
+# ── Escopo cross-org do trip_id (o gate autoriza a acao, nao o alvo) ──
+
+
+@pytest.fixture
+async def trip_de_outra_org(session):
+    """Tripulante da '1gt' — fora da org ativa do `token` ('11gt')."""
+    user = UserFactory()
+    session.add(user)
+    await session.flush()
+    trip = TripFactory(user_id=user.id, uae='1gt')
+    session.add(trip)
+    await session.flush()
+    await session.commit()
+    return trip.id
+
+
+async def test_post_etapa_recusa_trip_de_outra_org(
+    client, token, session, anvs, trip_de_outra_org
+):
+    """POST /etapas/ nao aceita tripulante de outra unidade.
+
+    Sem o escopo, a hora de voo era lancada no nome de militar alheio e
+    o GET seguinte devolvia trigrama, nome de guerra e posto dele.
+    """
+    missao = await _mk_missao(session)
+    await session.commit()
+
+    payload = _pl_etapa('2850', '08:00', '09:00', trips=[trip_de_outra_org])
+    payload['missao_id'] = missao.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    # Mensagem neutra de proposito: nao revela que o id existe noutra org.
+    assert 'encontrado' in resp.json()['message'].lower()
+
+    # Nada foi gravado.
+    vinculos = await session.scalars(
+        select(TripEtapa).where(TripEtapa.trip_id == trip_de_outra_org)
+    )
+    assert vinculos.all() == []
+
+
+async def test_post_with_etapas_recusa_trip_de_outra_org(
+    client, token, session, anvs, trip_de_outra_org
+):
+    """POST /missao/with-etapas idem — e sem criar a missao (rollback)."""
+    payload = {
+        'titulo': 'Simulador',
+        'obs': None,
+        'is_simulador': False,
+        'etapas': [
+            _pl_etapa('2850', '08:00', '09:00', trips=[trip_de_outra_org])
+        ],
+    }
+
+    resp = await client.post(
+        f'{MISSAO_URL}with-etapas', json=payload, headers=_auth(token)
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    missoes = await session.scalars(
+        select(Missao).where(Missao.titulo == 'Simulador')
+    )
+    assert missoes.all() == []
+
+
+async def test_put_etapa_recusa_trip_de_outra_org(
+    client, token, session, anvs, trips, trip_de_outra_org
+):
+    """PUT /etapas/{id} nao deixa trocar a tripulacao por id alheio."""
+    missao = await _mk_missao(session)
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(8, 0),
+        arr=time(9, 0),
+        trip_ids=trips[:1],
+    )
+    await session.commit()
+
+    resp = await client.put(
+        f'{ETAPAS_URL}{etapa.id}',
+        json={
+            'tripulantes': [
+                {
+                    'trip_id': trip_de_outra_org,
+                    'func': 'mc',
+                    'func_bordo': 'MC',
+                }
+            ]
+        },
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    vinculos = await session.scalars(
+        select(TripEtapa).where(TripEtapa.trip_id == trip_de_outra_org)
+    )
+    assert vinculos.all() == []
+
+
+async def test_post_etapa_aceita_trip_da_propria_org(
+    client, token, session, anvs, trips, oi_refs
+):
+    """Contraprova: o caminho feliz continua passando."""
+    missao = await _mk_missao(session)
+    await session.commit()
+
+    payload = _pl_etapa('2850', '08:00', '09:00', trips=trips[:1])
+    payload['missao_id'] = missao.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.CREATED
+
+
+# ── A mensagem de colisao nao pode nomear dado de outra org ────────
+
+
+@pytest.fixture
+async def etapa_de_outra_org(session, anvs):
+    """Etapa da '1gt' ocupando 2850 das 08:00 as 09:00 em DATA.
+
+    A deteccao de colisao NAO filtra por org de proposito (uma cauda
+    fisica nao voa em duas unidades ao mesmo tempo); o que nao pode
+    vazar e a identificacao da etapa alheia.
+    """
+    user = UserFactory()
+    session.add(user)
+    await session.flush()
+    trip = TripFactory(user_id=user.id, uae='1gt')
+    session.add(trip)
+    await session.flush()
+
+    missao = Missao(titulo='OPERACAO ALHEIA', obs=None, uae='1gt')
+    missao.is_simulador = False
+    session.add(missao)
+    await session.flush()
+
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(8, 0),
+        arr=time(9, 0),
+        trip_ids=[trip.id],
+    )
+    await session.commit()
+    return etapa.id, trip.id
+
+
+async def test_colisao_anv_com_outra_org_nao_vaza_etapa(
+    client, token, session, anvs, etapa_de_outra_org
+):
+    """Colide, mas a frase so cita a sigla da org — nunca id/horario."""
+    etapa_alheia_id, _ = etapa_de_outra_org
+    missao = await _mk_missao(session)
+    await session.commit()
+
+    payload = _pl_etapa('2850', '08:30', '09:30')
+    payload['missao_id'] = missao.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    msg = resp.json()['message']
+    # A deteccao continua valendo.
+    assert '1GT' in msg
+    # Mas nada identifica a etapa alheia.
+    assert f'#{etapa_alheia_id}' not in msg
+    assert '08:00' not in msg
+
+
+async def test_colisao_trip_com_outra_org_nao_vaza_etapa(
+    client, token, session, anvs, trips, etapa_de_outra_org
+):
+    """Tripulante alheio ja escalado: idem, so a sigla da org."""
+    etapa_alheia_id, trip_alheio = etapa_de_outra_org
+
+    # O militar alheio nao pode nem ser anexado (escopo de trip_id),
+    # entao a colisao se prova pelo lado da aeronave da outra unidade:
+    # aqui usamos a 2851, livre, e um trip da propria org — o conflito
+    # que resta e o da etapa alheia ocupando a 2850.
+    missao = await _mk_missao(session)
+    await session.commit()
+
+    payload = _pl_etapa('2850', '08:30', '09:30', trips=trips[:1])
+    payload['missao_id'] = missao.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    msg = resp.json()['message']
+    assert f'#{etapa_alheia_id}' not in msg
+
+
+async def test_colisao_na_propria_org_mantem_detalhe(
+    client, token, session, anvs, trips
+):
+    """Contraprova: dentro da org, a mensagem segue util e detalhada."""
+    missao = await _mk_missao(session)
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(8, 0),
+        arr=time(9, 0),
+        trip_ids=trips[:1],
+    )
+    await session.commit()
+
+    payload = _pl_etapa('2850', '08:30', '09:30')
+    payload['missao_id'] = missao.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    msg = resp.json()['message']
+    assert f'#{etapa.id}' in msg
+    assert '08:00' in msg
+
+
+# ── Apagar a ultima etapa nao pode deixar missao orfa ──────────────
+
+
+async def test_delete_ultima_etapa_apaga_a_missao(
+    client, token, session, anvs, trips
+):
+    """Missao sem etapa e invisivel na listagem (join) — vai junto."""
+    missao = await _mk_missao(session)
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(8, 0),
+        arr=time(9, 0),
+        trip_ids=trips[:1],
+    )
+    missao_id = missao.id
+    await session.commit()
+
+    resp = await client.delete(f'{ETAPAS_URL}{etapa.id}', headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.OK
+    session.expire_all()
+    assert await session.get(Missao, missao_id) is None
+
+
+async def test_delete_etapa_preserva_missao_com_outras(
+    client, token, session, anvs, trips
+):
+    """Contraprova: sobrando etapa, a missao permanece."""
+    missao = await _mk_missao(session)
+    etapa_a = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(8, 0),
+        arr=time(9, 0),
+        trip_ids=trips[:1],
+    )
+    await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(10, 0),
+        arr=time(11, 0),
+        trip_ids=trips[:1],
+    )
+    missao_id = missao.id
+    await session.commit()
+
+    resp = await client.delete(
+        f'{ETAPAS_URL}{etapa_a.id}', headers=_auth(token)
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    session.expire_all()
+    assert await session.get(Missao, missao_id) is not None
+
+
+# ── Ano fora da janela plausivel e recusado pela API ───────────────
+
+
+async def test_post_etapa_recusa_ano_absurdo(
+    client, token, session, anvs, trips
+):
+    """Ano 0006 (digitacao) nao pode entrar pelo backend.
+
+    O `min`/`max` do <input type="date"> fecha so a porta do navegador;
+    a API precisa recusar de qualquer cliente. Etapa com ano fora da
+    janela some dos paineis (que consultam `ano >= 2020`) mas continua
+    na listagem por janela de data — dado fantasma.
+    """
+    missao = await _mk_missao(session)
+    await session.commit()
+
+    payload = _pl_etapa(
+        '2850', '08:00', '09:00', data='0006-03-10', trips=trips[:1]
+    )
+    payload['missao_id'] = missao.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def test_post_with_etapas_recusa_ano_absurdo(
+    client, token, session, anvs, trips
+):
+    """O endpoint atomico tambem recusa — e nada e gravado."""
+    payload = {
+        'titulo': 'ANO RUIM',
+        'obs': None,
+        'is_simulador': False,
+        'etapas': [
+            _pl_etapa(
+                '2850',
+                '08:00',
+                '09:00',
+                data='9999-01-01',
+                trips=trips[:1],
+            )
+        ],
+    }
+
+    resp = await client.post(
+        f'{MISSAO_URL}with-etapas', json=payload, headers=_auth(token)
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    missoes = await session.scalars(
+        select(Missao).where(Missao.titulo == 'ANO RUIM')
+    )
+    assert missoes.all() == []
+
+
+async def test_put_etapa_recusa_ano_absurdo(
+    client, token, session, anvs, trips
+):
+    """EtapaUpdate nao herda de EtapaBase — precisa do proprio guard."""
+    missao = await _mk_missao(session)
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2850',
+        dep=time(8, 0),
+        arr=time(9, 0),
+        trip_ids=trips[:1],
+    )
+    await session.commit()
+
+    resp = await client.put(
+        f'{ETAPAS_URL}{etapa.id}',
+        json={'data': '0006-03-10'},
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
