@@ -28,6 +28,7 @@ from fcontrol_api.security import (
     get_admin_scope,
     require_system_admin,
 )
+from fcontrol_api.services.logs import log_user_action
 from fcontrol_api.utils.responses import success_response
 
 router = APIRouter(prefix='/roles')
@@ -38,6 +39,26 @@ Scope = Annotated[AdminScope, Depends(get_admin_scope)]
 # Apenas a role 'admin' pode existir sem organização (escopo de sistema).
 # As demais roles são sempre vinculadas a uma unidade.
 SYSTEM_SCOPED_ROLE = 'admin'
+
+# Auditoria do vínculo user↔role. O recurso é 'users' (não 'roles') e o
+# `resource_id` é o usuário ALVO, não o id do vínculo: é assim que o evento
+# aparece no histórico da página do usuário, que lê os logs por
+# `resource='users'` + `resource_id=<id do usuário>`.
+LOG_RESOURCE = 'users'
+
+
+def _snapshot_vinculo(role_name: str, organizacao_id: str | None) -> dict:
+    """Payload de auditoria de um vínculo user↔role.
+
+    A organização entra junto porque um usuário pode ter vínculo em mais de
+    uma org — sem ela, "perfil alterado" fica ambíguo na trilha. `None` é o
+    escopo de sistema, e precisa de rótulo próprio: gravar vazio faria o
+    histórico exibir um campo em branco.
+    """
+    return {
+        'role': role_name,
+        'organizacao': organizacao_id if organizacao_id else 'Sistema',
+    }
 
 
 def _ensure_org_in_scope(
@@ -184,7 +205,7 @@ async def add_user_role(
                 detail='Organização não é um tenant da plataforma',
             )
 
-    await _validate_role_scope(
+    role = await _validate_role_scope(
         new_role.role_id, new_role.organizacao_id, session
     )
 
@@ -210,6 +231,17 @@ async def add_user_role(
     )
 
     session.add(ur)
+
+    await log_user_action(
+        session=session,
+        user_id=scope.user.id,
+        action='role-add',
+        resource=LOG_RESOURCE,
+        resource_id=new_role.user_id,
+        before=None,
+        after=_snapshot_vinculo(role.name, new_role.organizacao_id),
+    )
+
     await session.commit()
 
     return success_response(message='Perfil cadastrado com sucesso')
@@ -236,11 +268,29 @@ async def update_user_role(
             detail='Usuário não tem perfil cadastrado nessa organização',
         )
 
-    await _validate_role_scope(
+    role = await _validate_role_scope(
         role_patch.role_id, role_patch.organizacao_id, session
     )
 
+    # Reenviar a mesma role é no-op: registrar isso só encheria a trilha de
+    # eventos sem mudança. O nome antigo é lido antes do UPDATE (a relação
+    # `role` é eager, então não dispara select aqui).
+    if user_reg.role_id == role_patch.role_id:
+        return success_response(message='Perfil atualizado com sucesso')
+
+    before = _snapshot_vinculo(user_reg.role.name, role_patch.organizacao_id)
+
     user_reg.role_id = role_patch.role_id
+
+    await log_user_action(
+        session=session,
+        user_id=scope.user.id,
+        action='role-update',
+        resource=LOG_RESOURCE,
+        resource_id=role_patch.user_id,
+        before=before,
+        after=_snapshot_vinculo(role.name, role_patch.organizacao_id),
+    )
 
     await session.commit()
 
@@ -279,7 +329,23 @@ async def delete_user_role(
             detail='Roles não conferem',
         )
 
+    # Nome lido antes do delete, e `after` com a role vazia em vez de None:
+    # o histórico monta o diff pelas chaves de `after`, então `None` exibiria
+    # o evento sem dizer qual perfil saiu nem de qual organização.
+    removido = _snapshot_vinculo(user_reg.role.name, role_body.organizacao_id)
+
     await session.delete(user_reg)
+
+    await log_user_action(
+        session=session,
+        user_id=scope.user.id,
+        action='role-delete',
+        resource=LOG_RESOURCE,
+        resource_id=role_body.user_id,
+        before=removido,
+        after={**removido, 'role': ''},
+    )
+
     await session.commit()
 
     return success_response(message='Perfil deletado com sucesso')
