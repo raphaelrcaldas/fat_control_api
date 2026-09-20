@@ -596,3 +596,36 @@ async def test_operacao_de_outra_unidade_nao_vaza(
 
     assert response.status_code == HTTPStatus.OK
     assert _restricoes_de_operacao(response.json()) == []
+
+
+async def test_get_crew_indisp_com_obs_nula(
+    client, session, users, trip_with_func, token_sem_perm
+):
+    """Indisponibilidade sem observação não pode quebrar a serialização.
+
+    `obs` é a única coluna anulável de `indisps`, e o PATCH trata um None
+    explícito como "limpar a observação" — logo `NULL` é estado válido no
+    banco e `IndispOut` tem de aceitá-lo.
+    """
+    user, _ = users
+    trip, func = trip_with_func
+
+    indisp = IndispFactory(
+        user_id=user.id,
+        created_by=user.id,
+        date_start=date.today(),
+        date_end=date.today() + timedelta(days=5),
+        obs=None,
+    )
+    session.add(indisp)
+    await session.commit()
+
+    response = await client.get(
+        '/indisp/',
+        params={'funcao': func.func},
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    data = response.json()['data']
+    assert data[0]['indisps'][0]['obs'] is None

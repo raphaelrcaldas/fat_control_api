@@ -278,12 +278,12 @@ async def test_create_indisp_missing_required_field_fails(
     """Testa que campo obrigatório faltando falha."""
     _, other_user = users
 
-    # Falta o campo 'obs'
+    # Falta o campo 'mtv'. `obs` não serve aqui: é anulável, espelhando a
+    # coluna, e omiti-la é lançar indisponibilidade sem observação.
     indisp_data = {
         'user_id': other_user.id,
         'date_start': date.today().isoformat(),
         'date_end': (date.today() + timedelta(days=5)).isoformat(),
-        'mtv': 'fer',
     }
 
     response = await client.post(

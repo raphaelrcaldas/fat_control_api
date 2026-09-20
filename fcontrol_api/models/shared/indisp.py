@@ -16,7 +16,7 @@ class Indisp(Base):
     date_start: Mapped[date]
     date_end: Mapped[date]
     mtv: Mapped[str] = mapped_column(nullable=False)
-    obs: Mapped[str] = mapped_column(nullable=True)
+    obs: Mapped[str | None] = mapped_column(nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

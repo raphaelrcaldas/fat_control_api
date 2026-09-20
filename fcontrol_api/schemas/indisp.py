@@ -22,7 +22,7 @@ class IndispSchema(BaseModel):
     date_start: Annotated[date, Body()]
     date_end: Annotated[date, Body()]
     mtv: IndispEnum
-    obs: str
+    obs: str | None = None
 
 
 class IndispOut(IndispSchema):
