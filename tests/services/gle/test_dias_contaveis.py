@@ -8,7 +8,7 @@ total da permanencia. Ver `docs/dominio/gle.md`.
 from datetime import date, datetime
 from decimal import Decimal
 
-from fcontrol_api.services.gle_calculo import dias_contaveis
+from fcontrol_api.services.gle.calculo import dias_contaveis
 
 
 def _dias(chegada: datetime, afastamento: datetime) -> list[date]:

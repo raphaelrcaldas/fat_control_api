@@ -8,7 +8,7 @@ cobrem o mesmo dia, paga-se o de maior valor e zera-se o outro.
 from datetime import date
 from decimal import Decimal
 
-from fcontrol_api.services.gle_calculo import (
+from fcontrol_api.services.gle.calculo import (
     fator_do_dia,
     quantizar,
     quantizar_multiplicador,

@@ -6,6 +6,7 @@ from fcontrol_api.routers.cegep import (
     financeiro,
     gle,
     gle_missoes,
+    gle_pesquisa,
     missao,
     missao_etiquetas,
     orcamento,
@@ -17,9 +18,9 @@ router = APIRouter(prefix='/cegep')
 router.include_router(comiss.router)
 router.include_router(dados_bancarios.router)
 router.include_router(financeiro.router)
-# `/gle/missoes` antes de `/gle`: senão a rota `/gle/{id}` casaria
-# primeiro e "missoes" viraria um id inválido (422).
+# Segmentos estáticos (missoes e pesquisa) antes de `/gle/{id}`.
 router.include_router(gle_missoes.router)
+router.include_router(gle_pesquisa.router)
 router.include_router(gle.router)
 # `/missoes/etiquetas` antes de `/missoes`: senão a rota `/missoes/{id}` do
 # missao.py casaria primeiro e o id viraria 422.

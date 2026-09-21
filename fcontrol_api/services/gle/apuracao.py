@@ -1,16 +1,13 @@
-"""Apuração da GLE: da lista de trechos ao valor de cada militar.
+"""Apura os trechos de uma missão com o soldo vigente em cada dia.
 
-Vive fora do router porque dois caminhos precisam do **mesmo** cálculo: o
-cálculo avulso (`POST /gle/calcular`) e a leitura de uma missão salva, que
-recalcula a partir dos trechos gravados. Duplicar a regra faria as duas
-telas divergirem no dia em que uma fosse corrigida.
+O posto recebido é o snapshot salvo na missão. O resultado é recalculado
+na leitura, sem persistir valores derivados.
 """
 
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.models.shared.estados_cidades import Cidade, GrupoLocEsp
@@ -19,7 +16,7 @@ from fcontrol_api.schemas.cegep.gle_calculo import (
     TrechoCalculado,
 )
 from fcontrol_api.services.custos.cache_ref import cache_soldos
-from fcontrol_api.services.gle_calculo import (
+from fcontrol_api.services.gle.calculo import (
     dias_contaveis,
     fator_do_dia,
     quantizar,
@@ -43,8 +40,7 @@ class MilitarApurar:
     """Militar a apurar.
 
     `p_g` vem de fora porque a missão salva guarda o **snapshot** do posto:
-    promover alguém não pode reescrever uma apuração já feita. No cálculo
-    avulso, quem chama passa o posto atual.
+    promover alguém não pode reescrever uma apuração já feita.
     """
 
     user_id: int
@@ -61,19 +57,6 @@ class Apuracao:
     trechos: list[TrechoCalculado]
     # (user_id, soldo_de_referência, valor) por militar, na ordem recebida.
     valores: list[tuple[int, Decimal, Decimal]]
-
-
-async def carregar_localidades(
-    session: AsyncSession, ids: set[int]
-) -> dict[int, tuple[GrupoLocEsp, Cidade]]:
-    linhas = (
-        await session.execute(
-            select(GrupoLocEsp, Cidade)
-            .join(Cidade, Cidade.codigo == GrupoLocEsp.cidade_id)
-            .where(GrupoLocEsp.id.in_(ids))
-        )
-    ).all()
-    return {loc.id: (loc, cidade) for loc, cidade in linhas}
 
 
 async def apurar(
