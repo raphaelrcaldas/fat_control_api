@@ -489,6 +489,128 @@ async def test_list_ordens_ordem_cronologica_por_decolagem(
     assert ids == [ordem_cedo.id, ordem_tarde.id]
 
 
+async def test_list_ordens_ordem_numerica_por_ano_e_numero(
+    client, session, users, token
+):
+    """`ordem=numerica` devolve ano da OM e numeração, decrescente.
+
+    É como a OM é identificada (o par único por UAE). Ordenar no cliente
+    acertaria a ordem dentro da página e erraria quais OMs caem em cada
+    uma, porque o corte do `per_page` acontece aqui.
+    """
+    user, _ = users
+
+    # Cadastradas embaralhadas de propósito: a ordem de cadastro não pode
+    # sobreviver ao `ordem=numerica`.
+    esperado = [
+        ('2026', '002'),
+        ('2026', '001'),
+        ('2025', '010'),
+    ]
+    criadas = {}
+    for ano, numero in [('2025', '010'), ('2026', '002'), ('2026', '001')]:
+        om = OrdemMissaoFactory(
+            created_by=user.id,
+            numero=numero,
+            data_saida=date(int(ano), 5, 20),
+        )
+        session.add(om)
+        await session.commit()
+        await session.refresh(om)
+        criadas[(ano, numero)] = om.id
+
+    response = await client.get(
+        BASE_URL,
+        params={'ordem': 'numerica'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    ids = [item['id'] for item in response.json()['data']]
+    assert ids == [criadas[chave] for chave in esperado]
+
+
+async def test_list_ordens_ordem_numerica_compara_numero_como_inteiro(
+    client, session, users, token
+):
+    """A numeração compara como inteiro, não como texto.
+
+    `numero` é String: por texto '1000' viria antes de '999' assim que a
+    numeração passar de três dígitos.
+    """
+    user, _ = users
+    ano = date(2026, 6, 10)
+
+    om_999 = OrdemMissaoFactory(
+        created_by=user.id, numero='999', data_saida=ano
+    )
+    session.add(om_999)
+    await session.commit()
+    await session.refresh(om_999)
+
+    om_1000 = OrdemMissaoFactory(
+        created_by=user.id, numero='1000', data_saida=ano
+    )
+    session.add(om_1000)
+    await session.commit()
+    await session.refresh(om_1000)
+
+    response = await client.get(
+        BASE_URL,
+        params={'ordem': 'numerica'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    ids = [item['id'] for item in response.json()['data']]
+    assert ids == [om_1000.id, om_999.id]
+
+
+async def test_list_ordens_ordem_numerica_incompletas_no_topo(
+    client, session, users, token
+):
+    """Sem ano ou sem número utilizável, a OM sobe ao topo.
+
+    Cadastro incompleto precisa de atenção; escondê-lo no fim da última
+    página é o mesmo que perdê-lo. Cobre `data_saida` nula e `numero`
+    não-numérico, que o cast para Integer não pode tocar.
+    """
+    user, _ = users
+
+    om_numerada = OrdemMissaoFactory(
+        created_by=user.id, numero='005', data_saida=date(2026, 7, 1)
+    )
+    session.add(om_numerada)
+    await session.commit()
+    await session.refresh(om_numerada)
+
+    om_sem_numero = OrdemMissaoFactory(
+        created_by=user.id, numero='auto', data_saida=date(2026, 7, 1)
+    )
+    session.add(om_sem_numero)
+    await session.commit()
+    await session.refresh(om_sem_numero)
+
+    om_sem_ano = OrdemMissaoFactory(
+        created_by=user.id, numero='007', data_saida=None
+    )
+    session.add(om_sem_ano)
+    await session.commit()
+    await session.refresh(om_sem_ano)
+
+    response = await client.get(
+        BASE_URL,
+        params={'ordem': 'numerica'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    ids = [item['id'] for item in response.json()['data']]
+    # Sem ano vem antes de tudo; dentro de 2026, a sem número antes da
+    # numerada.
+    assert ids == [om_sem_ano.id, om_sem_numero.id, om_numerada.id]
+
+
 @pytest.mark.parametrize(
     'params',
     [

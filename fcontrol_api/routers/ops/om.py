@@ -5,7 +5,7 @@ from http import HTTPStatus
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Date, cast, func
+from sqlalchemy import Date, Integer, case, cast, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -127,7 +127,9 @@ async def list_ordens(
     data_fim: date | None = None,
     busca: str | None = None,
     etiquetas_ids: Annotated[list[int] | None, Query()] = None,
-    ordem: Annotated[Literal['recente', 'cronologica'], Query()] = 'recente',
+    ordem: Annotated[
+        Literal['recente', 'cronologica', 'numerica'], Query()
+    ] = 'recente',
 ):
     """
     Lista ordens de missão com filtros e paginação.
@@ -136,7 +138,8 @@ async def list_ordens(
     - **status_ne**: Status para excluir (not equal, ex: rascunho)
     - **data_inicio/data_fim**: Filtro por data de decolagem da primeira etapa
     - **busca**: Busca por número, localidade, tipo ou nome de guerra
-    - **ordem**: `recente` (cadastro, padrão) ou `cronologica` (decolagem)
+    - **ordem**: `recente` (cadastro, padrão), `cronologica` (decolagem) ou
+      `numerica` (ano da OM e numeração, decrescente)
     """
     # Query base: ordens da org ativa, não deletadas
     query = select(OrdemMissao).where(
@@ -219,8 +222,33 @@ async def list_ordens(
     # missão dentro do período sumiria do quadro. É um parâmetro explícito,
     # e não uma consequência de haver filtro de data, porque a listagem
     # também filtra por data e não pode ter a ordem invertida por isso.
-    # (id como tiebreaker garante paginação determinística nos dois casos)
-    if ordem == 'cronologica':
+    #
+    # `numerica` é a ordem como a OM é *identificada*: ano e numeração, que
+    # é o par único por UAE (ver `assert_numero_om_livre`). Precisa ser feita
+    # aqui, e não no cliente: reordenar só a página já recortada por
+    # `created_at` deixa a ordem certa dentro da página e errada entre elas.
+    # O ano vem de `data_saida` — a mesma fonte de `emitir_numero_om`. O cast
+    # para Integer evita que '1000' venha antes de '999' quando a numeração
+    # passar de três dígitos, e a guarda regex protege o cast de 'auto' e de
+    # números editados à mão que não sejam numéricos. Sem ano ou sem número
+    # utilizável a OM sobe ao topo (NULLS FIRST): é um cadastro incompleto,
+    # e esconder no fim da última página é o mesmo que perdê-lo.
+    # (id como tiebreaker garante paginação determinística nos três casos)
+    if ordem == 'numerica':
+        ano_om = extract('year', OrdemMissao.data_saida)
+        numero_seq = case(
+            (
+                OrdemMissao.numero.op('~')('^[0-9]+$'),
+                cast(OrdemMissao.numero, Integer),
+            ),
+            else_=None,
+        )
+        query = query.order_by(
+            ano_om.desc().nullsfirst(),
+            numero_seq.desc().nullsfirst(),
+            OrdemMissao.id.desc(),
+        )
+    elif ordem == 'cronologica':
         primeira_dep = (
             select(func.min(OrdemEtapa.dt_dep))
             .where(OrdemEtapa.ordem_id == OrdemMissao.id)
