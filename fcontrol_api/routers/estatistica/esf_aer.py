@@ -259,7 +259,9 @@ async def get_esf_aer_historico(
 
     Reconstroi, a partir do historico (`EsfAerAlocHist`), a evolucao do
     valor alocado de cada programa (step-function) e a serie agregada
-    (carry-forward) de todos os programas da org ativa.
+    (carry-forward) de todos os programas da org ativa. Programas de
+    simulador (descricao contendo 'SML') ficam de fora, tanto da lista
+    quanto do total.
     """
     aloc_result = await session.execute(
         select(
@@ -276,6 +278,7 @@ async def get_esf_aer_historico(
         .where(
             EsfAerAloc.ano_ref == ano_ref,
             EsfAerAloc.uae == active_org,
+            EsforcoAereo.descricao.notlike('%SML%'),
         )
         .order_by(EsforcoAereo.descricao)
     )

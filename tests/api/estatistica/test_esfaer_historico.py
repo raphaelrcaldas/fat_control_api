@@ -224,6 +224,29 @@ async def test_isolamento_por_org_e_ano(client, session, token):
     assert data['total']['atual'] == 100
 
 
+async def test_simulador_fora_dos_programas_e_do_total(client, session, token):
+    """Programa de simulador (descricao contendo 'SML') não entra na lista
+    nem no total — mesmo com o 'SML' fora do `nome` exibido."""
+    esf = await _programa(session, prog='PROG-A')
+    aloc = await _aloc(session, esf.id, alocado=100)
+    await _hist(session, aloc.id, 60, datetime(2025, 3, 1, 9, 0))
+
+    esf_sml = await _programa(
+        session, prog='PROG-S', sub_prog='SML', aplicacao='APLIC'
+    )
+    aloc_sml = await _aloc(session, esf_sml.id, alocado=500)
+    await _hist(session, aloc_sml.id, 200, datetime(2025, 2, 1, 9, 0))
+    await session.commit()
+
+    data = await _get(client, token)
+
+    assert [p['esfaer_id'] for p in data['programas']] == [esf.id]
+    assert data['total']['atual'] == 100
+    assert data['total']['timeline'] == [
+        {'data': '2025-03-01', 'alocado': 100, 'delta': 0},
+    ]
+
+
 async def test_programa_zerado_com_hist_entra(client, session, token):
     """Programa com alocado=0 (removido) e histórico entra na resposta."""
     esf = await _programa(session)
