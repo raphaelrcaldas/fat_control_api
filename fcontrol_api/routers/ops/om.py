@@ -106,9 +106,7 @@ def _data_saida_de(etapas) -> date | None:
     """
     if not etapas:
         return None
-    return (
-        min(e.dt_dep for e in etapas).astimezone(timezone.utc).date()
-    )
+    return min(e.dt_dep for e in etapas).astimezone(timezone.utc).date()
 
 
 @router.get(
@@ -644,9 +642,7 @@ async def update_ordem(
         and (ordem.numero == 'auto' or not ordem.numero)
     ):
         # Garantir que temos a data_saida
-        ordem.data_saida = _data_saida_de(
-            ordem_data.etapas or ordem.etapas
-        )
+        ordem.data_saida = _data_saida_de(ordem_data.etapas or ordem.etapas)
 
         if not ordem.data_saida:
             raise HTTPException(
