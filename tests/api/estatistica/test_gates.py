@@ -35,6 +35,15 @@ def _auth(token):
         ('delete', '/estatistica/missao/1'),
         ('get', '/estatistica/esfaer/'),
         ('put', '/estatistica/esfaer/'),
+        (
+            'get',
+            '/estatistica/relatorios-voo/'
+            '?data_ini=2026-09-01&data_fim=2026-09-30',
+        ),
+        ('post', '/estatistica/relatorios-voo/'),
+        ('get', '/estatistica/relatorios-voo/1/arquivo'),
+        ('patch', '/estatistica/relatorios-voo/1'),
+        ('delete', '/estatistica/relatorios-voo/1'),
     ],
 )
 async def test_sem_permissao_403(client, token_sem_perm, metodo, url):
@@ -44,7 +53,12 @@ async def test_sem_permissao_403(client, token_sem_perm, metodo, url):
 
 @pytest.mark.parametrize(
     'url',
-    ['/estatistica/etapas/', '/estatistica/missao/1', '/estatistica/esfaer/'],
+    [
+        '/estatistica/etapas/',
+        '/estatistica/missao/1',
+        '/estatistica/esfaer/',
+        '/estatistica/relatorios-voo/?data_ini=2026-09-01&data_fim=2026-09-30',
+    ],
 )
 async def test_sem_token_401(client, url):
     resp = await client.get(url)

@@ -54,6 +54,12 @@
     "estatistica.indicadores": [
       "view"
     ],
+    "estatistica.relatorios_voo": [
+      "create",
+      "delete",
+      "update",
+      "view"
+    ],
     "instrucao.cartoes": [
       "delete",
       "view"

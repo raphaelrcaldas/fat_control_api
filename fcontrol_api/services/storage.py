@@ -123,11 +123,26 @@ def upload_file(
     )
 
 
-def get_signed_url(bucket: str, path: str, expires: int = 900) -> str:
+def get_signed_url(
+    bucket: str,
+    path: str,
+    expires: int = 900,
+    content_disposition: str | None = None,
+) -> str:
+    """URL assinada de leitura.
+
+    `content_disposition` (ex.: `'inline; filename="x.pdf"'`) pede ao
+    storage que responda com esse cabeçalho — `inline` faz o navegador
+    exibir o PDF em vez de baixá-lo. Sem ele, o comportamento é o de antes.
+    """
     client = _get_client()
+    params = {'Bucket': bucket, 'Key': path}
+    if content_disposition is not None:
+        params['ResponseContentDisposition'] = content_disposition
+        params['ResponseContentType'] = 'application/pdf'
     return client.generate_presigned_url(
         'get_object',
-        Params={'Bucket': bucket, 'Key': path},
+        Params=params,
         ExpiresIn=expires,
     )
 
