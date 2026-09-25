@@ -7,12 +7,8 @@ from fcontrol_api.cleanup.runner import ALLOWED_TASKS, run_all_tasks
 
 pytestmark = pytest.mark.anyio
 
-EXPECTED_TASK_NAMES = {
-    'cleanup_old_unavailability',
-    'cleanup_old_login_logs',
-    'cleanup_old_notificacoes',
-    'cleanup_expired_auth_codes',
-}
+# Nome do módulo: o mesmo id do preview e do `?task_name=`.
+EXPECTED_TASK_NAMES = set(ALLOWED_TASKS)
 
 
 async def test_runner_discovers_and_runs_all_tasks(session, users):

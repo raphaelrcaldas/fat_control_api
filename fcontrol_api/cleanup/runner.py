@@ -48,6 +48,10 @@ async def run_all_tasks(
             continue
 
         result = await run_fn(session)
+        # O id público da tarefa é o nome do módulo — o mesmo do preview e
+        # do `?task_name=`. O TASK_NAME interno (`cleanup_*`) divergia, e o
+        # front não tinha como casar o resultado com a descrição da tarefa.
+        result.task_name = module_info.name
         results.append(result)
 
     return results

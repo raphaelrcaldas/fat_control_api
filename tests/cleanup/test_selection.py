@@ -53,9 +53,7 @@ async def test_selected_task_does_not_run_other_tasks(
     assert response.status_code == 200
     data = response.json()['data']
     assert data['total_deleted'] == 2
-    assert [task['task_name'] for task in data['tasks']] == [
-        f'cleanup_{task_name}'
-    ]
+    assert [task['task_name'] for task in data['tasks']] == [task_name]
     for name, run in task_runs.items():
         assert run.await_count == (1 if name == task_name else 0)
 

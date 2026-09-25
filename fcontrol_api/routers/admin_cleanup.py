@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,6 +69,11 @@ async def run_cleanup(
         data=CleanupRunResponse(
             tasks=tasks_out,
             total_deleted=total_deleted,
-            executed_at=datetime.now().isoformat(),
+            # UTC naive: o front lê horário sem fuso como UTC. `now()` local
+            # só coincidia em produção (máquina em UTC).
+            executed_at=datetime
+            .now(timezone.utc)
+            .replace(tzinfo=None)
+            .isoformat(),
         )
     )
