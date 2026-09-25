@@ -209,20 +209,28 @@ async def get_esf_aer_resumo(
 def _timeline_points(
     hists: list[EsfAerAlocHist],
     alocado: int,
+    ano_ref: int,
 ) -> list[tuple[str, int]]:
     """Reconstroi a timeline diaria (data ISO, valor vigente) de uma aloc.
 
     O historico guarda o valor ANTERIOR a cada mudanca; o valor apos a
     mudanca `h_i` e `h_{i+1}.aloc_hist` (ou `alocado` apos a ultima).
-    Mudancas no mesmo dia colapsam no ultimo valor do dia; o primeiro
-    ponto e a base (`h1.aloc_hist`) na data do primeiro registro.
+    Mudancas no mesmo dia colapsam no ultimo valor do dia.
+
+    Base nao-nula (`h1.aloc_hist > 0`) e valor anterior a qualquer registro
+    — a criacao sempre grava 0 —, entao ancora em 1o/jan, como o fallback de
+    programa sem historico. Na data do 1o registro ela seria sobrescrita
+    pela propria mudanca, e a linha nasceria so no dia da 1a revisao.
     """
     if not hists:
         return []
 
-    points: dict[str, int] = {
-        hists[0].timestamp.date().isoformat(): hists[0].aloc_hist
-    }
+    points: dict[str, int] = {}
+    inicio_ano = f'{ano_ref}-01-01'
+    if hists[0].aloc_hist > 0 and (
+        hists[0].timestamp.date().isoformat() > inicio_ano
+    ):
+        points[inicio_ano] = hists[0].aloc_hist
     for i, hist in enumerate(hists):
         novo = hists[i + 1].aloc_hist if i + 1 < len(hists) else alocado
         points[hist.timestamp.date().isoformat()] = novo
@@ -301,7 +309,7 @@ async def get_esf_aer_historico(
 
     for aloc in alocs:
         hists = hists_by_aloc.get(aloc.id, [])
-        points = _timeline_points(hists, aloc.alocado)
+        points = _timeline_points(hists, aloc.alocado, ano_ref)
         inicial = hists[0].aloc_hist if hists else aloc.alocado
 
         # Sem historico registrado (seed/migracao ou alocacao anterior ao
