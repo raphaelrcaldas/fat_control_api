@@ -3,52 +3,29 @@ import logging
 from http import HTTPStatus
 
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.schemas.storage import (
     AllBucketsStatsPublic,
     BucketStatsPublic,
-    StorageStatsPublic,
 )
-from fcontrol_api.services.storage import (
-    get_all_buckets_stats,
-    get_bucket_stats,
-)
+from fcontrol_api.security import require_system_admin
+from fcontrol_api.services.storage import get_all_buckets_stats
 from fcontrol_api.settings import Settings
 from fcontrol_api.utils.responses import success_response
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix='/storage', tags=['Storage'])
+# Uso do storage é de TODO o sistema (nomes e tamanhos de todos os buckets,
+# de todas as orgs): só o admin de sistema, como o resto do grupo /admin.
+router = APIRouter(
+    prefix='/storage',
+    tags=['Storage'],
+    dependencies=[Depends(require_system_admin)],
+)
 
 STORAGE_UNAVAILABLE = 'Storage indisponível: não foi possível ler o serviço.'
-
-
-@router.get(
-    '/stats',
-    response_model=ApiResponse[StorageStatsPublic],
-)
-async def storage_stats(bucket: str, prefix: str | None = None):
-    """Estatisticas de uso de um bucket.
-
-    `bucket` e obrigatorio (cada dominio tem o seu). Informe `prefix` para
-    escopar a um subconjunto; sem `prefix`, conta o bucket todo.
-    """
-    try:
-        stats = await asyncio.to_thread(get_bucket_stats, bucket, prefix)
-    except (ClientError, BotoCoreError) as e:
-        # 502 e não 200-com-zeros: o consumidor precisa distinguir
-        # "bucket vazio" de "não consegui perguntar".
-        logger.exception('Falha ao ler stats do bucket %s', bucket)
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_GATEWAY,
-            detail=STORAGE_UNAVAILABLE,
-        ) from e
-
-    return success_response(
-        data=StorageStatsPublic(**stats),
-    )
 
 
 @router.get(
@@ -60,6 +37,8 @@ async def all_buckets_stats():
     try:
         stats = await asyncio.to_thread(get_all_buckets_stats)
     except (ClientError, BotoCoreError) as e:
+        # 502 e não 200-com-zeros: o consumidor precisa distinguir
+        # "storage vazio" de "não consegui perguntar".
         logger.exception('Falha ao listar buckets do storage')
         raise HTTPException(
             status_code=HTTPStatus.BAD_GATEWAY,

@@ -1,7 +1,8 @@
 """Gating de sistema do escopo Admin (trava de regressão).
 
 Soldos e Diárias são control-plane de sistema: o grupo `/admin` aplica
-`require_system_admin` uma única vez. Só o admin de SISTEMA (contexto
+`require_system_admin` uma única vez. O router `/storage` (uso de todos os
+buckets do sistema) aplica o mesmo gate por conta própria. Só o admin de SISTEMA (contexto
 Sistema, active_org NULL — a fixture `token_sistema`) acessa; qualquer outro
 contexto responde 403 SCOPE_FORBIDDEN.
 
@@ -23,6 +24,9 @@ GATED = [
     ('DELETE', '/admin/soldos/99999'),
     ('GET', '/admin/diarias/valores/'),
     ('DELETE', '/admin/diarias/valores/99999'),
+    # Storage vive fora do prefixo /admin, mas lista buckets de todo o
+    # sistema: mesmo gate.
+    ('GET', '/storage/all'),
 ]
 
 

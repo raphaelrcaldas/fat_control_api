@@ -152,36 +152,6 @@ def delete_file(bucket: str, path: str) -> None:
     client.delete_object(Bucket=bucket, Key=path)
 
 
-def get_bucket_stats(bucket: str, prefix: str | None = None) -> dict:
-    """Estatísticas de uso de um bucket.
-
-    Informe `prefix` para escopar a contagem a um subconjunto de objetos
-    (ex.: um tipo de arquivo dentro do bucket do domínio). Sem `prefix`,
-    contabiliza o bucket inteiro.
-    """
-    client = _get_client()
-    total_size = 0
-    total_objects = 0
-
-    paginate_kwargs: dict = {'Bucket': bucket}
-    if prefix:
-        paginate_kwargs['Prefix'] = prefix
-
-    # Erro NÃO é engolido: devolver zeros aqui faz o storage fora do ar
-    # ficar idêntico a um bucket vazio, e quem consome não tem como
-    # distinguir. O router traduz a falha em 502.
-    paginator = client.get_paginator('list_objects_v2')
-    for page in paginator.paginate(**paginate_kwargs):
-        for obj in page.get('Contents', []):
-            total_size += obj.get('Size', 0)
-            total_objects += 1
-
-    return {
-        'total_size': total_size,
-        'total_objects': total_objects,
-    }
-
-
 def get_all_buckets_stats() -> dict:
     client = _get_client()
     total_size = 0
