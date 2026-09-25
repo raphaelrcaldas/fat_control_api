@@ -2,7 +2,8 @@
 Testes para validacoes dos schemas de etapa.
 
 Testa a validacao de posicoes de piloto duplicadas (1P, 2P, IN, AL)
-nos schemas EtapaCreate, EtapaCreateNested, EtapaUpdateNested e EtapaUpdate.
+nos schemas EtapaCreate, EtapaCreateNested, EtapaUpdateNested e EtapaUpdate,
+e as regras dos especificos (REVO e Heavy/CDS).
 """
 
 from datetime import date, time
@@ -15,6 +16,8 @@ from fcontrol_api.schemas.estatistica.etapa import (
     EtapaCreateNested,
     EtapaUpdate,
     EtapaUpdateNested,
+    HeavyCdsEtapaIn,
+    RevoEtapaIn,
     TripEtapaIn,
 )
 
@@ -151,3 +154,38 @@ def test_outras_funcoes_nao_sao_validadas():
         TripEtapaIn(trip_id=2, func='mc', func_bordo='MC'),
     ]
     EtapaCreate(missao_id=1, tripulantes=trips, **_BASE_ETAPA)
+
+
+# ---------------------------------------------------------------------------
+# Especificos: REVO e Heavy/CDS
+# ---------------------------------------------------------------------------
+
+
+def test_revo_comb_transf_zero_rejeita():
+    with pytest.raises(ValidationError):
+        RevoEtapaIn(comb_transf=0)
+
+
+def test_revo_comb_transf_positivo_aceita():
+    RevoEtapaIn(comb_transf=1)
+
+
+def test_heavy_cds_em_branco_aceita():
+    HeavyCdsEtapaIn(tipo='cds', peso=0, dist=0, radial=0)
+
+
+@pytest.mark.parametrize(('dist', 'radial'), [(100, 0), (0, 90)])
+def test_heavy_cds_em_branco_com_ponto_de_impacto_rejeita(dist, radial):
+    with pytest.raises(ValidationError) as exc_info:
+        HeavyCdsEtapaIn(tipo='heavy', peso=0, dist=dist, radial=radial)
+    assert 'deve ter dist e radial 0' in str(exc_info.value)
+
+
+def test_heavy_cds_com_carga_sem_distancia_rejeita():
+    with pytest.raises(ValidationError) as exc_info:
+        HeavyCdsEtapaIn(tipo='heavy', peso=500, dist=0, radial=90)
+    assert 'distância de no mínimo 1 m' in str(exc_info.value)
+
+
+def test_heavy_cds_com_carga_radial_zero_aceita():
+    HeavyCdsEtapaIn(tipo='heavy', peso=500, dist=150, radial=0)

@@ -280,7 +280,7 @@ class PqdEtapaIn(BaseModel):
 class RevoEtapaIn(BaseModel):
     """Reabastecimento aereo a vincular em uma etapa."""
 
-    comb_transf: int = Field(ge=0, le=32767)
+    comb_transf: int = Field(ge=1, le=32767)
 
 
 class HeavyCdsEtapaIn(BaseModel):
@@ -297,6 +297,17 @@ class HeavyCdsEtapaIn(BaseModel):
     peso: int = Field(ge=0, le=32767)
     dist: int = Field(ge=0, le=32767)
     radial: int = Field(ge=0, lt=360)
+
+    @model_validator(mode='after')
+    def validate_ponto_impacto(self) -> Self:
+        """Em branco nao tem ponto de impacto; com largada, dist >= 1."""
+        if self.peso == 0 and (self.dist != 0 or self.radial != 0):
+            msg = 'Lançamento em branco (peso 0) deve ter dist e radial 0.'
+            raise ValueError(msg)
+        if self.peso > 0 and self.dist < 1:
+            msg = 'Lançamento com carga deve ter distância de no mínimo 1 m.'
+            raise ValueError(msg)
+        return self
 
 
 class EtapaCreate(EtapaBase):
