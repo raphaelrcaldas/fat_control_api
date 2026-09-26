@@ -67,17 +67,13 @@ async def list_sebo(
         0,
     ).label('h_ano')
 
-    dsv = (
-        sql_func.current_date()
-        - sql_func.max(Etapa.data).filter((Etapa.data <= dec31) & nao_sim)
-    ).label('dsv')
-
-    data_ult_voo = (
-        sql_func
-        .max(Etapa.data)
-        .filter((Etapa.data <= dec31) & nao_sim)
-        .label('data_ult_voo')
-    )
+    # DSV é estado atual, como a validade dos cartões: conta até hoje e
+    # ignora o `ano`. Limitado a 31/12 do ano filtrado, um ano anterior
+    # mostrava centenas de dias para quem voou ontem.
+    hoje = sql_func.current_date()
+    ult_voo = sql_func.max(Etapa.data).filter((Etapa.data <= hoje) & nao_sim)
+    dsv = (hoje - ult_voo).label('dsv')
+    data_ult_voo = ult_voo.label('data_ult_voo')
 
     query = (
         select(
