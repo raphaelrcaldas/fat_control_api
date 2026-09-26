@@ -10,7 +10,6 @@ from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
 from fcontrol_api.models.estatistica.etapa import (
     Etapa,
     HeavyCDS,
@@ -98,7 +97,7 @@ async def list_etapas(
     origem: Annotated[str | None, Query(max_length=4)] = None,
     destino: Annotated[str | None, Query(max_length=4)] = None,
     anv: Annotated[list[str] | None, Query()] = None,
-    esf_aer: Annotated[str | None, Query()] = None,
+    esf_aer_id: Annotated[int | None, Query(gt=0, le=32_767)] = None,
     reg: Annotated[str | None, Query(pattern='^[dnv]$')] = None,
     tipo_missao_cod: Annotated[list[str] | None, Query()] = None,
     trip_search: Annotated[str | None, Query()] = None,
@@ -113,7 +112,21 @@ async def list_etapas(
     casa com o codigo informado. Quando combinado com
     `trip_search`, ambas as condicoes precisam ser satisfeitas
     pelo MESMO TripEtapa (AND na mesma linha do JOIN).
+
+    `esf_aer_id` casa por id exato (o front envia o id escolhido num
+    select fechado) — nao usar substring, pois `descricao` e coluna
+    computada e a descricao sem subprograma e prefixo textual das que
+    tem subprograma. `esf_aer_id`, `reg` e `tipo_missao_cod` casam na
+    MESMA OI (um unico JOIN), nao em OIs diferentes da etapa.
+
+    `data_ini` posterior a `data_fim` retorna 422.
     """
+    if data_ini and data_fim and data_ini > data_fim:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail='A data inicial não pode ser posterior à data final',
+        )
+
     # Passo 1: subquery de etapa_ids validos, escopada pela org ativa
     # via missao-pai.
     etapa_filter = (
@@ -140,15 +153,11 @@ async def list_etapas(
     if anv:
         etapa_filter = etapa_filter.where(Etapa.anv.in_(anv))
 
-    needs_oi_join = any([esf_aer, reg, tipo_missao_cod])
+    needs_oi_join = any([esf_aer_id, reg, tipo_missao_cod])
     if needs_oi_join:
         etapa_filter = etapa_filter.join(OIEtapa, OIEtapa.etapa_id == Etapa.id)
-        if esf_aer:
-            safe_esf = like_safe(esf_aer)
-            etapa_filter = etapa_filter.join(
-                EsforcoAereo,
-                EsforcoAereo.id == OIEtapa.esf_aer_id,
-            ).where(EsforcoAereo.descricao.ilike(f'%{safe_esf}%', escape='\\'))
+        if esf_aer_id:
+            etapa_filter = etapa_filter.where(OIEtapa.esf_aer_id == esf_aer_id)
         if reg:
             etapa_filter = etapa_filter.where(OIEtapa.reg == reg)
         if tipo_missao_cod:
