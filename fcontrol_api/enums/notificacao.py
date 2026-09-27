@@ -40,3 +40,8 @@ class NotifTipo(StrEnum):
     INDISP_CRIADA = 'indisp.criada'
     INDISP_ALTERADA = 'indisp.alterada'
     INDISP_REMOVIDA = 'indisp.removida'
+    # Conversa de feedback. `feedback.mensagem` avisa o AUTOR (no app de
+    # origem); as outras duas avisam os admins de sistema, sempre no client.
+    FEEDBACK_MENSAGEM = 'feedback.mensagem'
+    FEEDBACK_RECEBIDO = 'feedback.recebido'
+    FEEDBACK_MENSAGEM_AUTOR = 'feedback.mensagem_autor'
