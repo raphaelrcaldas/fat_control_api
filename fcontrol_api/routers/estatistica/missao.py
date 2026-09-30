@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.estatistica.etapa import Etapa, Missao
+from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
     EtapaCreateNested,
     EtapaDetailOut,
@@ -22,7 +23,12 @@ from fcontrol_api.schemas.estatistica.etapa import (
     MissaoUpdate,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    ensure_org_permission_or_owner,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.services.etapas import (
     add_filhos_etapa,
     assert_anv_simulador_consistency,
@@ -42,6 +48,7 @@ from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 MissaoId = Annotated[int, Path()]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/missao', tags=['estatistica'])
 
@@ -300,6 +307,7 @@ async def update_missao_with_etapas(
     payload: MissaoComEtapasUpdate,
     session: Session,
     active_org: ActiveOrg,
+    current_user: CurrentUser,
 ) -> ApiResponse[MissaoComEtapasDetailOut]:
     """Atualiza missao + etapas atomicamente.
 
@@ -314,6 +322,27 @@ async def update_missao_with_etapas(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Missão não encontrada',
+        )
+
+    # O gate de rota exige so `update`, mas o payload tambem cria e exclui
+    # etapas: sem checar aqui, quem so edita contornaria `create`/`delete`.
+    if payload.create:
+        await ensure_org_permission_or_owner(
+            current_user,
+            session,
+            active_org,
+            'estatistica.etapas',
+            'create',
+            owner_id=None,
+        )
+    if payload.delete_ids:
+        await ensure_org_permission_or_owner(
+            current_user,
+            session,
+            active_org,
+            'estatistica.etapas',
+            'delete',
+            owner_id=None,
         )
 
     # 1. Ownership: ids referenciados em delete_ids/update pertencem

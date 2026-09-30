@@ -31,6 +31,13 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
+from fcontrol_api.models.security.resources import (
+    Permissions,
+    Resources,
+    RolePermissions,
+    Roles,
+    UserRole,
+)
 from fcontrol_api.models.shared.aeronaves import Aeronave
 from tests.factories import TripFactory, UserFactory
 
@@ -455,3 +462,152 @@ async def test_delete_missao_com_etapas_remove_missao_e_filhos(
     assert await session.get(Etapa, etapa_id) is None
     assert await _contar(session, OIEtapa, etapa_id) == 0
     assert await _contar(session, TripEtapa, etapa_id) == 0
+
+
+# ── RBAC: o payload tambem cria/exclui, nao so atualiza ────────────
+
+
+@pytest.fixture
+async def editor_token(users, session, make_org_token):
+    """Token nao-admin da '11gt' com `estatistica.etapas.update` apenas.
+
+    `create` e `delete` existem como permissoes, mas nao sao concedidas.
+    """
+    user, _ = users
+    recurso = Resources(name='estatistica.etapas', description='Etapas')
+    session.add(recurso)
+    await session.flush()
+    perms = {
+        nome: Permissions(resource_id=recurso.id, name=nome, description=nome)
+        for nome in ('view', 'create', 'update', 'delete')
+    }
+    session.add_all(perms.values())
+    role = Roles(name='etapas_editor', description='So edita etapas')
+    session.add(role)
+    await session.flush()
+    session.add_all([
+        RolePermissions(role_id=role.id, permission_id=perms[nome].id)
+        for nome in ('view', 'update')
+    ])
+    session.add(
+        UserRole(user_id=user.id, role_id=role.id, organizacao_id='11gt')
+    )
+    await session.commit()
+    return await make_org_token(user)
+
+
+async def test_put_create_exige_permissao_create(
+    client, session, editor_token, anvs, trips
+):
+    """So `update` + create no payload: 403 e nada e gravado."""
+    t1, _ = trips
+    missao = await _mk_missao(session)
+    await session.commit()
+    missao_id = missao.id
+
+    resp = await client.put(
+        f'{MISSAO_URL}{missao_id}/with-etapas',
+        json={
+            'titulo': 'Nao deve gravar',
+            'obs': None,
+            'delete_ids': [],
+            'update': [],
+            'create': [_pl_etapa('2860', '10:00:00', '11:00:00', trips=[t1])],
+        },
+        headers=_auth(editor_token),
+    )
+
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+    assert (
+        resp.json()['message'] == 'Permissão negada: estatistica.etapas.create'
+    )
+    session.expire_all()
+    assert (
+        await session.scalar(
+            select(func.count())
+            .select_from(Etapa)
+            .where(Etapa.missao_id == missao_id)
+        )
+        == 0
+    )
+    assert (await session.get(Missao, missao_id)).titulo is None
+
+
+async def test_put_delete_exige_permissao_delete(
+    client, session, editor_token, anvs, trips
+):
+    """So `update` + delete_ids no payload: 403 e a etapa permanece."""
+    t1, _ = trips
+    missao = await _mk_missao(session)
+    alvo = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2860',
+        dep=time(10, 0),
+        arr=time(11, 0),
+        trip_ids=[t1],
+    )
+    await session.commit()
+    alvo_id = alvo.id
+
+    resp = await client.put(
+        f'{MISSAO_URL}{missao.id}/with-etapas',
+        json={
+            'titulo': None,
+            'obs': None,
+            'delete_ids': [alvo_id],
+            'update': [],
+            'create': [],
+        },
+        headers=_auth(editor_token),
+    )
+
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+    assert (
+        resp.json()['message'] == 'Permissão negada: estatistica.etapas.delete'
+    )
+    session.expire_all()
+    assert await session.get(Etapa, alvo_id) is not None
+    assert await _contar(session, TripEtapa, alvo_id) == 1
+
+
+async def test_put_somente_update_com_permissao_update_ok(
+    client, session, editor_token, anvs, trips
+):
+    """Quem so tem `update` segue editando etapa existente (200)."""
+    t1, t2 = trips
+    missao = await _mk_missao(session)
+    etapa = await _mk_etapa(
+        session,
+        missao.id,
+        anv='2860',
+        dep=time(10, 0),
+        arr=time(11, 0),
+        trip_ids=[t1],
+    )
+    await session.commit()
+    etapa_id = etapa.id
+
+    resp = await client.put(
+        f'{MISSAO_URL}{missao.id}/with-etapas',
+        json={
+            'titulo': None,
+            'obs': None,
+            'delete_ids': [],
+            'update': [
+                {
+                    'id': etapa_id,
+                    **_pl_etapa('2860', '10:00:00', '11:00:00', trips=[t2]),
+                }
+            ],
+            'create': [],
+        },
+        headers=_auth(editor_token),
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    session.expire_all()
+    trip_etapa = await session.scalar(
+        select(TripEtapa).where(TripEtapa.etapa_id == etapa_id)
+    )
+    assert trip_etapa.trip_id == t2

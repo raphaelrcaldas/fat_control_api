@@ -753,6 +753,7 @@ async def test_delete_ultima_etapa_apaga_a_missao(
     resp = await client.delete(f'{ETAPAS_URL}{etapa.id}', headers=_auth(token))
 
     assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['data'] == {'missao_removida': True}
     session.expire_all()
     assert await session.get(Missao, missao_id) is None
 
@@ -786,6 +787,7 @@ async def test_delete_etapa_preserva_missao_com_outras(
     )
 
     assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['data'] == {'missao_removida': False}
     session.expire_all()
     assert await session.get(Missao, missao_id) is not None
 

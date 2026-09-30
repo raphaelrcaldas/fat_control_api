@@ -146,6 +146,9 @@ class MissaoPendenteOut(BaseModel):
     primeira_data: date
     ultima_data: date
     total: int
+    # Trigramas da dupla, por antiguidade; preenchido so quando
+    # `is_simulador=true` (rotulo do chip, pois o titulo e sempre igual).
+    trigramas: list[str] = Field(default_factory=list)
 
 
 class EtapasPendentesOut(BaseModel):
@@ -525,6 +528,12 @@ class EtapaPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+
+class EtapaDeleteOut(BaseModel):
+    """Resposta da exclusao: informa se a missao foi removida junto."""
+
+    missao_removida: bool
 
 
 class MissaoCreate(BaseModel):

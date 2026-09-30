@@ -20,11 +20,13 @@ from fcontrol_api.models.estatistica.etapa import (
     TipoMissao,
     TripEtapa,
 )
+from fcontrol_api.models.shared.posto_grad import PostoGrad
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.etapa import (
     EtapaBulkUpdate,
     EtapaCreate,
+    EtapaDeleteOut,
     EtapaDetailOut,
     EtapaOut,
     EtapaPublic,
@@ -277,6 +279,7 @@ async def list_etapas_pendentes(
     session: Session,
     active_org: ActiveOrg,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    is_simulador: bool = False,
 ) -> ApiResponse[EtapasPendentesOut]:
     """Etapas sem SAGEM e/ou sem Parte 1, agrupadas por missao.
 
@@ -285,8 +288,8 @@ async def list_etapas_pendentes(
     ficou fora da janela do filtro da tela. Precisa vir declarada antes de
     `/{id}`, senao o path casa com a rota de detalhe e reprova em 422.
 
-    Missao de simulador fica de fora: nao vira relatorio de voo, entao nao
-    tem SAGEM nem Parte 1 a cobrar.
+    Por padrao consulta voos; `is_simulador=true` consulta exclusivamente
+    sessoes de simulador, que tambem possuem verificacao de SAGEM e ficha.
 
     `primeira_data`/`ultima_data` sao o intervalo das etapas **pendentes**
     da missao (nao de todas), o que deixa a tela decidir sozinha se a
@@ -295,6 +298,11 @@ async def list_etapas_pendentes(
     Uma unica query: o `array_agg` ordenado entrega a etapa pendente mais
     antiga de cada missao junto com a agregacao. `limit` corta so a lista
     detalhada — os totais continuam globais.
+
+    Com `is_simulador=true` ha uma segunda query (so para as missoes
+    devolvidas) que preenche `trigramas` com a dupla de cada missao,
+    ordenada por antiguidade e considerando TODAS as etapas da missao,
+    nao apenas as pendentes. Em voos o campo vai vazio e a query nao roda.
     """
     pendente = Etapa.sagem.is_(False) | Etapa.parte1.is_(False)
 
@@ -318,7 +326,7 @@ async def list_etapas_pendentes(
             .join(Missao, Missao.id == Etapa.missao_id)
             .where(
                 Missao.uae == active_org,
-                Missao.is_simulador.is_(False),
+                Missao.is_simulador.is_(is_simulador),
                 pendente,
             )
             .group_by(Etapa.missao_id, Missao.titulo)
@@ -326,6 +334,38 @@ async def list_etapas_pendentes(
             .order_by(sql_func.min(Etapa.data), Etapa.missao_id)
         )
     ).all()
+
+    recortadas = grupos[:limit]
+    trigramas_por_missao: dict[int, list[str]] = {}
+    if is_simulador and recortadas:
+        trig_rows = await session.execute(
+            select(Etapa.missao_id, Tripulante.trig)
+            .select_from(TripEtapa)
+            .join(Etapa, Etapa.id == TripEtapa.etapa_id)
+            .join(Missao, Missao.id == Etapa.missao_id)
+            .join(Tripulante, Tripulante.id == TripEtapa.trip_id)
+            .join(User, User.id == Tripulante.user_id)
+            .join(PostoGrad, PostoGrad.short == User.p_g)
+            .where(
+                Missao.uae == active_org,
+                Etapa.missao_id.in_([g.missao_id for g in recortadas]),
+            )
+            # Espelha o client (`compareByAntiguidade` + desempate por
+            # trip_id em simulador/helpers/sessoes.ts): posto, `ult_promo`
+            # nulo PRIMEIRO (o client o trata como ""), `ant_rel` nulo
+            # como 0 e, por fim, `Tripulante.id` (= `TripEtapa.trip_id`).
+            .order_by(
+                PostoGrad.ant.asc(),
+                User.ult_promo.asc().nulls_first(),
+                sql_func.coalesce(User.ant_rel, 0).asc(),
+                Tripulante.id.asc(),
+            )
+        )
+        for missao_id, trig in trig_rows.all():
+            trigs = trigramas_por_missao.setdefault(missao_id, [])
+            # Substituicao de piloto pode gerar mais de dois; sem repetir.
+            if trig not in trigs:
+                trigs.append(trig)
 
     return success_response(
         data=EtapasPendentesOut(
@@ -339,8 +379,9 @@ async def list_etapas_pendentes(
                     primeira_data=g.primeira_data,
                     ultima_data=g.ultima_data,
                     total=g.total,
+                    trigramas=trigramas_por_missao.get(g.missao_id, []),
                 )
-                for g in grupos[:limit]
+                for g in recortadas
             ],
         )
     )
@@ -765,12 +806,12 @@ async def update_etapa(
 @router.delete(
     '/{id}',
     status_code=HTTPStatus.OK,
-    response_model=ApiResponse[None],
+    response_model=ApiResponse[EtapaDeleteOut],
     dependencies=[DeleteEtapa],
 )
 async def delete_etapa(
     id: EtapaId, session: Session, active_org: ActiveOrg
-) -> ApiResponse[None]:
+) -> ApiResponse[EtapaDeleteOut]:
     """Remove uma etapa e seus dados vinculados.
 
     Era a ultima etapa da missao? A missao vai junto. `list_etapas`
@@ -816,6 +857,7 @@ async def delete_etapa(
 
     await session.commit()
     return success_response(
+        data=EtapaDeleteOut(missao_removida=orfa),
         message=(
             'Etapa e missão excluídas com sucesso'
             if orfa
