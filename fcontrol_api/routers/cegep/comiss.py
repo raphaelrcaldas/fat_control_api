@@ -1,8 +1,8 @@
 import json
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Boolean, and_, cast, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -21,13 +21,18 @@ from fcontrol_api.schemas.cegep.comiss import (
     ComissFechamento,
     ComissLogOut,
     ComissMissaoPreview,
+    ComissOrderBy,
     ComissPublic,
     ComissSchema,
     ComissSummaryResponse,
     ComissSummaryTotal,
 )
 from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
-from fcontrol_api.schemas.response import ApiResponse, ResponseStatus
+from fcontrol_api.schemas.response import (
+    ApiPaginatedResponse,
+    ApiResponse,
+    ResponseStatus,
+)
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.security import (
     ActiveOrg,
@@ -41,10 +46,11 @@ from fcontrol_api.services.comis import (
     validar_fechamento_comiss,
     verificar_conflito_comiss,
 )
+from fcontrol_api.services.comiss_listagem import ordenar_comiss
 from fcontrol_api.services.custos import custo_missao
 from fcontrol_api.services.logs import log_user_action, missao_snapshot
 from fcontrol_api.services.missao import verificar_integridade_missao
-from fcontrol_api.utils.responses import success_response
+from fcontrol_api.utils.responses import paginated_response, success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -75,7 +81,8 @@ def _comiss_to_dict(c: Comissionamento) -> dict:
 
 @router.get(
     '/',
-    response_model=ApiResponse[list[ComissPublic]],
+    response_model=ApiResponse[list[ComissPublic]]
+    | ApiPaginatedResponse[ComissPublic],
 )
 async def get_cmtos(
     session: Session,
@@ -87,6 +94,10 @@ async def get_cmtos(
     pg: str | None = None,
     tipo: str | None = None,
     modulo: str | None = None,
+    order_by: ComissOrderBy | None = None,
+    direction: Literal['asc', 'desc'] = 'asc',
+    page: Annotated[int | None, Query(ge=1, le=10_000)] = None,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
     """
     Lista comissionamentos com valores pré-calculados do cache.
@@ -96,6 +107,9 @@ async def get_cmtos(
     - pg: postos/graduações separados por vírgula (ex: "cp,1t,2t")
     - tipo: "periodo" ou "comparativo"
     - modulo: "sim" ou "nao"
+    - order_by/direction: ordenação global; ID desempata os critérios.
+    - page/per_page: paginação somente para status fechado. Sem page,
+      a lista permanece completa para os consumidores do portal.
     """
     # Self-service: o tripulante lista os PRÓPRIOS comissionamentos
     # (user_id == ele) sem `comiss.view` — usado pelo portal FatBird.
@@ -109,7 +123,6 @@ async def get_cmtos(
         select(Comissionamento)
         .join(User)
         .where(Comissionamento.uae == active_org)
-        .order_by(Comissionamento.data_ab.desc())
     )
 
     if user_id:
@@ -117,8 +130,6 @@ async def get_cmtos(
 
     if status:
         query = query.where(Comissionamento.status == status)
-        if status == 'fechado':
-            query = query.limit(20)
 
     if search:
         query = query.where(
@@ -153,6 +164,17 @@ async def get_cmtos(
             ).is_not(True)
         )
 
+    paginado = status == 'fechado' and page is not None
+    total = 0
+    if paginado:
+        total = await session.scalar(
+            select(func.count()).select_from(query.subquery())
+        )
+
+    query = ordenar_comiss(query, order_by, direction)
+    if paginado:
+        query = query.offset((page - 1) * per_page).limit(per_page)
+
     result = await session.scalars(query)
     comiss_list = result.all()
 
@@ -185,6 +207,8 @@ async def get_cmtos(
             )
         )
 
+    if paginado:
+        return paginated_response(response, total, page, per_page)
     return success_response(data=response)
 
 

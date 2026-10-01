@@ -97,12 +97,14 @@ async def test_list_comiss_filter_by_status(client, session, token, users):
     assert resp['data'][0]['status'] == 'aberto'
 
 
-async def test_list_comiss_fechado_limit_20(client, session, token, users):
-    """Testa que status='fechado' limita a 20 resultados."""
+async def test_list_comiss_fechado_sem_pagina_completo(
+    client, session, token, users
+):
+    """Consumidores sem paginação continuam recebendo a lista completa."""
     user, other_user = users
     today = date.today()
 
-    # Cria 25 comissionamentos fechados (mais que o limite de 20)
+    # Cria 25 comissionamentos fechados (mais que uma página de 20)
     comiss_list = []
     for i in range(25):
         comiss = ComissFactory(
@@ -116,7 +118,7 @@ async def test_list_comiss_fechado_limit_20(client, session, token, users):
     session.add_all(comiss_list)
     await session.commit()
 
-    # Filtra fechados - deve retornar no maximo 20
+    # Sem página explícita, não pode haver corte silencioso do histórico.
     response = await client.get(
         '/cegep/comiss/?status=fechado',
         headers={'Authorization': f'Bearer {token}'},
@@ -124,7 +126,7 @@ async def test_list_comiss_fechado_limit_20(client, session, token, users):
 
     assert response.status_code == HTTPStatus.OK
     resp = response.json()
-    assert len(resp['data']) == 20  # Limite de 20 para status fechado
+    assert len(resp['data']) == 25
 
 
 async def test_list_comiss_filter_by_search(client, session, token, users):

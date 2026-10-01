@@ -7,6 +7,18 @@ from fcontrol_api.schemas.cegep.missoes import FragMisEmbed, FragMisSchema
 from fcontrol_api.schemas.users import UserPublic
 from fcontrol_api.utils.sanitize import TextoLivre
 
+ComissOrderBy = Literal[
+    'militar',
+    'data_ab',
+    'data_fc',
+    'tipo',
+    'completude',
+    'modulo',
+    'previsto',
+    'computado',
+    'restante',
+]
+
 
 class ComissSchema(BaseModel):
     id: Optional[int] = None
