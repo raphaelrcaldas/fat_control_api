@@ -1,4 +1,20 @@
-from pydantic import BaseModel, field_validator
+from typing import Annotated, Self
+
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
+
+NomeImportacao = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
+]
+TextoImportacao = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=200)
+]
 
 
 class EsfAerItem(BaseModel):
@@ -11,6 +27,7 @@ class EsfAerItem(BaseModel):
 class EsfAerResumoItem(BaseModel):
     id: int
     descricao: str
+    grupo: str
     alocado: int
     voado: int
     saldo: int
@@ -21,13 +38,13 @@ class EsfAerResumoItem(BaseModel):
 class EsfAerUpdateItem(BaseModel):
     """Item de importacao de Esforco Aereo."""
 
-    tipo: str
-    modelo: str
-    grupo: str
-    programa: str
-    subprograma: str
-    aplicacao: str
-    horas_alocadas: int
+    tipo: NomeImportacao
+    modelo: NomeImportacao
+    grupo: NomeImportacao
+    programa: NomeImportacao
+    subprograma: TextoImportacao
+    aplicacao: TextoImportacao
+    horas_alocadas: int = Field(ge=0, multiple_of=5, le=2_147_483_647)
     meses_sagem: list[int] = [0] * 12
 
     @field_validator('meses_sagem')
@@ -39,6 +56,9 @@ class EsfAerUpdateItem(BaseModel):
         if any(m < 0 for m in v):
             msg = 'valores mensais devem ser >= 0'
             raise ValueError(msg)
+        if any(m > 32767 for m in v):
+            msg = 'valores mensais devem ser <= 32767'
+            raise ValueError(msg)
         if any(m % 5 != 0 for m in v):
             msg = 'valores mensais devem ser multiplos de 5'
             raise ValueError(msg)
@@ -48,8 +68,30 @@ class EsfAerUpdateItem(BaseModel):
 class EsfAerUpdateRequest(BaseModel):
     """Payload de importacao em lote de Esforco Aereo."""
 
-    ano_ref: int
-    items: list[EsfAerUpdateItem]
+    ano_ref: int = Field(ge=2020, le=9999)
+    items: list[EsfAerUpdateItem] = Field(min_length=1, max_length=500)
+
+    @model_validator(mode='after')
+    def validate_itens_unicos(self) -> Self:
+        posicoes: dict[tuple[str, ...], int] = {}
+        repetidas: list[str] = []
+        for posicao, item in enumerate(self.items, start=1):
+            chave = (
+                item.tipo,
+                item.modelo,
+                item.grupo,
+                item.programa,
+                item.subprograma,
+                item.aplicacao,
+            )
+            if chave in posicoes:
+                repetidas.append(f'{posicoes[chave]} e {posicao}')
+            else:
+                posicoes[chave] = posicao
+        if repetidas:
+            msg = 'Itens duplicados nas posições: ' + '; '.join(repetidas)
+            raise ValueError(msg)
+        return self
 
 
 class EsfAerDiffRow(BaseModel):

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from http import HTTPStatus
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, extract, func, or_, select
@@ -30,8 +31,9 @@ from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
-AnoRef = Annotated[int, Query(ge=2020)]
+AnoRef = Annotated[int, Query(ge=2020, le=9999)]
 Simulador = Annotated[bool, Query()]
+FUSO_LOCAL = ZoneInfo('America/Sao_Paulo')
 
 router = APIRouter(prefix='/esfaer', tags=['estatistica'])
 
@@ -123,6 +125,7 @@ async def get_esf_aer_resumo(
         select(
             EsforcoAereo.id,
             EsforcoAereo.descricao,
+            EsforcoAereo.grupo,
             func.coalesce(EsfAerAloc.alocado, 0).label('alocado'),
             func.coalesce(func.sum(oi_sub.c.tvoo), 0).label('voado'),
             *voado_cols,
@@ -148,6 +151,7 @@ async def get_esf_aer_resumo(
         .group_by(
             EsforcoAereo.id,
             EsforcoAereo.descricao,
+            EsforcoAereo.grupo,
             EsfAerAloc.alocado,
             *[getattr(EsfAerAloc, f'm{i}') for i in range(1, 13)],
         )
@@ -180,6 +184,7 @@ async def get_esf_aer_resumo(
             EsfAerResumoItem(
                 id=row.id,
                 descricao=row.descricao,
+                grupo=row.grupo,
                 alocado=alocado,
                 voado=voado,
                 saldo=alocado - voado,
@@ -227,13 +232,19 @@ def _timeline_points(
 
     points: dict[str, int] = {}
     inicio_ano = f'{ano_ref}-01-01'
-    if hists[0].aloc_hist > 0 and (
-        hists[0].timestamp.date().isoformat() > inicio_ano
-    ):
+    datas_locais = [
+        hist.timestamp
+        .replace(tzinfo=timezone.utc)
+        .astimezone(FUSO_LOCAL)
+        .date()
+        .isoformat()
+        for hist in hists
+    ]
+    if hists[0].aloc_hist > 0 and datas_locais[0] > inicio_ano:
         points[inicio_ano] = hists[0].aloc_hist
-    for i, hist in enumerate(hists):
+    for i, data_local in enumerate(datas_locais):
         novo = hists[i + 1].aloc_hist if i + 1 < len(hists) else alocado
-        points[hist.timestamp.date().isoformat()] = novo
+        points[data_local] = novo
     return sorted(points.items())
 
 
@@ -443,6 +454,7 @@ async def update_esf_aer(
 
     # 3. Processar cada item do payload
     diff_rows: list[EsfAerDiffRow] = []
+    historico_pendente: list[tuple[EsfAerAloc, int | None, int | None]] = []
     import_ids: set[int] = set()
 
     for item in payload.items:
@@ -482,6 +494,7 @@ async def update_esf_aer(
             session.add(nova_aloc)
             aloc_map[novo.id] = nova_aloc
             import_ids.add(novo.id)
+            historico_pendente.append((nova_aloc, None, item.horas_alocadas))
             diff_rows.append(
                 EsfAerDiffRow(
                     descricao=novo.descricao,
@@ -493,26 +506,26 @@ async def update_esf_aer(
 
         esf = db_map[key]
         import_ids.add(esf.id)
-        antes = aloc_map[esf.id].alocado if esf.id in aloc_map else 0
+        antes = aloc_map[esf.id].alocado if esf.id in aloc_map else None
 
         # 3b. Alocacao existente para este ano?
         if esf.id in aloc_map:
             aloc = aloc_map[esf.id]
-            if aloc.alocado != item.horas_alocadas:
-                aloc.alocado = item.horas_alocadas
+            aloc.alocado = item.horas_alocadas
             for i in range(12):
                 setattr(aloc, f'm{i + 1}', item.meses_sagem[i])
         else:
-            nova_aloc = EsfAerAloc(
+            aloc = EsfAerAloc(
                 esfaer_id=esf.id,
                 ano_ref=ano_ref,
                 uae=active_org,
                 alocado=item.horas_alocadas,
                 **meses_kw,
             )
-            session.add(nova_aloc)
-            aloc_map[esf.id] = nova_aloc
+            session.add(aloc)
+            aloc_map[esf.id] = aloc
 
+        historico_pendente.append((aloc, antes, item.horas_alocadas))
         diff_rows.append(
             EsfAerDiffRow(
                 descricao=esf.descricao,
@@ -526,6 +539,7 @@ async def update_esf_aer(
 
     for esfaer_id, aloc in aloc_map.items():
         if esfaer_id not in import_ids:
+            historico_pendente.append((aloc, aloc.alocado, None))
             if aloc.alocado != 0:
                 esf = id_to_esf.get(esfaer_id)
                 descricao = esf.descricao if esf else f'ID {esfaer_id}'
@@ -537,58 +551,39 @@ async def update_esf_aer(
                     )
                 )
             removed_ids.append(aloc.id)
-
-    if removed_ids:
-        removed_set = set(removed_ids)
-        for aloc in aloc_map.values():
-            if aloc.id in removed_set:
-                aloc.alocado = 0
-                for i in range(1, 13):
-                    setattr(aloc, f'm{i}', 0)
+            aloc.alocado = 0
+            for i in range(1, 13):
+                setattr(aloc, f'm{i}', 0)
 
     # 5. Registrar historico para alocacoes que mudaram
     await session.flush()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    desc_to_esfaer: dict[str, int] = {
-        e.descricao: e.id
-        for e in list(id_to_esf.values()) + list(db_map.values())
-    }
-    for row in diff_rows:
+    for aloc, antes, depois in historico_pendente:
         # None (criacao) e 0 sao o mesmo "nada alocado": normaliza antes de
         # comparar. Sem isso, criar/reimportar um programa em 0 grava um
         # registro espurio "0 -> 0" (None == 0 e False).
-        if (row.antes or 0) == (row.depois or 0):
-            continue
-        esfaer_id = desc_to_esfaer.get(row.descricao)
-        if esfaer_id is None:
-            continue
-        aloc = aloc_map.get(esfaer_id)
-        if aloc is None:
+        if (antes or 0) == (depois or 0):
             continue
         session.add(
             EsfAerAlocHist(
                 esf_aer_aloc_id=aloc.id,
-                aloc_hist=row.antes or 0,
+                aloc_hist=antes or 0,
                 timestamp=now,
             )
         )
 
     await session.commit()
 
-    changed = [r for r in diff_rows if r.antes != r.depois]
+    changed = [r for r in diff_rows if (r.antes or 0) != (r.depois or 0)]
     changed.sort(key=lambda r: r.descricao)
 
     # Total depois (todas as alocacoes vigentes, sem simulador)
-    all_esf: dict[int, EsforcoAereo] = {**id_to_esf}
-    for v in db_map.values():
-        all_esf[v.id] = v
-
     removed_set = set(removed_ids)
     total_depois = 0
     for eid, aloc in aloc_map.items():
         if aloc.id in removed_set:
             continue
-        esf = all_esf.get(eid)
+        esf = id_to_esf.get(eid)
         if esf and 'SML' in esf.descricao:
             continue
         total_depois += aloc.alocado
