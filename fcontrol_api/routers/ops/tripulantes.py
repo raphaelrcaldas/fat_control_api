@@ -3,6 +3,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_
 from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -236,6 +237,7 @@ async def list_trips(
     session: Session,
     active_org: ActiveOrg,
     active: bool = True,
+    include_inactive: bool = False,
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=MAX_PER_PAGE)] = 10,
     search: str | None = None,
@@ -243,17 +245,26 @@ async def list_trips(
     func: str | None = None,
     oper: str | None = None,
 ):
+    """Lista tripulantes da organização ativa, paginados.
+
+    `include_inactive=true` devolve ativos e inativos e ignora `active`.
+    """
     # Query base para filtrar IDs
     filter_query = (
         select(Tripulante.id)
         .join(User)
         .join(PostoGrad)
         .where(
-            User.active,
-            Tripulante.active == active,
             Tripulante.uae == active_org,
         )
     )
+
+    # Relatorios historicos incluem todos os vinculos, mesmo de usuarios
+    # desativados. Listagens operacionais preservam o filtro existente.
+    if not include_inactive:
+        filter_query = filter_query.where(
+            User.active, Tripulante.active == active
+        )
 
     # Filtro de busca por nome/trigrama
     if search:
@@ -296,16 +307,20 @@ async def list_trips(
     total = await session.scalar(count_query) or 0
 
     # Query principal para buscar tripulantes com ordenação e paginação
+    order = [
+        PostoGrad.ant.asc(),
+        User.ult_promo.asc().nulls_first(),
+        sql_func.coalesce(User.ant_rel, 0).asc(),
+    ]
+    if include_inactive:
+        order.insert(0, and_(User.active, Tripulante.active).desc())
+    order.append(Tripulante.id.asc())
     main_query = (
         select(Tripulante)
         .join(User)
         .join(PostoGrad)
         .where(Tripulante.id.in_(select(filtered_ids.c.id)))
-        .order_by(
-            PostoGrad.ant.asc(),
-            User.ult_promo.asc(),
-            User.ant_rel.asc(),
-        )
+        .order_by(*order)
         .offset((page - 1) * per_page)
         .limit(per_page)
     )

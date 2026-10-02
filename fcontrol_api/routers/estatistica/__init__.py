@@ -6,6 +6,7 @@ from fcontrol_api.routers.estatistica import (
     horas_anv,
     indicadores,
     missao,
+    relatorio_anual,
     relatorios_voo,
     sebo,
     tipo_missao,
@@ -17,6 +18,7 @@ router.include_router(etapas.router)
 router.include_router(horas_anv.router)
 router.include_router(indicadores.router)
 router.include_router(missao.router)
+router.include_router(relatorio_anual.router)
 router.include_router(relatorios_voo.router)
 router.include_router(sebo.router)
 router.include_router(tipo_missao.router)

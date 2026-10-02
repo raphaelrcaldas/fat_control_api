@@ -156,6 +156,31 @@ def test_outras_funcoes_nao_sao_validadas():
     EtapaCreate(missao_id=1, tripulantes=trips, **_BASE_ETAPA)
 
 
+@pytest.mark.parametrize(
+    ('schema', 'kwargs'),
+    [
+        (EtapaCreate, {**_BASE_ETAPA, 'missao_id': 1}),
+        (EtapaCreateNested, _BASE_ETAPA),
+        (EtapaUpdateNested, {**_BASE_ETAPA, 'id': 1}),
+        (EtapaUpdate, {}),
+    ],
+)
+@pytest.mark.parametrize('second_func', ['lm', 'ml'])
+def test_tripulante_repetido_na_mesma_etapa_rejeita(
+    schema, kwargs, second_func
+):
+    trips = [
+        TripEtapaIn(trip_id=1, func='lm', func_bordo='LM'),
+        TripEtapaIn(
+            trip_id=1, func=second_func, func_bordo=second_func.upper()
+        ),
+    ]
+    with pytest.raises(
+        ValidationError, match='Tripulante repetido na mesma etapa'
+    ):
+        schema(tripulantes=trips, **kwargs)
+
+
 # ---------------------------------------------------------------------------
 # Especificos: REVO e Heavy/CDS
 # ---------------------------------------------------------------------------

@@ -37,6 +37,69 @@ MISSAO_URL = '/estatistica/missao/'
 DATA = date(2025, 3, 10)
 
 
+@pytest.mark.parametrize(
+    'case', ['etapa_create', 'etapa_update', 'missao_create', 'missao_update']
+)
+async def test_tripulante_repetido_na_mesma_etapa_rejeita_sem_alterar_dados(
+    client, session, token, anvs, trips, case
+):
+    payload = _pl_etapa('2850', '10:00', '11:00')
+    payload['tripulantes'] = [
+        {'trip_id': trips[0], 'func': 'lm', 'func_bordo': 'LM'},
+        {'trip_id': trips[0], 'func': 'ml', 'func_bordo': 'ML'},
+    ]
+    expected_trips = []
+    if case == 'missao_create':
+        response = await client.post(
+            MISSAO_URL + 'with-etapas',
+            headers=_auth(token),
+            json={
+                'titulo': None,
+                'obs': None,
+                'is_simulador': False,
+                'etapas': [payload],
+            },
+        )
+    else:
+        missao = await _mk_missao(session)
+        if case.endswith('update'):
+            etapa = await _mk_etapa(
+                session,
+                missao.id,
+                anv='2850',
+                dep=time(10),
+                arr=time(11),
+                trip_ids=[trips[0]],
+            )
+            await session.commit()
+            expected_trips = ['mc']
+            if case == 'etapa_update':
+                response = await client.put(
+                    ETAPAS_URL + str(etapa.id),
+                    headers=_auth(token),
+                    json=payload,
+                )
+            else:
+                response = await client.put(
+                    f'{MISSAO_URL}{missao.id}/with-etapas',
+                    headers=_auth(token),
+                    json={'update': [{**payload, 'id': etapa.id}]},
+                )
+        else:
+            await session.commit()
+            response = await client.post(
+                ETAPAS_URL,
+                headers=_auth(token),
+                json={**payload, 'missao_id': missao.id},
+            )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert 'Tripulante repetido na mesma etapa' in str(response.json())
+    persisted = await session.scalars(
+        select(TripEtapa.func).where(TripEtapa.trip_id == trips[0])
+    )
+    assert list(persisted.all()) == expected_trips
+
+
 def _auth(token):
     return {'Authorization': f'Bearer {token}'}
 

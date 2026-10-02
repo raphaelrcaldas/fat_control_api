@@ -247,10 +247,18 @@ class TripEtapaIn(BaseModel):
 _POSICOES_PILOTO = frozenset({'1P', '2P', 'IN', 'AL'})
 
 
-def _check_pilot_duplicates(tripulantes) -> None:
-    """Valida que nao ha posicoes de piloto duplicadas (1P, 2P, IN, AL)."""
+def _check_tripulantes(tripulantes: list[TripEtapaIn]) -> None:
+    """Tripulante unico por etapa e posicoes de piloto sem repeticao."""
     seen: set[str] = set()
+    seen_trips: set[int] = set()
     for t in tripulantes:
+        if t.trip_id in seen_trips:
+            msg = (
+                'Tripulante repetido na mesma etapa: '
+                'escolha apenas uma função por tripulante'
+            )
+            raise ValueError(msg)
+        seen_trips.add(t.trip_id)
         if t.func_bordo in _POSICOES_PILOTO:
             if t.func_bordo in seen:
                 msg = f'Posição de piloto duplicada: {t.func_bordo}'
@@ -325,9 +333,9 @@ class EtapaCreate(EtapaBase):
     heavy_cds: list[HeavyCdsEtapaIn] = []
 
     @model_validator(mode='after')
-    def validate_pilot_duplicates(self) -> Self:
+    def validate_tripulantes(self) -> Self:
         if self.tripulantes:
-            _check_pilot_duplicates(self.tripulantes)
+            _check_tripulantes(self.tripulantes)
         return self
 
 
@@ -350,9 +358,9 @@ class EtapaCreateNested(EtapaBase):
     heavy_cds: list[HeavyCdsEtapaIn] = []
 
     @model_validator(mode='after')
-    def validate_pilot_duplicates(self) -> Self:
+    def validate_tripulantes(self) -> Self:
         if self.tripulantes:
-            _check_pilot_duplicates(self.tripulantes)
+            _check_tripulantes(self.tripulantes)
         return self
 
 
@@ -409,9 +417,9 @@ class EtapaUpdateNested(EtapaBase):
     heavy_cds: list[HeavyCdsEtapaIn] = []
 
     @model_validator(mode='after')
-    def validate_pilot_duplicates(self) -> Self:
+    def validate_tripulantes(self) -> Self:
         if self.tripulantes:
-            _check_pilot_duplicates(self.tripulantes)
+            _check_tripulantes(self.tripulantes)
         return self
 
 
@@ -488,9 +496,9 @@ class EtapaUpdate(BaseModel):
     heavy_cds: list[HeavyCdsEtapaIn] | None = None
 
     @model_validator(mode='after')
-    def validate_pilot_duplicates(self) -> Self:
+    def validate_tripulantes(self) -> Self:
         if self.tripulantes:
-            _check_pilot_duplicates(self.tripulantes)
+            _check_tripulantes(self.tripulantes)
         return self
 
 
