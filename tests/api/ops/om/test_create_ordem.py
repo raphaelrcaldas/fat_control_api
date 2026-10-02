@@ -7,8 +7,9 @@ Testa criacao com etapas, validacoes de etapa e regras de negocio.
 from http import HTTPStatus
 
 import pytest
+from sqlalchemy import select
 
-from fcontrol_api.models.shared.om import Etiqueta
+from fcontrol_api.models.shared.om import Etiqueta, OrdemEtapa
 
 pytestmark = pytest.mark.anyio
 
@@ -56,6 +57,34 @@ def _make_ordem_payload(etapas=None, etiquetas_ids=None, esf_aer=240):
         'etiquetas_ids': etiquetas_ids or [],
     }
     return payload
+
+
+async def test_esforco_aereo_persistido_com_espacos_normalizados(
+    client, session, token
+):
+    headers = {'Authorization': f'Bearer {token}'}
+    payload = _make_ordem_payload(
+        etapas=[_make_etapa(esf_aer='  PEO  APOIO\u00a0')]
+    )
+    response = await client.post(BASE_URL, json=payload, headers=headers)
+    assert response.status_code == HTTPStatus.CREATED
+    ordem_id = response.json()['data']['id']
+
+    texto = await session.scalar(
+        select(OrdemEtapa.esf_aer).where(OrdemEtapa.ordem_id == ordem_id)
+    )
+    assert texto == 'PEO APOIO'
+
+    response = await client.put(
+        f'{BASE_URL}{ordem_id}',
+        json={'etapas': [_make_etapa(esf_aer='\tPEO  /  SPMAS / FAB-TAL  ')]},
+        headers=headers,
+    )
+    assert response.status_code == HTTPStatus.OK
+    texto = await session.scalar(
+        select(OrdemEtapa.esf_aer).where(OrdemEtapa.ordem_id == ordem_id)
+    )
+    assert texto == 'PEO / SPMAS / FAB-TAL'
 
 
 async def test_create_ordem_success(client, session, token):

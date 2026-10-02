@@ -1,5 +1,6 @@
 """Schemas Pydantic para Ordem de Missão (OM)"""
 
+import re
 from datetime import date, datetime
 from typing import Annotated, Literal
 
@@ -21,6 +22,12 @@ from fcontrol_api.schemas.ops.tripulantes import TripBasicInfo
 TVOO_MINIMO = 5  # Tempo mínimo de voo em minutos
 ICAO_CODE_LENGTH = 4  # Código ICAO de aeródromo
 
+# Mesmo conjunto usado por normalizeEtapaEsforcoAereo no client.
+ESFORCO_AEREO_WHITESPACE = re.compile(
+    r'[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680'
+    r'\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+'
+)
+
 # Status válidos de uma OM (whitelist aplicada na entrada de updates)
 StatusOrdem = Literal['rascunho', 'aprovada', 'cancelada']
 
@@ -41,6 +48,13 @@ class EtapaBase(BaseModel):
     tvoo_alt: int  # duração em minutos (estimativa para alternativa)
     qtd_comb: int
     esf_aer: str
+
+    @field_validator('esf_aer', mode='before')
+    @classmethod
+    def normalizar_espacos_esforco_aereo(cls, v: object) -> object:
+        if isinstance(v, str):
+            return ESFORCO_AEREO_WHITESPACE.sub(' ', v).strip()
+        return v
 
     @field_validator('dt_dep', 'dt_arr')
     @classmethod
@@ -75,7 +89,7 @@ class EtapaBase(BaseModel):
 
 
 class EtapaCreate(EtapaBase):
-    pass
+    esf_aer: Annotated[str, Field(min_length=1)]
 
 
 class EtapaOut(EtapaBase):
