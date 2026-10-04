@@ -145,6 +145,7 @@ async def test_step_function_multiplas_revisoes(client, session, token):
     programa = data['programas'][0]
     assert programa['atual'] == 80
     assert programa['timeline'] == [
+        {'data': '2025-01-01', 'alocado': 100, 'delta': 0},
         {'data': '2025-03-01', 'alocado': 200, 'delta': 100},
         {'data': '2025-05-15', 'alocado': 50, 'delta': -150},
         {'data': '2025-08-20', 'alocado': 80, 'delta': 30},
@@ -165,6 +166,7 @@ async def test_mudancas_no_mesmo_dia_colapsam(client, session, token):
 
     programa = data['programas'][0]
     assert programa['timeline'] == [
+        {'data': '2025-01-01', 'alocado': 100, 'delta': 0},
         {'data': '2025-04-02', 'alocado': 300, 'delta': 200},
     ]
 
@@ -243,7 +245,8 @@ async def test_simulador_fora_dos_programas_e_do_total(client, session, token):
     assert [p['esfaer_id'] for p in data['programas']] == [esf.id]
     assert data['total']['atual'] == 100
     assert data['total']['timeline'] == [
-        {'data': '2025-03-01', 'alocado': 100, 'delta': 0},
+        {'data': '2025-01-01', 'alocado': 60, 'delta': 0},
+        {'data': '2025-03-01', 'alocado': 100, 'delta': 40},
     ]
 
 
@@ -260,6 +263,7 @@ async def test_programa_zerado_com_hist_entra(client, session, token):
     programa = data['programas'][0]
     assert programa['atual'] == 0
     assert programa['timeline'] == [
+        {'data': '2025-01-01', 'alocado': 150, 'delta': 0},
         {'data': '2025-06-01', 'alocado': 0, 'delta': -150},
     ]
 
