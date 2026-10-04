@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated
@@ -8,43 +9,38 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
-from fcontrol_api.models.estatistica.etapa import Etapa, TripEtapa
 from fcontrol_api.models.shared.tripulantes import Tripulante
 from fcontrol_api.models.shared.users import User
 from fcontrol_api.schemas.estatistica.relatorio_anual import (
-    RelatorioAnual,
     TripulanteRelatorio,
 )
+from fcontrol_api.schemas.estatistica.relatorio_mensal import RelatorioMensal
 from fcontrol_api.schemas.response import ApiResponse
 from fcontrol_api.security import (
     ActiveOrg,
     ensure_org_permission_or_owner,
     get_current_user,
 )
-from fcontrol_api.services.relatorio_anual import EtapaApurada, apurar_resumo
-from fcontrol_api.services.relatorio_tripulante import consultar_etapas
+from fcontrol_api.services.relatorio_mensal import apurar_mensal
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 router = APIRouter(prefix='/tripulantes', tags=['estatistica'])
-
 FUSO_LOCAL = ZoneInfo('America/Sao_Paulo')
 
 
-@router.get('/{trip_id}/relatorio-anual')
-async def get_relatorio_anual(
+@router.get('/{trip_id}/relatorio-mensal')
+async def get_relatorio_mensal(
     trip_id: Annotated[int, Path(ge=1, le=2_147_483_647)],
     session: Session,
     active_org: ActiveOrg,
     current_user: CurrentUser,
     ano: Annotated[int | None, Query(ge=2020, le=9999)] = None,
-) -> ApiResponse[RelatorioAnual]:
-    """Relatorio individual com acesso dono-ou-permissao na org ativa.
-
-    Etapas com data posterior a hoje (dia local) ficam fora de tudo.
-    """
+    mes: Annotated[int | None, Query(ge=1, le=12)] = None,
+) -> ApiResponse[RelatorioMensal]:
+    """Etapas e acumulados até o mês, com acesso dono-ou-permissão."""
     trip = await session.scalar(
         select(Tripulante).where(
             Tripulante.id == trip_id,
@@ -64,20 +60,18 @@ async def get_relatorio_anual(
         'view',
         trip.user_id,
     )
-
     hoje = datetime.now(FUSO_LOCAL).date()
     ref_ano = ano if ano is not None else hoje.year
-    # Voo que ainda nao ocorreu nao compoe horas nem "ultimo voo".
-    fim = min(date(ref_ano, 12, 31), hoje)
-    rows = await session.execute(
-        consultar_etapas(
-            trip.id, active_org, fim, date(ref_ano, 1, 1)
-        ).order_by(Etapa.data, Etapa.id, TripEtapa.func)
+    ref_mes = mes if mes is not None else hoje.month
+    inicio = date(ref_ano, ref_mes, 1)
+    fim = min(date(ref_ano, ref_mes, monthrange(ref_ano, ref_mes)[1]), hoje)
+    aeronaves, simuladores = await apurar_mensal(
+        session, trip.id, active_org, inicio, fim
     )
-    etapas = [EtapaApurada(**r._mapping) for r in rows]
     return success_response(
-        data=RelatorioAnual(
+        data=RelatorioMensal(
             ano=ref_ano,
+            mes=ref_mes,
             tripulante=TripulanteRelatorio(
                 id=trip.id,
                 user_id=trip.user_id,
@@ -86,7 +80,7 @@ async def get_relatorio_anual(
                 nome_guerra=trip.user.nome_guerra,
                 nome_completo=trip.user.nome_completo,
             ),
-            aeronaves=apurar_resumo([e for e in etapas if not e.is_simulador]),
-            simuladores=apurar_resumo([e for e in etapas if e.is_simulador]),
+            aeronaves=aeronaves,
+            simuladores=simuladores,
         )
     )
