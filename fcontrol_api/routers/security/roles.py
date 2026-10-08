@@ -253,6 +253,12 @@ async def update_user_role(
 ):
     _ensure_org_in_scope(scope, role_patch.organizacao_id)
 
+    if role_patch.user_id == scope.user.id:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Você não pode alterar o próprio perfil',
+        )
+
     # Localiza o vínculo do usuário na org informada (NULL = sistema)
     user_reg = await session.scalar(
         select(UserRole).where(

@@ -6,7 +6,8 @@ Cobre as três camadas de gating e as regras de escopo:
   ativa) + `_ensure_org_in_scope` (admin de unidade só opera a própria org);
 - grants role↔permissão: `require_system_admin` (admin de sistema);
 - anti-escalonamento: admin de unidade não cria vínculo de sistema (org
-  NULL) nem de outra org; admin não remove o próprio acesso.
+  NULL) nem de outra org; admin não remove o próprio acesso nem altera o
+  próprio perfil.
 
 Seeds de role: 1=admin, 2=user, 3=viewer. Tenants: '11gt' e '1gt'.
 """
@@ -270,6 +271,29 @@ async def test_update_user_role_cross_org_forbidden(
         headers={'Authorization': f'Bearer {unit_admin_token}'},
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+async def test_update_user_role_self_forbidden(
+    client, session, users, unit_admin_token
+):
+    """Admin não pode alterar o próprio perfil."""
+    user, _ = users
+    response = await client.put(
+        '/security/roles/users/',
+        json={'user_id': user.id, 'role_id': 2, 'organizacao_id': '11gt'},
+        headers={'Authorization': f'Bearer {unit_admin_token}'},
+    )
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    msg = response.json()['message']
+    assert msg == 'Você não pode alterar o próprio perfil'
+
+    ur = await session.scalar(
+        select(UserRole).where(
+            UserRole.user_id == user.id,
+            UserRole.organizacao_id == '11gt',
+        )
+    )
+    assert ur.role_id == 1
 
 
 # --- delete_user_role ----------------------------------------------------- #
