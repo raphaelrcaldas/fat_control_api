@@ -154,13 +154,21 @@ class UserUpdate(UserSchema):
     Herda campos e validadores de `UserSchema`, relaxando os três campos
     obrigatórios do cadastro: no PATCH nada é exigido, e só os campos
     presentes no corpo são gravados (`exclude_unset` no router). Enviar
-    `null` num campo opcional o limpa.
+    `null` num campo opcional o limpa, exceto `p_g`, `nome_guerra`, `saram`
+    e `active` (colunas NOT NULL): omitir é válido, `null` é rejeitado.
     """
 
     p_g: PostoGradEnum | None = None
     nome_guerra: str | None = None
     saram: str | None = Field(default=None, min_length=7, max_length=7)
     active: bool | None = None
+
+    @field_validator('p_g', 'nome_guerra', 'saram', 'active')
+    @classmethod
+    def rejeitar_nulo(cls, v):
+        if v is None:
+            raise ValueError('não pode ser nulo')
+        return v
 
 
 class UserPromoCreate(BaseModel):

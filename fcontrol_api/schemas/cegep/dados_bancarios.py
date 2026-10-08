@@ -1,21 +1,36 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_serializer,
+    field_validator,
+)
 
 from fcontrol_api.schemas.users import UserPublic
 
+# Campos obrigatórios da conta: sem espaços nas pontas e nunca vazios.
+TextoObrigatorio = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1)
+]
+# Espelha a coluna Numeric(14, 2): valor fora disso estourava no banco (500)
+# ou perdia a terceira casa decimal em silêncio.
+Valor = Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=2)]
+
 
 class DadosBancariosBase(BaseModel):
-    banco: str
-    codigo_banco: str
-    agencia: str
-    conta: str
+    banco: TextoObrigatorio
+    codigo_banco: TextoObrigatorio
+    agencia: TextoObrigatorio
+    conta: TextoObrigatorio
 
-    remuneracao: Optional[Decimal] = Field(default=None, ge=0)
+    remuneracao: Optional[Valor] = None
     mes_ano: Optional[date] = None
-    aux_transp: Optional[Decimal] = Field(default=None, ge=0)
+    aux_transp: Optional[Valor] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -25,13 +40,32 @@ class DadosBancariosCreate(DadosBancariosBase):
 
 
 class DadosBancariosUpdate(DadosBancariosBase):
-    banco: Optional[str] = None
-    codigo_banco: Optional[str] = None
-    agencia: Optional[str] = None
-    conta: Optional[str] = None
+    """Atualização parcial: só o que vier no corpo é gravado.
+
+    Os quatro campos da conta podem ser omitidos, mas não enviados como
+    `null` — as colunas são NOT NULL e o `setattr` do handler levava a um
+    500 de integridade.
+    """
+
+    banco: Optional[TextoObrigatorio] = None
+    codigo_banco: Optional[TextoObrigatorio] = None
+    agencia: Optional[TextoObrigatorio] = None
+    conta: Optional[TextoObrigatorio] = None
+
+    @field_validator('banco', 'codigo_banco', 'agencia', 'conta')
+    @classmethod
+    def rejeitar_nulo(cls, v: Optional[str]) -> str:
+        if v is None:
+            raise ValueError('não pode ser nulo')
+        return v
 
 
 class DadosBancariosPublic(DadosBancariosBase):
+    # A restrição vale para a entrada; a saída devolve o que está no banco.
+    banco: str
+    codigo_banco: str
+    agencia: str
+    conta: str
     id: int
     user_id: int
     created_at: datetime

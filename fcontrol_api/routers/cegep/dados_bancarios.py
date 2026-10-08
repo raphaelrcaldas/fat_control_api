@@ -6,6 +6,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -30,6 +31,7 @@ from fcontrol_api.security import (
 )
 from fcontrol_api.services.portal_transparencia import buscar_remuneracao
 from fcontrol_api.utils.responses import success_response
+from fcontrol_api.utils.strings import escape_like
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -80,11 +82,11 @@ async def get_dados_bancarios(
         query = query.where(DadosBancarios.user_id == user_id)
 
     if search:
+        # Escapa %, _ e \ para a busca ser literal, não curinga
+        termo = func.unaccent(f'%{escape_like(search)}%')
         query = query.where(
-            func.unaccent(User.nome_guerra).ilike(func.unaccent(f'%{search}%'))
-            | func.unaccent(User.nome_completo).ilike(
-                func.unaccent(f'%{search}%')
-            )
+            func.unaccent(User.nome_guerra).ilike(termo, escape='\\')
+            | func.unaccent(User.nome_completo).ilike(termo, escape='\\')
         )
 
     query = query.order_by(DadosBancarios.id)
@@ -330,16 +332,19 @@ async def create_dados_bancarios(
     dados: DadosBancariosCreate,
 ):
     """Cria novos dados bancários para um usuário"""
-    # Verifica se o usuário existe na org ativa (escopo por unidade)
+    # Verifica se o usuário existe e está ativo na org ativa (escopo por
+    # unidade); inativo nasceria como registro órfão
     user = await session.scalar(
         select(User).where(
-            User.id == dados.user_id, User.unidade == active_org
+            User.id == dados.user_id,
+            User.unidade == active_org,
+            User.active.is_(True),
         )
     )
     if not user:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail='Usuário não encontrado',
+            detail='Usuário não encontrado ou inativo',
         )
 
     # Verifica se já existem dados bancários para este usuário
@@ -356,7 +361,15 @@ async def create_dados_bancarios(
     new_dados = DadosBancarios(**dados_dict)
 
     session.add(new_dados)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Corrida: outro POST gravou entre a checagem e o commit (unique)
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='Já existem dados bancários cadastrados para este usuário',
+        )
     await session.refresh(new_dados)
 
     return success_response(
