@@ -247,10 +247,17 @@ class TestUserUpdateSaramValidation:
         update = UserUpdate(saram='9876545')
         assert update.saram == '9876545'
 
-    def test_saram_none_aceito(self):
-        """SARAM None deve ser aceito em update (campo opcional)."""
-        update = UserUpdate(saram=None)
-        assert update.saram is None
+    def test_saram_omitido_aceito(self):
+        """Omitir o SARAM é válido no update parcial (não é gravado)."""
+        update = UserUpdate()
+        assert 'saram' not in update.model_fields_set
+
+    def test_saram_none_rejeitado(self):
+        """`null` explícito é recusado: a coluna é NOT NULL, e gravar nulo
+        viraria IntegrityError (500) em vez de 422."""
+        with pytest.raises(ValidationError) as exc_info:
+            UserUpdate(saram=None)
+        assert 'nulo' in str(exc_info.value)
 
     def test_saram_invalido_rejeitado(self):
         """SARAM invalido deve ser rejeitado em update."""
