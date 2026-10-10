@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -23,7 +24,11 @@ from fcontrol_api.schemas.response import (
     ApiPaginatedResponse,
     ApiResponse,
 )
-from fcontrol_api.security import ActiveOrg, permission_checker
+from fcontrol_api.security import (
+    ActiveOrg,
+    get_current_user,
+    permission_checker,
+)
 from fcontrol_api.utils.responses import (
     paginated_response,
     success_response,
@@ -62,7 +67,7 @@ async def create_aeronave(
 
     if db_aeronave:
         raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
+            status_code=HTTPStatus.CONFLICT,
             detail='Aeronave com esta matrícula já existe',
         )
 
@@ -88,7 +93,16 @@ async def create_aeronave(
     )
 
     session.add(new_aeronave)
-    await session.commit()
+    # A checagem acima não é atômica com o INSERT: dois POSTs simultâneos
+    # passam por ela e o segundo viola a PK. Mesmo 409 do caminho sequencial.
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail='Aeronave com esta matrícula já existe',
+        )
     await session.refresh(new_aeronave)
 
     return success_response(
@@ -101,6 +115,7 @@ async def create_aeronave(
     '/',
     status_code=HTTPStatus.OK,
     response_model=ApiPaginatedResponse[AeronavePublic],
+    dependencies=[Depends(get_current_user)],
 )
 async def list_aeronaves(
     session: Session,
@@ -152,6 +167,7 @@ async def list_aeronaves(
     '/projetos',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[list[ProjetoAnvOut]],
+    dependencies=[Depends(get_current_user)],
 )
 async def list_org_projetos(session: Session, active_org: ActiveOrg):
     """Projetos operados pela org ativa (opções do formulário)."""
@@ -173,6 +189,7 @@ async def list_org_projetos(session: Session, active_org: ActiveOrg):
     '/{matricula}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[AeronavePublic],
+    dependencies=[Depends(get_current_user)],
 )
 async def get_aeronave(
     matricula: str, session: Session, active_org: ActiveOrg
@@ -221,20 +238,6 @@ async def update_aeronave(
         )
 
     dados = aeronave.model_dump(exclude_unset=True)
-
-    # Troca de projeto: o novo destino também precisa ser da org ativa.
-    novo_projeto = dados.get('projeto')
-    if novo_projeto is not None and novo_projeto != db_aeronave.projeto:
-        autorizado = await session.scalar(
-            _projetos_da_org(active_org).where(
-                TenantProjeto.projeto == novo_projeto
-            )
-        )
-        if not autorizado:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail='Projeto não disponível para a organização',
-            )
 
     for key, value in dados.items():
         setattr(db_aeronave, key, value)

@@ -4,12 +4,14 @@ Testes para os endpoints CRUD de Aeronaves (/ops/aeronaves/).
 O escopo é multi-tenant: a org só enxerga/cadastra a frota dos projetos
 que opera (via `tenant_projetos`). Nos testes, '11gt' opera o kc-390 (C8)
 e '1gt' opera o c-130 (C1). As rotas de escrita exigem permissão na org
-ativa (token); as de leitura bastam org ativa (token_sem_perm).
+ativa (token); as de leitura bastam org ativa e usuário ativo
+(token_sem_perm).
 """
 
 from http import HTTPStatus
 
 import pytest
+from sqlalchemy import select
 
 from fcontrol_api.models.shared.aeronaves import Aeronave
 
@@ -98,7 +100,32 @@ async def test_create_aeronave_duplicate_matricula_fails(
         },
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.CONFLICT
+    data = response.json()
+    assert data['message'] == 'Aeronave com esta matrícula já existe'
+
+
+async def test_create_aeronave_obs_vazia_grava_none(client, session, token):
+    """`obs` em branco (formulário manda '') é gravada como NULL."""
+    response = await client.post(
+        '/ops/aeronaves/',
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'matricula': '2863',
+            'active': True,
+            'sit': 'DI',
+            'obs': '',
+            'projeto': 'C8',
+        },
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()['data']['obs'] is None
+
+    db_aeronave = await session.scalar(
+        select(Aeronave).where(Aeronave.matricula == '2863')
+    )
+    assert db_aeronave.obs is None
 
 
 async def test_create_aeronave_invalid_sit_fails(client, token):
@@ -298,6 +325,31 @@ async def test_list_aeronaves_missing_active_org_fails(client, token_sistema):
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
+@pytest.mark.parametrize(
+    'url',
+    ['/ops/aeronaves/', '/ops/aeronaves/projetos', '/ops/aeronaves/2850'],
+)
+async def test_get_aeronaves_usuario_inativo_fails(
+    client, session, users, token_sem_perm, aeronave, url
+):
+    """Usuário desativado com token ainda válido não lê a frota (403).
+
+    As leituras não têm gate de permissão (outras telas consomem a lista),
+    mas passam por `get_current_user`, que recusa usuário inativo.
+    """
+    user, _ = users
+    user.active = False
+    await session.commit()
+
+    response = await client.get(
+        url,
+        headers={'Authorization': f'Bearer {token_sem_perm}'},
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json()['message'] == 'Usuário inativo'
+
+
 # ========================================
 # GET /ops/aeronaves/projetos (Projetos da org)
 # ========================================
@@ -399,19 +451,59 @@ async def test_update_aeronave_partial(client, token, aeronave):
     assert data['data']['sit'] == 'DI'
 
 
-async def test_update_aeronave_projeto_not_in_org_fails(
-    client, token, aeronave
+async def test_update_aeronave_projeto_imutavel(
+    client, session, token, aeronave
 ):
-    """Trocar para um projeto fora da org ativa falha (400)."""
+    """O projeto é fixado no cadastro: enviá-lo no PUT responde 422.
+
+    Com `tenant_projetos` N:M, trocar o projeto tiraria a aeronave da frota
+    de outra org que opera o projeto antigo.
+    """
     response = await client.put(
         f'/ops/aeronaves/{aeronave.matricula}',
         headers={'Authorization': f'Bearer {token}'},
         json={'projeto': 'C1'},
     )
 
-    assert response.status_code == HTTPStatus.BAD_REQUEST
-    data = response.json()
-    assert data['message'] == 'Projeto não disponível para a organização'
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    await session.refresh(aeronave)
+    assert aeronave.projeto == 'C8'
+
+
+@pytest.mark.parametrize('campo', ['sit', 'active', 'is_sim'])
+async def test_update_aeronave_campo_obrigatorio_nulo_fails(
+    client, session, token, aeronave, campo
+):
+    """`null` explícito em coluna NOT NULL é 422, não 500 no commit."""
+    response = await client.put(
+        f'/ops/aeronaves/{aeronave.matricula}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={campo: None},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    await session.refresh(aeronave)
+    assert getattr(aeronave, campo) is not None
+
+
+async def test_update_aeronave_obs_em_branco_grava_none(
+    client, session, token, aeronaves
+):
+    """`obs` só com espaços é gravada como NULL."""
+    com_obs = aeronaves[1]
+    response = await client.put(
+        f'/ops/aeronaves/{com_obs.matricula}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={'obs': '   '},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['data']['obs'] is None
+
+    await session.refresh(com_obs)
+    assert com_obs.obs is None
 
 
 async def test_update_aeronave_without_permission_fails(
