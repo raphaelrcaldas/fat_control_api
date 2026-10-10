@@ -105,6 +105,53 @@ async def test_create_aeronave_duplicate_matricula_fails(
     assert data['message'] == 'Aeronave com esta matrícula já existe'
 
 
+async def test_create_aeronave_corrida_responde_409(
+    client, session, token, aeronave, monkeypatch
+):
+    """Dois POSTs simultâneos: o segundo passa pela checagem e viola a PK.
+
+    A checagem de duplicata não é atômica com o INSERT. Aqui ela é cegada
+    para a matrícula já gravada — o mesmo estado de quando o outro POST
+    grava entre a checagem e o commit. Sem o `except IntegrityError`, 500.
+    """
+    scalar_original = session.scalar
+    cegadas = []
+
+    async def checagem_cega(stmt, *args, **kwargs):
+        if 'aeronaves.matricula =' in str(stmt):
+            cegadas.append(stmt)
+            return None
+        return await scalar_original(stmt, *args, **kwargs)
+
+    monkeypatch.setattr(session, 'scalar', checagem_cega)
+    # Fora do identity map, como o registro gravado por outra sessão: o
+    # conflito chega pelo Postgres (IntegrityError), não pelo SQLAlchemy.
+    session.expunge(aeronave)
+
+    response = await client.post(
+        '/ops/aeronaves/',
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'matricula': aeronave.matricula,
+            'active': False,
+            'sit': 'IN',
+            'projeto': 'C8',
+        },
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    # Não dá para conferir aqui que a primeira aeronave sobreviveu: o client
+    # de teste compartilha a sessão da fixture, e o rollback do handler
+    # desfaz a transação inteira do teste. Em produção cada requisição tem a
+    # sua sessão.
+    assert response.json()['message'] == (
+        'Aeronave com esta matrícula já existe'
+    )
+    # Sem isto, uma checagem reescrita escaparia do filtro e o 409 viria do
+    # caminho sequencial — verde mesmo sem o `except IntegrityError`.
+    assert cegadas
+
+
 async def test_create_aeronave_obs_vazia_grava_none(client, session, token):
     """`obs` em branco (formulário manda '') é gravada como NULL."""
     response = await client.post(
