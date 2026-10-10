@@ -218,8 +218,10 @@ async def list_quads(
     ]
 
     # Sem `proj`, o quadro considera todos os projetos operados pela org.
+    # Sem distinguir caixa: o modelo passou a `KC-390` por SQL avulso e a
+    # migration de tenantização ainda semeia `kc-390` (ver `dominio.md`).
     if proj:
-        trip_filters.append(Tripulante.proj == proj)
+        trip_filters.append(func.upper(Tripulante.proj) == proj.upper())
 
     trip_ids_cte = (
         select(Tripulante.id).where(*trip_filters).cte('trip_ids_cte')
