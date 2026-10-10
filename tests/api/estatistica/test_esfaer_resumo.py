@@ -250,3 +250,52 @@ async def test_isolamento_por_org_e_ano(client, session, token):
 
     assert len(data['items']) == 1
     assert data['total_alocado'] == 100
+
+
+async def test_voado_isolado_por_org_e_ano(
+    client, session, token, tipo_missao
+):
+    """O voado vem das etapas das missões da org ativa (`Missao.uae`) no
+    ano pedido: voo de outra org ou de outro ano não soma no item nem nos
+    totais mensais."""
+    esf = await _programa(session)
+    await _aloc(session, esf.id, alocado=100)
+    tipo = tipo_missao.id
+    await _voado(session, esf.id, tvoo=60, mes=3, tipo_missao_id=tipo)
+    await _voado(
+        session, esf.id, tvoo=500, mes=3, tipo_missao_id=tipo, uae='1gt'
+    )
+    await _voado(
+        session, esf.id, tvoo=700, mes=3, tipo_missao_id=tipo, ano=ANO - 1
+    )
+    await session.commit()
+
+    data = await _get(client, token)
+
+    assert len(data['items']) == 1
+    assert data['items'][0]['voado'] == 60
+    assert data['items'][0]['meses_voados'][2] == 60
+    assert data['total_voado'] == 60
+    assert data['total_saldo'] == 40
+
+
+async def test_programa_so_com_voo_de_outra_org_nao_aparece(
+    client, session, token, tipo_missao
+):
+    """Programa sem alocação na org ativa e voado só por outra org não
+    entra no resumo — nem como linha zerada."""
+    esf = await _programa(session)
+    await _voado(
+        session,
+        esf.id,
+        tvoo=500,
+        mes=3,
+        tipo_missao_id=tipo_missao.id,
+        uae='1gt',
+    )
+    await session.commit()
+
+    data = await _get(client, token)
+
+    assert data['items'] == []
+    assert data['total_voado'] == 0
