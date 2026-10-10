@@ -7,7 +7,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
@@ -171,8 +171,8 @@ async def list_passaportes(
         )
         .order_by(
             PostoGrad.ant.asc(),
-            User.ult_promo.asc(),
-            User.ant_rel.asc(),
+            User.ult_promo.asc().nulls_first(),
+            func.coalesce(User.ant_rel, 0).asc(),
             User.id,
         )
     )

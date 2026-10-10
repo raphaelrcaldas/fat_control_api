@@ -261,8 +261,8 @@ async def read_users(
         .join(PostoGrad)
         .order_by(
             PostoGrad.ant.asc(),
-            User.ult_promo.asc(),
-            User.ant_rel.asc(),
+            User.ult_promo.asc().nulls_first(),
+            func.coalesce(User.ant_rel, 0).asc(),
             User.id,
         )
     )

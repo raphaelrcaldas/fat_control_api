@@ -196,8 +196,8 @@ async def get_paop(paop_id: int, session: Session, active_org: ActiveOrg):
             .where(PaopSubprograma.paop_id == paop_id)
             .order_by(
                 PostoGrad.ant.asc(),
-                User.ult_promo.asc(),
-                User.ant_rel.asc(),
+                User.ult_promo.asc().nulls_first(),
+                sa_func.coalesce(User.ant_rel, 0).asc(),
                 User.id,
             )
         )

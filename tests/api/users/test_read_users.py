@@ -4,6 +4,7 @@ Testes para o endpoint GET /users/.
 Este endpoint lista usuários, com suporte a busca opcional por nome_guerra.
 """
 
+from datetime import date
 from http import HTTPStatus
 
 import pytest
@@ -312,3 +313,41 @@ async def test_read_users_filter_pg_and_active(client, session, token):
     assert all(u['p_g'] == '2s' and u['active'] is True for u in data)
     # Usuário inativo com p_g='2s' não deve aparecer
     assert not any(u['id'] == inactive_2s.id for u in data)
+
+
+async def test_read_users_ordem_canonica_de_antiguidade(
+    client, session, token
+):
+    """Mesma ordem de `GET /ops/trips/`: no mesmo posto, `ult_promo` nulo
+    primeiro e `ant_rel` nulo como 0. Antes o PostgreSQL punha os dois nulos
+    no fim (padrão do ASC) e a pessoa mudava de posição entre telas."""
+    specs = [
+        ('com_tudo', date(2018, 1, 1), 1),
+        ('sem_promo', None, 5),
+        ('sem_ant', date(2018, 1, 1), None),
+    ]
+    ids = {}
+    for nome, promo, ant in specs:
+        user = UserFactory(
+            p_g='2s',
+            nome_guerra=f'ordemcanon {nome}',
+            ult_promo=promo,
+            ant_rel=ant,
+        )
+        session.add(user)
+        await session.flush()
+        ids[nome] = user.id
+    await session.commit()
+
+    response = await client.get(
+        '/users/',
+        params={'search': 'ordemcanon'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert [u['id'] for u in response.json()['data']] == [
+        ids['sem_promo'],
+        ids['sem_ant'],
+        ids['com_tudo'],
+    ]
