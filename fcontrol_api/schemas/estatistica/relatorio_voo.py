@@ -45,6 +45,9 @@ class RelatoriosVooPeriodoOut(BaseModel):
     # Contagem do período inteiro por aeronave, sem o filtro `anv`: é o
     # número que os chips da frota mostram.
     contagem_por_anv: dict[str, int]
+    # A lista para em `LIMITE_LISTAGEM` itens; `True` quando havia mais —
+    # a tela avisa em vez de mostrar uma lista incompleta como inteira.
+    truncado: bool
 
 
 class RelatorioVooArquivoOut(BaseModel):

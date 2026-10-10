@@ -440,6 +440,29 @@ async def test_lista_ordena_por_data_e_id_desc(client, token, frota, storage):
     assert seqs == [('2026-09-20', 2), ('2026-09-20', 1), ('2026-09-10', 1)]
 
 
+@pytest.mark.parametrize(('teto', 'truncado'), [(2, True), (3, False)])
+async def test_lista_avisa_quando_passa_do_teto(
+    client, token, frota, storage, monkeypatch, teto, truncado
+):
+    """Acima do teto a lista traz só os mais recentes e marca `truncado`;
+    exatamente no teto não é corte. Teto reduzido para não gravar 501."""
+    monkeypatch.setattr(relatorios_voo, 'LIMITE_LISTAGEM', teto)
+    for marca in 'abc':
+        await _enviar(client, token, marca=marca)
+
+    resp = await client.get(
+        URL,
+        params={'data_ini': '2026-09-01', 'data_fim': '2026-09-30'},
+        headers=_auth(token),
+    )
+
+    corpo = resp.json()['data']
+    assert corpo['truncado'] is truncado
+    assert [i['seq'] for i in corpo['itens']] == [3, 2, 1][:teto]
+    # Os chips seguem contando o período inteiro.
+    assert corpo['contagem_por_anv'] == {'2850': 3}
+
+
 async def test_filtro_anv_nao_muda_contagem(client, token, session, storage):
     session.add_all([
         Aeronave(matricula='2850', active=True, sit='DI', obs=None),

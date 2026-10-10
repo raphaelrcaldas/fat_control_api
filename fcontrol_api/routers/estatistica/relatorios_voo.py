@@ -302,16 +302,19 @@ async def listar_relatorios_do_periodo(
         .join(User, User.id == RelatorioVoo.uploaded_by)
         .where(*filtros)
         .order_by(RelatorioVoo.data.desc(), RelatorioVoo.id.desc())
-        .limit(LIMITE_LISTAGEM)
+        # Um a mais que o teto: sobrar um é a prova de que houve corte.
+        .limit(LIMITE_LISTAGEM + 1)
     )
+    todas = linhas.all()
 
     return success_response(
         data=RelatoriosVooPeriodoOut(
             itens=[
                 RelatorioVooOut.de(rel, p_g, nome)
-                for rel, p_g, nome in linhas.all()
+                for rel, p_g, nome in todas[:LIMITE_LISTAGEM]
             ],
             contagem_por_anv={a: n for a, n in contagem.all()},
+            truncado=len(todas) > LIMITE_LISTAGEM,
         )
     )
 
