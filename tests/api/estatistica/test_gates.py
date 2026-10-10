@@ -44,6 +44,7 @@ def _auth(token):
         ('get', '/estatistica/relatorios-voo/1/arquivo'),
         ('patch', '/estatistica/relatorios-voo/1'),
         ('delete', '/estatistica/relatorios-voo/1'),
+        ('get', '/estatistica/horas-anv/?ano_ref=2026'),
     ],
 )
 async def test_sem_permissao_403(client, token_sem_perm, metodo, url):
@@ -58,6 +59,7 @@ async def test_sem_permissao_403(client, token_sem_perm, metodo, url):
         '/estatistica/missao/1',
         '/estatistica/esfaer/',
         '/estatistica/relatorios-voo/?data_ini=2026-09-01&data_fim=2026-09-30',
+        '/estatistica/horas-anv/?ano_ref=2026',
     ],
 )
 async def test_sem_token_401(client, url):

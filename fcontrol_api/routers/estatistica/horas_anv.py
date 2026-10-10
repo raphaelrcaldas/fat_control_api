@@ -18,7 +18,7 @@ from fcontrol_api.schemas.estatistica.horas_anv import (
     AnvMesData,
 )
 from fcontrol_api.schemas.response import ApiResponse
-from fcontrol_api.security import ActiveOrg
+from fcontrol_api.security import ActiveOrg, permission_checker
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -31,6 +31,8 @@ router = APIRouter(prefix='/horas-anv', tags=['estatistica'])
     '/',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[AnvHorasResponse],
+    # Mesmo recurso que o menu do client usa para a tela.
+    dependencies=[Depends(permission_checker('ops.aeronaves', 'view'))],
 )
 async def get_horas_anv(
     session: Session,

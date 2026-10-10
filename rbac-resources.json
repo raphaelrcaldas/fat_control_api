@@ -86,7 +86,8 @@
     ],
     "ops.aeronaves": [
       "create",
-      "update"
+      "update",
+      "view"
     ],
     "ops.indisp": [
       "create",

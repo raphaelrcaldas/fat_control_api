@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fcontrol_api.database import get_session
 from fcontrol_api.models.aeromedica.cartoes import CartaoSaude
-from fcontrol_api.models.estatistica.esf_aer import EsforcoAereo
-from fcontrol_api.models.estatistica.etapa import Etapa, OIEtapa, TripEtapa
+from fcontrol_api.models.estatistica.etapa import Etapa, Missao, TripEtapa
 from fcontrol_api.models.instrucao.cartoes import Cartao
 from fcontrol_api.models.inteligencia.passaportes import Passaporte
 from fcontrol_api.models.seg_voo.crm import CrmCertificado
@@ -51,14 +50,9 @@ async def list_sebo(
     jan1 = date(ref_ano, 1, 1)
     dec31 = date(ref_ano, 12, 31)
 
-    sim_etapa_ids = (
-        select(OIEtapa.etapa_id)
-        .join(EsforcoAereo, EsforcoAereo.id == OIEtapa.esf_aer_id)
-        .where(EsforcoAereo.descricao.contains('SML'))
-        .scalar_subquery()
-    )
-
-    nao_sim = ~Etapa.id.in_(sim_etapa_ids)
+    # Ranking de horas voadas reais: simulador é o que a missão diz ser,
+    # não a linha de esforço imputada — sessão sem OI também fica fora.
+    nao_sim = Missao.is_simulador.is_(False)
 
     h_ano = sql_func.coalesce(
         sql_func.sum(Etapa.tvoo).filter(
@@ -125,6 +119,10 @@ async def list_sebo(
         .outerjoin(
             Etapa,
             Etapa.id == TripEtapa.etapa_id,
+        )
+        .outerjoin(
+            Missao,
+            Missao.id == Etapa.missao_id,
         )
         .where(
             Tripulante.active.is_(True),

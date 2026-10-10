@@ -25,6 +25,7 @@ from fcontrol_api.models.estatistica.etapa import (
     OIEtapa,
     TipoMissao,
 )
+from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.models.shared.aeronaves import Aeronave
 
 pytestmark = pytest.mark.anyio
@@ -151,10 +152,13 @@ async def test_org_ve_so_frota_e_horas_da_propria_org(client, cenario, token):
 
 
 async def test_outra_org_nao_ve_frota_nem_horas_alheias(
-    client, cenario, users, make_org_token
+    client, session, cenario, users, make_org_token
 ):
     """'1gt' vê só a '2860'; '2850' (C8) fica fora mesmo tendo voado p/ ela."""
     _, other = users
+    # Admin da '1gt': o vínculo sem org que o factory cria não passa no gate.
+    session.add(UserRole(user_id=other.id, role_id=1, organizacao_id='1gt'))
+    await session.commit()
     token_1gt = await make_org_token(other, active_org='1gt')
 
     resp = await client.get(
