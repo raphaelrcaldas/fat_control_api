@@ -87,7 +87,7 @@ async def test_orfaos_delete_nao_remove_de_outra_org(client, session, token):
     assert await session.get(Cartao, cartao.id) is not None
 
 
-# ── RBAC (recurso 'instrucao-cartoes') ─────────────────────────────
+# ── RBAC (recurso 'instrucao.cartoes') ─────────────────────────────
 
 
 @pytest.fixture
@@ -100,21 +100,21 @@ async def user_token_11gt(users, session, make_org_token):
 
 
 async def test_list_sem_view_403(client, user_token_11gt):
-    """Sem 'instrucao-cartoes.view' (e não-admin) a listagem é negada."""
+    """Sem 'instrucao.cartoes.view' (e não-admin) a listagem é negada."""
     _, tok = user_token_11gt
     resp = await client.get(URL, headers=_auth(tok))
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
 async def test_orfaos_sem_view_403(client, user_token_11gt):
-    """Sem 'instrucao-cartoes.view' o resumo de órfãos é negado."""
+    """Sem 'instrucao.cartoes.view' o resumo de órfãos é negado."""
     _, tok = user_token_11gt
     resp = await client.get(ORFAOS_URL, headers=_auth(tok))
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
 async def test_delete_orfaos_sem_delete_403(client, user_token_11gt):
-    """Sem 'instrucao-cartoes.delete' a limpeza de órfãos é negada."""
+    """Sem 'instrucao.cartoes.delete' a limpeza de órfãos é negada."""
     _, tok = user_token_11gt
     resp = await client.request(
         'DELETE', ORFAOS_URL, json={'user_ids': [1]}, headers=_auth(tok)
@@ -123,7 +123,7 @@ async def test_delete_orfaos_sem_delete_403(client, user_token_11gt):
 
 
 async def test_upsert_sem_permissao_403(client, session, user_token_11gt):
-    """Sem 'instrucao-cartoes.create'/'update' o upsert é negado."""
+    """Sem 'instrucao.cartoes.create'/'update' o upsert é negado."""
     other, tok = user_token_11gt
     trip = TripFactory(user_id=other.id, uae='11gt', func='pil')
     session.add(trip)
