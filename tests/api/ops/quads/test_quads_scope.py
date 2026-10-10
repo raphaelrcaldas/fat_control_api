@@ -10,7 +10,6 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy import select
 
-from fcontrol_api.models.security.resources import UserRole
 from fcontrol_api.models.shared.notificacao import Notificacao
 from fcontrol_api.models.shared.quads import Quad, QuadsGroup, QuadsType
 from tests.factories import QuadFactory, TripFactory, UserFactory
@@ -22,14 +21,6 @@ ORFAOS_URL = '/ops/quads/orfaos'
 
 def _auth(token):
     return {'Authorization': f'Bearer {token}'}
-
-
-@pytest.fixture
-async def admin_1gt_token(users, session, make_org_token):
-    _, other = users
-    session.add(UserRole(user_id=other.id, role_id=1, organizacao_id='1gt'))
-    await session.commit()
-    return await make_org_token(other, active_org='1gt')
 
 
 async def _mk_trip(session, *, uae, active):
