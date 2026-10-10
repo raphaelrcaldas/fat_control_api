@@ -16,11 +16,15 @@ from fcontrol_api.schemas.estatistica.tipo_missao import (
     TipoMissaoUpdate,
 )
 from fcontrol_api.schemas.response import ApiResponse
+from fcontrol_api.security import require_system_admin
 from fcontrol_api.utils.responses import success_response
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 TipoMissaoId = Annotated[int, Path()]
 
+# `TipoMissao` é doutrina global, sem `uae`: renomear um código reclassifica
+# as etapas de todas as organizações. Leitura livre (o editor de etapa e o
+# simulador precisam da lista); escrita só pelo admin de sistema.
 router = APIRouter(prefix='/tipo-missao', tags=['estatistica'])
 
 
@@ -38,6 +42,7 @@ async def list_tipos_missao(session: Session):
     '/',
     status_code=HTTPStatus.CREATED,
     response_model=ApiResponse[TipoMissaoPublic],
+    dependencies=[Depends(require_system_admin)],
 )
 async def create_tipo_missao(tipo_missao: TipoMissaoCreate, session: Session):
     existing = await session.scalar(
@@ -67,6 +72,7 @@ async def create_tipo_missao(tipo_missao: TipoMissaoCreate, session: Session):
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[TipoMissaoPublic],
+    dependencies=[Depends(require_system_admin)],
 )
 async def update_tipo_missao(
     id: TipoMissaoId,
@@ -111,6 +117,7 @@ async def update_tipo_missao(
     '/{id}',
     status_code=HTTPStatus.OK,
     response_model=ApiResponse[None],
+    dependencies=[Depends(require_system_admin)],
 )
 async def delete_tipo_missao(
     id: TipoMissaoId,
