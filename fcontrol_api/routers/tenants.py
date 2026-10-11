@@ -2,6 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -111,8 +112,9 @@ async def delete_tenant(organizacao_id: str, session: Session):
             detail='Tenant não encontrado',
         )
 
-    # FK RESTRICT em user_roles: não dá para remover um tenant que ainda
-    # possui vínculos de perfil. Antecipa um erro amigável.
+    # Perfis são o vínculo mais comum: mensagem própria. Os demais dados da
+    # unidade (tripulantes, missões, funções...) também seguram o tenant por
+    # FK RESTRICT e caem no 409 genérico abaixo.
     vinculo = await session.scalar(
         select(UserRole).where(UserRole.organizacao_id == organizacao_id)
     )
@@ -126,7 +128,17 @@ async def delete_tenant(organizacao_id: str, session: Session):
         )
 
     await session.delete(tenant)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Tenant possui dados vinculados (tripulantes, missões, '
+                'funções...). Remova-os antes de descadastrá-lo.'
+            ),
+        )
     return success_response(message='Tenant removido com sucesso')
 
 
@@ -207,10 +219,11 @@ async def add_tenant_projeto(
 async def remove_tenant_projeto(
     organizacao_id: str, id_projeto: str, session: Session
 ):
+    # O id do projeto é gravado em caixa alta; `c8` na URL acha o `C8`.
     vinculo = await session.scalar(
         select(TenantProjeto).where(
             TenantProjeto.uae == organizacao_id,
-            TenantProjeto.projeto == id_projeto,
+            TenantProjeto.projeto == id_projeto.strip().upper(),
         )
     )
     if not vinculo:

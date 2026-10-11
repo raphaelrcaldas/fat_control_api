@@ -91,7 +91,19 @@ async def update_organizacao(
             detail='Organização não encontrada',
         )
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    dados = body.model_dump(exclude_unset=True)
+    # A sigla de um tenant não muda: `user_roles` a referencia sem cascade
+    # (o banco recusava e a rota caía no 409 de sigla duplicada), e o
+    # `active_org` dos tokens emitidos e os brasões usam a sigla antiga.
+    if dados.get('sigla', sigla) != sigla and await session.get(Tenant, sigla):
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'A sigla de um tenant da plataforma não pode ser alterada.'
+            ),
+        )
+
+    for field, value in dados.items():
         setattr(org, field, value)
 
     try:
@@ -134,6 +146,18 @@ async def delete_organizacao(sigla: str, session: Session):
             ),
         )
 
+    # Usuários, feedbacks e notificações também seguram a org por FK
+    # RESTRICT: o banco recusa e a rota traduz em 409.
     await session.delete(org)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=(
+                'Organização em uso por usuários ou outros registros. '
+                'Remova os vínculos antes de excluí-la.'
+            ),
+        )
     return success_response(message='Organização removida com sucesso')

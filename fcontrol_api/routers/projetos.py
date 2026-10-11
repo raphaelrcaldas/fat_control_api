@@ -76,7 +76,8 @@ async def create_projeto(body: ProjetoCreate, session: Session):
 async def update_projeto(
     id_projeto: str, body: ProjetoUpdate, session: Session
 ):
-    projeto = await session.get(ProjetoAnv, id_projeto)
+    # O id é gravado em caixa alta; `c1` na URL acha o `C1`.
+    projeto = await session.get(ProjetoAnv, id_projeto.strip().upper())
     if not projeto:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
@@ -104,15 +105,16 @@ async def update_projeto(
     response_model=ApiResponse[None],
 )
 async def delete_projeto(id_projeto: str, session: Session):
-    projeto = await session.get(ProjetoAnv, id_projeto)
+    projeto = await session.get(ProjetoAnv, id_projeto.strip().upper())
     if not projeto:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail='Projeto não encontrado',
         )
 
-    # FK RESTRICT em aeronaves.projeto e tenant_projetos.projeto: não dá
-    # para remover um projeto ainda em uso. Antecipa erro amigável.
+    # Aeronaves (`aeronaves.projeto`), tripulantes (`tripulantes.proj`, pelo
+    # modelo) e organizações (`tenant_projetos`) seguram o projeto por FK: o
+    # banco recusa e a rota traduz o IntegrityError em 409.
     await session.delete(projeto)
     try:
         await session.commit()
@@ -121,7 +123,7 @@ async def delete_projeto(id_projeto: str, session: Session):
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
             detail=(
-                'Projeto em uso por aeronaves ou organizações. '
+                'Projeto em uso por aeronaves, tripulantes ou organizações. '
                 'Remova os vínculos antes de excluí-lo.'
             ),
         )

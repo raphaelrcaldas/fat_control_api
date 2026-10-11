@@ -16,6 +16,10 @@ class ProjetoCreate(BaseModel):
 
 
 class ProjetoUpdate(BaseModel):
+    # O id é a PK e não se renomeia: `id_projeto` no corpo é 422, não um
+    # 200 que ignora o campo em silêncio.
+    model_config = ConfigDict(extra='forbid')
+
     modelo: str = Field(min_length=1, max_length=20)
 
     _normaliza = field_validator('modelo', mode='before')(_caixa_alta)
@@ -30,3 +34,5 @@ class ProjetoOut(BaseModel):
 
 class TenantProjetoCreate(BaseModel):
     projeto: str = Field(min_length=2, max_length=2)
+
+    _normaliza = field_validator('projeto', mode='before')(_caixa_alta)
