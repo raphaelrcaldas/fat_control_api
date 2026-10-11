@@ -10,7 +10,7 @@ router: o teste não depende de MinIO, de `gs` nem de PDF real.
 """
 
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from http import HTTPStatus
 
 import pytest
@@ -1030,3 +1030,166 @@ async def test_delete_ata_inexistente_404(client, token, storage):
     resp = await client.delete(f'{URL}999999', headers=_auth(token))
 
     assert resp.status_code == HTTPStatus.NOT_FOUND
+
+
+# ── PATCH parcial ─────────────────────────────────────────────────
+
+
+async def test_patch_parcial_preserva_campos_omitidos(
+    client, session, token, militar, storage
+):
+    """Só o que vem no corpo muda: corrigir a letra não zera data nem
+    validade (antes o PATCH era substituição total e apagava os dois). O
+    CEMAL foi baixado à mão: corrigir a letra não reaplica a validade."""
+    ata = await _mk_ata(session, storage, militar.id)
+    await _mk_cartao(session, militar.id, date(2027, 1, 1))
+
+    resp = await client.patch(
+        f'{URL}{ata.id}',
+        json={'letra_finalidade': 'B'},
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    [depois] = await _atas(session, militar.id)
+    assert depois.letra_finalidade == 'B'
+    assert depois.data_realizacao == REALIZACAO
+    assert depois.validade_inspsau == VALIDADE
+    assert (await _cartao(session, militar.id)).cemal == date(2027, 1, 1)
+    [log] = await _logs(session, 'ata_update')
+    assert json.loads(log.before) == {'letra_finalidade': 'A'}
+    assert json.loads(log.after) == {'letra_finalidade': 'B'}
+
+
+async def test_patch_null_explicito_limpa_o_campo(
+    client, session, token, militar, storage
+):
+    ata = await _mk_ata(session, storage, militar.id)
+
+    resp = await client.patch(
+        f'{URL}{ata.id}',
+        json={'letra_finalidade': None},
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    [depois] = await _atas(session, militar.id)
+    assert depois.letra_finalidade is None
+    assert depois.validade_inspsau == VALIDADE
+
+
+async def test_patch_corpo_vazio_nao_altera_nada(
+    client, session, token, militar, storage
+):
+    ata = await _mk_ata(session, storage, militar.id)
+    await _mk_cartao(session, militar.id, date(2027, 1, 1))
+
+    resp = await client.patch(f'{URL}{ata.id}', json={}, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.OK
+    [depois] = await _atas(session, militar.id)
+    assert (
+        depois.letra_finalidade,
+        depois.data_realizacao,
+        depois.validade_inspsau,
+    ) == ('A', REALIZACAO, VALIDADE)
+    assert (await _cartao(session, militar.id)).cemal == date(2027, 1, 1)
+    assert await _logs(session, 'ata_update') == []
+
+
+async def test_patch_sem_mudanca_nao_da_409_por_copia_existente(
+    client, session, token, militar, storage
+):
+    """Duas atas iguais já gravadas (dado antigo ou corrida — a duplicata é
+    check-then-insert): reenviar os valores de uma delas não muda nada e
+    não pode responder 409."""
+    await _mk_ata(session, storage, militar.id)
+    copia = await _mk_ata(session, storage, militar.id)
+
+    resp = await client.patch(
+        f'{URL}{copia.id}',
+        json={'letra_finalidade': 'A'},
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+
+
+async def test_patch_parcial_checa_duplicata_pelo_estado_mesclado(
+    client, session, token, militar, storage
+):
+    """Trocar só a letra de B para A deixaria esta ata igual à outra (mesma
+    data e validade): a duplicata tem de olhar a ata como vai ficar, não o
+    corpo sozinho — que, com os demais campos nulos, não colide com nada."""
+    await _mk_ata(session, storage, militar.id)
+    outra = await _mk_ata(session, storage, militar.id, letra_finalidade='B')
+
+    resp = await client.patch(
+        f'{URL}{outra.id}',
+        json={'letra_finalidade': 'A'},
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.CONFLICT
+    [_, depois] = await _atas(session, militar.id)
+    assert depois.letra_finalidade == 'B'
+
+
+# ── Chave do objeto e falha pós-commit ────────────────────────────
+
+
+async def test_upload_no_mesmo_segundo_grava_objetos_distintos(
+    client, session, token, militar, storage, monkeypatch
+):
+    """Dois uploads do mesmo militar no mesmo segundo e com a mesma data de
+    realização (só a letra muda) caíam na mesma chave: o segundo PDF
+    sobrescrevia o primeiro e excluir uma ata apagava o arquivo da outra."""
+
+    # Relógio parado só no router (não `freeze_time`, que troca o
+    # `datetime` global e pode quebrar a montagem dos schemas do FastAPI).
+    class RelogioParado(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 10, 12, 0, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(atas, 'datetime', RelogioParado)
+    for letra in ('A', 'B'):
+        resp = await _enviar(
+            client,
+            token,
+            militar.id,
+            conteudo=_pdf(letra.encode()),
+            dados_confirmados=True,
+            conf_letra=letra,
+            conf_realizacao=REALIZACAO.isoformat(),
+            conf_validade=VALIDADE.isoformat(),
+        )
+        assert resp.status_code == HTTPStatus.CREATED
+
+    primeira, segunda = await _atas(session, militar.id)
+    assert primeira.file_path != segunda.file_path
+    assert storage[primeira.file_path] != storage[segunda.file_path]
+
+    resp = await client.delete(f'{URL}{primeira.id}', headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.OK
+    assert segunda.file_path in storage
+
+
+async def test_upload_falha_apos_o_commit_preserva_o_objeto(
+    client, session, token, militar, storage, extracao, monkeypatch
+):
+    """Depois do commit a linha existe e aponta para o objeto: uma falha
+    dali em diante (aqui, no `refresh`) não pode apagá-lo do storage, ou a
+    ata fica gravada apontando para um PDF inexistente."""
+
+    async def explode(*args, **kwargs):
+        raise RuntimeError('conexão caiu')
+
+    monkeypatch.setattr(session, 'refresh', explode)
+
+    with pytest.raises(RuntimeError, match='conexão caiu'):
+        await _enviar(client, token, militar.id)
+
+    [ata] = await _atas(session, militar.id)
+    assert list(storage) == [ata.file_path]

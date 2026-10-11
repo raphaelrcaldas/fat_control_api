@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import unicodedata
+import uuid
 from datetime import UTC, date, datetime
 from http import HTTPStatus
 from typing import Annotated, Literal
@@ -315,9 +316,13 @@ async def upload_ata(
     conteudo = await asyncio.to_thread(comprimir_pdf, conteudo)
     tamanho = len(conteudo)
 
-    # Upload para o bucket
+    # Upload para o bucket. O sufixo aleatório torna a chave única: só com o
+    # segundo, dois uploads do mesmo militar no mesmo segundo (e mesma data
+    # de realização) gravavam o mesmo objeto — o segundo sobrescrevia o
+    # primeiro, e excluir uma ata apagava o PDF da outra.
     timestamp = now.strftime('%Y%m%d_%H%M%S')
-    path = f'{ATAS_PREFIX}/{user_id}/{timestamp}_{file_name}'
+    sufixo = uuid.uuid4().hex[:8]
+    path = f'{ATAS_PREFIX}/{user_id}/{timestamp}_{sufixo}_{file_name}'
 
     await asyncio.to_thread(
         upload_file,
@@ -384,11 +389,14 @@ async def upload_ata(
         )
 
         await session.commit()
-        await session.refresh(ata)
     except Exception:
         logger.exception('Erro ao salvar ata no banco')
         await asyncio.to_thread(delete_file, BUCKET, path)
         raise
+
+    # Fora do `try`: depois do commit a linha existe e aponta para o objeto —
+    # uma falha aqui não pode mais apagá-lo do storage.
+    await session.refresh(ata)
 
     dados_extraidos = DadosExtraidos(
         nome_completo=dados['nome_completo'],
@@ -479,27 +487,34 @@ async def update_ata(
             detail='Ata não encontrada',
         )
 
+    # Parcial de verdade: só o que veio no corpo muda (`null` explícito
+    # limpa o campo); o omitido fica como está. Duplicata e CEMAL olham o
+    # estado MESCLADO — o corpo sozinho não diz como a ata vai ficar.
+    enviados = body.model_dump(exclude_unset=True)
+    campos = {
+        campo: enviados.get(campo, getattr(ata, campo))
+        for campo in (
+            'letra_finalidade',
+            'data_realizacao',
+            'validade_inspsau',
+        )
+    }
+
     # Impede que a edição transforme esta ata numa cópia de outra do mesmo
-    # militar (mesma checagem do upload, ignorando a própria ata).
-    if any((
-        body.letra_finalidade,
-        body.data_realizacao,
-        body.validade_inspsau,
-    )):
+    # militar (mesma checagem do upload, ignorando a própria ata). Só quando
+    # a chave muda: um PATCH sem efeito não leva 409 por cópias que já
+    # existiam (a checagem é check-then-insert, sem UNIQUE).
+    mudou = any(campos[c] != getattr(ata, c) for c in campos)
+    if mudou and any(campos.values()):
         await _verificar_duplicata(
             session,
             ata.user_id,
-            body.letra_finalidade,
-            body.data_realizacao,
-            body.validade_inspsau,
+            campos['letra_finalidade'],
+            campos['data_realizacao'],
+            campos['validade_inspsau'],
             exclude_id=ata.id,
         )
 
-    campos = {
-        'letra_finalidade': body.letra_finalidade,
-        'data_realizacao': body.data_realizacao,
-        'validade_inspsau': body.validade_inspsau,
-    }
     before_patch: dict = {}
     after_patch: dict = {}
     for campo, novo in campos.items():
@@ -514,8 +529,14 @@ async def update_ata(
         setattr(ata, campo, novo)
 
     # Atualiza o cemal apenas se esta validade for a mais recente.
-    efeito_cartao = await _upsert_cemal(
-        session, ata.user_id, body.validade_inspsau
+    # Só com a validade no corpo: corrigir a letra não é intenção de mexer
+    # no cartão — e o CEMAL também é editado à mão, então reaplicar a
+    # validade atual desfaria um ajuste manual.
+    validade = campos['validade_inspsau']
+    efeito_cartao = (
+        await _upsert_cemal(session, ata.user_id, validade)
+        if 'validade_inspsau' in enviados
+        else None
     )
 
     # Correção que não mudou nada não vira evento — mas o `_upsert_cemal`
@@ -534,8 +555,8 @@ async def update_ata(
             after={
                 **after_patch,
                 **(
-                    {'cemal': body.validade_inspsau.isoformat()}
-                    if efeito_cartao and body.validade_inspsau
+                    {'cemal': validade.isoformat()}
+                    if efeito_cartao and validade
                     else {}
                 ),
                 **(
