@@ -161,28 +161,29 @@ async def create_missao_with_etapas(
     persistido. tvoo eh Computed em SQL — nao enviamos no
     insert; o banco calcula via (arr - dep).
     """
-    # Verificar colisao entre etapas do proprio payload
-    for idx_a, idx_b in combinations(range(len(data.etapas)), 2):
-        ea, eb = data.etapas[idx_a], data.etapas[idx_b]
-        if ea.anv != eb.anv or ea.data != eb.data:
-            continue
-        start_a = ea.dep.hour * 60 + ea.dep.minute
-        end_a = ea.arr.hour * 60 + ea.arr.minute
-        if end_a == 0 and start_a > 0:
-            end_a = 1440
-        start_b = eb.dep.hour * 60 + eb.dep.minute
-        end_b = eb.arr.hour * 60 + eb.arr.minute
-        if end_b == 0 and start_b > 0:
-            end_b = 1440
-        if start_a < end_b and start_b < end_a:
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-                detail=(
-                    f'etapa[{idx_a}] e etapa[{idx_b}]: '
-                    f'colisao de aeronave ({ea.anv}) '
-                    f'em {ea.data.isoformat()}'
-                ),
-            )
+    if not data.is_simulador:
+        # Verificar colisao entre etapas do proprio payload.
+        for idx_a, idx_b in combinations(range(len(data.etapas)), 2):
+            ea, eb = data.etapas[idx_a], data.etapas[idx_b]
+            if ea.anv != eb.anv or ea.data != eb.data:
+                continue
+            start_a = ea.dep.hour * 60 + ea.dep.minute
+            end_a = ea.arr.hour * 60 + ea.arr.minute
+            if end_a == 0 and start_a > 0:
+                end_a = 1440
+            start_b = eb.dep.hour * 60 + eb.dep.minute
+            end_b = eb.arr.hour * 60 + eb.arr.minute
+            if end_b == 0 and start_b > 0:
+                end_b = 1440
+            if start_a < end_b and start_b < end_a:
+                raise HTTPException(
+                    status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f'etapa[{idx_a}] e etapa[{idx_b}]: '
+                        f'colisao de aeronave ({ea.anv}) '
+                        f'em {ea.data.isoformat()}'
+                    ),
+                )
 
     # Colisao de tripulante entre etapas do proprio payload.
     try:
@@ -223,14 +224,15 @@ async def create_missao_with_etapas(
                 session,
                 pairs=[(etapa_in.anv, data.is_simulador)],
             )
-            await assert_no_anv_collision(
-                session,
-                data=etapa_in.data,
-                anv=etapa_in.anv,
-                dep=etapa_in.dep,
-                arr=etapa_in.arr,
-                active_org=active_org,
-            )
+            if not data.is_simulador:
+                await assert_no_anv_collision(
+                    session,
+                    data=etapa_in.data,
+                    anv=etapa_in.anv,
+                    dep=etapa_in.dep,
+                    arr=etapa_in.arr,
+                    active_org=active_org,
+                )
             await assert_no_trip_collision(
                 session,
                 data=etapa_in.data,
@@ -387,13 +389,14 @@ async def update_missao_with_etapas(
         (f'update[{i}](id={e.id})', e.data, e.anv, e.dep, e.arr)
         for i, e in enumerate(payload.update)
     ]
-    try:
-        assert_no_internal_anv_collision(internal_etapas)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    if not missao.is_simulador:
+        try:
+            assert_no_internal_anv_collision(internal_etapas)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
 
     internal_trips: list[tuple[str, date, list[int], time, time]] = [
         (
@@ -458,39 +461,40 @@ async def update_missao_with_etapas(
                 detail=f'{label}: {exc}',
             ) from exc
 
-    pairs = {(e.data, e.anv) for _, e in payload_etapas}
-    candidates_by_key = await fetch_collision_candidates(
-        session,
-        pairs=pairs,
-        exclude_ids=exclude_ids,
-    )
-    for label, e in payload_etapas:
-        collision = find_collision(
-            candidates_by_key.get((e.data, e.anv), []),
-            dep=e.dep,
-            arr=e.arr,
+    if not missao.is_simulador:
+        pairs = {(e.data, e.anv) for _, e in payload_etapas}
+        candidates_by_key = await fetch_collision_candidates(
+            session,
+            pairs=pairs,
+            exclude_ids=exclude_ids,
         )
-        if collision is not None:
-            etapa_col, uae_col = collision
-            # Etapa de outra unidade: so a sigla da org, nunca id nem
-            # horario (ver docs/ai/notes/rbac-e-isolamento.md).
-            if uae_col == active_org:
-                detalhe = (
-                    f'{label}: colisao com etapa '
-                    f'#{etapa_col.id} '
-                    f'({etapa_col.dep.strftime("%H:%M")}-'
-                    f'{etapa_col.arr.strftime("%H:%M")}) '
-                    f'em {e.data.isoformat()}.'
-                )
-            else:
-                detalhe = (
-                    f'{label}: aeronave ja em uso por missao da '
-                    f'{uae_col.upper()} em {e.data.isoformat()}.'
-                )
-            raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-                detail=detalhe,
+        for label, e in payload_etapas:
+            collision = find_collision(
+                candidates_by_key.get((e.data, e.anv), []),
+                dep=e.dep,
+                arr=e.arr,
             )
+            if collision is not None:
+                etapa_col, uae_col = collision
+                # Etapa de outra unidade: so a sigla da org, nunca id nem
+                # horario (ver docs/ai/notes/rbac-e-isolamento.md).
+                if uae_col == active_org:
+                    detalhe = (
+                        f'{label}: colisao com etapa '
+                        f'#{etapa_col.id} '
+                        f'({etapa_col.dep.strftime("%H:%M")}-'
+                        f'{etapa_col.arr.strftime("%H:%M")}) '
+                        f'em {e.data.isoformat()}.'
+                    )
+                else:
+                    detalhe = (
+                        f'{label}: aeronave ja em uso por missao da '
+                        f'{uae_col.upper()} em {e.data.isoformat()}.'
+                    )
+                raise HTTPException(
+                    status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                    detail=detalhe,
+                )
 
     # Colisao de tripulante contra o DB (exclui as etapas do proprio
     # payload, que serao removidas/reescritas nesta transacao).

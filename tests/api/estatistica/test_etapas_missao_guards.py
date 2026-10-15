@@ -745,6 +745,120 @@ async def test_colisao_anv_com_outra_org_nao_vaza_etapa(
     assert '08:00' not in msg
 
 
+async def test_post_etapa_simulador_aceita_colisao_de_aeronave(
+    client, token, session, anvs
+):
+    missao_existente = await _mk_missao(session, is_simulador=True)
+    await _mk_etapa(
+        session,
+        missao_existente.id,
+        anv='9990',
+        dep=time(8, 0),
+        arr=time(9, 0),
+    )
+    missao_nova = await _mk_missao(session, is_simulador=True)
+    await session.commit()
+
+    payload = _pl_etapa('9990', '08:30', '09:30')
+    payload['missao_id'] = missao_nova.id
+
+    resp = await client.post(ETAPAS_URL, json=payload, headers=_auth(token))
+
+    assert resp.status_code == HTTPStatus.CREATED
+
+
+async def test_put_etapa_simulador_aceita_colisao_de_aeronave(
+    client, token, session, anvs
+):
+    missao_existente = await _mk_missao(session, is_simulador=True)
+    await _mk_etapa(
+        session,
+        missao_existente.id,
+        anv='9990',
+        dep=time(8, 0),
+        arr=time(9, 0),
+    )
+    missao_editada = await _mk_missao(session, is_simulador=True)
+    etapa = await _mk_etapa(
+        session,
+        missao_editada.id,
+        anv='9990',
+        dep=time(10, 0),
+        arr=time(11, 0),
+    )
+    await session.commit()
+
+    payload = _pl_etapa('9990', '08:30', '09:30')
+
+    resp = await client.put(
+        f'{ETAPAS_URL}{etapa.id}', json=payload, headers=_auth(token)
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+
+
+async def test_post_missao_simulador_aceita_colisoes_de_aeronave(
+    client, token, session, anvs
+):
+    missao_existente = await _mk_missao(session, is_simulador=True)
+    await _mk_etapa(
+        session,
+        missao_existente.id,
+        anv='9990',
+        dep=time(8, 0),
+        arr=time(9, 0),
+    )
+    await session.commit()
+
+    resp = await client.post(
+        f'{MISSAO_URL}with-etapas',
+        json={
+            'titulo': None,
+            'obs': None,
+            'is_simulador': True,
+            'etapas': [
+                _pl_etapa('9990', '08:30', '09:30'),
+                _pl_etapa('9990', '09:00', '10:00'),
+            ],
+        },
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
+
+
+async def test_put_missao_simulador_aceita_colisoes_de_aeronave(
+    client, token, session, anvs
+):
+    missao_existente = await _mk_missao(session, is_simulador=True)
+    await _mk_etapa(
+        session,
+        missao_existente.id,
+        anv='9990',
+        dep=time(8, 0),
+        arr=time(9, 0),
+    )
+    missao_editada = await _mk_missao(session, is_simulador=True)
+    await session.commit()
+
+    resp = await client.put(
+        f'{MISSAO_URL}{missao_editada.id}/with-etapas',
+        json={
+            'titulo': None,
+            'obs': None,
+            'delete_ids': [],
+            'update': [],
+            'create': [
+                _pl_etapa('9990', '08:30', '09:30'),
+                _pl_etapa('9990', '09:00', '10:00'),
+            ],
+        },
+        headers=_auth(token),
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+
+
 async def test_colisao_trip_com_outra_org_nao_vaza_etapa(
     client, token, session, anvs, trips, etapa_de_outra_org
 ):

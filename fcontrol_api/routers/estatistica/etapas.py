@@ -477,14 +477,15 @@ async def create_etapa(
             session,
             pairs=[(data.anv, missao.is_simulador)],
         )
-        await assert_no_anv_collision(
-            session,
-            data=data.data,
-            anv=data.anv,
-            dep=data.dep,
-            arr=data.arr,
-            active_org=active_org,
-        )
+        if not missao.is_simulador:
+            await assert_no_anv_collision(
+                session,
+                data=data.data,
+                anv=data.anv,
+                dep=data.dep,
+                arr=data.arr,
+                active_org=active_org,
+            )
         await assert_no_trip_collision(
             session,
             data=data.data,
@@ -699,15 +700,16 @@ async def update_etapa(
             session,
             pairs=[(new_anv, is_simulador)],
         )
-        await assert_no_anv_collision(
-            session,
-            data=new_data,
-            anv=new_anv,
-            dep=new_dep,
-            arr=new_arr,
-            active_org=active_org,
-            exclude_ids=[id],
-        )
+        if not is_simulador:
+            await assert_no_anv_collision(
+                session,
+                data=new_data,
+                anv=new_anv,
+                dep=new_dep,
+                arr=new_arr,
+                active_org=active_org,
+                exclude_ids=[id],
+            )
         await assert_no_trip_collision(
             session,
             data=new_data,
