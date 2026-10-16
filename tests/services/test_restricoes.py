@@ -16,7 +16,7 @@ def _por_codigo(**kwargs):
     }
 
 
-def test_cemal_vence_no_dia_seguinte_e_desadaptacao_comeca_no_dia_45():
+def test_cemal_vence_no_dia_seguinte_e_desadaptacao_comeca_no_dia_46():
     restricoes = _por_codigo(
         cemal=date(2026, 9, 7),
         ultimo_voo=date(2026, 7, 25),
@@ -26,7 +26,7 @@ def test_cemal_vence_no_dia_seguinte_e_desadaptacao_comeca_no_dia_45():
 
     assert restricoes['cemal_vencido'].inicio == date(2026, 9, 8)
     assert restricoes['cemal_vencido'].efeito == 'bloqueio'
-    assert restricoes['desadaptacao'].inicio == date(2026, 9, 8)
+    assert restricoes['desadaptacao'].inicio == date(2026, 9, 9)
     assert restricoes['desadaptacao'].efeito == 'aviso'
     assert all(item.fim is None for item in restricoes.values())
 

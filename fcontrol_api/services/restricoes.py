@@ -9,7 +9,8 @@ from sqlalchemy.future import select
 from fcontrol_api.models.shared.operacao import Operacao, OperacaoPessoal
 from fcontrol_api.schemas.restricoes import RestricaoDerivada
 
-DIAS_PARA_DESADAPTACAO = 45
+# O tripulante permanece adaptado durante 45 dias completos após o último voo.
+DIAS_PARA_DESADAPTACAO = 46
 FUNCOES_ISENTAS_DESADAPTACAO = frozenset({'oe', 'os'})
 
 # Operação cancelada não tira ninguém da unidade; planejada, em andamento e
